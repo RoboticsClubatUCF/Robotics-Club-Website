@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<!--  Website created by Alexandra French
+      For the Robotics Club of Central Florida
+      Created on August 5, 2020
+      Contact club: ucfroboticsclubnews@gmail.com
+                    robotics@ucf.edu
+
+      Last Updated on: August 6, 2020
+      Last Updated By: Alexandra French
+-->
+
+<html lang="en">
+
+<head>
+
+  <!-- bare minimum -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  <!-- icons -->
+  <link rel="icon" href="imgs/favicon.ico">
+  <link rel="roboskull icon" href="imgs/favicon.ico">
+  <link rel="mask-icon" href="imgs/favicon.ico" color="white">
+
+  <!-- Website Info -->
+  <title>Robotics Club of Central Florida</title>
+  <meta name="author" content="Alexandra French">
+  <meta name="description" content="The Robotics Club of Central Florida is a student powered club based on hands on work with
+                                    autonomous robotics. Current projects are a 15lb combat bot, an autonomous ground vehicle,
+                                    and a demonstrative bot.">
+  <meta name="keywords" content="UCF robotics club, University of Central Florida, UCF, robotics club, robotics club,
+                                 UCF robotics, UCF club, RSO, AUVSI, autonomous, SUAS, AHRS, IMU, i2C, ROS, ROS melodic,
+                                 melodic, linux, ubuntu, open source, opensource, engineering, mechanical,
+                                 mechanical engineering, electrical, eletrical engineering, computer, computers,
+                                 computer science, FOSS, undergraduate, graduate, operating system, vehicles, unmanned,
+                                 machine learning, computer vision, sensors, lidar, demobot, citrobot, Robotics Club of
+                                 Central Florida, central florida, robotics club">
+
+ <!-- verification of ownership -->
+ <meta name="google-site-verification" content="NDgsiRwy1o33-MY4WCiz7Fi69rFDe5iEHkB2cfptC8I" />
+
+ <!-- geotags -->
+ <meta name="ICBM" content="28.585626, -81.199236">
+ <meta name="geo.position" content="28.585626;-81.199236">
+ <meta name="geo.region" content="US-FL">
+ <meta name="geo.placename" content="Orlando">
+
+  <!-- Bootstrap -->
+  <link href="rsrc/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- Page styles -->
+  <link href="css/global-styles.css" rel="stylesheet">
+  <link href="css/about.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-clear fixed-top text-right">
+    <div class="container">
+      <!-- logo and name -->
+        <a class="navbar-brand" href="index.html">
+          <div class="nav-img">
+            <img src="imgs/header/roboskull-white.png" alt="club logo white">
+            <img class="overlay" src="imgs/header/roboskull-gold.png" alt="club logo gold">
+            <div class="d-none d-md-block" id="nav-logo-text">Robotics Club of Central Florida</div>
+            <div class="d-none d-block d-md-none">&nbsp;</div>
+          </div>
+        </a>
+        <!-- navigation links -->
+      <button class="navbar-toggler navbar-toggler-right" type="button" data-toggle="collapse" data-target="#navbarResponsive" aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarResponsive">
+        <ul class="navbar-nav ml-auto">
+            <li class="nav-item">
+            <a class="nav-link" href="about.html">About</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="projects-current.html">Projects</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="events.html">Announcements</a>
+          </li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownPages" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              News
+            </a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdownPages">
+              <a class="dropdown-item" href="social-media.html">Social Media Feed</a>
+              <a class="dropdown-item" href="newsletter.html">Newsletter</a>
+              <a class="dropdown-item" href="https://us11.campaign-archive.com/home/?u=ba5c2944886feb2964a80fe11&id=e63d752fa6">News Archive</a>
+            </div>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="sponsors.html">Sponsors</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="faq.html">FAQ</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="contact.html">Contact</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+  <!-- /.navbar -->
+
+  <!-- Page Content -->
+  <div class="container">
+
+    <!-- about the club -->
+    <div class="header-container-med">
+      <div class="row">
+        <!-- ness -->
+        <div class="col-lg-6">
+          <img class="img-fluid rounded mb-4" src="imgs/about/header-1.png" alt="ness">
+        </div>
+        <!-- about info -->
+        <div class="col-lg-6">
+          <h1 class="rounded text-center p-2 title-blk-gold">About the Club</h1>
+          <div class="p-3">
+            <p>The Robotics Club of Central Florida is full of devoted members, both undergraduate and graduate,
+               working towards furthering the field of robotics.
+             </p>
+            <p>We are entirely student run with the guidance of our advisor, Crystal Maraj.</p>
+            <p>New members of any major and year are always welcome!</p>
+            </div>
+        </div>
+      </div>
+    </div>
+    <!-- /.about the club -->
+
+    <!-- mission statement  and video -->
+    <div class="intermediate-container-med">
+      <!-- mission -->
+      <h2 class="rounded p-1 title-blk-wht">&nbsp;Our Mission</h2>
+      <div class="row">
+        <div class="col-lg-6 mb-3">
+          <p>The Robotics Club of Central Florida aims to further both ourselves and
+            the field of robotics through our challenging and innovative projects. We
+            value teamwork, perserverence, and having fun.
+          </p>
+          <p>We are currently working on three projects:
+            <a href="bowser.html">Bowser</a>, an autonomous ground vehicle,
+            <a href="citrobot.html">Citrobot</a>, a 15lb combat robot, and
+            <a href="demobot.html">Demobot</a>, a demonstrative robot.</p>
+        </div>
+        <!-- youtube -->
+        <div class="col-lg-6 mb-3">
+            <div class="youtube-embed">
+            <iframe class="embed-responsive embed-responsive" src="http://www.youtube.com/embed/YrO4ms-1Zak" frameborder="0" allowfullscreen></iframe>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- /.mission -->
+
+    <!-- officers -->
+    <div class="intermediate-container-med">
+      <h2 class="rounded p-1 text-center title-blk-gold">Our Officers</h2>
+
+      <!-- row 1 (president & vice president) -->
+      <div class="row">
+        <div class="col-lg mb-3">
+          <div class="card h-100 text-center">
+            <img class="card-img-top" src="imgs/about/sal.png" alt="president sal">
+            <div class="card-body">
+              <h4 class="card-title">Salomon Hassidoff</h4>
+              <h6 class="card-subtitle mb-2">President</h6>
+              <p class="card-text">Our president since Fall 2019.</p>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg mb-3">
+          <div class="card h-100 text-center">
+            <img class="card-img-top" src="imgs/about/alan.png" alt="vice president alan">
+            <div class="card-body">
+              <h4 class="card-title">Alan Mark</h4>
+              <h6 class="card-subtitle mb-2">Vice President</h6>
+              <p class="card-text">Vice president since Fall 2019.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- /.row 1 -->
+      <!-- row 2 (treasurer, webmaster, secretary)-->
+      <div class="row">
+        <div class="col-lg mb-4">
+          <div class="card h-100 text-center">
+            <img class="card-img-top" src="imgs/about/wesley.png" alt="treasurer wesley">
+            <div class="card-body">
+              <h4 class="card-title">Wesley Fletcher</h4>
+              <h6 class="card-subtitle mb-2">Treasurer</h6>
+              <p class="card-text">Keeps track of finances and club documents.</p>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg mb-4">
+          <div class="card h-100 text-center">
+            <img class="card-img-top" src="imgs/about/french.png" alt="webmaster french">
+            <div class="card-body">
+              <h4 class="card-title">Alexandra French</h4>
+              <h6 class="card-subtitle mb-2">Webmaster</h6>
+              <p class="card-text">Created and manages both the website and social media.</p>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg mb-4">
+          <div class="card h-100 text-center">
+            <img class="card-img-top" src="imgs/about/marc.png" alt="secretary marc">
+            <div class="card-body">
+              <h4 class="card-title">Marc Simmonds</h4>
+              <h6 class="card-subtitle mb-2">Secretary</h6>
+              <p class="card-text">Keeps tabs on meetings and club activities.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- /.row 2 -->
+      <!-- row 3 (lab manager and marketing/pr) -->
+      <div class="row">
+        <div class="col-lg mb-4">
+          <div class="card h-100 text-center">
+            <img class="card-img-top" src="imgs/about/dwight.png" alt="lab manager dwight">
+            <div class="card-body">
+              <h4 class="card-title">Dwight Howard</h4>
+              <h6 class="card-subtitle mb-2">Lab Manager</h6>
+              <p class="card-text">Ensures lab safety and organization.</p>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg mb-4">
+          <div class="card h-100 text-center">
+            <img class="card-img-top" src="imgs/about/azeem.png" alt="marketing azeem">
+            <div class="card-body">
+              <h4 class="card-title">Azeem Barton</h4>
+              <h6 class="card-subtitle mb-2">Marketing & PR</h6>
+              <p class="card-text">Creates our logos, merch, and otherwise art related.</p>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg mb-4">
+          <div class="card h-100 text-center">
+            <img class="card-img-top" src="imgs/about/sheina.png" alt="marketing sheina">
+            <div class="card-body">
+              <h4 class="card-title">Sheina Rodriguez</h4>
+              <h6 class="card-subtitle mb-2">Marketing & PR</h6>
+              <p class="card-text">Creates our logos, merch, and otherwise art related.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- /.row 3 -->
+    </div>
+    <!-- officers -->
+
+    <!-- advisors -->
+    <div class="intermediate-container-med">
+      <h2 class="rounded p-1 text-center title-blk-wht">Our Advisors</h2>
+      <!-- row 1 (main advisor) -->
+      <div class="row">
+        <div class="col-lg mb-4">
+          <div class="card h-100 text-center">
+            <img class="card-img-top" src="imgs/about/crystal.png" alt="club advisor maraj">
+            <div class="card-body">
+              <h4 class="card-title">Crystal Maraj</h4>
+              <h6 class="card-subtitle mb-2">Faculty Advisor</h6>
+              <p class="card-text">Our main advisor for everything club related.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- /.row1 -->
+      <!-- row 2 (discipline specific advisors) -->
+      <div class="row">
+        <div class="col-lg mb-4">
+          <div class="card h-100 text-center">
+            <img class="card-img-top" src="imgs/about/chan.png" alt="electrical advisor chan">
+            <div class="card-body">
+              <h4 class="card-title">ChungYong Chan</h4>
+              <h6 class="card-subtitle mb-2">Electrical Advisor</h6>
+              <p class="card-text">Advises us on everything electrical.</p>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg mb-4">
+          <div class="card h-100 text-center">
+            <img class="card-img-top" src="imgs/about/park.png" alt="mechanical advisor park">
+            <div class="card-body">
+              <h4 class="card-title">Joon Park</h4>
+              <h6 class="card-subtitle mb-2">Mechanical Advisor</h6>
+              <p class="card-text">Advises us on all mechanical knowledge.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- /.row2 -->
+    </div>
+    <!--- advisors -->
+
+    <!-- members -->
+    <h2 class="rounded p-1 text-center title-blk-gold">Our Members</h2>
+    <p></p>
+    <div class="row align-items-center justify-content-center">
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-gold">
+        <p>Ailan Aitzhanov</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-wht">
+        <p>Alex Damis</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-gold">
+        <p>Alex Ravelo</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-wht">
+        <p>Alexandra French</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-gold">
+        <p>Alyssa Feagans</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-wht">
+        <p>Andrew O'Reilly</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-gold">
+        <p>Andrew Obeso</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-wht">
+        <p>Ashley Wood</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-gold">
+        <p>Chad Pauley</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-wht">
+        <p>Darien Craig</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-gold">
+        <p>Don Vo</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-wht">
+        <p>Dwight Howard, II</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-gold">
+        <p>Eric Baker</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-wht">
+        <p>Justin Couch</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-gold">
+        <p>Jonathan Conrad</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-wht" >
+        <p>Kenny Alvarez</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-gold">
+        <p>Lucas Heredia</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-wht">
+        <p>Marcus Simmonds</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-gold">
+        <p>Michael Ruiz</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-wht">
+        <p>Nathaniel Woodard</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-gold">
+        <p>Pedro D. Bautista</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-wht">
+        <p>Rosa Soriano</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-gold">
+        <p>Salomon Hassidoff</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-wht">
+        <p>Sandhya Singh</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-gold">
+        <p>Sergio Gonzalez</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-wht">
+        <p>Shehryar Dawood</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-gold">
+        <p>Sheina Rodriguez</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-wht">
+        <p>Tan Thu</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-gold">
+        <p>Victor Petrillo</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-wht">
+        <p>Wesley Fletcher</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-wht">
+        <p>Zaina Aljallad</p>
+      </div>
+    </div>
+    <!-- /.members -->
+
+  </div>
+  <!-- /.container -->
+
+  <!-- Footer -->
+  <footer class="py-3 bg-clear">
+    <div class="container">
+      <div class="row">
+        <p class="col-lg-4 m-0 text-center text-white">Copyright &copy; 2003-2020
+          <br> Robotics Club of Central Florida
+        </p>
+        <p class="col-lg-4 text-center text-white">3100 Technology Parkway
+          <br>Orlando, FL 32826
+        </p>
+        <p class="col-lg-4 text-center text-white">
+          <a href="https://facebook.com/RoboticsClub"><img src="imgs/footer/facebook.png"></a>
+          <a href="https://instagram.com/RoboticsClubCFl"><img src="imgs/footer/instagram.png"></a>
+          <a href="https://twitter.com/RoboticsClubCFl"><img src="imgs/footer/twitter.png"></a>
+          <a href="https://www.youtube.com/channel/UCZEPdNUFzkciC7MIiI-yPKg"><img src="imgs/footer/youtube.png"></a>
+        </p>
+      </div>
+    </div>
+    <!-- /.container -->
+  </footer>
+  <!-- /.footer -->
+
+  <!-- Bootstrap -->
+  <script src="rsrc/jquery/jquery.min.js"></script>
+  <script src="rsrc/bootstrap/js/bootstrap.bundle.min.js"></script>
+
+</body>
+
+</html>

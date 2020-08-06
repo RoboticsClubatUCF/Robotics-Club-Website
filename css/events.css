@@ -1,0 +1,60 @@
+/* Announcements & Events styles
+Created by: Alexandra French
+For: the Robotics Club of Central Florida
+On: August 5, 2020*/
+
+
+/* Event cards for the main page, alternating */
+.card-1 .card-body {
+  background-color: #212121;
+  color: #f1f0ea;
+}
+
+.card-1 .card-text a:hover {
+  color: #f1f0ea;
+}
+
+.card-1 .card-title {
+  color: #f0cc03;
+}
+
+.card-1 .card-footer {
+  background-color:#383838;
+  color: #f1f0ea;
+}
+
+.card-2 .card-body {
+  background-color: #e3e2e1;
+  color: #212121;
+}
+
+.card-2 .card-text a:hover {
+  color: #f0cc03;
+}
+
+.card-2 .card-footer {
+  background-color:#d4d3d2;
+  color: #212121;
+}
+
+.card-3 .card-body {
+ background-color: #212121;
+ color: #f0cc03;
+}
+.card-3 .card-body a:hover {
+  color: #f1f0ea;
+}
+
+.card-3 .card-title {
+  color: #f1f0ea;
+}
+
+.card-3 .card-header {
+  background-color:#383838;
+  color: #f1f0ea;
+}
+
+/* Individual post bodies for subpages */
+.post-body {
+  background-color: #e6e4df;
+}

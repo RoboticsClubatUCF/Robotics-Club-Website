@@ -1,0 +1,17 @@
+/* Projects page styles (pages that list projects)
+Created by: Alexandra French
+For: the Robotics Club of Central Florida
+On: August 5, 2020*/
+
+/* Bodies for each project */
+.project-body-gray-gold {
+  background-color: #212121;
+  color: #f1f0ea;
+}
+
+.project-body-creame-black {
+  border-width:3px !important;
+  border-color: #212121 !important;
+  background-color: #f1f0ea;
+  color: #212121;
+}

@@ -1,0 +1,233 @@
+/* Styles for the homepage/index page
+Created by: Alexandra French
+For: the Robotics Club of Central Florida
+On: August 5, 2020*/
+
+/* CAROUSEL STYLES*/
+.carousel-item {
+  height: 45vh;
+  min-height: 300px;
+  background: no-repeat center center scroll;
+  -webkit-background-size: cover;
+  -moz-background-size: cover;
+  -o-background-size: cover;
+  background-size: cover;
+}
+
+.carousel-caption h3 {
+  color: #C39A00;
+  text-shadow: 0px 5px 0px #212121;
+  text-emphasis: bold;
+  font-size: 80px;
+}
+
+/* titles */
+.idx-title {
+  color: #C39A00;
+  text-shadow: 0px 1px 0px #212121;
+}
+
+/* calendar fixes*/
+.fix-calendar iframe
+{
+  height: 300px;
+  width: 100%;
+  display: flex;
+}
+
+/* Project overlays and cards */
+.card-clear {
+  background-color: #f1f0ea;
+  border: none;
+}
+
+.overlay-container {
+  position: relative;
+}
+
+.card-img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.card-img-overlay {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 100%;
+  width: 100%;
+  opacity: 0;
+  transition: .5s ease;
+  background-color: #212121;
+  color:#f1f0ea;
+}
+
+.overlay-container:hover .card-img-overlay,
+.overlay-container:focus .card-img-overlay {
+  opacity: .8;
+}
+
+.card-overlay{
+  position: absolute;
+  top:50%;
+  left:50%;
+  -webkit-transform: translate(-50%, -50%);
+  -ms-transform: translate(-50%, -50%);
+  transform: translate(-50%, -50%);
+}
+
+
+/* card overlays */
+#join-grid {
+  background-color: #f5fcfc;
+  border: none;
+  color: #212121;
+}
+
+#follow-grid {
+  background-color: #212121;
+  border: none;
+  color:#f5fcfc;
+}
+
+#visit-grid {
+  background-color: #f5fcfc;
+  border: none;
+  color: #212121;
+}
+
+#contact-grid {
+  background-color: #212121;
+  border: none;
+  color:#f5fcfc;
+}
+
+.grid-container {
+  position: relative;
+}
+
+.grid-body {
+  display: block;
+  height: 400px;
+  width: auto;
+}
+
+.grid-body h2 {
+  padding-top:180px;
+  font-size: 48px;
+}
+
+.grid-body-overlay {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 100%;
+  width: 100%;
+  opacity: 0;
+  transition: .5s ease;
+}
+
+/* disables links until overlay */
+.grid-body-overlay a {
+  pointer-events: none;
+  color: #f1f0ea;
+}
+
+.grid-container:hover .grid-body-overlay,
+.grid-container:focus .grid-body-overlay {
+  opacity: 1;
+}
+
+.grid-overlay {
+  position: absolute;
+  top:50%;
+  left:50%;
+  -webkit-transform: translate(-50%, -50%);
+  -ms-transform: translate(-50%, -50%);
+  transform: translate(-50%, -50%);
+}
+
+.grid-overlay img {
+  padding: 10px 25px;
+}
+
+/* overlay colors and ids for each grid point*/
+#join-overlay {
+  background-color: #212121;
+  color:#f5fcfc;
+}
+
+#join-overlay a {
+  color: #C39A00;
+  text-decoration-color: #f5fcfc;
+}
+
+#follow-overlay {
+  background-color: #f5fcfc;
+  color: #212121;
+}
+
+#contact-overlay {
+  background-color: #f5fcfc;
+  color: #212121;
+}
+
+#contact-overlay a {
+  color: #C39A00;
+  text-decoration-color: #212121;
+}
+
+#visit-overlay {
+  background-color: #212121;
+  color: #f1f0ea;
+}
+
+/* fixes up the map */
+.map-container{
+  overflow:hidden;
+  position:relative;
+  height: 400px;
+}
+
+.map-container iframe {
+  pointer-events: none;
+}
+
+.map-container:hover iframe,
+.map-container:focus iframe {
+  height: 400px;
+  width: 100%;
+  pointer-events: auto;
+}
+
+/*-------------- Code for different device sizes --------------*/
+
+/* if too small, swap the grid colors for contact us and visit us due to realignment */
+@media only screen and (max-width: 992px) {
+  #visit-grid {
+    background-color: #212121;
+    border: none;
+    color:#f1f0ea;
+  }
+
+  #contact-grid {
+    background-color: #f5fcfc;
+    border: none;
+    color: #212121;
+  }
+
+  #contact-overlay {
+    background-color: #212121;
+    color: #f1f0ea;
+  }
+
+  #visit-overlay {
+    background-color: #f5fcfc;
+    color: #212121;
+  }
+}

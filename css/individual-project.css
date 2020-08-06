@@ -1,0 +1,22 @@
+/* Styles for individual projects under the projects page
+Created by: Alexandra French
+For: the Robotics Club of Central Florida
+On: August 5, 2020*/
+
+/* BOWSER - CAROUSEL STYLES*/
+.carousel-item {
+  height: 50vh;
+  min-height: 300px;
+  background: no-repeat center center scroll;
+  -webkit-background-size: cover;
+  -moz-background-size: cover;
+  -o-background-size: cover;
+  background-size: cover;
+}
+
+.carousel-caption h3 {
+  color: #C39A00;
+  text-shadow: 0px 5px 0px #212121;
+  text-emphasis: bold;
+  font-size: 80px;
+}

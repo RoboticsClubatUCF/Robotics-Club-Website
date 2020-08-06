@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<!--  Website created by Alexandra French
+      For the Robotics Club of Central Florida
+      Created on August 5, 2020
+      Contact club: ucfroboticsclubnews@gmail.com
+                    robotics@ucf.edu
+-->
+
+<html lang="en">
+
+<head>
+
+  <!-- bare minimum -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  <!-- icons -->
+  <link rel="icon" href="imgs/favicon.ico">
+  <link rel="roboskull icon" href="imgs/favicon.ico">
+  <link rel="mask-icon" href="imgs/favicon.ico" color="white">
+
+  <!-- Website Info -->
+  <title>Robotics Club of Central Florida</title>
+  <meta name="author" content="Alexandra French">
+  <meta name="description" content="The Robotics Club of Central Florida is a student powered club based on hands on work with
+                                    autonomous robotics. Current projects are a 15lb combat bot, an autonomous ground vehicle,
+                                    and a demonstrative bot.">
+  <meta name="keywords" content="UCF robotics club, University of Central Florida, UCF, robotics club, robotics club,
+                                 UCF robotics, UCF club, RSO, AUVSI, autonomous, SUAS, AHRS, IMU, i2C, ROS, ROS melodic,
+                                 melodic, linux, ubuntu, open source, opensource, engineering, mechanical,
+                                 mechanical engineering, electrical, eletrical engineering, computer, computers,
+                                 computer science, FOSS, undergraduate, graduate, operating system, vehicles, unmanned,
+                                 machine learning, computer vision, sensors, lidar, demobot, citrobot, Robotics Club of
+                                 Central Florida, central florida, robotics club">
+
+ <!-- verification of ownership -->
+ <meta name="google-site-verification" content="NDgsiRwy1o33-MY4WCiz7Fi69rFDe5iEHkB2cfptC8I" />
+
+ <!-- geotags -->
+ <meta name="ICBM" content="28.585626, -81.199236">
+ <meta name="geo.position" content="28.585626;-81.199236">
+ <meta name="geo.region" content="US-FL">
+ <meta name="geo.placename" content="Orlando">
+
+  <!-- Bootstrap -->
+  <link href="rsrc/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- Page styles -->
+  <link href="css/global-styles.css" rel="stylesheet">
+  <link href="css/individual-project.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar fixed-top navbar-expand-lg navbar-dark bg-clear fixed-top text-right">
+    <div class="container">
+      <!-- logo and name -->
+        <a class="navbar-brand" href="index.html">
+          <div class="nav-img">
+            <img src="imgs/header/roboskull-white.png" alt="club logo white">
+            <img class="overlay" src="imgs/header/roboskull-gold.png" alt="club logo gold">
+            <div class="d-none d-md-block" id="nav-logo-text">Robotics Club of Central Florida</div>
+            <div class="d-none d-block d-md-none">&nbsp;</div>
+          </div>
+        </a>
+        <!-- navigation links -->
+      <button class="navbar-toggler navbar-toggler-right" type="button" data-toggle="collapse" data-target="#navbarResponsive" aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarResponsive">
+        <ul class="navbar-nav ml-auto">
+            <li class="nav-item">
+            <a class="nav-link" href="about.html">About</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="projects-current.html">Projects</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="events.html">Announcements</a>
+          </li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownPages" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              News
+            </a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdownPages">
+              <a class="dropdown-item" href="social-media.html">Social Media Feed</a>
+              <a class="dropdown-item" href="newsletter.html">Newsletter</a>
+              <a class="dropdown-item" href="https://us11.campaign-archive.com/home/?u=ba5c2944886feb2964a80fe11&id=e63d752fa6">News Archive</a>
+            </div>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="sponsors.html">Sponsors</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="faq.html">FAQ</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="contact.html">Contact</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+  <!-- /.navbar -->
+
+
+<!-- page header -->
+  <header>
+    <!-- slideshow -->
+    <div id="carouselIndicators" class="carousel slide" data-ride="carousel" data-interval="false">
+      <ol class="carousel-indicators">
+        <li data-target="#carouselIndicators" data-slide-to="0" class="active"></li>
+        <li data-target="#carouselIndicators" data-slide-to="1"></li>
+        <li data-target="#carouselIndicators" data-slide-to="2"></li>
+      </ol>
+      <div class="carousel-inner" role="listbox">
+        <!-- Slide One -->
+        <div class="carousel-item active" style="background-image: url('imgs/projects/bowser/bowser-slide.png')" alt="Bowser">
+          <div class="carousel-caption d-none d-md-block">
+            <h3>Bowser</h3>
+          </div>
+        </div>
+        <!-- Slide Two -->
+        <div class="carousel-item" style="background-image: url('imgs/projects/bowser/computer-slide.png')" alt="Computer">
+          <div class="carousel-caption d-none d-md-block">
+            <h3>Computer Vision</h3>
+          </div>
+        </div>
+        <!-- Slide Three -->
+        <div class="carousel-item" style="background-image: url('imgs/projects/bowser/electrical-slide.png')" alt="Electrical Components">
+          <div class="carousel-caption d-none d-md-block">
+            <h3>Electrical Overhaul</h3>
+          </div>
+        </div>
+      </div>
+      <a class="carousel-control-prev" href="#carouselIndicators" role="button" data-slide="prev">
+            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+            <span class="sr-only">Previous</span>
+      </a>
+      <a class="carousel-control-next" href="#carouselIndicators" role="button" data-slide="next">
+            <span class="carousel-control-next-icon" aria-hidden="true"></span>
+            <span class="sr-only">Next</span>
+      </a>
+    </div>
+  <!-- /.slideshow -->
+  </header>
+  <!-- ./page header -->
+
+
+  <!-- Page Content -->
+  <div class="container">
+
+    <!-- vision -->
+    <div class="header-container-med">
+      <h2 class="p-2 text-center rounded title-blk-wht">Our Vision</h2>
+      <div class="row">
+        <!-- goals -->
+        <div class="col-lg-6 text-center rounded">
+          <h5 class="p-2 text-center rounded title-gry-gold">Goals</h5>
+          <p>• Achieve terrain mapping.</p>
+          <p>• Detect and avoid objects.</p>
+          <p>• Accurately simulate movement through course.</p>
+          <p>• Overhaul the electrical workup to get ~5mph speed.</p>
+        </div>
+        <!-- competition -->
+        <div class="col-lg-6 text-center rounded">
+          <h5 class="p-2 text-center rounded title-gry-gold">Competition</h5>
+          <p>We are aiming to compete in IGVC 2021.</p>
+          <p class="text-center"><br>Have a local competition?
+            <a href="https://discord.gg/ypWpanw">Let us know!</a></p>
+        </div>
+      </div>
+    </div>
+    <!-- /.vision -->
+
+    <!-- team -->
+    <div class="intermediate-container-med">
+      <h3 class="p-2 text-center rounded title-blk-wht">The Team</h3>
+      <div class="row no-gutters">
+
+        <!-- team image -->
+        <div class="col-md-7">
+          <img class="img-fluid" src="imgs/place-holder-760x550.png" alt="Team Bowser">
+        </div>
+
+        <!-- about test -->
+        <div class="col-md-5 rounded container-gray-gold p-2">
+          <h3 class="my-3 title-gold">About Bowser</h3>
+          <p> Bowser is the newest member of our autonomous robots. We have focused on an
+              at least one autonomous robot for the past 5 years. This year, Bowser will
+              focus on quickly and effectively completing obstacle courses full of
+              obstructions.
+          </p>
+
+          <br>
+
+          <h3 class="my-3 title-gold">View Our <a href="https://github.com/RoboticsClubatUCF/Bowser">Open Source Code</a></h3>
+          <ul>
+            <li>Computer Vision</li>
+            <li>Object Detection</li>
+            <li>Simulations</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <!-- /.team -->
+
+
+    <!-- Team Leads -->
+    <div class="intermediate-container-med">
+      <h3 class="my-4 p-2 text-center rounded title-blk-gold">Team Leads</h3>
+
+      <div class="row align-items-center justify-content-center">
+        <!-- software -->
+        <div class="col-md-3 col-sm-6 mb-4">
+          <img class="img-fluid" src="imgs/place-holder-500x300.png" alt="software lead">
+          <h5 class="text-center">TBD</h4>
+          <p class="text-center title-drk-gold">Software Team Lead</p>
+        </div>
+        <!-- mechanical -->
+        <div class="col-md-3 col-sm-6 mb-4">
+          <img class="img-fluid" src="imgs/place-holder-500x300.png" alt="mechanical lead">
+          <h5 class="text-center">TBD</h4>
+          <p class="text-center title-drk-gold">Mechanical Team Lead</p>
+        </div>
+        <!-- electrical -->
+        <div class="col-md-3 col-sm-6 mb-4">
+          <img class="img-fluid" src="imgs/place-holder-500x300.png" alt="">
+          <h5 class="text-center">TBD</h4>
+          <p class="text-center title-drk-gold">Electrical Team Lead</p>
+        </div>
+      </div>
+    </div>
+    <!-- /.team leads -->
+
+    <!-- Team members -->
+    <h3 class="my-4 p-2 text-center rounded title-blk-wht">Team Members</h3>
+    <div class="row align-items-center justify-content-center space-between">
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-gold">
+        <p>Salomon Hassidoff</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-wht">
+        <p>Alan Mark</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-gold">
+        <p>Alexandra French</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-wht">
+        <p>Jade Zsiros</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-gold">
+        <p>Carole Pearson</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-wht">
+        <p>Brian Blalock</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-gold">
+        <p>Dwight Howard</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-wht">
+        <p>Marc Simmonds</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-gold">
+        <p>Darien Criag</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-wht">
+        <p>Wesley Fletcher</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-gold">
+        <p>Don Heinz</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-wht">
+        <p>Jonathan Conrad</p>
+      </div>
+    </div>
+    <!-- /.team members -->
+
+  </div>
+  <!-- /.container -->
+
+  <!-- Footer -->
+  <footer class="py-2 bg-clear footer">
+    <div class="container">
+      <div class="row">
+        <p class="col-lg-4 m-0 text-center text-white">Copyright &copy; 2003-2020
+          <br> Robotics Club of Central Florida
+        </p>
+        <p class="col-lg-4 text-center text-white">3100 Technology Parkway
+          <br>Orlando, FL 32826
+        </p>
+        <p class="col-lg-4 text-center text-white">
+          <a href="https://facebook.com/RoboticsClub"><img src="imgs/footer/facebook.png"></a>
+          <a href="https://instagram.com/RoboticsClubCFl"><img src="imgs/footer/instagram.png"></a>
+          <a href="https://twitter.com/RoboticsClubCFl"><img src="imgs/footer/twitter.png"></a>
+          <a href="https://www.youtube.com/channel/UCZEPdNUFzkciC7MIiI-yPKg"><img src="imgs/footer/youtube.png"></a>
+        </p>
+      </div>
+    </div>
+    <!-- /.container -->
+  </footer>
+  <!-- /.footer -->
+
+  <!-- Bootstrap -->
+  <script src="rsrc/jquery/jquery.min.js"></script>
+  <script src="rsrc/bootstrap/js/bootstrap.bundle.min.js"></script>
+
+</body>
+
+</html>

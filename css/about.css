@@ -1,0 +1,14 @@
+/* About Us page styles
+Created by: Alexandra French
+For: the Robotics Club of Central Florida
+On: August 5, 2020*/
+
+/* ABOUT CARD STYLES */
+.card-body {
+  background-color: #212121;
+  color: #f1f0ea;
+}
+
+.card-subtitle {
+  color: #f0cc03;
+}

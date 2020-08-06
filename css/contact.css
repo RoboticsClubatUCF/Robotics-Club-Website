@@ -1,0 +1,68 @@
+/* Contact Us page styles
+Created by: Alexandra French
+For: the Robotics Club of Central Florida
+On: August 5, 2020*/
+
+/* Lost slideshow styles*/
+#lost-carousel {
+  border-radius:0px;
+  background:transparent;
+  overflow: hidden;
+  padding-bottom: 50px;
+}
+
+#lost-carousel .carousel-item {
+  background: no-repeat center center scroll;
+  -webkit-background-size: cover;
+  -moz-background-size: cover;
+  -o-background-size: cover;
+  background-size: cover;
+}
+
+#lost-carousel .carousel-caption {
+  position:relative;
+  left:0;
+	right:0;
+	bottom:0;
+	text-align:center;
+	padding:5px;
+	background:#383838;;
+	text-shadow:none;
+}
+
+#lost-carousel .carousel-indicators {
+  position: relative;
+}
+
+#lost-carousel .list-group {
+	position:absolute;
+	top:0;
+	right:0;
+  flex
+}
+#lost-carousel .list-group-item {
+	border-radius:0px;
+  padding: 26px 15px;
+	cursor:pointer;
+  background-color: #212121;
+  color: #f0cc03;
+}
+#lost-carousel .list-group .active {
+  background-color: #383838;
+  color: #f0cc03;
+  border-color: #f0cc03;
+}
+
+@media (min-width: 1184px) {
+  .list-group-item {padding: 30px 0px;}
+}
+
+@media (min-width: 992px) {
+  #lost-carousel .list-group-item {padding: 23px 5px;}
+	#lost-carousel {padding-right:33.3333%;}
+	#lost-carousel .carousel-controls {display:none;}
+}
+@media (max-width: 991px) {
+	.carousel-caption p,
+	#lost-carousel .list-group {display:none;}
+}
