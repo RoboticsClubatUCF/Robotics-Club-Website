@@ -5,7 +5,7 @@
       Contact club: ucfroboticsclubnews@gmail.com
                     robotics@ucf.edu
 
-      Last Updated on: August 6, 2020
+      Last Updated on: August 27, 2020
       Last Updated By: Alexandra French
 -->
 
@@ -50,7 +50,6 @@
 
   <!-- Page styles -->
   <link href="css/global-styles.css" rel="stylesheet">
-  <link href="css/projects.css" rel="stylesheet">
 
 </head>
 
@@ -74,8 +73,15 @@
       </button>
       <div class="collapse navbar-collapse" id="navbarResponsive">
         <ul class="navbar-nav ml-auto">
-            <li class="nav-item">
-            <a class="nav-link" href="about.html">About</a>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownPages" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              About
+            </a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdownPages">
+              <a class="dropdown-item" href="about.html">About Us</a>
+              <a class="dropdown-item" href="contact.html">Contact Us</a>
+              <a class="dropdown-item" href="constitution.html">Constitution</a>
+            </div>
           </li>
           <li class="nav-item">
             <a class="nav-link" href="projects-current.html">Projects</a>
@@ -99,8 +105,21 @@
           <li class="nav-item">
             <a class="nav-link" href="faq.html">FAQ</a>
           </li>
-          <li class="nav-item">
-            <a class="nav-link" href="contact.html">Contact</a>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownPages" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              More
+            </a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdownPages">
+              <a class="dropdown-item" href="photos-current.html">Photo Gallery</a>
+              <div id="theme-toggle">
+                <label for="toggle-dark">Dark Mode
+                <div class="switch">
+                  <input type="checkbox" id="toggle-dark">
+                  <div class="slider round" id="switch-toggle"></div>
+                </div>
+                </label>
+              </div>
+            </div>
           </li>
         </ul>
       </div>
@@ -113,28 +132,30 @@
 
     <!-- our projects header -->
     <div class="header-container-sm">
-      <h1 class="mt-4 mb-3 text-center border rounded p-1 title-blk-gold">Our Projects
+      <h1 class="mt-4 mb-3 text-center rounded p-1 title-blk-gold">Our Projects
       </h1>
 
       <!-- Image Header -->
-      <img class="img-fluid rounded mb-4" src="imgs/projects/header-2019.png" alt="laki2 flight">
+      <img class="img-fluid rounded mb-2" src="imgs/projects/header-2019.png" alt="laki2 flight">
 
       <!-- text content -->
       <div class="row align-items-center justify-content-center">
-        <div class = col-lg-12>
-          <p>The Robotics Club of Cental Florida is dedicated to producing new, innovative
-             robots that challenge all aspects of the club each year.
-          </p>
-          <p> This year, our flagship robots are Laki2, a 15lb combat robot, and
-             Demobot, an autonomous ground vehicle. Together, they offered a comprehensive
-             chance to tackle mechanical and software challenges!
-          </p>
+        <div class="col-lg-12">
+          <div class="container-wht-blk rounded p-3">
+            <p>The Robotics Club of Cental Florida is dedicated to producing new, innovative
+               robots that challenge all aspects of the club each year.
+            </p>
+            <p> This year, our flagship robots are Laki2, a 15lb combat robot, and
+               Demobot, an autonomous ground vehicle. Together, they offered a comprehensive
+               chance to tackle mechanical and software challenges!
+            </p>
+          </div>
         </div>
       </div>
     </div>
     <!-- /.our projects -->
 
-    <h2 class="text-center border p-1 title-blk-wht">2018-2019</h2>
+    <h2 class="text-center p-1 title-blk-wht">2018-2019</h2>
 
     <!-- projects -->
     <div class="intermediate-container-xs">
@@ -242,6 +263,9 @@
   <!-- Bootstrap -->
   <script src="rsrc/jquery/jquery.min.js"></script>
   <script src="rsrc/bootstrap/js/bootstrap.bundle.min.js"></script>
+
+  <!-- custom cs styles -->
+  <script src="js/dark-mode.js"></script>
 
 </body>
 

@@ -5,7 +5,7 @@
       Contact club: ucfroboticsclubnews@gmail.com
                     robotics@ucf.edu
 
-      Last Updated on: August 6, 2020
+      Last Updated on: August 27, 2020
       Last Updated By: Alexandra French
 -->
 
@@ -50,7 +50,6 @@
 
   <!-- Page styles -->
   <link href="css/global-styles.css" rel="stylesheet">
-  <link href="css/events.css" rel="stylesheet">
 
 </head>
 
@@ -74,8 +73,15 @@
       </button>
       <div class="collapse navbar-collapse" id="navbarResponsive">
         <ul class="navbar-nav ml-auto">
-            <li class="nav-item">
-            <a class="nav-link" href="about.html">About</a>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownPages" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              About
+            </a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdownPages">
+              <a class="dropdown-item" href="about.html">About Us</a>
+              <a class="dropdown-item" href="contact.html">Contact Us</a>
+              <a class="dropdown-item" href="constitution.html">Constitution</a>
+            </div>
           </li>
           <li class="nav-item">
             <a class="nav-link" href="projects-current.html">Projects</a>
@@ -99,8 +105,21 @@
           <li class="nav-item">
             <a class="nav-link" href="faq.html">FAQ</a>
           </li>
-          <li class="nav-item">
-            <a class="nav-link" href="contact.html">Contact</a>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownPages" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              More
+            </a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdownPages">
+              <a class="dropdown-item" href="photos-current.html">Photo Gallery</a>
+              <div id="theme-toggle">
+                <label for="toggle-dark">Dark Mode
+                <div class="switch">
+                  <input type="checkbox" id="toggle-dark">
+                  <div class="slider round" id="switch-toggle"></div>
+                </div>
+                </label>
+              </div>
+            </div>
           </li>
         </ul>
       </div>
@@ -117,18 +136,137 @@
       <h1 class="mt-4 mb-3 text-center p-2 title-blk-gold">Announcements and Events
       </h1>
       <!-- inner text -->
-      <h3 class="text-center">Watching Our Progress? Getting Involved?</h3>
-      <div class="row text-center">
-        <div class="col-lg-12">
-          <h5> Here you can find all the current and past info on our club.
-          </h5>
+      <div class="container-wht-blk rounded p-3">
+        <h3 class="text-center">Watching Our Progress? Getting Involved?</h3>
+        <div class="row text-center">
+          <div class="col-lg-12">
+            <h5> Here you can find all the current and past info on our club.
+            </h5>
+          </div>
         </div>
       </div>
     </div>
     <!-- /.announcements -->
 
-    <!-- Event Post 1 -->
-    <div class="card mb-4 card-1">
+    <!-- Event Post 6 -->
+    <div class="card-blk-gold mb-4">
+      <div class="card-body">
+        <div class="row">
+          <!-- image -->
+          <div class="col-lg-6">
+              <img class="img-fluid rounded" src="imgs/announcements/galleries.jpg" alt="citrobot gallery">
+          </div>
+          <!-- event body -->
+          <div class="col-lg-6">
+            <!-- title -->
+            <h2 class="card-title">Photo Galleries</h2>
+            <br>
+            <!-- text -->
+            <p class="card-text">Curious about how our club meetings look?
+              Want to see what kind of virtual socials we have? Or maybe just want to see the progress
+              of one of our various projects? View them now in our photo gallery!
+             </p>
+             <a href="photos-current.html" class="btn pull-right btn-light">View Photo Gallery &rarr;</a>
+          </div>
+          <!-- /.event body -->
+        </div>
+      </div>
+      <!-- date -->
+      <div class="card-footer">
+        Posted on August 27, 2020 by Alexandra French (Webmaster)
+      </div>
+    </div>
+    <!-- /.post 6 -->
+    <!-- Event Post 5 -->
+    <div class="mb-4 card-wht-blk">
+      <div class="card-body">
+        <div class="row">
+          <!-- image -->
+          <div class="col-lg-6">
+              <img class="img-fluid rounded" src="imgs/announcements/member-history.png" alt="member history">
+          </div>
+          <!-- event body -->
+          <div class="col-lg-6">
+            <!-- title -->
+            <h2 class="card-title">Club Member History</h2>
+            <br>
+            <!-- text -->
+            <p class="card-text">You can now view our officer and member histories. Histories of our members
+              all the way to 2016 and histories of our officers all the way to 2015 are available. From now
+              on, all new members will be added to our histories.
+            </p>
+            <a href="past-members-current.html" class="btn pull-right btn-dark">View Past Members</a>
+            <a href="past-officers-current.html" class="btn pull-right btn-dark">View Past Officers</a>
+          </div>
+          <!-- /.event body -->
+        </div>
+      </div>
+      <!-- date -->
+      <div class="card-footer">
+        Posted on August 26, 2020 by Alexandra French (Webmaster)
+      </div>
+    </div>
+    <!-- /.post 5 -->
+    <!-- Event Post 4 -->
+    <div class="card-blk-gold mb-4">
+      <div class="card-body">
+        <div class="row">
+          <!-- image -->
+          <div class="col-lg-6">
+              <img class="img-fluid rounded" src="imgs/announcements/FA20-intro.png" alt="fall 2020 intro meeting">
+          </div>
+          <!-- event body -->
+          <div class="col-lg-6">
+            <!-- title -->
+            <h2 class="card-title">Introductory Meetings</h2>
+            <br>
+            <!-- text -->
+            <p class="card-text">As we get closer to fall, we get closer to our introductory meetings!
+              Now planned for Aug 31st and Sept 8th at 6:30PM.
+              Join our <a href="https://discord.gg/ypWpanw">Discord</a> to meet us!
+              We'll discuss the club, our three robotics projects, and our expected virtual software, CAD, and general workshops.
+             </p>
+          </div>
+          <!-- /.event body -->
+        </div>
+      </div>
+      <!-- date -->
+      <div class="card-footer">
+        Posted on August 23, 2020 by Alexandra French (Webmaster)
+      </div>
+    </div>
+    <!-- /.post 4 -->
+    <!-- Event Post 3 -->
+    <div class="mb-4 card-wht-blk">
+      <div class="card-body">
+        <div class="row">
+          <!-- image -->
+          <div class="col-lg-6">
+              <img class="img-fluid rounded" src="imgs/announcements/darkmode.png" alt="dark mode website">
+          </div>
+          <!-- event body -->
+          <div class="col-lg-6">
+            <!-- title -->
+            <h2 class="card-title">Darkmode and Constitution</h2>
+            <br>
+            <!-- text -->
+            <p class="card-text">The website now includes dark mode! Automatically added for any browser
+              with the default. Otherwise, enable it under "More".<br>
+              With dark mode comes a new page: our constitution. Check out any and all club guidelines there.
+            </p>
+            <a href="constitution.html" class="btn pull-right btn-dark">View the Constitution &rarr;</a>
+          </div>
+          <!-- /.event body -->
+        </div>
+      </div>
+      <!-- date -->
+      <div class="card-footer">
+        Posted on August 10, 2020 by Alexandra French (Webmaster)
+      </div>
+    </div>
+    <!-- /.post 3 -->
+    <!-- Event Post 2 -->
+    <div class="card-blk-gold mb-4">
       <div class="card-body">
         <div class="row">
           <!-- image -->
@@ -159,10 +297,9 @@
         Posted on August 6, 2020 by Alexandra French (Webmaster)
       </div>
     </div>
-    <!-- /.post 1 -->
-
-    <!-- Event Post 2 -->
-    <div class="card mb-4 card-2">
+    <!-- /.post 2 -->
+    <!-- Event Post 1 -->
+    <div class="mb-4 card-wht-blk">
       <div class="card-body">
         <div class="row">
           <!-- image -->
@@ -180,7 +317,7 @@
               made easier, and most old pages have been updated. Old projects and newsletter
               is still under construction!
             </p>
-            <a href="event-post-1.html" class="btn pull-right btn-dark">Learn More &rarr;</a>
+            <a href="event-post-1.html" class="btn pull-right btn-dark">Learn About the Website &rarr;</a>
           </div>
           <!-- /.event body -->
         </div>
@@ -190,7 +327,7 @@
         Posted on August 5, 2020 by Alexandra French (Webmaster)
       </div>
     </div>
-    <!-- /.post 2 -->
+    <!-- /.post 1 -->
 
     <!-- pagination -->
     <ul class="pagination justify-content-center mb-4">
@@ -228,6 +365,9 @@
   <!-- Bootstrap -->
   <script src="rsrc/jquery/jquery.min.js"></script>
   <script src="rsrc/bootstrap/js/bootstrap.bundle.min.js"></script>
+
+  <!-- custom cs styles -->
+  <script src="js/dark-mode.js"></script>
 
 </body>
 
