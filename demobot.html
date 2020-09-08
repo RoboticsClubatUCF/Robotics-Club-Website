@@ -4,6 +4,9 @@
       Created on August 5, 2020
       Contact club: ucfroboticsclubnews@gmail.com
                     robotics@ucf.edu
+
+      Page last updated on: August 27, 2020
+      Page last updated by: Alexandra French
 -->
 
 <html lang="en">
@@ -70,8 +73,15 @@
       </button>
       <div class="collapse navbar-collapse" id="navbarResponsive">
         <ul class="navbar-nav ml-auto">
-            <li class="nav-item">
-            <a class="nav-link" href="about.html">About</a>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownPages" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              About
+            </a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdownPages">
+              <a class="dropdown-item" href="about.html">About Us</a>
+              <a class="dropdown-item" href="contact.html">Contact Us</a>
+              <a class="dropdown-item" href="constitution.html">Constitution</a>
+            </div>
           </li>
           <li class="nav-item">
             <a class="nav-link" href="projects-current.html">Projects</a>
@@ -95,16 +105,27 @@
           <li class="nav-item">
             <a class="nav-link" href="faq.html">FAQ</a>
           </li>
-          <li class="nav-item">
-            <a class="nav-link" href="contact.html">Contact</a>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownPages" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              More
+            </a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdownPages">
+              <a class="dropdown-item" href="photos-current.html">Photo Gallery</a>
+              <div id="theme-toggle">
+                <label for="toggle-dark">Dark Mode
+                <div class="switch">
+                  <input type="checkbox" id="toggle-dark">
+                  <div class="slider round" id="switch-toggle"></div>
+                </div>
+                </label>
+              </div>
+            </div>
           </li>
         </ul>
       </div>
     </div>
   </nav>
   <!-- /.navbar -->
-
-
 
   <!-- Page Content -->
   <div class="container">
@@ -117,7 +138,15 @@
       <div class=row>
         <!-- Image Header -->
         <div class="col-lg-6">
-          <img class="img-fluid rounded mb-4" src="imgs/projects/demobot/spiderbot-walking.gif" alt="spiderbot walking">
+          <div class="gif-container">
+            <!-- preliminary image -->
+            <img class="img-fluid rounded mb-4" src="imgs/projects/demobot/spiderbot-demo.png" alt="spiderbot demo 1">
+            <div class="gif-text"><h2>View Demo</h2></div>
+            <!-- gif image -->
+            <div class="gif-overlay">
+              <img class="img-fluid rounded mb-4" src="imgs/projects/demobot/spiderbot-walking.gif" alt="spiderbot walking">
+            </div>
+          </div>
         </div>
         <!-- project details -->
         <div class="col-lg-6 rounded mb-4 p-4 container-gray-gold">
@@ -138,17 +167,22 @@
       <div class="row">
         <div class="col-lg-6 text-center">
           <h3 class="rounded p-2 title-blk-gold">Project Goals</h3>
-          <p>• Achieve a spider-bot limbs</p>
-          <p>• Incorprate ROS 2 components</p>
-          <p>• Achieve object chasing</p>
+          <div class="container-wht-blk rounded p-3 h-100">
+            <p>• Achieve a spider-bot limbs</p>
+            <p>• Incorprate ROS 2 components</p>
+            <p>• Achieve object chasing</p>
+          </div>
         </div>
         <!-- project demos -->
         <div class="col-lg-6">
           <h3 class="text-center rounded p-2 title-blk-gold">Planned Demonstrations</h3>
-          <p class="text-center">To Be Determined</p>
-          <p class="text-center">If you'd like us to demo a robot, contact us via our
-            <a href="robotics@ucf.edu">email</a> or our
-            <a href="https://discord.gg/ypWpanw">Discord</a>.
+            <div class="container-wht-blk rounded p-3 h-100">
+              <p class="text-center">To Be Determined</p>
+              <p class="text-center">Want us to demo a robot?
+                <br>Contact us via our
+              <a href="robotics@ucf.edu">email</a> or our
+              <a href="https://discord.gg/ypWpanw">Discord</a>.
+            </div>
           </p>
         </div>
       </div>
@@ -161,8 +195,16 @@
       <h3 class="p-2 text-center rounded title-blk-wht">The Team</h3>
       <div class="row no-gutters">
         <!-- team image -->
-        <div class="col-md-7">
-          <img class="img-fluid" src="imgs/projects/demobot/spiderbot-1.png" alt="team demobot">
+        <div class="col-md-7 rounded container-wht-blk d-flex justify-content-center align-items-center">
+          <div class="gif-container text-center">
+            <!-- preliminary image -->
+            <img class="img-fluid rounded mb-4" src="imgs/projects/demobot/dual_walking_demo.png" alt="spiderbot demo 2">
+            <div class="gif-text"><h1>View Demo</h1></div>
+            <!-- gif image -->
+            <div class="gif-overlay">
+              <img class="img-fluid" src="imgs/projects/demobot/dual_walking.gif" alt="spiderbot dual walking demo">
+            </div>
+          </div>
         </div>
         <!-- further details -->
         <div class="col-md-5 rounded container-gray-gold p-2">
@@ -173,8 +215,7 @@
           <p>The team this time is full of electrical and mechanical engineers, with some
             computer engineers. The project reflects this - the first big hurdle will be the legs!
           </p>
-          <p> More feats will follow.
-          </p>
+          <h3 class="my-3 title-gold">View <a href="demobot-photos.html" aria-label="view demobot's photo gallery">Demobot's Photo Gallery.</a></h3>
         </div>
       </div>
     </div>
@@ -187,19 +228,19 @@
 
       <div class="row align-items-center justify-content-center">
         <!-- software -->
-        <div class="col-md-3 col-sm-6 mb-4">
+        <div class="col-md-4 col-sm-6 mb-4">
           <img class="img-fluid" src="imgs/place-holder-500x300.png" alt="software lead">
           <h5 class="text-center">TBD</h4>
           <p class="text-center title-drk-gold">Software Team Lead</p>
         </div>
         <!-- mechanical -->
-        <div class="col-md-3 col-sm-6 mb-4">
+        <div class="col-md-4 col-sm-6 mb-4">
           <img class="img-fluid" src="imgs/place-holder-500x300.png" alt="mechanical lead">
           <h5 class="text-center">TBD</h4>
           <p class="text-center title-drk-gold">Mechanical Team Lead</p>
         </div>
         <!-- electrical -->
-        <div class="col-md-3 col-sm-6 mb-4">
+        <div class="col-md-4 col-sm-6 mb-4">
           <img class="img-fluid" src="imgs/place-holder-500x300.png" alt="electrical lead">
           <h5 class="text-center">TBD</h4>
           <p class="text-center title-drk-gold">Electrical Team Lead</p>
@@ -261,6 +302,9 @@
   <!-- Bootstrap  -->
   <script src="rsrc/jquery/jquery.min.js"></script>
   <script src="rsrc/bootstrap/js/bootstrap.bundle.min.js"></script>
+
+  <!-- custom cs styles -->
+  <script src="js/dark-mode.js"></script>
 
 </body>
 

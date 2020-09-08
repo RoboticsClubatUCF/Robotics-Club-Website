@@ -1,0 +1,10 @@
+# Gets rid of the http file extension
+# Created by: Alexandra French on 8/26/2020
+
+# Rule to remove all .html extensions
+RewriteEngine on
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME}\.html -f
+
+# Only apply this to the rule just created
+RewriteRule ^(.*)$ $1.html [NC,L]

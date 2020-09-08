@@ -4,6 +4,9 @@
       Created on August 5, 2020
       Contact club: ucfroboticsclubnews@gmail.com
                     robotics@ucf.edu
+
+      Last Updated on: August 27, 2020
+      Last Updated By: Alexandra French
 -->
 
 <html lang="en">
@@ -71,8 +74,15 @@
       </button>
       <div class="collapse navbar-collapse" id="navbarResponsive">
         <ul class="navbar-nav ml-auto">
-            <li class="nav-item">
-            <a class="nav-link" href="about.html">About</a>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownPages" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              About
+            </a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdownPages">
+              <a class="dropdown-item" href="about.html">About Us</a>
+              <a class="dropdown-item" href="contact.html">Contact Us</a>
+              <a class="dropdown-item" href="constitution.html">Constitution</a>
+            </div>
           </li>
           <li class="nav-item">
             <a class="nav-link" href="projects-current.html">Projects</a>
@@ -96,8 +106,21 @@
           <li class="nav-item">
             <a class="nav-link" href="faq.html">FAQ</a>
           </li>
-          <li class="nav-item">
-            <a class="nav-link" href="contact.html">Contact</a>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownPages" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              More
+            </a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdownPages">
+              <a class="dropdown-item" href="photos-current.html">Photo Gallery</a>
+              <div id="theme-toggle">
+                <label for="toggle-dark">Dark Mode
+                <div class="switch">
+                  <input type="checkbox" id="toggle-dark">
+                  <div class="slider round" id="switch-toggle"></div>
+                </div>
+                </label>
+              </div>
+            </div>
           </li>
         </ul>
       </div>
@@ -131,7 +154,7 @@
         <div class="col-lg-4">
           <h2 class="text-center rounded p-2 title-blk-gold">Youtube</h2>
           <div class="youtube">
-            <iframe src="http://www.youtube.com/embed/videoseries?list=UUZEPdNUFzkciC7MIiI-yPKg" width="350" height="350" frameborder="0"></iframe>
+            <iframe src="https://www.youtube.com/embed/videoseries?list=UUZEPdNUFzkciC7MIiI-yPKg" width="350" height="350" frameborder="0"></iframe>
           </div>
         </div>
         <!-- /.youtube -->
@@ -168,7 +191,8 @@
   <script src="rsrc/jquery/jquery.min.js"></script>
   <script src="rsrc/bootstrap/js/bootstrap.bundle.min.js"></script>
 
-  <!-- custom js -->
+  <!-- custom cs styles -->
+  <script src="js/dark-mode.js"></script>
   <script src="js/contact_carousel.js"></script>
   <script async defer crossorigin="anonymous" src="https://connect.facebook.net/en_US/sdk.js#xfbml=1&version=v7.0" nonce="Ut76p9ZH"></script>
 

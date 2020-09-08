@@ -4,6 +4,9 @@
       Created on August 5, 2020
       Contact club: ucfroboticsclubnews@gmail.com
                     robotics@ucf.edu
+
+      Page last updated on: August 27, 2020
+      Page last updated by: Alexandra French
 -->
 
 <html lang="en">
@@ -71,8 +74,15 @@
       </button>
       <div class="collapse navbar-collapse" id="navbarResponsive">
         <ul class="navbar-nav ml-auto">
-            <li class="nav-item">
-            <a class="nav-link" href="about.html">About</a>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownPages" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              About
+            </a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdownPages">
+              <a class="dropdown-item" href="about.html">About Us</a>
+              <a class="dropdown-item" href="contact.html">Contact Us</a>
+              <a class="dropdown-item" href="constitution.html">Constitution</a>
+            </div>
           </li>
           <li class="nav-item">
             <a class="nav-link" href="projects-current.html">Projects</a>
@@ -96,8 +106,21 @@
           <li class="nav-item">
             <a class="nav-link" href="faq.html">FAQ</a>
           </li>
-          <li class="nav-item">
-            <a class="nav-link" href="contact.html">Contact</a>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownPages" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              More
+            </a>
+            <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdownPages">
+              <a class="dropdown-item" href="photos-current.html">Photo Gallery</a>
+              <div id="theme-toggle">
+                <label for="toggle-dark">Dark Mode
+                <div class="switch">
+                  <input type="checkbox" id="toggle-dark">
+                  <div class="slider round" id="switch-toggle"></div>
+                </div>
+                </label>
+              </div>
+            </div>
           </li>
         </ul>
       </div>
@@ -105,8 +128,7 @@
   </nav>
   <!-- /.navbar -->
 
-
-<!-- page header -->
+  <!-- page header -->
   <header>
     <!-- slideshow -->
     <div id="carouselIndicators" class="carousel slide" data-ride="carousel" data-interval="false">
@@ -159,17 +181,23 @@
         <!-- goals -->
         <div class="col-lg-6 text-center rounded">
           <h5 class="p-2 text-center rounded title-gry-gold">Goals</h5>
-          <p>• Achieve terrain mapping.</p>
-          <p>• Detect and avoid objects.</p>
-          <p>• Accurately simulate movement through course.</p>
-          <p>• Overhaul the electrical workup to get ~5mph speed.</p>
+          <div class="container-wht-blk rounded p-3 h-100">
+            <br>
+            <p>• Achieve terrain mapping.</p>
+            <p>• Detect and avoid objects.</p>
+            <p>• Accurately simulate movement through course.</p>
+            <p>• Overhaul the electrical workup to get ~5mph speed.</p>
+          </div>
         </div>
         <!-- competition -->
         <div class="col-lg-6 text-center rounded">
           <h5 class="p-2 text-center rounded title-gry-gold">Competition</h5>
-          <p>We are aiming to compete in IGVC 2021.</p>
-          <p class="text-center"><br>Have a local competition?
+          <div class="container-wht-blk rounded p-3 h-100">
+            <br>
+            <p>We are aiming to compete in IGVC 2021.</p>
+            <p class="text-center"><br><br>Have a local competition?<br>
             <a href="https://discord.gg/ypWpanw">Let us know!</a></p>
+          </div>
         </div>
       </div>
     </div>
@@ -181,11 +209,11 @@
       <div class="row no-gutters">
 
         <!-- team image -->
-        <div class="col-md-7">
-          <img class="img-fluid" src="imgs/place-holder-760x550.png" alt="Team Bowser">
+        <div class="col-md-7 rounded container-blk-wht d-flex justify-content-center align-items-center">
+          <img class="img-fluid" src="imgs/projects/bowser/team-bowser.jpg" alt="Team Bowser">
         </div>
 
-        <!-- about test -->
+        <!-- about text -->
         <div class="col-md-5 rounded container-gray-gold p-2">
           <h3 class="my-3 title-gold">About Bowser</h3>
           <p> Bowser is the newest member of our autonomous robots. We have focused on an
@@ -202,6 +230,8 @@
             <li>Object Detection</li>
             <li>Simulations</li>
           </ul>
+
+          <h3 class="my-3 title-gold">View <a href="bowser-photos.html" aria-label="view bowser's photo gallery">Bowser's Photo Gallery</a></h3>
         </div>
       </div>
     </div>
@@ -214,19 +244,19 @@
 
       <div class="row align-items-center justify-content-center">
         <!-- software -->
-        <div class="col-md-3 col-sm-6 mb-4">
+        <div class="col-md-4 col-sm-6 mb-4">
           <img class="img-fluid" src="imgs/place-holder-500x300.png" alt="software lead">
           <h5 class="text-center">TBD</h4>
           <p class="text-center title-drk-gold">Software Team Lead</p>
         </div>
         <!-- mechanical -->
-        <div class="col-md-3 col-sm-6 mb-4">
+        <div class="col-md-4 col-sm-6 mb-4">
           <img class="img-fluid" src="imgs/place-holder-500x300.png" alt="mechanical lead">
           <h5 class="text-center">TBD</h4>
           <p class="text-center title-drk-gold">Mechanical Team Lead</p>
         </div>
         <!-- electrical -->
-        <div class="col-md-3 col-sm-6 mb-4">
+        <div class="col-md-4 col-sm-6 mb-4">
           <img class="img-fluid" src="imgs/place-holder-500x300.png" alt="">
           <h5 class="text-center">TBD</h4>
           <p class="text-center title-drk-gold">Electrical Team Lead</p>
@@ -273,6 +303,9 @@
       </div>&nbsp;
       <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-wht">
         <p>Jonathan Conrad</p>
+      </div>&nbsp;
+      <div class="col-lg-3 col-sm-4 mb-4 text-center rounded members-wht">
+        <p>Camilo Angarita</p>
       </div>
     </div>
     <!-- /.team members -->
@@ -305,6 +338,9 @@
   <!-- Bootstrap -->
   <script src="rsrc/jquery/jquery.min.js"></script>
   <script src="rsrc/bootstrap/js/bootstrap.bundle.min.js"></script>
+
+  <!-- custom cs styles -->
+  <script src="js/dark-mode.js"></script>
 
 </body>
 
