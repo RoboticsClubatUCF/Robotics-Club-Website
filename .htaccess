@@ -1,10 +1,20 @@
-# Gets rid of the http file extension
+# Gets rid of the http file extension, transfer php
 # Created by: Alexandra French on 8/26/2020
+<limit GET>
+allow from all
+</limit
+
+RewriteEngine on
+RewriteBase /
+
+
+# Redirect rules for php
+RedirectMatch 301 ^/home\.php$ /index.php
+RedirectMatch 301 ^/news\.php$ /index.php
+RedirectMatch 301 ^/video\.php$ /home.php
+
 
 # Rule to remove all .html extensions
-RewriteEngine on
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteCond %{REQUEST_FILENAME}\.html -f
-
-# Only apply this to the rule just created
+RewriteCond %{REQUEST_FILENAME}\.html !-f
 RewriteRule ^(.*)$ $1.html [NC,L]
