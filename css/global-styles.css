@@ -3,7 +3,7 @@
   For: the Robotics Club of Central Florida
   On: August 5, 2020
 
-  Last modified on: August 26, 2020
+  Last modified on: September 11, 2020
   By: Alexandra French
 */
 
@@ -656,7 +656,7 @@ body.dark .btn-light {
  }
 
 
-/* Various header / intermediate containers */
+/* HEADER / INTERMEDIATE / END CONTAINERS */
 .header-container-lg {
   padding-top: 25px;
   padding-bottom: 300px;
@@ -707,7 +707,6 @@ body.dark .btn-light {
   justify-content: center;
 }
 
-/* page end containers */
 .end-container-flex {
   display: flex;
   flex-direction: column;
@@ -718,7 +717,7 @@ body.dark .btn-light {
 }
 
 
-/* scroll snap containers */
+/* SCROLL SNAP CONTAINERS */
 .snapper {
   align-items: center;
   display: flex;
@@ -925,4 +924,90 @@ body.dark .btn-light {
 .gif-container:hover .gif-overlay,
 .gif-container:focus .gif-overlay {
   opacity: 1;
+}
+
+/* Lost slideshow styles*/
+#lost-carousel {
+  overflow: hidden;
+  padding-bottom: 50px;
+}
+
+#lost-carousel .carousel-item {
+  background: no-repeat center center scroll;
+  -webkit-background-size: cover;
+  -moz-background-size: cover;
+  -o-background-size: cover;
+  background-size: cover;
+}
+
+#lost-carousel .carousel-caption {
+  position:relative;
+  left: 0;
+	right: 0;
+	bottom: 0;
+	padding: 5px;
+	background: #383838;
+}
+
+#lost-carousel .carousel-indicators {
+  position: relative;
+}
+
+#lost-carousel .list-group {
+	position: absolute;
+	top: 0;
+	right: 0;
+}
+
+#lost-carousel .list-group-item {
+  background-color: #272929;
+  color: #f0cc03;
+  padding: 20.5px 15px;
+	cursor: pointer;
+}
+
+#lost-carousel .list-group .active {
+  background-color: #383838;
+  color: #f0cc03;
+  border-color: #f0cc03;
+}
+
+@media (max-width: 1199px) {
+  #lost-carousel .list-group-item {
+    padding: 17.2px 8px;
+  }
+
+  #lost-carousel h3 {
+    font-size: 1.5rem;
+  }
+}
+
+@media (min-width: 992px) {
+	#lost-carousel {
+    padding-right:33.3333%;
+  }
+}
+@media (max-width: 991px) {
+	.carousel-caption p,
+	#lost-carousel .list-group {
+    display:none;
+  }
+}
+
+/* BOWSER - CAROUSEL STYLES*/
+#bowser-carousel .carousel-item {
+  height: 50vh;
+  min-height: 300px;
+  background: no-repeat center center scroll;
+  -webkit-background-size: cover;
+  -moz-background-size: cover;
+  -o-background-size: cover;
+  background-size: cover;
+}
+
+#bowser-carousel .carousel-caption h3 {
+  color: #C39A00;
+  text-shadow: 0px 5px 0px #272929;
+  text-emphasis: bold;
+  font-size: 80px;
 }
