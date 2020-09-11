@@ -98,7 +98,6 @@
 
   <!-- Page styles -->
   <link href="css/global-styles.css" rel="stylesheet">
-  <link href="css/individual-project.css" rel="stylesheet">
 
 </head>
 
@@ -179,42 +178,44 @@
   <!-- page header -->
   <header>
     <!-- slideshow -->
-    <div id="carouselIndicators" class="carousel slide" data-ride="carousel" data-interval="false">
-      <ol class="carousel-indicators">
-        <li data-target="#carouselIndicators" data-slide-to="0" class="active"></li>
-        <li data-target="#carouselIndicators" data-slide-to="1"></li>
-        <li data-target="#carouselIndicators" data-slide-to="2"></li>
-      </ol>
-      <div class="carousel-inner" role="listbox">
-        <!-- Slide One -->
-        <div class="carousel-item active" style="background-image: url('imgs/projects/bowser/bowser-slide.jpg')" alt="Bowser">
-          <div class="carousel-caption d-none d-md-block">
-            <h3>Bowser</h3>
+    <div id="bowser-carousel">
+      <div id="carouselIndicators" class="carousel slide" data-ride="carousel" data-interval="false">
+        <ol class="carousel-indicators">
+          <li data-target="#carouselIndicators" data-slide-to="0" class="active"></li>
+          <li data-target="#carouselIndicators" data-slide-to="1"></li>
+          <li data-target="#carouselIndicators" data-slide-to="2"></li>
+        </ol>
+        <div class="carousel-inner" role="listbox">
+          <!-- Slide One -->
+          <div class="carousel-item active" style="background-image: url('imgs/projects/bowser/bowser-slide.jpg')" alt="Bowser">
+            <div class="carousel-caption d-none d-md-block">
+              <h3>Bowser</h3>
+            </div>
+          </div>
+          <!-- Slide Two -->
+          <div class="carousel-item" style="background-image: url('imgs/projects/bowser/computer-slide.jpg')" alt="Computer">
+            <div class="carousel-caption d-none d-md-block">
+              <h3>Computer Vision</h3>
+            </div>
+          </div>
+          <!-- Slide Three -->
+          <div class="carousel-item" style="background-image: url('imgs/projects/bowser/electrical-slide.jpg')" alt="Electrical Components">
+            <div class="carousel-caption d-none d-md-block">
+              <h3>Electrical Overhaul</h3>
+            </div>
           </div>
         </div>
-        <!-- Slide Two -->
-        <div class="carousel-item" style="background-image: url('imgs/projects/bowser/computer-slide.jpg')" alt="Computer">
-          <div class="carousel-caption d-none d-md-block">
-            <h3>Computer Vision</h3>
-          </div>
-        </div>
-        <!-- Slide Three -->
-        <div class="carousel-item" style="background-image: url('imgs/projects/bowser/electrical-slide.jpg')" alt="Electrical Components">
-          <div class="carousel-caption d-none d-md-block">
-            <h3>Electrical Overhaul</h3>
-          </div>
-        </div>
+        <a class="carousel-control-prev" href="#carouselIndicators" role="button" data-slide="prev">
+              <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+              <span class="sr-only">Previous</span>
+        </a>
+        <a class="carousel-control-next" href="#carouselIndicators" role="button" data-slide="next">
+              <span class="carousel-control-next-icon" aria-hidden="true"></span>
+              <span class="sr-only">Next</span>
+        </a>
       </div>
-      <a class="carousel-control-prev" href="#carouselIndicators" role="button" data-slide="prev">
-            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
-            <span class="sr-only">Previous</span>
-      </a>
-      <a class="carousel-control-next" href="#carouselIndicators" role="button" data-slide="next">
-            <span class="carousel-control-next-icon" aria-hidden="true"></span>
-            <span class="sr-only">Next</span>
-      </a>
     </div>
-  <!-- /.slideshow -->
+    <!-- /.slideshow -->
   </header>
   <!-- ./page header -->
 
@@ -388,7 +389,7 @@
   <script src="rsrc/bootstrap/js/bootstrap.bundle.min.js"></script>
 
   <!-- custom cs styles -->
-  <script src="js/dark-mode.js"></script>
+  <script src="js/global-scripts.js"></script>
 
 </body>
 
