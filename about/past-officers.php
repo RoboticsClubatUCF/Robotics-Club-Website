@@ -14,7 +14,7 @@ $keywords = "UCF robotics club, University of Central Florida, UCF, robotics clu
                                computer science, FOSS, undergraduate, graduate, operating system, vehicles, unmanned,
                                machine learning, computer vision, sensors, lidar, demobot, citrobot, Robotics Club of
                                Central Florida, central florida, robotics club, past members, 2020s, current memebrs, past members 2020s";
-$url = "https://robotics.ucf.edu/about/past-officers.php";
+$url = "https://robotics.ucf.edu/about/past-officers";
 
 // header functions and include
 include_once("../assets/templates/header.php");

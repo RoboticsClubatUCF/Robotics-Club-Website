@@ -10,35 +10,34 @@ RewriteEngine On
 RewriteBase /
 
 # Redirect rules for php
-RedirectMatch 301 ^/home\.php$ /index.php
-#RedirectMatch 301 ^/news\.php$ /index.php
-#RedirectMatch 301 ^/video\.php$ /home.php
+#RedirectMatch 301 ^/home\.php$ /index.php
 
-# Remove php from all php file links
+# Remove php from all php extension links
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteCond %{REQUEST_FILENAME}\.php -f
 RewriteRule ^(.*)$ $1.php [NC,L]
 
 # Error pages
 ErrorDocument 404 /404.php
-#Not Found
+
 
 # Disable server signature
 ServerSignature Off
 
-# Cache control, 1 week
-<FilesMatch ".(css|jpg|jpeg|png|gif|js|ico|pdf|txt)$">
-  Header set Cache-Control "max-age=604800, public"
-</FilesMatch>
-
-# Cache control, html files, 1 day
-<FilesMatch ".(html|htm)$">
-  Header set Cache-Control "max-age=43200, public"
-</FilesMatch>
-
-# Use HTTP Strict Transport Security to force secure headers, 1 week
+# All cache control and HSTS
 <IfModule mod_headers.c>
-  Header set Strict-Transport-Security "max-age=604800; includeSubDomains; preload"
+  # Use HTTP Strict Transport Security to force secure headers, 1 week
+  Header set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+
+  # Cache control, 1 week
+  <FilesMatch ".(css|jpg|jpeg|png|gif|js|ico|pdf|txt)$">
+    Header set Cache-Control "max-age=604800, public"
+  </FilesMatch>
+
+  # Cache control, other page files, 1 day
+  <FilesMatch ".(html|htm|php)$">
+    Header set Cache-Control "max-age=86400, public"
+  </FilesMatch>
 </IfModule>
 
 # Compression

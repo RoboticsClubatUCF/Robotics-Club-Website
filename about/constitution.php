@@ -15,7 +15,7 @@ $keywords = "UCF robotics club, University of Central Florida, UCF, robotics clu
                                machine learning, computer vision, sensors, lidar, demobot, citrobot, Robotics Club of
                                Central Florida, central florida, robotics club, constitution, rules, amendments, amendment
                                articles";
-$url = "https://robotics.ucf.edu/about/constitution.php";
+$url = "https://robotics.ucf.edu/about/constitution";
 
 // header functions and include
 include_once("../assets/templates/header.php");

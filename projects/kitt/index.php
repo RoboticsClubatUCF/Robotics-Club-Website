@@ -6,7 +6,7 @@ $pageCreationDate = "September 10, 2020";
 $title = "Robotics Club Project: Kitt";
 $currentWebmaster = "Alexandra French";
 $updateDate = "September 14, 2020";
-$pageDescription = "Demobot was our roaming demonstrative robot in 2019.";
+$pageDescription = "Kitt was an autonomous boat led by an autonomous quadcopter in 2018.";
 $keywords = "UCF robotics club, University of Central Florida, UCF, robotics club, robotics club,
                                UCF robotics, UCF club, RSO, AUVSI, autonomous, SUAS, AHRS, IMU, i2C, ROS, ROS melodic,
                                melodic, linux, ubuntu, open source, opensource, engineering, mechanical,

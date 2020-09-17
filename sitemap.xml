@@ -1,168 +1,209 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>https://robotics.ucf.edu</loc>
-    <lastmod>2020-09-15</lastmod>
-    <changefreq>weekly</changefreq>
-  </url>
-  <url>
-    <loc>https://robotics.ucf.edu/index</loc>
-    <lastmod>2020-09-15</lastmod>
-    <changefreq>weekly</changefreq>
-  </url>
-  <url>
-    <loc>https://robotics.ucf.edu/about/index</loc>
-    <lastmod>2020-09-15</lastmod>
-    <changefreq>weekly</changefreq>
-  </url>
-  <url>
-    <loc>https://robotics.ucf.edu/about/contact</loc>
-    <lastmod>2020-09-15</lastmod>
-    <changefreq>monthly</changefreq>
-  </url>
-  <url>
-    <loc>https://robotics.ucf.edu/about/constitution</loc>
-    <lastmod>2020-09-15</lastmod>
-    <changefreq>monthly</changefreq>
-  </url>
-  <url>
-    <loc>https://robotics.ucf.edu/about/past-members</loc>
-    <lastmod>2020-09-15</lastmod>
-    <changefreq>weekly</changefreq>
-  </url>
-  <url>
-    <loc>https://robotics.ucf.edu/about/past-members-2010s</loc>
-    <lastmod>2020-09-15</lastmod>
-    <changefreq>monthly</changefreq>
-  </url>
-  <url>
-    <loc>https://robotics.ucf.edu/about/past-officers</loc>
-    <lastmod>2020-09-15</lastmod>
-    <changefreq>monthly</changefreq>
-  </url>
-  <url>
-    <loc>https://robotics.ucf.edu/about/past-officers-2010s</loc>
-    <lastmod>2020-09-15</lastmod>
-    <changefreq>monthly</changefreq>
-  </url>
-  <url>
-    <loc>https://robotics.ucf.edu/projects/index</loc>
-    <lastmod>2020-09-15</lastmod>
-    <changefreq>monthly</changefreq>
-  </url>
-  <url>
-    <loc>https://robotics.ucf.edu/projects/2019</loc>
-    <lastmod>2020-09-15</lastmod>
-    <changefreq>monthly</changefreq>
-  </url>
-  <url>
-    <loc>https://robotics.ucf.edu/projects/2018</loc>
-    <lastmod>2020-09-15</lastmod>
-    <changefreq>monthly</changefreq>
-  </url>
-  <url>
-    <loc>https://robotics.ucf.edu/projects/2017</loc>
-    <lastmod>2020-09-15</lastmod>
-    <changefreq>monthly</changefreq>
-  </url>
-  <url>
-    <loc>https://robotics.ucf.edu/bowser/index</loc>
-    <lastmod>2020-09-15</lastmod>
-    <changefreq>monthly</changefreq>
-  </url>
-  <url>
-    <loc>https://robotics.ucf.edu/bowser/gallery</loc>
-    <lastmod>2020-09-15</lastmod>
-    <changefreq>weekly</changefreq>
-  </url>
-  <url>
-    <loc>https://robotics.ucf.edu/citrobot/index</loc>
-    <lastmod>2020-09-15</lastmod>
-    <changefreq>monthly</changefreq>
-  </url>
-  <url>
-    <loc>https://robotics.ucf.edu/citrobot/gallery</loc>
-    <lastmod>2020-09-15</lastmod>
-    <changefreq>weekly</changefreq>
-  </url>
-  <url>
-    <loc>https://robotics.ucf.edu/demobot/index</loc>
-    <lastmod>2020-09-15</lastmod>
-    <changefreq>monthly</changefreq>
-  </url>
-  <url>
-    <loc>https://robotics.ucf.edu/demobot/gallery</loc>
-    <lastmod>2020-09-15</lastmod>
-    <changefreq>weekly</changefreq>
-  </url>
-  <url>
-    <loc>https://robotics.ucf.edu/laki2/index</loc>
-    <lastmod>2020-09-15</lastmod>
-    <changefreq>monthly</changefreq>
-  </url>
-  <url>
-    <loc>https://robotics.ucf.edu/demobot-2019/index</loc>
-    <lastmod>2020-09-15</lastmod>
-    <changefreq>monthly</changefreq>
-  </url>
-  <url>
-    <loc>https://robotics.ucf.edu/kitt/index</loc>
-    <lastmod>2020-09-15</lastmod>
-    <changefreq>monthly</changefreq>
-  </url>
-  <url>
-    <loc>https://robotics.ucf.edu/lakitu/index</loc>
-    <lastmod>2020-09-15</lastmod>
-    <changefreq>monthly</changefreq>
-  </url>
-  <url>
-    <loc>https://robotics.ucf.edu/ness/index</loc>
-    <lastmod>2020-09-15</lastmod>
-    <changefreq>monthly</changefreq>
-  </url>
-  <url>
-    <loc>https://robotics.ucf.edu/metaknight/index</loc>
-    <lastmod>2020-09-15</lastmod>
-    <changefreq>monthly</changefreq>
-  </url>
-  <url>
-    <loc>https://robotics.ucf.edu/announcements/index</loc>
-    <lastmod>2020-09-15</lastmod>
-    <changefreq>weekly</changefreq>
-  </url>
-  <url>
-    <loc>https://robotics.ucf.edu/announcements/post-1</loc>
-    <lastmod>2020-09-15</lastmod>
-    <changefreq>monthly</changefreq>
-  </url>
-  <url>
-    <loc>https://robotics.ucf.edu/news/index</loc>
-    <lastmod>2020-09-15</lastmod>
-    <changefreq>weekly</changefreq>
-  </url>
-  <url>
-    <loc>https://robotics.ucf.edu/news/social-media</loc>
-    <lastmod>2020-09-15</lastmod>
-    <changefreq>weekly</changefreq>
-  </url>
-  <url>
-    <loc>https://robotics.ucf.edu/sponsors/index</loc>
-    <lastmod>2020-09-15</lastmod>
-    <changefreq>monthly</changefreq>
-  </url>
-  <url>
-    <loc>https://robotics.ucf.edu/faq/index</loc>
-    <lastmod>2020-09-15</lastmod>
-    <changefreq>monthly</changefreq>
-  </url>
-  <url>
-    <loc>https://robotics.ucf.edu/more/gallery</loc>
-    <lastmod>2020-09-15</lastmod>
-    <changefreq>weekly</changefreq>
-  </url>
-  <url>
-    <loc>https://robotics.ucf.edu/more/gallery-2019</loc>
-    <lastmod>2020-09-15</lastmod>
-    <changefreq>monthly</changefreq>
-  </url>
+<urlset
+      xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9
+            http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
+
+
+<url>
+  <loc>https://robotics.ucf.edu/</loc>
+  <lastmod>2020-09-16T14:15:25+00:00</lastmod>
+  <priority>1.00</priority>
+  <changefreq>weekly</changefreq>
+</url>
+<url>
+  <loc>https://robotics.ucf.edu/about/index</loc>
+  <lastmod>2020-09-17T14:15:25+00:00</lastmod>
+  <priority>0.80</priority>
+  <changefreq>weekly</changefreq>
+</url>
+<url>
+  <loc>https://robotics.ucf.edu/about/contact</loc>
+  <lastmod>2020-09-16T14:15:25+00:00</lastmod>
+  <priority>0.80</priority>
+  <changefreq>monthly</changefreq>
+</url>
+<url>
+  <loc>https://robotics.ucf.edu/about/constitution</loc>
+  <lastmod>2020-09-16T14:15:25+00:00</lastmod>
+  <priority>0.80</priority>
+  <changefreq>monthly</changefreq>
+</url>
+<url>
+  <loc>https://robotics.ucf.edu/projects/index</loc>
+  <lastmod>2020-09-16T14:15:25+00:00</lastmod>
+  <priority>0.80</priority>
+  <changefreq>monthly</changefreq>
+</url>
+<url>
+  <loc>https://robotics.ucf.edu/announcements/index</loc>
+  <lastmod>2020-09-16T14:15:25+00:00</lastmod>
+  <priority>0.80</priority>
+  <changefreq>weekly</changefreq>
+</url>
+<url>
+  <loc>https://robotics.ucf.edu/news/index</loc>
+  <lastmod>2020-09-16T14:15:25+00:00</lastmod>
+  <priority>0.80</priority>
+  <changefreq>monthly</changefreq>
+</url>
+<url>
+  <loc>https://robotics.ucf.edu/news/social-media</loc>
+  <lastmod>2020-09-16T14:15:25+00:00</lastmod>
+  <priority>0.80</priority>
+  <changefreq>monthly</changefreq>
+</url>
+<url>
+  <loc>https://robotics.ucf.edu/sponsors/index</loc>
+  <lastmod>2020-09-16T14:15:25+00:00</lastmod>
+  <priority>0.80</priority>
+  <changefreq>monthly</changefreq>
+</url>
+<url>
+  <loc>https://robotics.ucf.edu/faq/index</loc>
+  <lastmod>2020-09-16T14:15:25+00:00</lastmod>
+  <priority>0.80</priority>
+  <changefreq>monthly</changefreq>
+</url>
+<url>
+  <loc>https://robotics.ucf.edu/more/gallery</loc>
+  <lastmod>2020-09-16T14:15:25+00:00</lastmod>
+  <priority>0.80</priority>
+  <changefreq>weekly</changefreq>
+</url>
+<url>
+  <loc>https://robotics.ucf.edu/projects/bowser/index</loc>
+  <lastmod>2020-09-16T14:15:25+00:00</lastmod>
+  <priority>0.64</priority>
+  <changefreq>monthly</changefreq>
+</url>
+<url>
+  <loc>https://robotics.ucf.edu/projects/citrobot/index</loc>
+  <lastmod>2020-09-16T14:15:25+00:00</lastmod>
+  <priority>0.64</priority>
+  <changefreq>monthly</changefreq>
+</url>
+<url>
+  <loc>https://robotics.ucf.edu/projects/demobot/index</loc>
+  <lastmod>2020-09-16T14:15:25+00:00</lastmod>
+  <priority>0.64</priority>
+  <changefreq>monthly</changefreq>
+</url>
+<url>
+  <loc>https://robotics.ucf.edu/about/past-officers</loc>
+  <lastmod>2020-09-16T14:15:25+00:00</lastmod>
+  <priority>0.64</priority>
+  <changefreq>monthly</changefreq>
+</url>
+<url>
+  <loc>https://robotics.ucf.edu/about/past-members</loc>
+  <lastmod>2020-09-17T14:15:25+00:00</lastmod>
+  <priority>0.64</priority>
+  <changefreq>monthly</changefreq>
+</url>
+<url>
+  <loc>https://robotics.ucf.edu/projects/2019</loc>
+  <lastmod>2020-09-16T14:15:25+00:00</lastmod>
+  <priority>0.64</priority>
+  <changefreq>monthly</changefreq>
+</url>
+<url>
+  <loc>https://robotics.ucf.edu/projects/2018</loc>
+  <lastmod>2020-09-16T14:15:25+00:00</lastmod>
+  <priority>0.64</priority>
+  <changefreq>monthly</changefreq>
+</url>
+<url>
+  <loc>https://robotics.ucf.edu/projects/2017</loc>
+  <lastmod>2020-09-16T14:15:25+00:00</lastmod>
+  <priority>0.64</priority>
+  <changefreq>monthly</changefreq>
+</url>
+<url>
+  <loc>https://robotics.ucf.edu/announcements/post-1</loc>
+  <lastmod>2020-09-16T14:15:25+00:00</lastmod>
+  <priority>0.64</priority>
+  <changefreq>monthly</changefreq>
+</url>
+<url>
+  <loc>https://robotics.ucf.edu/projects/bowser/gallery</loc>
+  <lastmod>2020-09-16T14:15:25+00:00</lastmod>
+  <priority>0.64</priority>
+  <changefreq>monthly</changefreq>
+</url>
+<url>
+  <loc>https://robotics.ucf.edu/projects/citrobot/gallery</loc>
+  <lastmod>2020-09-16T14:15:25+00:00</lastmod>
+  <priority>0.64</priority>
+  <changefreq>monthly</changefreq>
+</url>
+<url>
+  <loc>https://robotics.ucf.edu/projects/demobot/gallery</loc>
+  <lastmod>2020-09-16T14:15:25+00:00</lastmod>
+  <priority>0.64</priority>
+  <changefreq>monthly</changefreq>
+</url>
+<url>
+  <loc>https://robotics.ucf.edu/more/gallery-2019</loc>
+  <lastmod>2020-09-16T14:15:25+00:00</lastmod>
+  <priority>0.64</priority>
+  <changefreq>monthly</changefreq>
+</url>
+<url>
+  <loc>https://robotics.ucf.edu/about/past-officers-2010s</loc>
+  <lastmod>2020-09-16T14:15:25+00:00</lastmod>
+  <priority>0.51</priority>
+  <changefreq>monthly</changefreq>
+</url>
+<url>
+  <loc>https://robotics.ucf.edu/about/past-members-2010s</loc>
+  <lastmod>2020-09-17T14:15:25+00:00</lastmod>
+  <priority>0.51</priority>
+  <changefreq>monthly</changefreq>
+</url>
+<url>
+  <loc>https://robotics.ucf.edu/projects/laki2/index</loc>
+  <lastmod>2020-09-16T14:15:25+00:00</lastmod>
+  <priority>0.51</priority>
+  <changefreq>monthly</changefreq>
+</url>
+<url>
+  <loc>https://robotics.ucf.edu/projects/demobot-2019/index</loc>
+  <lastmod>2020-09-16T14:15:25+00:00</lastmod>
+  <priority>0.51</priority>
+  <changefreq>monthly</changefreq>
+</url>
+<url>
+  <loc>https://robotics.ucf.edu/projects/kitt/index</loc>
+  <lastmod>2020-09-16T14:15:25+00:00</lastmod>
+  <priority>0.51</priority>
+  <changefreq>monthly</changefreq>
+</url>
+<url>
+  <loc>https://robotics.ucf.edu/projects/lakitu/index</loc>
+  <lastmod>2020-09-16T14:15:25+00:00</lastmod>
+  <priority>0.51</priority>
+  <changefreq>monthly</changefreq>
+</url>
+<url>
+  <loc>https://robotics.ucf.edu/projects/ness/index</loc>
+  <lastmod>2020-09-16T14:15:25+00:00</lastmod>
+  <priority>0.51</priority>
+  <changefreq>monthly</changefreq>
+</url>
+<url>
+  <loc>https://robotics.ucf.edu/projects/metaknight/index</loc>
+  <lastmod>2020-09-16T14:15:25+00:00</lastmod>
+  <priority>0.51</priority>
+  <changefreq>monthly</changefreq>
+</url>
+<url>
+  <loc>https://robotics.ucf.edu/index</loc>
+  <lastmod>2020-09-16T14:15:25+00:00</lastmod>
+  <priority>0.51</priority>
+  <changefreq>weekly</changefreq>
+</url>
+
+
 </urlset>

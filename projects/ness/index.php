@@ -6,7 +6,7 @@ $pageCreationDate = "September 10, 2020";
 $title = "Robotics Club Project: Ness";
 $currentWebmaster = "Alexandra French";
 $updateDate = "September 14, 2020";
-$pageDescription = "Ness was our own autonomous submarine in 2017. It focusedd on modularity and neural networks.";
+$pageDescription = "Ness was our own autonomous submarine in 2017. It focused on modularity and neural networks.";
 $keywords = "UCF robotics club, University of Central Florida, UCF, robotics club, robotics club,
                                UCF robotics, UCF club, RSO, AUVSI, autonomous, SUAS, AHRS, IMU, i2C, ROS, ROS melodic,
                                melodic, linux, ubuntu, open source, opensource, engineering, mechanical,

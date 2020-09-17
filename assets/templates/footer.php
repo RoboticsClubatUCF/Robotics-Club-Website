@@ -9,10 +9,10 @@
           <br>Orlando, FL 32826
         </p>
         <p class="col-lg-4 text-center text-white">
-          <a href="https://facebook.com/RoboticsClub"><img src="../assets/imgs/footer/facebook.png"></a>
-          <a href="https://instagram.com/RoboticsClubCFl"><img src="../assets/imgs/footer/instagram.png"></a>
-          <a href="https://twitter.com/RoboticsClubCFl"><img src="../assets/imgs/footer/twitter.png"></a>
-          <a href="https://www.youtube.com/channel/UCZEPdNUFzkciC7MIiI-yPKg"><img src="../assets/imgs/footer/youtube.png"></a>
+          <a href="https://facebook.com/RoboticsClub"><img src="/assets/imgs/footer/facebook.png"></a>
+          <a href="https://instagram.com/RoboticsClubCFl"><img src="/assets/imgs/footer/instagram.png"></a>
+          <a href="https://twitter.com/RoboticsClubCFl"><img src="/assets/imgs/footer/twitter.png"></a>
+          <a href="https://www.youtube.com/channel/UCZEPdNUFzkciC7MIiI-yPKg"><img src="/assets/imgs/footer/youtube.png"></a>
         </p>
       </div>
     </div>

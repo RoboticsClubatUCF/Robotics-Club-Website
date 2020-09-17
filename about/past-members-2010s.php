@@ -14,7 +14,7 @@ $keywords = "UCF robotics club, University of Central Florida, UCF, robotics clu
                                computer science, FOSS, undergraduate, graduate, operating system, vehicles, unmanned,
                                machine learning, computer vision, sensors, lidar, demobot, citrobot, Robotics Club of
                                Central Florida, central florida, robotics club, past members, 2010s, 2010s members, 2010";
-$url = "https://robotics.ucf.edu/about/past-members-2010s.php";
+$url = "https://robotics.ucf.edu/about/past-members-2010s";
 
 // header functions and include
 include_once("../assets/templates/header.php");
@@ -22,12 +22,55 @@ include_once("../assets/templates/header.php");
 
 // navbar
 include_once("../assets/templates/navbar.php");
+?>
+
+<!-- Page Content -->
+<div class="container">
+
+  <!-- past members -->
+  <div class="header-container-sm">
+    <h1 class="mt-4 mb-3 text-center rounded p-1 title-blk-gold">Past Members
+    </h1>
+
+    <!-- text content -->
+    <div class="row align-items-center justify-content-center text-center">
+      <div class="col-lg-12">
+        <div class="container-wht-blk rounded p-3">
+          <p>The Robotics Club of Cental Florida has been a long running club. This page exists
+            to help capture the history of our members. We can date ourselves all the way back to 2016.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- /.past members -->
+
+  <!-- tabs for year segments -->
+  <ul class="nav nav-tabs wht-tabs">
+   <li class="nav-item rounded-top">
+     <a class="nav-link" href="past-members">2020s</a>
+   </li>
+   <li class="nav-item rounded-top">
+     <a class="nav-link active" href="past-members-2010s">2010s</a>
+   </li>
+  </ul>
+  <!-- /.tabs for year segments -->
+
+  <?php
+    // all memebr year and semester tabs
+    $memberYears = array(
+      "2019" => array("Fall", "Spring"),
+      "2018" => array("Fall", "Spring"),
+      "2017" => array("Year Round"),
+      "2016" => array("Year Round"));
+    include_once("assets/templates/members-by-semester.php");
+  ?>
+
+  </div>
+  <!-- /.page content -->
 
 
-// page content
-include_once('assets/templates/past-members-2010s.html');
-
-
+<?php
 // footer functions and include
 include_once("../assets/templates/footer.php");
 

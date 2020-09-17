@@ -1,22 +1,20 @@
-User-agent: *
-Allow: /
-
-Disallow: /assets/templates/*
-Disallow: /about/assets/templates/*
-Disallow: /announcements/assets/templates/*
-Disallow: /faq/assets/templates/*
-Disallow: /more/assets/templates/*
-Disallow: /news/assets/templates/*
-Disallow: /projects/assets/templates/*
-Disallow: /projects/bowser/assets/templates/*
-Disallow: /projects/citrobot/assets/templates/*
-Disallow: /projects/demobot/assets/templates/*
-Disallow: /projects/demobot-2019/assets/templates/*
-Disallow: /projects/kitt/assets/templates/*
-Disallow: /projects/laki2/assets/templates/*
-Disallow: /projects/lakitu/assets/templates/*
-Disallow: /projects/metaknight/assets/templates/*
-Disallow: /projects/ness/assets/templates/*
-Disallow: /sponsors/assets/templates/*
-
 Sitemap: https://robotics.ucf.edu/sitemap.xml
+
+User-agent: *
+Disallow: /assets/templates/
+Disallow: /about/assets/templates/
+Disallow: /announcements/assets/templates/
+Disallow: /faq/assets/templates/
+Disallow: /more/assets/templates/
+Disallow: /news/assets/templates/
+Disallow: /projects/assets/templates/
+Disallow: /projects/bowser/assets/templates/
+Disallow: /projects/citrobot/assets/templates/
+Disallow: /projects/demobot/assets/templates/
+Disallow: /projects/demobot-2019/assets/templates/
+Disallow: /projects/kitt/assets/templates/
+Disallow: /projects/laki2/assets/templates/
+Disallow: /projects/lakitu/assets/templates/
+Disallow: /projects/metaknight/assets/templates/
+Disallow: /projects/ness/assets/templates/
+Disallow: /sponsors/assets/templates/

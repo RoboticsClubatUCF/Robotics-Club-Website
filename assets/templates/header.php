@@ -17,12 +17,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 
   <!-- icons -->
-  <link rel="icon" href="../imgs/favicon.ico" />
-  <link rel="roboskull icon" href="../imgs/favicon.ico" />
-  <link rel="mask-icon" href="../imgs/favicon.ico" color="white" />
-  <link rel=”apple-touch-icon” sizes="114×114" href="../imgs/favicon.ico" />
-  <link rel=”apple-touch-icon” sizes="72×72" href="../imgs/favicon.ico"/>
-  <link rel=”apple-touch-icon” href="../imgs/favicon.ico" />
+  <link rel="icon" href="/assets/imgs/favicon.ico" />
+  <link rel="roboskull icon" href="/assets/imgs/favicon.ico" />
+  <link rel="mask-icon" href="/assets/imgs/favicon.ico" color="white" />
+  <link rel=”apple-touch-icon” sizes="114×114" href="/assets/imgs/favicon.ico" />
+  <link rel=”apple-touch-icon” sizes="72×72" href="/assets/imgs/favicon.ico"/>
+  <link rel=”apple-touch-icon” href="/assets/imgs/favicon.ico" />
 
   <!-- verification of ownership for google search -->
   <meta name="google-site-verification" content="NDgsiRwy1o33-MY4WCiz7Fi69rFDe5iEHkB2cfptC8I" />

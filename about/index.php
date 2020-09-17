@@ -14,7 +14,7 @@ $keywords = "UCF robotics club, University of Central Florida, UCF, robotics clu
                                computer science, FOSS, undergraduate, graduate, operating system, vehicles, unmanned,
                                machine learning, computer vision, sensors, lidar, demobot, citrobot, Robotics Club of
                                Central Florida, central florida, robotics club, about, about us, new members, welcome, mission";
-$url = "https://robotics.ucf.edu/about/index.php";
+$url = "https://robotics.ucf.edu/about/index";
 
 // header functions and include
 include_once("../assets/templates/header.php");
@@ -28,10 +28,30 @@ include_once("../assets/templates/navbar.php");
 include_once('assets/templates/about-us.html');
 include_once('assets/templates/our-officers.html');
 include_once('assets/templates/our-advisors.html');
-include_once('assets/templates/our-members.html');
+?>
 
+  <!-- Page Content -->
+  <div class="container">
+    <!-- members -->
+      <?php
+      // members list addition
+      $csvFile = "assets/misc/membersList-Fa2020.csv";
+      $membersTitle = "Our Members";
+      $membersTitleColor = "gold";
+      include_once('assets/templates/members-list.php');
+      ?>
+    <!-- /.members -->
+    <!-- past members -->
+    <div class="row align-items-center justify-content-center">
+      <div class="col-sm-10">
+        <h5 class="title-blk-gold p-2 text-center invert"><a href="past-members">View Past Members</a> </h5>
+      </div>
+    </div>
+    <!-- /.past members -->
+  </div>
+  <!-- /.container -->
 
+<?php
 // footer functions and include
 include_once("../assets/templates/footer.php");
-
 ?>
