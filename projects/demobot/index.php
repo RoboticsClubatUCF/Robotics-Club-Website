@@ -15,7 +15,7 @@ $keywords = "UCF robotics club, University of Central Florida, UCF, robotics clu
                                machine learning, computer vision, sensors, lidar, demobot, citrobot, Robotics Club of
                                Central Florida, central florida, robotics club, demobot, demonstration robot, demonstration, demonstrative,
                                demonstrative robot, spider bot, robot, spider";
-$url = "https://robotics.ucf.edu/projects/demobot/index.php";
+$url = "https://robotics.ucf.edu/projects/demobot/index";
 $markupImage = "https://robotics.ucf.edu/projects/assets/imgs/demobot.jpg";
 
 // header functions and include
@@ -29,6 +29,22 @@ include_once("../../assets/templates/navbar.php");
 // page content
 include_once('assets/templates/demobot.html');
 
+?>
+
+    <!-- Team members-->
+    <?php
+      // members list addition
+      $csvFile = "assets/misc/membersListDemobot.csv";
+      $membersTitle = "Team Members";
+      $membersTitleColor = "gold";
+      include_once('../../assets/templates/members-list.php');
+    ?>
+    <!-- /.Team members -->
+
+  </div>
+  <!-- /.container -->
+
+<?php
 
 // footer functions and include
 include_once("../../assets/templates/footer.php");

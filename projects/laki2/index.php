@@ -14,7 +14,7 @@ $keywords = "UCF robotics club, University of Central Florida, UCF, robotics clu
                                computer science, FOSS, undergraduate, graduate, operating system, vehicles, unmanned,
                                machine learning, computer vision, sensors, lidar, demobot, citrobot, Robotics Club of
                                Central Florida, central florida, robotics club, laki2, autonomous octocopter, octocopter";
-$url = "https://robotics.ucf.edu/projects/laki2/index.php";
+$url = "https://robotics.ucf.edu/projects/laki2/index";
 $markupImage = "https://robotics.ucf.edu/projects/assets/imgs/laki2.jpg";
 
 // header functions and include

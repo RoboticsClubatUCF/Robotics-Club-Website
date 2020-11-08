@@ -16,7 +16,7 @@ $keywords = "UCF robotics club, University of Central Florida, UCF, robotics clu
                                Central Florida, central florida, robotics club, sponsors, texas instruments, arl, ist,
                                institution for simulation and training, united states army research laboratory, TI,
                                SolidCAM, digi-key, fmw fasteners";
-$url = "https://robotics.ucf.edu/sponsors/index.php";
+$url = "https://robotics.ucf.edu/sponsors/index";
 
 // header functions and include
 include_once("../assets/templates/header.php");
