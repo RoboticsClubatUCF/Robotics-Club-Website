@@ -5,7 +5,7 @@ $pageCreator = "Alexandra French";
 $pageCreationDate = "August 5, 2020";
 $title = "Robotics Club of Central Florida";
 $currentWebmaster = "Alexandra French";
-$updateDate = "September 16, 2020";
+$updateDate = "November 4, 2020";
 $pageDescription = "The Robotics Club of Central Florida is a student powered club based on hands on work with autonomous robotics.";
 $keywords = "UCF robotics club, University of Central Florida, UCF, robotics club, robotics club,
                                UCF robotics, UCF club, RSO, AUVSI, autonomous, SUAS, AHRS, IMU, i2C, ROS, ROS melodic,
@@ -17,7 +17,12 @@ $keywords = "UCF robotics club, University of Central Florida, UCF, robotics clu
 $url = "https://robotics.ucf.edu/";
 $markupImage = "https://robotics.ucf.edu/assets/imgs/bowser.jpg";
 
+// header
+include_once('asserts/templates/header.html');
+
 // page content
-include_once('assets/templates/index.html');
+include_once('assets/templates/index.php');
+
+
 
 ?>

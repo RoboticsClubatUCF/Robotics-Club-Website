@@ -5,7 +5,7 @@ $pageCreator = "Alexandra French";
 $pageCreationDate = "August 11, 2020";
 $title = "Robotics Club Constitution";
 $currentWebmaster = "Alexandra French";
-$updateDate = "September 14, 2020";
+$updateDate = "November 5, 2020";
 $pageDescription = "Our club constitution, including how the club is run and the rules behind our workings";
 $keywords = "UCF robotics club, University of Central Florida, UCF, robotics club, robotics club,
                                UCF robotics, UCF club, RSO, AUVSI, autonomous, SUAS, AHRS, IMU, i2C, ROS, ROS melodic,

@@ -5,7 +5,7 @@ $pageCreator = "Alexandra French";
 $pageCreationDate = "August 25, 2020";
 $title = "Past Robotics Club Members";
 $currentWebmaster = "Alexandra French";
-$updateDate = "September 14, 2020";
+$updateDate = "November 4, 2020";
 $pageDescription = "The Robotics Club of Central Florida has a history of all members in the 2020s for viewing.";
 $keywords = "UCF robotics club, University of Central Florida, UCF, robotics club, robotics club,
                                UCF robotics, UCF club, RSO, AUVSI, autonomous, SUAS, AHRS, IMU, i2C, ROS, ROS melodic,

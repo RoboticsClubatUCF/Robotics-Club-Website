@@ -61,7 +61,7 @@
               $membersTitle = $semester[$numSem] . " " . $year . " Members";
               $membersTitleColor = "white";
               $csvFile = "assets/misc/membersList" . "-" . $semester[$numSem][0] . $semester[$numSem][1] . $year . ".csv";
-              include('assets/templates/members-list.php');
+              include('../assets/templates/members-list.php');
 
               echo "\n\t\t\t</div>";
               echo "\n\t\t\t<!-- /." . $semester[$numSem] . " -->";

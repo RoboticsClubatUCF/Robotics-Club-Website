@@ -14,7 +14,7 @@ $keywords = "UCF robotics club, University of Central Florida, UCF, robotics clu
                                computer science, FOSS, undergraduate, graduate, operating system, vehicles, unmanned,
                                machine learning, computer vision, sensors, lidar, demobot, citrobot, Robotics Club of
                                Central Florida, central florida, robotics club, autonomous ground vehicle, igvc, metaknight";
-$url = "https://robotics.ucf.edu/projects/metaknight/index.php";
+$url = "https://robotics.ucf.edu/projects/metaknight/index";
 $markupImage = "https://robotics.ucf.edu/projects/assets/imgs/metaknight.jpg";
 
 // header functions and include

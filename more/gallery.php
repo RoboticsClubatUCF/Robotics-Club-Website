@@ -16,7 +16,7 @@ $keywords = "UCF robotics club, University of Central Florida, UCF, robotics clu
                                Central Florida, central florida, robotics club, photo gallery 2020, current photo gallery,
                                workshops gallery 2020, workshops gallery, workshop photos 2020, workshop photos, social gallery 2020,
                                social photos 2020, social gallery, social photos";
-$url = "https://robotics.ucf.edu/more/gallery.php";
+$url = "https://robotics.ucf.edu/more/gallery";
 $markupImage = "https://robotics.ucf.edu/more/assets/imgs/2020/workshops/sp-ti-2.jpg";
 
 // header functions and include

@@ -5,7 +5,7 @@ $pageCreator = "Alexandra French";
 $pageCreationDate = "August 5, 2020";
 $title = "About The Robotics Club";
 $currentWebmaster = "Alexandra French";
-$updateDate = "September 14, 2020";
+$updateDate = "November 4, 2020";
 $pageDescription = "The Robotics Club of Central Florida is a student club focused on exploring and advancing robotics.";
 $keywords = "UCF robotics club, University of Central Florida, UCF, robotics club, robotics club,
                                UCF robotics, UCF club, RSO, AUVSI, autonomous, SUAS, AHRS, IMU, i2C, ROS, ROS melodic,
@@ -26,7 +26,7 @@ include_once("../assets/templates/navbar.php");
 
 // page content
 include_once('assets/templates/about-us.html');
-include_once('assets/templates/our-officers.html');
+include_once('assets/templates/our-officers.php');
 include_once('assets/templates/our-advisors.html');
 ?>
 
@@ -38,13 +38,13 @@ include_once('assets/templates/our-advisors.html');
       $csvFile = "assets/misc/membersList-Fa2020.csv";
       $membersTitle = "Our Members";
       $membersTitleColor = "gold";
-      include_once('assets/templates/members-list.php');
+      include_once('../assets/templates/members-list.php');
       ?>
     <!-- /.members -->
     <!-- past members -->
     <div class="row align-items-center justify-content-center">
       <div class="col-sm-10">
-        <h5 class="title-blk-gold p-2 text-center invert"><a href="past-members">View Past Members</a> </h5>
+        <h3 class="title-blk-gold p-2 text-center invert"><a href="past-members">View Past Members</a> </h3>
       </div>
     </div>
     <!-- /.past members -->

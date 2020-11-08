@@ -5,7 +5,7 @@ $pageCreator = "Alexandra French";
 $pageCreationDate = "August 5, 2020";
 $title = "Robotics Club Newsletter";
 $currentWebmaster = "Alexandra French";
-$updateDate = "September 14, 2020";
+$updateDate = "September 29, 2020";
 $pageDescription = "Learn more about the Robotics Club of Central Florida's recent events through our newsletter.";
 $keywords = "UCF robotics club, University of Central Florida, UCF, robotics club, robotics club,
                                UCF robotics, UCF club, RSO, AUVSI, autonomous, SUAS, AHRS, IMU, i2C, ROS, ROS melodic,
@@ -14,9 +14,18 @@ $keywords = "UCF robotics club, University of Central Florida, UCF, robotics clu
                                computer science, FOSS, undergraduate, graduate, operating system, vehicles, unmanned,
                                machine learning, computer vision, sensors, lidar, demobot, citrobot, Robotics Club of
                                Central Florida, central florida, robotics club, news, newsletter, club news";
-$url = "https://robotics.ucf.edu/news/index.php";
+$url = "https://robotics.ucf.edu/news/index";
 
 // header functions and include
+function customCssStyles() {
+  $customCss = array("assets/css/mailchimp.css");
+  echo "<!-- Additional Css styles -->";
+  foreach ($customCss as $currentCss) {
+    echo "<link href=\"";
+    echo $currentCss;
+    echo "\" rel=\"stylesheet\">";
+  }
+}
 include_once("../assets/templates/header.php");
 
 

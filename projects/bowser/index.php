@@ -5,7 +5,7 @@ $pageCreator = "Alexandra French";
 $pageCreationDate = "August 5, 2020";
 $title = "Robotics Club Project: Bowser";
 $currentWebmaster = "Alexandra French";
-$updateDate = "September 14, 2020";
+$updateDate = "November 5, 2020";
 $pageDescription = "Bowser is our smart, self-controlled, and fast autonomous ground robot.";
 $keywords = "UCF robotics club, University of Central Florida, UCF, robotics club, robotics club,
                                UCF robotics, UCF club, RSO, AUVSI, autonomous, SUAS, AHRS, IMU, i2C, ROS, ROS melodic,
@@ -14,7 +14,7 @@ $keywords = "UCF robotics club, University of Central Florida, UCF, robotics clu
                                computer science, FOSS, undergraduate, graduate, operating system, vehicles, unmanned,
                                machine learning, computer vision, sensors, lidar, demobot, citrobot, Robotics Club of
                                Central Florida, central florida, robotics club, autonomous ground vehicle, Bowser, IGVC";
-$url = "https://robotics.ucf.edu/projects/bowser/index.php";
+$url = "https://robotics.ucf.edu/projects/bowser/index";
 $markupImage = "https://robotics.ucf.edu/projects/assets/imgs/bowser.jpg";
 
 // header functions and include
@@ -28,6 +28,21 @@ include_once("../../assets/templates/navbar.php");
 // page content
 include_once('assets/templates/bowser.html');
 
+?>
+    <!-- Team members-->
+    <?php
+      // members list addition
+      $csvFile = "assets/misc/membersListBowser.csv";
+      $membersTitle = "Team Members";
+      $membersTitleColor = "gold";
+      include_once('../../assets/templates/members-list.php');
+    ?>
+    <!-- /.Team members -->
+
+  </div>
+  <!-- /.container -->
+
+<?php
 
 // footer functions and include
 include_once("../../assets/templates/footer.php");

@@ -15,7 +15,7 @@ $keywords = "UCF robotics club, University of Central Florida, UCF, robotics clu
                                machine learning, computer vision, sensors, lidar, demobot, citrobot, Robotics Club of
                                Central Florida, central florida, robotics club, facebook, instagram, twitter, youtube, social media,
                                social media feed, feed";
-$url = "https://robotics.ucf.edu/news/social-media.php";
+$url = "https://robotics.ucf.edu/news/social-media";
 $markupImage = "https://robotics.ucf.edu/more/assets/imgs/2020/workshops/spring-python.jpg";
 
 // header functions and include
