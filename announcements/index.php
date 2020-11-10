@@ -40,7 +40,7 @@ include_once("../assets/templates/navbar.php");
         <h2 class="text-center">Watching Our Progress? Getting Involved?</h2>
         <div class="row text-center">
           <div class="col-lg-12">
-            <p> Here you can find all of our September 2020 events and news! We focused on workshops in September.
+            <p> Here you can find all of our current 2020 events and news! We have been focusing on workshops, socials, and nominations/elections so far.
             </p>
           </div>
         </div>
@@ -54,10 +54,10 @@ include_once("../assets/templates/navbar.php");
 include_once('assets/templates/announcement.php');
 $announcement = new Announcement();
 
-$description = "We have our officer nominations upcoming! Any dues paying member can nomination themselves to be an officer. Join us and help us decide who will run for our new officers next week.";
+$description = "We have our officer nominations upcoming! Any dues paying member can nomination themselves to be an officer. Join us and help us decide who will run for our new officers Monday, November 9th, at 6:30pm.";
 $announcement->generate("Officer Nominations", "assets/imgs/2020-cad-workshop-1.jpg", "cad drawing", $description, "November 2, 2020", "Alexandra French (Webmaster)", null, null);
 
-$description = "We have an upcoming ROS/Gazebo workshop this week, November 6, at 6:30pm.<br>Join us to learn about Gazebo and ROS!";
+$description = "Our upcoming ROS/Gazebo workshop will be rescheduled.<br>Join us to learn about Gazebo and ROS later on this semester!";
 $announcement->generate("ROS/Gazebo Workshop", "assets/imgs/gazebo-workshop.jpg", "Gazebo running bowser", $description, "November 2, 2020", "Alexandra French (Webmaster)", null, null);
 
 $description = "Join us for Wacky Uncle Sal's Spooktacular Spookfest social, October 30, at 6:30pm. We'll be playing some Jackbox games and wearing our halloween costumes!";
@@ -77,5 +77,10 @@ $pagination->generate(array("index", "FA20-Oct", "FA20-Sep", "FA20-Aug"), FALSE)
 
 // footer functions and include
 include_once("../assets/templates/footer.php");
+$footerGen = new Footer();
+
+$footerGen->generateFooter(2020);
+$footerGen->generateJs();
+$footerGen->endFile();
 
 ?>

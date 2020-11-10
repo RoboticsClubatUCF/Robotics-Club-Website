@@ -81,5 +81,10 @@ $pagination->generate(array("index", "FA20-Oct", "FA20-Sep", "FA20-Aug"), FALSE)
 
 // footer functions and include
 include_once("../assets/templates/footer.php");
+$footerGen = new Footer();
+
+$footerGen->generateFooter(2020);
+$footerGen->generateJs();
+$footerGen->endFile();
 
 ?>

@@ -38,7 +38,7 @@
       } else {
         echo "false";
       }
-      echo "\" aria-controls=\"collapse" . $section .         $this->number . "\">";
+      echo "\" aria-controls=\"collapse" . $section . $this->number . "\">";
       echo "\n                  <div class=\"faq-text\"><h3>" . $question . "</h3></div>";
       echo "\n                </button>
               </div>

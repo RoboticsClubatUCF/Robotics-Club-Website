@@ -40,7 +40,7 @@ include_once("../assets/templates/navbar.php");
         <h2 class="text-center">Watching Our Progress? Getting Involved?</h2>
         <div class="row text-center">
           <div class="col-lg-12">
-            <p> Here you can find all of our September 2020 events and news! We focused on workshops in September.
+            <p> Here you can find all of our October 2020 events and news! We focused on socials and workshops in October.
             </p>
           </div>
         </div>
@@ -80,5 +80,10 @@ $pagination->generate(array("index", "FA20-Oct", "FA20-Sep", "FA20-Aug"), FALSE)
 
 // footer functions and include
 include_once("../assets/templates/footer.php");
+$footerGen = new Footer();
+
+$footerGen->generateFooter(2020);
+$footerGen->generateJs();
+$footerGen->endFile();
 
 ?>
