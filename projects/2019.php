@@ -93,5 +93,10 @@ include_once("../assets/templates/navbar.php");
 
 // footer functions and include
 include_once("../assets/templates/footer.php");
+$footerGen = new Footer();
+
+$footerGen->generateFooter(2020);
+$footerGen->generateJs();
+$footerGen->endFile();
 
 ?>

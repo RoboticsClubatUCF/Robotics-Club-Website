@@ -63,7 +63,7 @@ function cloneSlides(){
 // jquery to make the slides move forward one by one through cloning
 (function($) {
     // grab the robot slide items
-    var s = $('#robotCarousel.carousel .carousel-item')
+    var s = $('#circle-carousel.carousel .carousel-item')
 
     // for each slide, run the cloning and adjust slides
     s.each(cloneSlides);
@@ -71,11 +71,11 @@ function cloneSlides(){
 
 
 // when the next button is clicked, run through the slides
-const next = document.getElementById('robot-next');
+const next = document.getElementById('circle-next');
 next.addEventListener("click", embiggenForwards);
 
 // when the prev button is clicked, run through the slides
-const prev = document.getElementById('robot-prev');
+const prev = document.getElementById('circle-prev');
 prev.addEventListener("click", embiggenBackwards);
 
 // makes cards bigger on forwards click

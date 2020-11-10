@@ -3,14 +3,14 @@
   // Created Nov 5 by Alexandra French
   // Last updated Nov 5 by Alexandra French
 
-  class Officer{
+  class Personnel{
   
     public function __construct() {
     }
     
     // generates an officer block
     // image, image alt, major, and description are all optional
-    public function generateOfficer($name, $position, $image, $imageAlt, $major, $description) {
+    public function generatePersonnel($name, $position, $image, $imageAlt, $major, $description) {
       echo "  <div class=\"people card-blk-wht h-100 text-center\">";
       // if theres an image (and image alt for accessibility), generate an image for the officer
       if ($image != null && $imageAlt != null) {

@@ -17,12 +17,18 @@ $keywords = "UCF robotics club, University of Central Florida, UCF, robotics clu
 $url = "https://robotics.ucf.edu/";
 $markupImage = "https://robotics.ucf.edu/assets/imgs/bowser.jpg";
 
-// header
-include_once('asserts/templates/header.html');
+// header content
+#include_once('assets/templates/header.html');
 
-// page content
-include_once('assets/templates/index.php');
+// page content with snap containers
+include_once('assets/templates/snap-index.php');
 
+// footer content
+include_once('assets/templates/footer.php');
+$footerGen = new Footer();
 
+$customJs = array("/assets/js/index.js");
+$footerGen->generateJs($customJs);
+$footerGen->endFile();
 
 ?>

@@ -43,5 +43,11 @@ function customJsStyles() {
   }
 }
 include_once("../assets/templates/footer.php");
+$footerGen = new Footer();
+
+$footerGen->generateFooter(2020);
+$customJs = array("assets/js/side-nav-carousel.js");
+$footerGen->generateJs($customJs);
+$footerGen->endFile();
 
 ?>

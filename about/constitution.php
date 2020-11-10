@@ -31,5 +31,11 @@ require_once('assets/templates/constitution.html');
 
 // footer functions and include
 include_once("../assets/templates/footer.php");
+$footerGen = new Footer();
+
+$footerGen->generateFooter(2020);
+$customJs = array("../assets/js/alert.js");
+$footerGen->generateJs($customJs);
+$footerGen->endFile();
 
 ?>

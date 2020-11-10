@@ -3,7 +3,7 @@
   For: the Robotics Club of Central Florida
   On: August 5, 2020
 
-  Last modified on: August 23, 2020
+  Last modified on: November 9, 2020
   By: Alexandra French
 */
 
@@ -14,25 +14,6 @@ body {
 }
 
 
-/* CAROUSEL STYLES*/
-#carouselIndicators .carousel-item {
-  height: 57vh;
-  min-height: 300px;
-  background: no-repeat center center scroll;
-  -webkit-background-size: cover;
-  -moz-background-size: cover;
-  -o-background-size: cover;
-  background-size: cover;
-}
-
-.carousel-caption h1, .carousel-caption h2 {
-  color: #C39A00;
-  text-shadow: 0px 5px 0px #212121;
-  text-emphasis: bold;
-  font-size: 80px;
-}
-
-
 /* titles */
 .idx-title {
   color: #C39A00;
@@ -40,9 +21,9 @@ body {
 }
 
 
-/*  announcements and calendar fixes */
+/* announcements and calendar fixes */
 .ann-cal-container {
-  height: 43vh;
+  height: 45vh;
   width: 100%;
 }
 
@@ -397,53 +378,53 @@ body.dark #contact-overlay {
 
 /* styles for the robotics slides */
 /* shrink left and rightmost items*/
-#robotCarousel.carousel .carousel-item.small-0 .robot-card-1,
-#robotCarousel.carousel .carousel-item.small-0 .robot-card-2 {
+#circle-carousel.carousel .carousel-item.small-0 .circle-card-1,
+#circle-carousel.carousel .carousel-item.small-0 .circle-card-2 {
   transform: scale(0.75);
 }
-#robotCarousel.carousel .carousel-item.small-1 .robot-card-0,
-#robotCarousel.carousel .carousel-item.small-1 .robot-card-2 {
+#circle-carousel.carousel .carousel-item.small-1 .circle-card-0,
+#circle-carousel.carousel .carousel-item.small-1 .circle-card-2 {
   transform: scale(0.75);
 }
-#robotCarousel.carousel .carousel-item.small-2 .robot-card-0,
-#robotCarousel.carousel .carousel-item.small-2 .robot-card-1 {
+#circle-carousel.carousel .carousel-item.small-2 .circle-card-0,
+#circle-carousel.carousel .carousel-item.small-2 .circle-card-1 {
   transform: scale(0.75);
 }
 
 /* make middle overlay on by default */
-#robotCarousel.carousel .carousel-item.small-0 .robot-card-0 .card-img-overlay {
+#circle-carousel.carousel .carousel-item.small-0 .circle-card-0 .card-img-overlay {
   opacity: 0.75;
 }
-#robotCarousel.carousel .carousel-item.small-1 .robot-card-1 .card-img-overlay {
+#circle-carousel.carousel .carousel-item.small-1 .circle-card-1 .card-img-overlay {
   opacity: 0.75;
 }
-#robotCarousel.carousel .carousel-item.small-2 .robot-card-2 .card-img-overlay {
+#circle-carousel.carousel .carousel-item.small-2 .circle-card-2 .card-img-overlay {
   opacity: 0.75;
 }
 
 /* make middle overlay disappear on mouseover */
-#robotCarousel.carousel .carousel-item.small-0 .robot-card-0 .overlay-container:hover .card-img-overlay,
-#robotCarousel.carousel .carousel-item.small-0 .robot-card-0 .overlay-container:focus .card-img-overlay {
+#circle-carousel.carousel .carousel-item.small-0 .circle-card-0 .overlay-container:hover .card-img-overlay,
+#circle-carousel.carousel .carousel-item.small-0 .circle-card-0 .overlay-container:focus .card-img-overlay {
   opacity: 0;
 }
 
-#robotCarousel.carousel .carousel-item.small-1 .robot-card-1 .overlay-container:hover .card-img-overlay,
-#robotCarousel.carousel .carousel-item.small-1 .robot-card-1 .overlay-container:focus .card-img-overlay {
+#circle-carousel.carousel .carousel-item.small-1 .circle-card-1 .overlay-container:hover .card-img-overlay,
+#circle-carousel.carousel .carousel-item.small-1 .circle-card-1 .overlay-container:focus .card-img-overlay {
   opacity: 0;
 }
-#robotCarousel.carousel .carousel-item.small-2 .robot-card-2 .overlay-container:hover .card-img-overlay,
-#robotCarousel.carousel .carousel-item.small-2 .robot-card-2 .overlay-container:focus .card-img-overlay {
+#circle-carousel.carousel .carousel-item.small-2 .circle-card-2 .overlay-container:hover .card-img-overlay,
+#circle-carousel.carousel .carousel-item.small-2 .circle-card-2 .overlay-container:focus .card-img-overlay {
   opacity: 0;
 }
 
-#robotCarousel.carousel .carousel-inner .carousel-item.active,
-#robotCarousel.carousel .carousel-inner .carousel-item-next,
-#robotCarousel.carousel .carousel-inner .carousel-item-prev {
+#circle-carousel.carousel .carousel-inner .carousel-item.active,
+#circle-carousel.carousel .carousel-inner .carousel-item-next,
+#circle-carousel.carousel .carousel-inner .carousel-item-prev {
   display: flex;
 }
 
 /* carousel speed */
-#robotCarousel.carousel .carousel-inner .item {
+#circle-carousel.carousel .carousel-inner .item {
   -webkit-transition: 1.0s ease-in-out left;
   -moz-transition: 1.0s ease-in-out left;
   -o-transition: 1.0s ease-in-out left;
@@ -451,8 +432,8 @@ body.dark #contact-overlay {
 }
 
 /* carousel icons */
-#robotCarousel.carousel .carousel-control-prev-icon,
-#robotCarousel.carousel .carousel-control-next-icon {
+#circle-carousel.carousel .carousel-control-prev-icon,
+#circle-carousel.carousel .carousel-control-next-icon {
   height: 55px;
   width: 55px;
   outline: black;
@@ -467,7 +448,7 @@ body.dark #contact-overlay {
   font-weight: bold;
 }
 
-#robotCarousel.carousel .carousel-control-next-icon:after
+#circle-carousel.carousel .carousel-control-next-icon:after
 {
   text-align: center;
   justify-content: center;
@@ -476,7 +457,7 @@ body.dark #contact-overlay {
   color: red;
 }
 
-#robotCarousel.carousel .carousel-control-prev-icon:after {
+#circle-carousel.carousel .carousel-control-prev-icon:after {
   text-align: center;
   justify-content: center;
   align-items: center;
@@ -485,7 +466,7 @@ body.dark #contact-overlay {
 }
 
 /* text for carousel */
-#robotCarousel.carousel .card-header {
+#circle-carousel.carousel .card-header {
   font-size: 32px;
   font-weight: bold;
   color: #C39A00;
@@ -494,25 +475,25 @@ body.dark #contact-overlay {
   padding-top: 5px;
 }
 
-#robotCarousel.carousel p {
+#circle-carousel.carousel p {
   font-weight: bold;
 }
 
 
-#robotCarousel.carousel {
+#circle-carousel.carousel {
   height: 100vh;
 }
 
-#robotCarousel .carousel-inner {
+#circle-carousel .carousel-inner {
   height: inherit;
 }
 
 
-#robotCarousel.carousel .carousel-item {
+#circle-carousel.carousel .carousel-item {
   height: 100vh;
 }
 
-#robotCarousel .card img {
+#circle-carousel .card img {
   width: 100%;
   height: auto;
 }
@@ -713,80 +694,80 @@ footer {
 
 /* display 2*/
 @media (max-width: 770px) {
-  #robotCarousel.carousel .carousel-inner .carousel-item > div {
+  #circle-carousel.carousel .carousel-inner .carousel-item > div {
     display: none;
   }
-  #robotCarousel.carousel .carousel-inner .carousel-item > div:first-child {
+  #circle-carousel.carousel .carousel-inner .carousel-item > div:first-child {
     display: block;
   }
 
-  #robotCarousel.carousel .card-header {
+  #circle-carousel.carousel .card-header {
     font-size: 42px;
   }
 
   /* carousel icons */
-  #robotCarousel.carousel .carousel-control-prev-icon,
-  #robotCarousel.carousel .carousel-control-next-icon {
+  #circle-carousel.carousel .carousel-control-prev-icon,
+  #circle-carousel.carousel .carousel-control-next-icon {
     height: 35px;
     width: 35px;
     font-size: 32px;
   }
 
-  #robotCarousel.carousel .carousel-control-next-icon:after {
+  #circle-carousel.carousel .carousel-control-next-icon:after {
     font-size: 25px;
     color: red;
   }
 
-  #robotCarousel.carousel .carousel-control-prev-icon:after {
+  #circle-carousel.carousel .carousel-control-prev-icon:after {
     font-size: 25px;
     color: red;
   }
 
-  #robotCarousel .card-img-overlay {
+  #circle-carousel .card-img-overlay {
     opacity: 0.75;
   }
 
-  #robotCarousel .overlay-container:hover .card-img-overlay,
-  #robotCarousel .overlay-container:focus .card-img-overlay {
+  #circle-carousel .overlay-container:hover .card-img-overlay,
+  #circle-carousel .overlay-container:focus .card-img-overlay {
     opacity: 0;
   }
 
-  #robotCarousel p {
+  #circle-carousel p {
     font-size: 24px;
     font-weight: bold;
   }
 
 
   /* Dont transform if only one image is showing */
-  #robotCarousel.carousel .carousel-item.small-0 .robot-card-1,
-  #robotCarousel.carousel .carousel-item.small-0 .robot-card-2 {
+  #circle-carousel.carousel .carousel-item.small-0 .circle-card-1,
+  #circle-carousel.carousel .carousel-item.small-0 .circle-card-2 {
     transform: scale(1);
   }
-  #robotCarousel.carousel .carousel-item.small-1 .robot-card-0,
-  #robotCarousel.carousel .carousel-item.small-1 .robot-card-2 {
+  #circle-carousel.carousel .carousel-item.small-1 .circle-card-0,
+  #circle-carousel.carousel .carousel-item.small-1 .circle-card-2 {
     transform: scale(1);
   }
-  #robotCarousel.carousel .carousel-item.small-2 .robot-card-0,
-  #robotCarousel.carousel .carousel-item.small-2 .robot-card-1 {
+  #circle-carousel.carousel .carousel-item.small-2 .circle-card-0,
+  #circle-carousel.carousel .carousel-item.small-2 .circle-card-1 {
     transform: scale(1);
   }
 }
 
 /* display 3 */
 @media (min-width: 770px) {
-    #robotCarousel.carousel .carousel-inner .carousel-item-right.active,
-    #robotCarousel.carousel .carousel-inner .carousel-item-next {
+    #circle-carousel.carousel .carousel-inner .carousel-item-right.active,
+    #circle-carousel.carousel .carousel-inner .carousel-item-next {
       transform: translateX(33.333%);
     }
 
-    #robotCarousel.carousel .carousel-inner .carousel-item-left.active,
-    #robotCarousel.carousel .carousel-inner .carousel-item-prev {
+    #circle-carousel.carousel .carousel-inner .carousel-item-left.active,
+    #circle-carousel.carousel .carousel-inner .carousel-item-prev {
       transform: translateX(-33.333%);
     }
 }
 
-#robotCarousel.carousel .carousel-inner .carousel-item-right,
-#robotCarousel.carousel .carousel-inner .carousel-item-left{
+#circle-carousel.carousel .carousel-inner .carousel-item-right,
+#circle-carousel.carousel .carousel-inner .carousel-item-left{
   transform: translateX(0);
 }
 
@@ -809,7 +790,7 @@ footer {
 }
 
 @media (max-width: 418px) {
-  #robotCarousel p {
+  #circle-carousel p {
     font-size: 22px;
     font-weight: bold;
   }
@@ -818,7 +799,7 @@ footer {
 
 /* fix sizing on mobile */
 @media (max-width:375px) {
-  #robotCarousel p {
+  #circle-carousel p {
     font-size: 20px;
     font-weight: bold;
   }

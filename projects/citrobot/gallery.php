@@ -32,5 +32,10 @@ include_once('assets/templates/gallery.html');
 
 // footer functions and include
 include_once("../../assets/templates/footer.php");
+$footerGen = new Footer();
+
+$footerGen->generateFooter(2020);
+$footerGen->generateJs();
+$footerGen->endFile();
 
 ?>

@@ -27,7 +27,7 @@ include_once("../assets/templates/navbar.php");
 // page content
 include_once('assets/templates/about-us.html');
 include_once('assets/templates/our-officers.php');
-include_once('assets/templates/our-advisors.html');
+include_once('assets/templates/our-advisors.php');
 ?>
 
   <!-- Page Content -->
@@ -54,4 +54,10 @@ include_once('assets/templates/our-advisors.html');
 <?php
 // footer functions and include
 include_once("../assets/templates/footer.php");
+$footerGen = new Footer();
+
+$footerGen->generateFooter(2020);
+$footerGen->generateJs();
+$footerGen->endFile();
+
 ?>
