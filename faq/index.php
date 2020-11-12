@@ -1,11 +1,7 @@
 <?php
 
-// all variables
-$pageCreator = "Alexandra French";
-$pageCreationDate = "August 5, 2020";
-$title = "Robotics Club Frequently Asked Questions";
-$currentWebmaster = "Alexandra French";
-$updateDate = "November 5, 2020";
+// header functions and include
+include_once("../assets/templates/header.php");
 $pageDescription = "Questions for the Robotics Club of Central Florida? Learn more about us on our FAQ page.";
 $keywords = "UCF robotics club, University of Central Florida, UCF, robotics club, robotics club,
                                UCF robotics, UCF club, RSO, AUVSI, autonomous, SUAS, AHRS, IMU, i2C, ROS, ROS melodic,
@@ -15,10 +11,12 @@ $keywords = "UCF robotics club, University of Central Florida, UCF, robotics clu
                                machine learning, computer vision, sensors, lidar, demobot, citrobot, Robotics Club of
                                Central Florida, central florida, robotics club, faq, frequently asked questions, dues,
                                club dues, club directions, direction";
-$url = "https://robotics.ucf.edu/faq/index";
-
-// header functions and include
-include_once("../assets/templates/header.php");
+$headerGen = new Header("Alexandra French", "August 5, 2020", "Alexandra French", "November 12, 2020");
+$headerGen->generateComment();
+$headerGen->generateCommon("Robotics Club Frequently Asked Questions", $pageDescription, $keywords, "https://robotics.ucf.edu/faq/index");
+$headerGen->generateCSS();
+$headerGen->genWebsiteSEO("https://robotics.ucf.edu/faq/index", "Robotics Club Frequently Asked Questions", $pageDescription);
+$headerGen->endHeader();
 
 
 // navbar

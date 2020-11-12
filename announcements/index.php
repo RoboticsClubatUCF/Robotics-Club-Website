@@ -1,11 +1,7 @@
 <?php
 
-// all variables
-$pageCreator = "Alexandra French";
-$pageCreationDate = "November 4, 2020";
-$title = "Robotics Club Announcements and Events";
-$currentWebmaster = "Alexandra French";
-$updateDate = "November 4, 2020";
+// header functions and include
+include_once("../assets/templates/header.php");
 $pageDescription = "Robotics Club of Central Florida has regular site updates, workshops, socials, and project meetups.";
 $keywords = "UCF robotics club, University of Central Florida, UCF, robotics club, robotics club,
                                UCF robotics, UCF club, RSO, AUVSI, autonomous, SUAS, AHRS, IMU, i2C, ROS, ROS melodic,
@@ -15,11 +11,12 @@ $keywords = "UCF robotics club, University of Central Florida, UCF, robotics clu
                                machine learning, computer vision, sensors, lidar, demobot, citrobot, Robotics Club of
                                Central Florida, central florida, robotics club, announcements, events, new events, september,
                                october, novemebr, CAD workshop, ROS workshop, officer nominations";
-$url = "https://robotics.ucf.edu/announcements/index";
-$markupImage = "https://robotics.ucf.edu/announcements/assets/imgs/2020-cad-workshop-1.jpg";
-
-// header functions and include
-include_once("../assets/templates/header.php");
+$headerGen = new Header("Alexandra French", "August 5, 2020", "Alexandra French", "November 12, 2020");
+$headerGen->generateComment();
+$headerGen->generateCommon("Robotics Club Announcements and Events", $pageDescription, $keywords, "https://robotics.ucf.edu/announcements/index");
+$headerGen->generateCSS();
+$headerGen->genWebsiteSEO("https://robotics.ucf.edu/announcements/index", "Robotics Club Announcements and Events", $pageDescription, "https://robotics.ucf.edu/announcements/assets/imgs/2020-cad-workshop-1.jpg");
+$headerGen->endHeader();
 
 
 // navbar
@@ -53,6 +50,9 @@ include_once("../assets/templates/navbar.php");
 // all the announcements for this page
 include_once('assets/templates/announcement.php');
 $announcement = new Announcement();
+
+$description = "Pinewood derby office hours, Q&A, and car work is coming up on Wednesday, November 11, at 6:30pm.Have you been working on a mini car to compete with? Need some help with a design? Have some other questions? Come join us on Discord!";
+$announcement->generate("Pinewood Deby Office Hours", "../assets/imgs/placeholder-760x370.png", "robotics club logo", $description, "November 10, 2020", "Alexandra French (Webmaster)");
 
 $description = "We have our officer nominations upcoming! Any dues paying member can nomination themselves to be an officer. Join us and help us decide who will run for our new officers Monday, November 9th, at 6:30pm.";
 $announcement->generate("Officer Nominations", "assets/imgs/2020-cad-workshop-1.jpg", "cad drawing", $description, "November 2, 2020", "Alexandra French (Webmaster)", null, null);

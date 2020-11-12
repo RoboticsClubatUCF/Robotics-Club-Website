@@ -86,7 +86,7 @@
     }
   
     // takes an array of styles and generates them as js scripts
-    function customJsStyles($customJs) {
+    private function customJsStyles($customJs) {
       echo "\n\n<!-- Additional js styles -->";
       foreach ($customJs as $currentJs) {
         echo "<script src=\"";
@@ -96,7 +96,7 @@
     }
     
     // closes body and html
-    function endFile() {
+    public function endFile() {
       echo "\n\n</body>";
       echo "\n\n</html>";
     }

@@ -1,11 +1,7 @@
 <?php
 
-// all variables
-$pageCreator = "Alexandra French";
-$pageCreationDate = "September 10, 2020";
-$title = "Robotics Club Project: Laki2";
-$currentWebmaster = "Alexandra French";
-$updateDate = "September 14, 2020";
+// header functions and include
+include_once("../../assets/templates/header.php");
 $pageDescription = "Laki2 was our autonomous octocoper made to traverse large landscapes in 2019.";
 $keywords = "UCF robotics club, University of Central Florida, UCF, robotics club, robotics club,
                                UCF robotics, UCF club, RSO, AUVSI, autonomous, SUAS, AHRS, IMU, i2C, ROS, ROS melodic,
@@ -14,11 +10,12 @@ $keywords = "UCF robotics club, University of Central Florida, UCF, robotics clu
                                computer science, FOSS, undergraduate, graduate, operating system, vehicles, unmanned,
                                machine learning, computer vision, sensors, lidar, demobot, citrobot, Robotics Club of
                                Central Florida, central florida, robotics club, laki2, autonomous octocopter, octocopter";
-$url = "https://robotics.ucf.edu/projects/laki2/index";
-$markupImage = "https://robotics.ucf.edu/projects/assets/imgs/laki2.jpg";
-
-// header functions and include
-include_once("../../assets/templates/header.php");
+$headerGen = new Header("Alexandra French", "September 10, 2020", "Alexandra French", "November 12, 2020");
+$headerGen->generateComment();
+$headerGen->generateCommon("Robotics Club Project: Laki2", $pageDescription, $keywords, "https://robotics.ucf.edu/projects/laki2/index");
+$headerGen->generateCSS();
+$headerGen->genProjectSEO("https://robotics.ucf.edu/projects/laki2/index", "Robotics Club Project: Laki2", $pageDescription, "August 2018", "https://robotics.ucf.edu/projects/assets/imgs/laki2.jpg");
+$headerGen->endHeader();
 
 
 // navbar

@@ -1,11 +1,7 @@
 <?php
 
-// all variables
-$pageCreator = "Alexandra French";
-$pageCreationDate = "September 10, 2020";
-$title = "Robotics Club Project: Kitt";
-$currentWebmaster = "Alexandra French";
-$updateDate = "September 14, 2020";
+// header functions and include
+include_once("../../assets/templates/header.php");
 $pageDescription = "Kitt was an autonomous boat led by an autonomous quadcopter in 2018.";
 $keywords = "UCF robotics club, University of Central Florida, UCF, robotics club, robotics club,
                                UCF robotics, UCF club, RSO, AUVSI, autonomous, SUAS, AHRS, IMU, i2C, ROS, ROS melodic,
@@ -14,10 +10,12 @@ $keywords = "UCF robotics club, University of Central Florida, UCF, robotics clu
                                computer science, FOSS, undergraduate, graduate, operating system, vehicles, unmanned,
                                machine learning, computer vision, sensors, lidar, demobot, citrobot, Robotics Club of
                                Central Florida, central florida, robotics club, kitt, autonomous boat, roboboat, autonomous roboboat";
-$url = "https://robotics.ucf.edu/projects/kitt/index.php";
-
-// header functions and include
-include_once("../../assets/templates/header.php");
+$headerGen = new Header("Alexandra French", "September 10, 2020", "Alexandra French", "November 12, 2020");
+$headerGen->generateComment();
+$headerGen->generateCommon("Robotics Club Project: Kitt", $pageDescription, $keywords, "https://robotics.ucf.edu/projects/kitt/index");
+$headerGen->generateCSS();
+$headerGen->genProjectSEO("https://robotics.ucf.edu/projects/kitt/index", "Robotics Club Project: Kitt", $pageDescription, "August 2017");
+$headerGen->endHeader();
 
 
 // navbar
