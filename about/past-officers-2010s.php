@@ -1,11 +1,7 @@
 <?php
 
-// all variables
-$pageCreator = "Alexandra French";
-$pageCreationDate = "August 25, 2020";
-$title = "Robotics Club Past Officers (2010s)";
-$currentWebmaster = "Alexandra French";
-$updateDate = "November 5, 2020";
+// header functions and include
+include_once("../assets/templates/header.php");
 $pageDescription = "The Robotics Club of Central Florida has kept a history of all past officers in the 2010s.";
 $keywords = "UCF robotics club, University of Central Florida, UCF, robotics club, robotics club,
                                UCF robotics, UCF club, RSO, AUVSI, autonomous, SUAS, AHRS, IMU, i2C, ROS, ROS melodic,
@@ -14,10 +10,12 @@ $keywords = "UCF robotics club, University of Central Florida, UCF, robotics clu
                                computer science, FOSS, undergraduate, graduate, operating system, vehicles, unmanned,
                                machine learning, computer vision, sensors, lidar, demobot, citrobot, Robotics Club of
                                Central Florida, central florida, robotics club, current officers, past officers 2020s, past officers 2020";
-$url = "https://robotics.ucf.edu/about/past-officers-2010s";
-
-// header functions and include
-include_once("../assets/templates/header.php");
+$headerGen = new Header("Alexandra French", "August 25, 2020", "Alexandra French", "November 12, 2020");
+$headerGen->generateComment();
+$headerGen->generateCommon("Robotics Club Past Officers (2010s)", $pageDescription, $keywords, "https://robotics.ucf.edu/about/past-officers-2010s");
+$headerGen->generateCSS();
+$headerGen->genWebsiteSEO("https://robotics.ucf.edu/about/past-officers-2010s", "Robotics Club Past Officers (2010s)", $pageDescription);
+$headerGen->endHeader();
 
 
 // navbar

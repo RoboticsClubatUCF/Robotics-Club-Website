@@ -1,11 +1,7 @@
 <?php
 
-// all variables
-$pageCreator = "Alexandra French";
-$pageCreationDate = "August 5, 2020";
-$title = "Robotics Club Announcements and Events";
-$currentWebmaster = "Alexandra French";
-$updateDate = "September 14, 2020";
+// header functions and include
+include_once("../assets/templates/header.php");
 $pageDescription = "Robotics Club of Central Florida has a new website. Learn about our new pages, checkout some new features, and enjoy darkmode.";
 $keywords = "UCF robotics club, University of Central Florida, UCF, robotics club, robotics club,
                                UCF robotics, UCF club, RSO, AUVSI, autonomous, SUAS, AHRS, IMU, i2C, ROS, ROS melodic,
@@ -14,11 +10,12 @@ $keywords = "UCF robotics club, University of Central Florida, UCF, robotics clu
                                computer science, FOSS, undergraduate, graduate, operating system, vehicles, unmanned,
                                machine learning, computer vision, sensors, lidar, demobot, citrobot, Robotics Club of
                                Central Florida, central florida, robotics club, new website, new, upgrade, upgraded website, new Webmaster";
-$url = "https://robotics.ucf.edu/announcements/post-1";
-$markupImage = "https://robotics.ucf.edu/announcements/assets/imgs/posts/new-website.jpg";
-
-// header functions and include
-include_once("../assets/templates/header.php");
+$headerGen = new Header("Alexandra French", "August 5, 2020", "Alexandra French", "November 12, 2020");
+$headerGen->generateComment();
+$headerGen->generateCommon("Robotics Club New Website", $pageDescription, $keywords, "https://robotics.ucf.edu/announcements/post-1");
+$headerGen->generateCSS();
+$headerGen->genWebsiteSEO("https://robotics.ucf.edu/announcements/post-1", "Robotics Club New Website", $pageDescription,  "https://robotics.ucf.edu/announcements/assets/imgs/posts/new-website.jpg");
+$headerGen->endHeader();
 
 
 // navbar

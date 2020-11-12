@@ -1,11 +1,7 @@
 <?php
 
-// all variables
-$pageCreator = "Alexandra French";
-$pageCreationDate = "August 5, 2020";
-$title = "Robotics Club 2017 Projects";
-$currentWebmaster = "Alexandra French";
-$updateDate = "November 4";
+// header functions and include
+include_once("../assets/templates/header.php");
 $pageDescription = "In 2017, the Robotics Club of Central Florida projects were an autonomous submarine, Ness, and an autonomous ground vehicle, Metaknight.";
 $keywords = "UCF robotics club, University of Central Florida, UCF, robotics club, robotics club,
                                UCF robotics, UCF club, RSO, AUVSI, autonomous, SUAS, AHRS, IMU, i2C, ROS, ROS melodic,
@@ -15,11 +11,12 @@ $keywords = "UCF robotics club, University of Central Florida, UCF, robotics clu
                                machine learning, computer vision, sensors, lidar, demobot, citrobot, Robotics Club of
                                Central Florida, central florida, robotics club, projects, past projects, past projects 2017, 2017,
                                Ness, Metaknight";
-$url = "https://robotics.ucf.edu/projects/2017";
-$markupImage = "https://robotics.ucf.edu/projects/assets/imgs/ness.jpg";
-
-// header functions and include
-include_once("../assets/templates/header.php");
+$headerGen = new Header("Alexandra French", "August 5, 2020", "Alexandra French", "November 12, 2020");
+$headerGen->generateComment();
+$headerGen->generateCommon("Robotics Club 2017 Projects", $pageDescription, $keywords, "https://robotics.ucf.edu/projects/2017");
+$headerGen->generateCSS();
+$headerGen->genWebsiteSEO("https://robotics.ucf.edu/projects/2017", "Robotics Club 2017 Projects", $pageDescription, "https://robotics.ucf.edu/projects/assets/imgs/ness.jpg");
+$headerGen->endHeader();
 
 
 // navbar

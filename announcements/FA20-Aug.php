@@ -1,11 +1,7 @@
 <?php
 
-// all variables
-$pageCreator = "Alexandra French";
-$pageCreationDate = "August 5, 2020";
-$title = "Robotics Club August Announcements";
-$currentWebmaster = "Alexandra French";
-$updateDate = "November 4, 2020";
+// header functions and include
+include_once("../assets/templates/header.php");
 $pageDescription = "Robotics Club of Central Florida has regular site updates, workshops, socials, and project meetups.";
 $keywords = "UCF robotics club, University of Central Florida, UCF, robotics club, robotics club,
                                UCF robotics, UCF club, RSO, AUVSI, autonomous, SUAS, AHRS, IMU, i2C, ROS, ROS melodic,
@@ -15,11 +11,12 @@ $keywords = "UCF robotics club, University of Central Florida, UCF, robotics clu
                                machine learning, computer vision, sensors, lidar, demobot, citrobot, Robotics Club of
                                Central Florida, central florida, robotics club, announcements, events, august, august events,
                                new website, fall 2020 introductory meeting, photo galleries";
-$url = "https://robotics.ucf.edu/announcements/FA20-Aug";
-$markupImage = "https://robotics.ucf.edu/announcements/assets/imgs/FA20-intro.jpg";
-
-// header functions and include
-include_once("../assets/templates/header.php");
+$headerGen = new Header("Alexandra French", "August 4, 2020", "Alexandra French", "November 12, 2020");
+$headerGen->generateComment();
+$headerGen->generateCommon("Robotics Club August Announcements", $pageDescription, $keywords, "https://robotics.ucf.edu/announcements/FA20-Aug");
+$headerGen->generateCSS();
+$headerGen->genWebsiteSEO("https://robotics.ucf.edu/announcements/FA20-Aug", "Robotics Club August Announcements", $pageDescription, "https://robotics.ucf.edu/announcements/assets/imgs/FA20-intro.jpg");
+$headerGen->endHeader();
 
 
 // navbar
