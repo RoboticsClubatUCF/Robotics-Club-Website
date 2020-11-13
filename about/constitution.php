@@ -20,6 +20,7 @@ $headerGen->endHeader();
 
 // navbar
 include_once("../assets/templates/navbar.php");
+$navbarGen = new Navbar(False);
 
 
 // page content
@@ -29,8 +30,7 @@ require_once('assets/templates/constitution.html');
 // footer functions and include
 include_once("../assets/templates/footer.php");
 $footerGen = new Footer();
-
-$footerGen->generateFooter(2020);
+$footerGen->generateFooter();
 $customJs = array("../assets/js/alert.js");
 $footerGen->generateJs($customJs);
 $footerGen->endFile();

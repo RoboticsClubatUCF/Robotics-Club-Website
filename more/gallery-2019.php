@@ -2,7 +2,7 @@
 
 // header functions and include
 include_once("../assets/templates/header.php");
-$pageDescription = "The Robotics Club of Central Florida has a current gallery of our various workshops, projects, and socials.";
+$pageDescription = "The Robotics Club of Central Florida kept a gallery of all our socials for 2019.";
 $keywords = "UCF robotics club, University of Central Florida, UCF, robotics club, robotics club,
                                UCF robotics, UCF club, RSO, AUVSI, autonomous, SUAS, AHRS, IMU, i2C, ROS, ROS melodic,
                                melodic, linux, ubuntu, open source, opensource, engineering, mechanical,
@@ -22,6 +22,7 @@ $headerGen->endHeader();
 
 // navbar
 include_once("../assets/templates/navbar.php");
+$navbarGen = new Navbar(False);
 
 
 // page content
@@ -31,8 +32,7 @@ include_once('assets/templates/gallery-2019.html');
 // footer functions and include
 include_once("../assets/templates/footer.php");
 $footerGen = new Footer();
-
-$footerGen->generateFooter(2020);
+$footerGen->generateFooter();
 $footerGen->generateJs();
 $footerGen->endFile();
 

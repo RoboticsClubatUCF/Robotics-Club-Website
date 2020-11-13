@@ -21,6 +21,7 @@ $headerGen->endHeader();
 
 // navbar
 include_once("../assets/templates/navbar.php");
+$navbarGen = new Navbar(False);
 
 
 // page content
@@ -42,8 +43,7 @@ function customJsStyles() {
 }
 include_once("../assets/templates/footer.php");
 $footerGen = new Footer();
-
-$footerGen->generateFooter(2020);
+$footerGen->generateFooter();
 $customJs = array("assets/js/side-nav-carousel.js");
 $footerGen->generateJs($customJs);
 $footerGen->endFile();
