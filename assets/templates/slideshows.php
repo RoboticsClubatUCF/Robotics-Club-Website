@@ -35,9 +35,19 @@
           echo " active";
         } 
         echo "\" style=\"background-image: url('" . $images[$slide] . "')\">";
-        echo "<div class=\"carousel-caption d-none d-md-block\">\n
-              <h1>" . $captions[$slide] . "</h1>
-            </div>";
+        echo "<div class=\"carousel-caption d-none d-md-block\">\n";
+        if ($slide == 0){
+          echo "\n              <h1>";
+        } else {
+          echo "\n              <h2>";
+        }
+        echo $captions[$slide];
+        if ($slide == 0) {
+          echo "</h1>";
+        } else {
+          echo "</h2>";
+        } 
+        echo "\n            </div>";
         echo "\n          </div>";
         $slide += 1;
       }

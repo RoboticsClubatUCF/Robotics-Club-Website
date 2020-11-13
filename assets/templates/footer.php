@@ -10,7 +10,7 @@
     }
     
     // generates a footer with the entered year. If sized, sets to mobile/large screen specific sizes.
-    public function generateFooter ($year, $sized) {
+    public function generateFooter ($sized) {
       echo "\n  <!-- Footer -->";
       
       // setup footer to be different padding for sized and not
@@ -31,7 +31,7 @@
       } else {
         echo "md";
       }
-      echo "-4 m-0 text-center text-white\">Copyright &copy; 2003-" . $year;
+      echo "-4 m-0 text-center text-white\">Copyright &copy; 2003-2020";
       if (!$sized) {
         echo "\n          <br> Robotics Club of Central Florida";
       }

@@ -1,7 +1,7 @@
 <?php
   // This class generates the header comment, common header elements, schema for SEO, and end of header
   // Created by Alexandra French on 11/11/2020
-  // Last updated on 11/12/2020W
+  // Last updated on 11/12/2020
   
   class Header { 
     private $pageCreator;
@@ -102,8 +102,8 @@
     // generates a website schema, markupImage is optional    
     // used for most pages
     public function genWebsiteSEO($url, $title, $pageDescription, $markupImage) {
-      $this->genOpenGraph($title, $url, $pageDescription, $markupImage);
-      $this->genTwitterCard($title, $url, $pageDescription, $markupImage);
+      $this->genOpenGraph($url, $title, $pageDescription, $markupImage);
+      $this->genTwitterCard($url, $title, $pageDescription, $markupImage);
       
       echo "\n\n  <!-- schema markup  -->
   <script type=\"application/ld+json\">
@@ -136,8 +136,8 @@
     // generates a project schema, markupImage is optional    
     // used for most pages
     public function genProjectSEO($url, $title, $pageDescription, $foundingDate, $markupImage) {
-      $this->genOpenGraph($title, $url, $pageDescription, $markupImage);
-      $this->genTwitterCard($title, $url, $pageDescription, $markupImage);
+      $this->genOpenGraph($url, $title, $pageDescription, $markupImage);
+      $this->genTwitterCard($url, $title, $pageDescription, $markupImage);
       
       echo "\n\n  <!-- schema markup  -->
   <script type=\"application/ld+json\">
