@@ -30,117 +30,105 @@ $footerGen = new Footer();
 
 
 <body>  
-  <div class="page-container">
+<div class="page-container">
   
   <?php
-    $navbarGen = new Navbar(True);
+    $navbarGen = new Navbar(FALSE);
   ?>
 
-  <!-- snap container for page -->
-  <div class="snapper y mandatory-snapping">
-    <!-- snap slideshow and news -->
-    <div class="snap-child justify-content-center align-items-center">
+  <!-- slideshow and news -->
+    <?php
+      $images = array("assets/imgs/home/roboticsSlide.jpg", "assets/imgs/home/innovationSlide.jpg", "assets/imgs/home/successSlide.jpg");
+      $slideshowGen->generateWideSlideshow(3, $images, array("Robotics", "Innovation", "Success"));
+    ?>
+
+    <!-- Page Content Container 1 -->
+    <div class="container">
       <?php
-        $images = array("assets/imgs/home/roboticsSlide.jpg", "assets/imgs/home/innovationSlide.jpg", "assets/imgs/home/successSlide.jpg");
-        $slideshowGen->generateWideSlideshow(3, $images, array("Robotics", "Innovation", "Success"));
+        include_once('assets/templates/announcement-calendar.html')
       ?>
-
-      <!-- Page Content Container 1 -->
-      <div class="container">
-        <?php
-          include_once('assets/templates/announcement-calendar.html')
-        ?>
-      </div>
-      <!-- /.container 1 -->
     </div>
-    <!-- snap slideshow and news -->
+    <!-- /.container 1 -->
+  <!-- slideshow and news -->
 
 
-    <!-- who are we snap container -->
-    <div class="snap-child justify-content-center align-items-center">
-    <!-- Page Content Container 2 -->
-      <div class="container justify-content-center align-items-center">
-        <!-- flex containers -->
-        <div class="intermediate-container-flex justify-content-center align-items-center">
-          <div class="d-flex flex-column justify-content-center align-items-center">
-            <!-- intro -->
-            <div class="intro justify-content-center align-items-center">
-              <!-- title row -->
-              <div class="row w-100 no-gutters">
-                <div class="col-lg-12">
-                  <h2 class="text-center p-2 rounded title-blk-wht w-100 font-weight-bold">Who Are We?</h2>
-                </div>
-              </div>
-              <!-- /.title row -->
-              <!-- content row -->
-              <div class="row w-100 h-100 no-gutters">
-                <div class="col-lg-12">
-                  <div class="text-center p-4 container-wht-blk rounded w-100">
-                    <div class="d-none d-md-block"><p>Welcome to the Robotics Club of Central Florida.
-                      <br> This is an entirely student run organization.
-                    </p></div>
-                    <div class="d-none d-sm-block">
-                      <p>We focus on creating innovative and competitive robots and we are always
-                        looking for members join in the advancement of the demanding robotics field.
-                      </p>
-                   </div>
-                    <p>
-                        Every year we take on projects that involve
-                        demonstrations of robotics, pushing the bounds of automation, and innovative, robust designs.
-                    </p>
-                    <p>
-                      Currently, we are realizing three challenging projects...
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <!-- /.content row -->
-            </div>
-            <!-- /.intro -->
-          </div>
-        </div>
-        <!-- flex container -->
-      </div>
-      <!-- /.page container -->
-    </div>
-    <!-- /.who we are snap container -->
-
-    <!-- robot slides snap container-->
-    <div class="snap-child">
-      <!-- Page Content Container 2 -->
-      <div class="container">
-        <!-- flex containers -->
-        <div class="intermediate-container-flex">
-          <h2 class="sr-only">Our Robots</h2>
-          <?php
-            $images = array("assets/imgs/placeholder-600x600.png", "assets/imgs/home/bowser.jpg", "assets/imgs/home/citrobot.jpg");
-            $titles = array("Demobot", "Bowser", "Citrobot");
-            $captions = array("Demonstrates all aspects of robotics.", "Uses computer vision to avoid objects.", "Our 15lb combat monster.");
-            $slideshowGen->generateCircleSlideshow($images, $titles, $captions);
-          ?>
-        </div>
-        <!-- /.flex containers -->
-      </div>
-      <!-- /.page content container -->
-    </div>
-    <!-- /.robot slides snapper -->
-
-
-    <!-- grid snapper -->
-    <div class="snap-child justify-content-center align-items-center" id="grid-snapper">
+  <!-- who are we -->
+  <!-- Page Content Container 2 -->
+    <div class="container">
       <!-- flex containers -->
-      <div class="end-container-flex justify-self-center align-self-center grid" id="grid-end-1">
+      <div class="intermediate-container-flex" style="padding-top: 25vh">
+        <div class="d-flex flex-column justify-content-center align-items-center">
+          <!-- intro -->
+          <div class="intro justify-content-center align-items-center">
+            <!-- title row -->
+            <div class="row w-100 no-gutters">
+              <div class="col-lg-12">
+                <h2 class="text-center p-2 rounded title-blk-wht w-100 font-weight-bold">Who Are We?</h2>
+              </div>
+            </div>
+            <!-- /.title row -->
+            <!-- content row -->
+            <div class="row w-100 h-100 no-gutters">
+              <div class="col-lg-12">
+                <div class="text-center p-4 container-wht-blk rounded w-100">
+                  <div class="d-none d-md-block"><p>Welcome to the Robotics Club of Central Florida.
+                    <br> This is an entirely student run organization.
+                  </p></div>
+                  <div class="d-none d-sm-block">
+                    <p>We focus on creating innovative and competitive robots and we are always
+                      looking for members join in the advancement of the demanding robotics field.
+                    </p>
+                 </div>
+                  <p>
+                      Every year we take on projects that involve
+                      demonstrations of robotics, pushing the bounds of automation, and innovative, robust designs.
+                  </p>
+                  <p>
+                    Currently, we are realizing three challenging projects...
+                  </p>
+                </div>
+              </div>
+            </div>
+            <!-- /.content row -->
+          </div>
+          <!-- /.intro -->
+        </div>
+      </div>
+      <!-- flex container -->
+    </div>
+    <!-- /.page container -->
+  <!-- /.who we are -->
+
+  <!-- robot slides-->
+    <!-- Page Content Container 2 -->
+    <div class="container">
+      <!-- flex containers -->
+      <div class="intermediate-container-flex">
+        <h2 class="sr-only">Our Robots</h2>
         <?php
-          include_once("assets/templates/grid.html");
+          $images = array("assets/imgs/placeholder-600x600.png", "assets/imgs/home/bowser.jpg", "assets/imgs/home/citrobot.jpg");
+          $titles = array("Demobot", "Bowser", "Citrobot");
+          $captions = array("Demonstrates all aspects of robotics.", "Uses computer vision to avoid objects.", "Our 15lb combat monster.");
+          $slideshowGen->generateCircleSlideshow($images, $titles, $captions);
         ?>
       </div>
-      <!-- /.page container -->
+      <!-- /.flex containers -->
     </div>
-    <!-- /.grid -->
+    <!-- /.page content container -->
+  <!-- /.robot slides  -->
 
 
+  <!-- grid snapper -->
+  <div class="mobile-child justify-content-center align-items-center" id="grid-snapper">
+    <!-- flex containers -->
+    <div class="end-container-flex justify-self-center align-self-center grid" id="grid-end-1">
+      <?php
+        include_once("assets/templates/grid.php");
+      ?>
+    </div>
+    <!-- /.page container -->
   </div>
-  <!-- /.page snap container -->
+  <!-- /.grid -->
 </div>
 <!-- page container -->
 
