@@ -24,7 +24,7 @@
               $description = "Don Vo has provided an extremely generous level of funding
                   towards getting our club running during 2020. Thanks to this donation, we've been able to
                   get our robots and workshops components.";
-              $sponsorGen->generateSponsor("Don Vo", "assets/imgs/donvo.jpg", "Don Vo logo", $description, "https://github.com/chickenfromouterspace");
+              $sponsorGen->generateSponsor("Don Vo &#128020", "assets/imgs/donvo.jpg", "Don Vo logo", $description, "https://github.com/chickenfromouterspace");
           ?>
         </div></div>
       </div>

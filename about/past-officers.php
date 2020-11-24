@@ -61,7 +61,7 @@ $navbarGen = new Navbar(False);
     <!-- tabs for officers -->
     <ul class="mini-tabs nav nav-tabs rounded-top">
       <li class="nav-item rounded-top">
-        <a class="nav-link active" data-toggle="tab" href="#fa2019">Current</a>
+        <a class="nav-link active" data-toggle="tab" href="#fa2020">2020-21</a>
       </li>
     </ul>
 

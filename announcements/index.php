@@ -52,10 +52,13 @@ $navbarGen = new Navbar(False);
 include_once('assets/templates/announcement.php');
 $announcement = new Announcement();
 
+$description = "Next week is Thanksgiving! With that also comes our yearly Thanksgiving social on Tuesday, November 24, at 6:30pm. Come join us to play some Jackbox games! We at the Robotics Club hope that everyone has a safe and fulfilling Thanksgiving this year.";
+$announcement->generate("Thanksgiving Social", "../assets/imgs/placeholder-760x370.png", "placeholder club logo", $description, "November 22, 2020", "Alexandra French (Webmaster)");
+
 $description = "Next week is officer elections! Any dues paying member can apply and vote during nominations. Join us and help us decide who will be our new officers Tuesday, November 17, at 6:30pm.";
 $announcement->generate("Officer Elections", "../assets/imgs/placeholder-760x370.png", "placeholder robotics club logo", $description, "November 13, 2020", "Alexandra French (Webmaster)");
 
-$description = "Next week is two workshops. Monday, November 16, at 6:30pm is 3D Printing with our guest presentor Dr. Fluvio Lobo. Learn more about 3D printing.! Friday, November 20, at 6:00pm is Intro to Computer vision. Learn how to track with OpenCv!";
+$description = "Next week is two workshops. Monday, November 16, at 6:30pm is 3D Printing with our guest presentor Fluvio Lobo. Learn more about 3D printing.! Friday, November 20, at 6:00pm is Intro to Computer vision. Learn how to track with OpenCv!";
 $announcement->generate("Two Workshops next week!", "assets/imgs/2020-cad-workshop-1.jpg", "workshop image", $description, "November 12, 2020", "Alexandra French (Webmaster)");
 
 $description = "Pinewood derby office hours, Q&A, and car work is coming up on Wednesday, November 11, at 6:30pm.Have you been working on a mini car to compete with? Need some help with a design? Have some other questions? Come join us on Discord!";

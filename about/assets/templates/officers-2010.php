@@ -261,7 +261,7 @@
           <div class="row">
             <div class="col-lg mb-3">
             <?php
-              $officerGen->generatePersonnel("Therese Sales", "Vice President");
+              $officerGen->generatePersonnel("Therese Salas", "Vice President");
             ?>
             </div>
           </div>

@@ -23,19 +23,19 @@ body {
 
 /* announcements and calendar fixes */
 .ann-cal-container {
-  height: 45vh;
+  height: 42vh;
   width: 100%;
 }
 
 .fix-calendar iframe
 {
   display: flex;
-  height: 36.5vh;
+  height: 40vh;
   width: 100%;
 }
 
 .announcements-container {
-  height: 36.5vh !important;
+  min-height: 50%
   width: 100%;
 }
 

@@ -716,7 +716,7 @@ body.dark .btn-light {
   display: flex;
   flex-direction: column;
   padding-top: 56px;
-  height: calc(100% - 56px);
+  height: calc(100vh - 56px);
   width: auto;
   justify-content: center;
 }
@@ -750,18 +750,16 @@ body.dark .btn-light {
   scroll-snap-stop: always;
 }
 
-.snap-child {
+.mobile-child {
   align-items: center;
   justify-content: center;
   text-align: center;
-  scroll-snap-align: center;
-  scroll-snap-stop: always;
   flex: none;
   height: 100%;
   width: 100%;
 }
 
-.snap-child .container {
+.mobile-child .container {
   height: 100%;
   margin-top: 10px;
   margin-bottom: 10px;
@@ -1011,7 +1009,7 @@ body.dark .btn-light {
 
 /* BOWSER - CAROUSEL STYLES*/
 #bowser-carousel .carousel-item {
-  height: 50vh;
+  height: 40vh;
   min-height: 300px;
   background: no-repeat center center scroll;
   -webkit-background-size: cover;

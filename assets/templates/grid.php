@@ -1,4 +1,4 @@
-<!-- first row of the bottom grid -->
+        <!-- first row of the bottom grid -->
         <div class="row no-gutters w-100 align-items-center justify-content-center" style="margin:auto;" id="grid-r-1">
           <!-- page containers -->
           <div class="container justify-self-center align-self-center">
@@ -152,7 +152,7 @@
               <!-- /.container -->
 
               <?php
-                $footerGen->generateFooter(2020, TRUE);
+                $footerGen->generateFooter(TRUE);
               ?>
               
             </div>

@@ -37,7 +37,7 @@ $navbarGen = new Navbar(False);
       <div class="col-lg-12">
         <div class="container-wht-blk rounded p-3">
           <p>The Robotics Club of Cental Florida has been a long running club. This page exists
-            to help capture the history of our members. We can date ourselves all the way back to 2016.
+            to help capture the history of our members. We can date ourselves all the way back to 2015.
           </p>
         </div>
       </div>
@@ -62,7 +62,8 @@ $navbarGen = new Navbar(False);
       "2019" => array("Fall", "Spring"),
       "2018" => array("Fall", "Spring"),
       "2017" => array("Year Round"),
-      "2016" => array("Year Round"));
+      "2016" => array("Year Round"),
+      "2015" => array("Year Round"));
     include_once("assets/templates/members-by-semester.php");
   ?>
 
