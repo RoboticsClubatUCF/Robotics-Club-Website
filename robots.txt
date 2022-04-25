@@ -1,4 +1,0 @@
-Sitemap: https://robotics.ucf.edu/sitemap.xml
-
-User-agent: *
-Allow: /
