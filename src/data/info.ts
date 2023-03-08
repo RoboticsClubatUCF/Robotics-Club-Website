@@ -22,6 +22,12 @@ export const info={
                 link:"./login"
             }
         ]
+    },
+    styleData:{
+        desktop:1500,
+        laptop:1024,
+        tablet:768,
+        mobile:420
     }
 }
 

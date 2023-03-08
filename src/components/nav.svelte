@@ -1,13 +1,24 @@
 <script>
 	import { info } from '../data/info';
-	import Device from 'svelte-device-info';
 	import { onMount } from 'svelte';
 	var isMobile = false;
+	var windowWidth = 0;
 	onMount(() => {
-		isMobile = Device.isMobile;
+		windowResize();
+		window.addEventListener('resize', () => {
+			windowResize();
+		});
 	});
+	function windowResize() {
+		if (windowWidth < info.styleData.desktop) {
+			isMobile = true;
+		} else {
+			isMobile = false;
+		}
+	}
 </script>
 
+<svelte:window bind:innerWidth={windowWidth} />
 <div class="navigation">
 	{#if isMobile}
 		<h1 class="title"><a href="/">{info.mobileTitle}</a></h1>
@@ -15,7 +26,7 @@
 		<h1 class="title"><a href="/">{info.title}</a></h1>
 	{/if}
 	{#each info.nav.buttons as item}
-		<div class="button">
+		<div class="button" class:mobileFontSize={isMobile}>
 			<a href={item.link}>{item.name}</a>
 		</div>
 	{/each}
@@ -35,6 +46,9 @@
 		top: 0px;
 		left: 0px;
 	}
+	.mobileFontSize {
+		font-size: 20px !important;
+	}
 	.line {
 		width: 100vw;
 		position: absolute;
@@ -44,7 +58,7 @@
 		background-color: #e6dc84;
 	}
 	.title {
-		flex: 2;
+		flex: 3;
 		color: #f2f2f2;
 		height: inherit;
 		width: 629px;
@@ -58,8 +72,9 @@
 		width: 222px;
 		margin-top: 15px;
 		text-align: center;
-		vertical-align: middle;
+		align-items: center;
 		text-decoration: none;
+		vertical-align: middle;
 		font-weight: 400;
 	}
 	a {

@@ -7,9 +7,16 @@
 
 <div>
     <Nav></Nav>
-    <slot></slot>
+    <div class="page">
+        <slot></slot>
+    </div>
 </div>
 
 
 
-<style></style>
+<style>
+.page{
+    position: absolute;
+    top: 80px;
+}
+</style>
