@@ -6,7 +6,7 @@
 
 
 <div>
-    <h1>{{info.title}}</h1>
+    <h1>{info.title}</h1>
 </div>
 
 <style></style>
