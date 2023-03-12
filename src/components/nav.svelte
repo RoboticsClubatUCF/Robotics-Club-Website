@@ -62,6 +62,8 @@
 		color: #f2f2f2;
 		height: inherit;
 		width: 629px;
+		text-align: center;
+		vertical-align: middle;
 		font-size: 36px;
 	}
 	.button {

@@ -24,6 +24,7 @@
 	},
 	"type": "module",
 	"dependencies": {
+		"pixi.js": "^7.1.4",
 		"svelte-device-info": "^1.0.0"
 	}
 }

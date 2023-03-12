@@ -1,14 +1,15 @@
 <script>
+	import Background from '../components/background.svelte';
 </script>
 
-<div class="page">
-    Lorem ipsum dolor sit amet consectetur adipisicing elit. Atque, minus ratione animi minima odio qui consequatur corporis repellendus commodi quaerat. Distinctio quibusdam et illum esse? Ipsam omnis porro sed temporibus?
+<div>
+	<div class="background">
+		<Background/>
+	</div>
 </div>
-<svelte:head>
-    <title>RCCF</title>
-</svelte:head>
+
 <style>
-    .page{
-        color: #f2f2f2;
-    }
+	.background {
+		overflow: hidden;
+	}
 </style>

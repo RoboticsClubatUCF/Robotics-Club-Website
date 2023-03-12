@@ -1,22 +1,18 @@
 <script>
-	import Nav from "../components/nav.svelte";
-
+	import Background from '../components/background.svelte';
+	import Nav from '../components/nav.svelte';
 </script>
 
-
-
 <div>
-    <Nav></Nav>
-    <div class="page">
-        <slot></slot>
-    </div>
+	<Nav />
+	<div class="page">
+		<slot />
+	</div>
 </div>
 
-
-
 <style>
-.page{
-    position: absolute;
-    top: 80px;
-}
+	.page {
+		position: absolute;
+		top: 80px;
+	}
 </style>
