@@ -21,7 +21,7 @@
 <svelte:window bind:innerWidth={windowWidth} />
 <div class="navigation">
 	{#if isMobile}
-		<h1 class="title"><a href="/">{info.mobileTitle}</a></h1>
+		<h1 class="mobile-title"><a href="/">{info.mobileTitle}</a></h1>
 	{:else}
 		<h1 class="title"><a href="/">{info.title}</a></h1>
 	{/if}
@@ -57,12 +57,23 @@
 		height: 3px;
 		background-color: #e6dc84;
 	}
-	.title {
-		flex: 3;
+	.mobile-title{
+		flex: 1;
 		color: #f2f2f2;
 		height: inherit;
 		width: 629px;
-		text-align: center;
+		text-align: left;
+		padding-left: 10px;
+		vertical-align: middle;
+		font-size: 36px;
+	}
+	.title {
+		flex: 2;
+		color: #f2f2f2;
+		height: inherit;
+		width: 629px;
+		text-align: left;
+		padding-left: 10px;
 		vertical-align: middle;
 		font-size: 36px;
 	}

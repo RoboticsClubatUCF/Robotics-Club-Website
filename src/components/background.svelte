@@ -20,7 +20,7 @@
 		const mousePos = new Vector2(app.renderer.width / 2, app.renderer.height / 2);
 		document.addEventListener('mousemove', (e) => {
 			mousePos.update(e.clientX, e.clientY - 75 + window.scrollY);
-			updatDrawings();
+			updateDrawings();
 		});
 
 		//create all polka dots and assign them an ID
@@ -56,7 +56,7 @@
 		};
 		DrawDots();
 
-		const updatDrawings = () => {
+		const updateDrawings = () => {
 			// @ts-ignore
 			for (let i = 0; i < polkaDots.length; i++) {
 				const distanceP = distance(mousePos, polkaDots[i].getPositionVect2());
