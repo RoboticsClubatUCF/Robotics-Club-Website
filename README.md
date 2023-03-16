@@ -1,6 +1,7 @@
 # Robotics Club Website & Server
 
-## How to run : 
+## How to run
+
     requirements:
         docker & docker compose 
         or docker desktop
@@ -15,9 +16,13 @@
 
     in all you should have a docker container running postgres running, and another terminal running the svelte server + client, everyting will update as you develop, or evaluate it
 
+## migrate db
 
+    this command will migrate all changes automatically
+    npx prisma migrate dev --name RCCF
 
 # TODO
+
 add dashboard
     - add projects
     - pay dues
