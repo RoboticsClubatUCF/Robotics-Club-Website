@@ -1,38 +1,35 @@
-# create-svelte
+# Robotics Club Website & Server
 
-Everything you need to build a Svelte project, powered by [`create-svelte`](https://github.com/sveltejs/kit/tree/master/packages/create-svelte).
+## How to run : 
+    requirements:
+        docker & docker compose 
+        or docker desktop
+        nodejs >=19
+    
+    ```
+    docker compose up # this starts the database
+    ```
+    run
+    npx prisma migrate dev --name RCCF
+    npm run dev
 
-## Creating a project
+    in all you should have a docker container running postgres running, and another terminal running the svelte server + client, everyting will update as you develop, or evaluate it
 
-If you're seeing this, you've probably already done this step. Congrats!
 
-```bash
-# create a new project in the current directory
-npm create svelte@latest
 
-# create a new project in my-app
-npm create svelte@latest my-app
-```
-
-## Developing
-
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
-
-```bash
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
-```
-
-## Building
-
-To create a production version of your app:
-
-```bash
-npm run build
-```
-
-You can preview the production build with `npm run preview`.
-
-> To deploy your app, you may need to install an [adapter](https://kit.svelte.dev/docs/adapters) for your target environment.
+# TODO
+add dashboard
+    - add projects
+    - pay dues
+        - notification if dues expire soon
+        - updates on projects
+        - latest blog posts from projects
+    - delete account
+    - edit account
+add project pages
+    - if teamlead, add ability to make post
+    - if teamlead, add ability to edit project info
+add about page
+add sponsors page
+add members list
+add officers list

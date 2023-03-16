@@ -1,14 +1,35 @@
-version: '3.7'
+version: "3.8"
+name: RCCF
+
 services:
-  mongodb_container:
-    image: mongo:latest
+  postgres:
+    image: postgres
     environment:
-      MONGO_INITDB_ROOT_USERNAME: 
-      MONGO_INITDB_ROOT_PASSWORD: 
-    ports:
-      - 4800:27017
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - PGDATA /data/postgres
     volumes:
-      - mongodb_data_container:/data/db
+      - data:/data/postgres
+    ports:
+      - 5432:5432
+    restart: unless-stopped
+
+
+  # pgadmin:
+  #   restart: unless-stopped
+  #   container_name: pgadmin_container
+  #   image: dpage/pgadmin4
+  #   environment:
+  #     PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-pgadmin4@pgadmin.org}
+  #     PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
+  #     PGADMIN_CONFIG_SERVER_MODE: 'False'
+  #   volumes:
+  #        - pgadmin:/var/lib/pgadmin
+  #   ports:
+  #     - "${PGADMIN_PORT:-5050}:80"
+
+
 
 volumes:
-  mongodb_data_container:
+  data:
+  # pgadmin:
