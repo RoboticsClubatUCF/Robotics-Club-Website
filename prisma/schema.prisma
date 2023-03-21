@@ -10,38 +10,76 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Picture {
+  id        Int        @id @default(autoincrement())
+  title     String?
+  caption   String?
+  data      String?
+  url       String?
+  isLocal   Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  Article   Article[]
+  BlogPost  BlogPost[]
+  Project   Project[]
+}
+
+model BlogPost {
+  id        Int      @id @default(autoincrement())
+  title     String
+  content   String
+  upVotes   Int
+  downVotes Int
+  image     Picture? @relation(fields: [pictureId], references: [id])
+  author    Member   @relation(fields: [memberId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  pictureId Int?
+  memberId  Int
+}
+
 model Article {
   id        Int      @id @default(autoincrement())
   title     String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   content   String
+  image     Picture? @relation(fields: [pictureId], references: [id])
   author    Member   @relation(fields: [authorId], references: [id])
   authorId  Int
   Project   Project? @relation(fields: [projectId], references: [id])
   projectId Int?
+  pictureId Int?
 }
 
 model Project {
   id          Int       @id @default(autoincrement())
   title       String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   description String
-  teamleads   String[]
+  logo        Picture?  @relation(fields: [pictureId], references: [id])
   budget      Float
+  season      Season    @default(value: Fall)
+  year        Int
   articles    Article[]
   members     Member[]
+  pictureId   Int?
 }
 
 model Member {
-  id                Int       @id @default(autoincrement())
+  id                Int        @id @default(autoincrement())
   firstName         String
   lastName          String?
-  email             String    @unique
+  email             String     @unique
   passwordHash      String
-  membershipExpDate DateTime  @default(now())
-  role              Role      @default(value: Member)
+  membershipExpDate DateTime   @default(now())
+  joinedAt          DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  role              Role       @default(value: Member)
   Articles          Article[]
   Projects          Project[]
+  BlogPost          BlogPost[]
 }
 
 enum Role {
@@ -51,4 +89,10 @@ enum Role {
   Officer
   Alumni
   officerAlumni
+}
+
+enum Season {
+  Summer
+  Spring
+  Fall
 }

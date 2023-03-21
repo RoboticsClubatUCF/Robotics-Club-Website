@@ -4,7 +4,7 @@
 </script>
 
 <div class="grid">
-	<div>
+	<div class="form">
 		<h1>Join Robotics</h1>
 		<form action="?/createUser" method="post">
 			<label for="name_first">First Name</label>
@@ -22,4 +22,13 @@
 </div>
 
 <style>
+	.grid{
+		width:100%;
+		height:100%;
+		display: grid;
+	}
+	.form {
+		justify-content: center;
+		align-content: center;
+	}
 </style>
