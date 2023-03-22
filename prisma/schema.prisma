@@ -10,6 +10,22 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Account {
+  id          Int     @id @default(autoincrement())
+  name        String
+  description String?
+  funds       Float
+}
+
+model FinanceRecord {
+  id          Int      @id @default(autoincrement())
+  name        String?
+  description String?
+  amount      Float
+  project     Project? @relation(fields: [projectId], references: [id])
+  projectId   Int?
+}
+
 model Picture {
   id        Int        @id @default(autoincrement())
   title     String?
@@ -53,18 +69,20 @@ model Article {
 }
 
 model Project {
-  id          Int       @id @default(autoincrement())
-  title       String
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  description String
-  logo        Picture?  @relation(fields: [pictureId], references: [id])
-  budget      Float
-  season      Season    @default(value: Fall)
-  year        Int
-  articles    Article[]
-  members     Member[]
-  pictureId   Int?
+  id             Int             @id @default(autoincrement())
+  title          String
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  description    String
+  logo           Picture?        @relation(fields: [pictureId], references: [id])
+  budget         Float
+  remainingFunds Float
+  season         Season          @default(value: Fall)
+  year           Int
+  articles       Article[]
+  members        Member[]
+  pictureId      Int?
+  FinanceRecord  FinanceRecord[]
 }
 
 model Member {
