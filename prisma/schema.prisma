@@ -2,7 +2,8 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["metrics"]
 }
 
 datasource db {
@@ -11,10 +12,11 @@ datasource db {
 }
 
 model Account {
-  id          Int     @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   name        String
   description String?
   funds       Float
+  contacts    Member[]
 }
 
 model FinanceRecord {
@@ -22,6 +24,16 @@ model FinanceRecord {
   name        String?
   description String?
   amount      Float
+  project     Project? @relation(fields: [projectId], references: [id])
+  projectId   Int?
+}
+
+model ExpendatureRequest {
+  id          Int      @id @default(autoincrement())
+  name        String?
+  description String?
+  amount      Float
+  items       String[]
   project     Project? @relation(fields: [projectId], references: [id])
   projectId   Int?
 }
@@ -69,20 +81,21 @@ model Article {
 }
 
 model Project {
-  id             Int             @id @default(autoincrement())
-  title          String
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  description    String
-  logo           Picture?        @relation(fields: [pictureId], references: [id])
-  budget         Float
-  remainingFunds Float
-  season         Season          @default(value: Fall)
-  year           Int
-  articles       Article[]
-  members        Member[]
-  pictureId      Int?
-  FinanceRecord  FinanceRecord[]
+  id                 Int                  @id @default(autoincrement())
+  title              String
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  description        String
+  logo               Picture?             @relation(fields: [pictureId], references: [id])
+  budget             Float
+  remainingFunds     Float
+  season             Season               @default(value: Fall)
+  year               Int
+  articles           Article[]
+  members            Member[]
+  pictureId          Int?
+  FinanceRecord      FinanceRecord[]
+  ExpendatureRequest ExpendatureRequest[]
 }
 
 model Member {
@@ -98,6 +111,8 @@ model Member {
   Articles          Article[]
   Projects          Project[]
   BlogPost          BlogPost[]
+  Account           Account?   @relation(fields: [accountId], references: [id])
+  accountId         Int?
 }
 
 enum Role {
