@@ -14,28 +14,41 @@ datasource db {
 model Account {
   id          Int      @id @default(autoincrement())
   name        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
   description String?
   funds       Float
-  contacts    Member[]
+  contacts    Member[] /// 0th contact is the primary
+  records     Record[]
 }
 
-model FinanceRecord {
-  id          Int      @id @default(autoincrement())
-  name        String?
-  description String?
-  amount      Float
-  project     Project? @relation(fields: [projectId], references: [id])
-  projectId   Int?
+model Record {
+  id                   Int                 @id @default(autoincrement())
+  name                 String?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  description          String?
+  amount               Float
+  project              Project?            @relation(fields: [projectId], references: [id])
+  projectId            Int?
+  Account              Account             @relation(fields: [accountId], references: [id])
+  accountId            Int
+  request              ExpendatureRequest? @relation(fields: [expendatureRequestId], references: [id])
+  expendatureRequestId Int?
 }
 
 model ExpendatureRequest {
   id          Int      @id @default(autoincrement())
   name        String?
   description String?
+  approved    Boolean
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
   amount      Float
   items       String[]
   project     Project? @relation(fields: [projectId], references: [id])
   projectId   Int?
+  Record      Record[]
 }
 
 model Picture {
@@ -94,7 +107,7 @@ model Project {
   articles           Article[]
   members            Member[]
   pictureId          Int?
-  FinanceRecord      FinanceRecord[]
+  Records            Record[]
   ExpendatureRequest ExpendatureRequest[]
 }
 
@@ -113,6 +126,13 @@ model Member {
   BlogPost          BlogPost[]
   Account           Account?   @relation(fields: [accountId], references: [id])
   accountId         Int?
+}
+
+model Sponsor {
+  id          Int     @id @default(autoincrement())
+  name        String
+  description String?
+  amount      Float?
 }
 
 enum Role {

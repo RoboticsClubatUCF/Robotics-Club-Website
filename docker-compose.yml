@@ -16,7 +16,6 @@ services:
 
   pgadmin:
     restart: unless-stopped
-    container_name: pgadmin_container
     image: dpage/pgadmin4
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-pgadmin4@pgadmin.org}
@@ -27,6 +26,12 @@ services:
     ports:
       - "${PGADMIN_PORT:-5050}:80"
 
+
+
 volumes:
   data:
   pgadmin:
+
+networks:
+  default:
+    name: postgre-service_default

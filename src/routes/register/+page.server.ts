@@ -7,9 +7,6 @@ function hashPass(pass: string | Buffer) {
 	let salt = bcrypt.genSaltSync(rounds);
 	return bcrypt.hashSync(pass, salt);
 }
-function comparePass (pass : string | Buffer, hash : string){
-	return bcrypt.compareSync(pass, hash);
-}
 export const actions: Actions = {
 	createUser: async ({ request }) => {
 		const { name_first, name_last, email, password } = Object.fromEntries(
