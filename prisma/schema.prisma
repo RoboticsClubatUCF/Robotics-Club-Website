@@ -11,6 +11,18 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Document {
+  id        Int      @id @default(autoincrement())
+  title     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  content   String /// this will be in markdown, and rendered on the page
+  author    Member   @relation(fields: [memberId], references: [id])
+  memberId  Int
+  Project   Project? @relation(fields: [projectId], references: [id])
+  projectId Int?
+}
+
 model Account {
   id          Int      @id @default(autoincrement())
   name        String
@@ -41,7 +53,7 @@ model ExpendatureRequest {
   id          Int      @id @default(autoincrement())
   name        String?
   description String?
-  approved    Boolean
+  status      Status   @default(value: review)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   amount      Float
@@ -101,6 +113,7 @@ model Project {
   description        String
   logo               Picture?             @relation(fields: [pictureId], references: [id])
   budget             Float
+  documents          Document[]
   remainingFunds     Float
   season             Season               @default(value: Fall)
   year               Int
@@ -126,13 +139,23 @@ model Member {
   BlogPost          BlogPost[]
   Account           Account?   @relation(fields: [accountId], references: [id])
   accountId         Int?
+  Document          Document[]
 }
 
 model Sponsor {
   id          Int     @id @default(autoincrement())
   name        String
+  receipt     Receipt @relation(fields: [receiptId], references: [id])
   description String?
   amount      Float?
+  receiptId   Int
+}
+
+model Receipt {
+  id      Int       @id @default(autoincrement())
+  title   String
+  Sponsor Sponsor[]
+  // finish formatting with receipt template
 }
 
 enum Role {
@@ -148,4 +171,10 @@ enum Season {
   Summer
   Spring
   Fall
+}
+
+enum Status {
+  approved
+  review
+  denied
 }
