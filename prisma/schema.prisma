@@ -11,16 +11,62 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Location {
+  id                Int             @id @default(autoincrement())
+  generalLocation   locationType
+  generalLocationID Int
+  subLocation       subLocationType
+  subLocationID     Int
+  Item              Item[]
+}
+
+model ItemType {
+  id   Int    @id @default(autoincrement())
+  type String
+  Item Item[]
+}
+
+model ItemCondition {
+  id        Int    @id @default(autoincrement())
+  condition String
+  Item      Item[]
+}
+
+model Item {
+  id              Int           @id @default(autoincrement())
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  name            String
+  description     String
+  image           Picture?      @relation(fields: [pictureId], references: [id])
+  rccfBarcode     String?
+  ucfBarcode      String?
+  saleBarcode     String?
+  quantity        Int
+  yellowTag       Boolean
+  valuePerItem    Float
+  expirationDate  DateTime?
+  type            ItemType      @relation(fields: [itemTypeId], references: [id])
+  condition       ItemCondition @relation(fields: [itemConditionId], references: [id])
+  location        Location      @relation(fields: [locationId], references: [id])
+  itemTypeId      Int
+  itemConditionId Int
+  locationId      Int
+  pictureId       Int?
+}
+
 model Document {
-  id        Int      @id @default(autoincrement())
-  title     String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  content   String /// this will be in markdown, and rendered on the page
-  author    Member   @relation(fields: [memberId], references: [id])
-  memberId  Int
-  Project   Project? @relation(fields: [projectId], references: [id])
-  projectId Int?
+  id                   Int      @id @default(autoincrement())
+  title                String
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  content              String /// this will be in markdown, and rendered on the page
+  author               Member   @relation(fields: [memberId], references: [id])
+  memberId             Int
+  writePermissionLevel Role
+  readPermissionLevel  Role
+  Project              Project? @relation(fields: [projectId], references: [id])
+  projectId            Int?
 }
 
 model Account {
@@ -68,13 +114,13 @@ model Picture {
   title     String?
   caption   String?
   data      String?
-  url       String?
   isLocal   Boolean    @default(true)
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   Article   Article[]
   BlogPost  BlogPost[]
   Project   Project[]
+  Item      Item[]
 }
 
 model BlogPost {
@@ -177,4 +223,17 @@ enum Status {
   approved
   review
   denied
+}
+
+enum locationType {
+  Table
+  Rack
+  Cabinet
+  Workbench
+  Locker
+}
+
+enum subLocationType {
+  Shelf
+  Underneath
 }
