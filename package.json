@@ -34,6 +34,7 @@
 		"@editorjs/editorjs": "^2.26.5",
 		"@picocss/pico": "^1.5.7",
 		"@prisma/client": "^4.11.0",
+		"lucia-auth": "^0.11.0",
 		"pixi.js": "^7.1.4",
 		"svelte-device-info": "^1.0.0",
 		"zxcvbn": "^4.4.2"

@@ -55,6 +55,14 @@ model Item {
   pictureId       Int?
 }
 
+model Shelf {
+  id        Int        @id @default(autoincrement())
+  name      String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  Documents Document[]
+}
+
 model Document {
   id                   Int      @id @default(autoincrement())
   title                String
@@ -67,6 +75,8 @@ model Document {
   readPermissionLevel  Role
   Project              Project? @relation(fields: [projectId], references: [id])
   projectId            Int?
+  Shelf                Shelf?   @relation(fields: [shelfId], references: [id])
+  shelfId              Int?
 }
 
 model Account {
@@ -235,5 +245,6 @@ enum locationType {
 
 enum subLocationType {
   Shelf
+  TableTop
   Underneath
 }
