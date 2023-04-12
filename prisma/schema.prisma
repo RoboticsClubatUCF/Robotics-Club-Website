@@ -52,7 +52,7 @@ model Item {
   itemTypeId      Int
   itemConditionId Int
   locationId      Int
-  pictureId       BigInt?
+  pictureId       Int?
 }
 
 model Shelf {
@@ -97,7 +97,7 @@ model Tag {
   Document   Document? @relation(fields: [documentId], references: [id])
   documentId Int?
   Picture    Picture?  @relation(fields: [pictureId], references: [id])
-  pictureId  BigInt?
+  pictureId  Int?
   BlogPost   BlogPost? @relation(fields: [blogPostId], references: [id])
   blogPostId Int?
   Article    Article?  @relation(fields: [articleId], references: [id])
@@ -107,7 +107,7 @@ model Tag {
 }
 
 model Record {
-  id                   BigInt              @id @default(autoincrement())
+  id                   Int              @id @default(autoincrement())
   name                 String?
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
@@ -136,7 +136,7 @@ model ExpendatureRequest {
 }
 
 model Picture {
-  id        BigInt     @id @default(autoincrement())
+  id        Int     @id @default(autoincrement())
   title     String?
   caption   String?
   data      String?
@@ -160,7 +160,7 @@ model BlogPost {
   author    Member   @relation(fields: [memberId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  pictureId BigInt?
+  pictureId Int?
   memberId  String
   Tags      Tag[]
 }
@@ -175,7 +175,7 @@ model Article {
   author    Member   @relation(fields: [authorId], references: [id])
   authorId  String
   project   Project  @relation(fields: [projectId], references: [id])
-  pictureId BigInt?
+  pictureId Int?
   projectId Int
   Tags      Tag[]
 }
@@ -194,7 +194,7 @@ model Project {
   year               Int
   articles           Article[]
   members            Member[]
-  pictureId          BigInt?
+  pictureId          Int?
   Records            Record[]
   ExpendatureRequest ExpendatureRequest[]
   Tags               Tag[]
@@ -236,8 +236,8 @@ model AuthUser {
 model AuthSession {
   id            String @id @unique
   userId        String
-  activeExpires BigInt
-  idleExpires   BigInt
+  activeExpires Int
+  idleExpires   Int
 
   authUser   AuthUser? @relation(fields: [authUserId], references: [id], onDelete: Cascade)
   authUserId String?
@@ -251,7 +251,7 @@ model AuthKey {
   hashedPassword String?
   userId         String
   primaryKey     Boolean
-  expires        BigInt?
+  expires        Int?
   AuthUser       AuthUser? @relation(fields: [authUserId], references: [id], onDelete: Cascade)
   authUserId     String?
 
