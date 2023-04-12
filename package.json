@@ -15,6 +15,7 @@
 		"migrate": "npx prisma migrate dev --name RCCF"
 	},
 	"devDependencies": {
+		"@rgossiaux/svelte-headlessui": "^1.0.2",
 		"@sveltejs/adapter-auto": "^2.0.0",
 		"@sveltejs/kit": "^1.5.0",
 		"@types/bcrypt": "^5.0.0",
@@ -40,6 +41,7 @@
 		"lucia-auth": "^1.0.0",
 		"pixi.js": "^7.1.4",
 		"svelte-device-info": "^1.0.0",
+		"svelte-icons": "^2.1.0",
 		"zxcvbn": "^4.4.2"
 	}
 }
