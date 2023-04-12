@@ -24,13 +24,13 @@ export const actions: Actions = {
 					lastName: name_last,
 					email: email,
 					passwordHash: hashPass(password),
-                    membershipExpDate:new Date()
+					membershipExpDate: new Date()
 				}
 			});
 		} catch (err) {
 			console.error(err);
 			return fail(500, { message: 'Could not create user.' });
 		}
-        return {status: 201}
+		return { status: 201 };
 	}
 };

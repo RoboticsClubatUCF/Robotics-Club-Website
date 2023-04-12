@@ -70,7 +70,7 @@ model Document {
   updatedAt            DateTime @updatedAt
   content              String /// this will be in markdown, and rendered on the page
   author               Member   @relation(fields: [memberId], references: [id])
-  memberId             Int
+  memberId             String
   writePermissionLevel Role
   readPermissionLevel  Role
   Project              Project? @relation(fields: [projectId], references: [id])
@@ -124,7 +124,7 @@ model Picture {
   title     String?
   caption   String?
   data      String?
-  isLocal   Boolean    @default(true)
+  isLocal   Boolean    @default(value: true)
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   Article   Article[]
@@ -144,7 +144,7 @@ model BlogPost {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   pictureId Int?
-  memberId  Int
+  memberId  String
 }
 
 model Article {
@@ -155,10 +155,10 @@ model Article {
   content   String
   image     Picture? @relation(fields: [pictureId], references: [id])
   author    Member   @relation(fields: [authorId], references: [id])
-  authorId  Int
-  Project   Project? @relation(fields: [projectId], references: [id])
-  projectId Int?
+  authorId  String
+  project   Project  @relation(fields: [projectId], references: [id])
   pictureId Int?
+  projectId Int
 }
 
 model Project {
@@ -180,8 +180,12 @@ model Project {
   ExpendatureRequest ExpendatureRequest[]
 }
 
+model Session {
+  id Int @id @default(autoincrement())
+}
+
 model Member {
-  id                Int        @id @default(autoincrement())
+  id                String     @id @unique
   firstName         String
   lastName          String?
   email             String     @unique
@@ -196,6 +200,43 @@ model Member {
   Account           Account?   @relation(fields: [accountId], references: [id])
   accountId         Int?
   Document          Document[]
+  AuthUser          AuthUser[]
+}
+
+model AuthUser {
+  id          String        @id @unique
+  authSession AuthSession[]
+  authKey     AuthKey[]
+  user        Member        @relation(fields: [memberId], references: [id])
+  memberId    String
+
+  @@map("authUser")
+}
+
+model AuthSession {
+  id            String @id @unique
+  userId        String
+  activeExpires BigInt
+  idleExpires   BigInt
+
+  authUser   AuthUser? @relation(fields: [authUserId], references: [id], onDelete: Cascade)
+  authUserId String?
+
+  @@index([userId])
+  @@map("authSession")
+}
+
+model AuthKey {
+  id             String    @id @unique
+  hashedPassword String?
+  userId         String
+  primaryKey     Boolean
+  expires        BigInt?
+  AuthUser       AuthUser? @relation(fields: [authUserId], references: [id], onDelete: Cascade)
+  authUserId     String?
+
+  @@index([userId])
+  @@map("authKey")
 }
 
 model Sponsor {

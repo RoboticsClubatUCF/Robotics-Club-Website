@@ -3,10 +3,10 @@
 ## How to run
 
     requirements:
-        docker & docker compose 
+        docker & docker compose
         or docker desktop
         nodejs >=19
-    
+
     ```
     docker compose up # this starts the database
     ```
@@ -23,17 +23,8 @@
 
 # TODO
 
-add dashboard
-    - add projects
-    - pay dues
-        - notification if dues expire soon
-        - updates on projects
-        - latest blog posts from projects
-    - delete account
-    - edit account
-add project pages
-    - if teamlead, add ability to make post
-    - if teamlead, add ability to edit project info
+add dashboard - add projects - pay dues - notification if dues expire soon - updates on projects - latest blog posts from projects - delete account - edit account
+add project pages - if teamlead, add ability to make post - if teamlead, add ability to edit project info
 add about page
 add sponsors page
 add members list

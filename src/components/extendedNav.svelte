@@ -1,6 +1,5 @@
 <script></script>
 
-
-<div></div>
+<div />
 
 <style></style>

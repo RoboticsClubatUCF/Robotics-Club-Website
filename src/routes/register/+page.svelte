@@ -5,7 +5,7 @@
 
 <div class="grid">
 	<div class="form">
-		<h1>Join Robotics</h1>
+		<h1>Join the nerds</h1>
 		<form action="?/createUser" method="post">
 			<label for="name_first">First Name</label>
 			<input type="text" id="name_first" name="name_first" required />
@@ -22,9 +22,9 @@
 </div>
 
 <style>
-	.grid{
-		width:100%;
-		height:100%;
+	.grid {
+		width: 100%;
+		height: 100%;
 		display: grid;
 	}
 	.form {
