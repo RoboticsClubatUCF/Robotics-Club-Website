@@ -14,11 +14,10 @@ export class polkaDot {
 		this.polka_gr = new PIXI.Graphics();
 	}
 	draw() {
-        this.polka_gr.clear()
+		this.polka_gr.clear();
 		this.polka_gr.beginFill(this.color);
 		this.polka_gr.drawCircle(this.x, this.y, this.r);
 		this.polka_gr.endFill();
-
 	}
 	updateVals(
 		x: number | undefined,

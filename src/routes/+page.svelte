@@ -4,7 +4,7 @@
 
 <div>
 	<div class="background">
-		<Background/>
+		<Background />
 	</div>
 </div>
 

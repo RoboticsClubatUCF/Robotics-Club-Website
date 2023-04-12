@@ -57,7 +57,7 @@
 		height: 3px;
 		background-color: #e6dc84;
 	}
-	.mobile-title{
+	.mobile-title {
 		flex: 1;
 		color: #f2f2f2;
 		height: inherit;

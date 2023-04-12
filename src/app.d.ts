@@ -1,16 +1,19 @@
-// See https://kit.svelte.dev/docs/types#app
+// app.d.ts
+/// <reference types="lucia-auth" />
 
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from '@prisma/client';
 
-// for information about these interfaces
-declare global {
-	namespace App {
-		// interface Error {}
-		// interface Locals {}
-		// interface PageData {}
-		// interface Platform {}
-	}
-	var prisma: PrismaClient
+// app.d.ts
+/// <reference types="@sveltejs/kit" />
+declare namespace App {
+	type AuthRequest = import("lucia-auth").AuthRequest;
+	// Locals must be an interface and not a type
+	// eslint-disable-next-line @typescript-eslint/no-empty-interface
+	interface Locals extends AuthRequest {}
 }
 
-export {};
+declare global {
+	namespace App {
+		let prisma: PrismaClient;
+	}
+}

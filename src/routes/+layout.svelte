@@ -1,7 +1,7 @@
 <script>
 	import Background from '../components/background.svelte';
 	import Nav from '../components/nav.svelte';
-	import "@picocss/pico"
+	import '@picocss/pico';
 </script>
 
 <div>

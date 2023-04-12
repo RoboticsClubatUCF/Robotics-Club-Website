@@ -9,7 +9,7 @@
 
 	let current_score = 0;
 
-	const checkPassStrength = (password:string) => {
+	const checkPassStrength = (password: string) => {
 		current_score = zxcvbn(password).score;
 	};
 
@@ -42,7 +42,7 @@
 		}
 	};
 
-	const returnBarStyle = (bar: number,score: number) => {
+	const returnBarStyle = (bar: number, score: number) => {
 		if (bar == 1 && score >= 1) {
 			return scoreStyle(score);
 		}

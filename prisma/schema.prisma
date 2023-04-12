@@ -11,31 +11,112 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Location {
+  id                Int             @id @default(autoincrement())
+  generalLocation   locationType
+  generalLocationID Int
+  subLocation       subLocationType
+  subLocationID     Int
+  Item              Item[]
+}
+
+model ItemType {
+  id   Int    @id @default(autoincrement())
+  type String
+  Item Item[]
+}
+
+model ItemCondition {
+  id        Int    @id @default(autoincrement())
+  condition String
+  Item      Item[]
+}
+
+model Item {
+  id              Int           @id @default(autoincrement())
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  name            String
+  description     String
+  image           Picture?      @relation(fields: [pictureId], references: [id])
+  rccfBarcode     String?
+  ucfBarcode      String?
+  saleBarcode     String?
+  quantity        Int
+  yellowTag       Boolean
+  valuePerItem    Float
+  expirationDate  DateTime?
+  type            ItemType      @relation(fields: [itemTypeId], references: [id])
+  condition       ItemCondition @relation(fields: [itemConditionId], references: [id])
+  location        Location      @relation(fields: [locationId], references: [id])
+  itemTypeId      Int
+  itemConditionId Int
+  locationId      Int
+  pictureId       Int?
+}
+
+model Shelf {
+  id        Int        @id @default(autoincrement())
+  name      String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  Documents Document[]
+}
+
+model Document {
+  id                   Int      @id @default(autoincrement())
+  title                String
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  content              String /// this will be in markdown, and rendered on the page
+  author               Member   @relation(fields: [memberId], references: [id])
+  memberId             String
+  writePermissionLevel Role
+  readPermissionLevel  Role
+  Project              Project? @relation(fields: [projectId], references: [id])
+  projectId            Int?
+  Shelf                Shelf?   @relation(fields: [shelfId], references: [id])
+  shelfId              Int?
+}
+
 model Account {
   id          Int      @id @default(autoincrement())
   name        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
   description String?
   funds       Float
-  contacts    Member[]
+  contacts    Member[] /// 0th contact is the primary
+  records     Record[]
 }
 
-model FinanceRecord {
-  id          Int      @id @default(autoincrement())
-  name        String?
-  description String?
-  amount      Float
-  project     Project? @relation(fields: [projectId], references: [id])
-  projectId   Int?
+model Record {
+  id                   Int                 @id @default(autoincrement())
+  name                 String?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  description          String?
+  amount               Float
+  project              Project?            @relation(fields: [projectId], references: [id])
+  projectId            Int?
+  Account              Account             @relation(fields: [accountId], references: [id])
+  accountId            Int
+  request              ExpendatureRequest? @relation(fields: [expendatureRequestId], references: [id])
+  expendatureRequestId Int?
 }
 
 model ExpendatureRequest {
   id          Int      @id @default(autoincrement())
   name        String?
   description String?
+  status      Status   @default(value: review)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
   amount      Float
   items       String[]
   project     Project? @relation(fields: [projectId], references: [id])
   projectId   Int?
+  Record      Record[]
 }
 
 model Picture {
@@ -43,13 +124,13 @@ model Picture {
   title     String?
   caption   String?
   data      String?
-  url       String?
-  isLocal   Boolean    @default(true)
+  isLocal   Boolean    @default(value: true)
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   Article   Article[]
   BlogPost  BlogPost[]
   Project   Project[]
+  Item      Item[]
 }
 
 model BlogPost {
@@ -63,7 +144,7 @@ model BlogPost {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   pictureId Int?
-  memberId  Int
+  memberId  String
 }
 
 model Article {
@@ -74,10 +155,10 @@ model Article {
   content   String
   image     Picture? @relation(fields: [pictureId], references: [id])
   author    Member   @relation(fields: [authorId], references: [id])
-  authorId  Int
-  Project   Project? @relation(fields: [projectId], references: [id])
-  projectId Int?
+  authorId  String
+  project   Project  @relation(fields: [projectId], references: [id])
   pictureId Int?
+  projectId Int
 }
 
 model Project {
@@ -88,18 +169,23 @@ model Project {
   description        String
   logo               Picture?             @relation(fields: [pictureId], references: [id])
   budget             Float
+  documents          Document[]
   remainingFunds     Float
   season             Season               @default(value: Fall)
   year               Int
   articles           Article[]
   members            Member[]
   pictureId          Int?
-  FinanceRecord      FinanceRecord[]
+  Records            Record[]
   ExpendatureRequest ExpendatureRequest[]
 }
 
+model Session {
+  id Int @id @default(autoincrement())
+}
+
 model Member {
-  id                Int        @id @default(autoincrement())
+  id                String     @id @unique
   firstName         String
   lastName          String?
   email             String     @unique
@@ -113,6 +199,60 @@ model Member {
   BlogPost          BlogPost[]
   Account           Account?   @relation(fields: [accountId], references: [id])
   accountId         Int?
+  Document          Document[]
+  AuthUser          AuthUser[]
+}
+
+model AuthUser {
+  id          String        @id @unique
+  authSession AuthSession[]
+  authKey     AuthKey[]
+  user        Member        @relation(fields: [memberId], references: [id])
+  memberId    String
+
+  @@map("authUser")
+}
+
+model AuthSession {
+  id            String @id @unique
+  userId        String
+  activeExpires BigInt
+  idleExpires   BigInt
+
+  authUser   AuthUser? @relation(fields: [authUserId], references: [id], onDelete: Cascade)
+  authUserId String?
+
+  @@index([userId])
+  @@map("authSession")
+}
+
+model AuthKey {
+  id             String    @id @unique
+  hashedPassword String?
+  userId         String
+  primaryKey     Boolean
+  expires        BigInt?
+  AuthUser       AuthUser? @relation(fields: [authUserId], references: [id], onDelete: Cascade)
+  authUserId     String?
+
+  @@index([userId])
+  @@map("authKey")
+}
+
+model Sponsor {
+  id          Int     @id @default(autoincrement())
+  name        String
+  receipt     Receipt @relation(fields: [receiptId], references: [id])
+  description String?
+  amount      Float?
+  receiptId   Int
+}
+
+model Receipt {
+  id      Int       @id @default(autoincrement())
+  title   String
+  Sponsor Sponsor[]
+  // finish formatting with receipt template
 }
 
 enum Role {
@@ -128,4 +268,24 @@ enum Season {
   Summer
   Spring
   Fall
+}
+
+enum Status {
+  approved
+  review
+  denied
+}
+
+enum locationType {
+  Table
+  Rack
+  Cabinet
+  Workbench
+  Locker
+}
+
+enum subLocationType {
+  Shelf
+  TableTop
+  Underneath
 }

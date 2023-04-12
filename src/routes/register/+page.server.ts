@@ -7,9 +7,6 @@ function hashPass(pass: string | Buffer) {
 	let salt = bcrypt.genSaltSync(rounds);
 	return bcrypt.hashSync(pass, salt);
 }
-function comparePass (pass : string | Buffer, hash : string){
-	return bcrypt.compareSync(pass, hash);
-}
 export const actions: Actions = {
 	createUser: async ({ request }) => {
 		const { name_first, name_last, email, password } = Object.fromEntries(
@@ -27,13 +24,13 @@ export const actions: Actions = {
 					lastName: name_last,
 					email: email,
 					passwordHash: hashPass(password),
-                    membershipExpDate:new Date()
+					membershipExpDate: new Date()
 				}
 			});
 		} catch (err) {
 			console.error(err);
 			return fail(500, { message: 'Could not create user.' });
 		}
-        return {status: 201}
+		return { status: 201 };
 	}
 };
