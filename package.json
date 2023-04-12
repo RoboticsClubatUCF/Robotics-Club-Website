@@ -11,7 +11,8 @@
 		"lint": "prettier --plugin-search-dir . --check .",
 		"format": "prettier --plugin-search-dir . --write .",
 		"metrics": "node ./metricsLog.js",
-		"services": "docker compose up"
+		"services": "docker compose up",
+		"migrate": "npx prisma migrate dev --name RCCF"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-auto": "^2.0.0",
