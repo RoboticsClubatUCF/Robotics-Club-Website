@@ -52,7 +52,7 @@ model Item {
   itemTypeId      Int
   itemConditionId Int
   locationId      Int
-  pictureId       Int?
+  pictureId       BigInt?
 }
 
 model Shelf {
@@ -77,6 +77,7 @@ model Document {
   projectId            Int?
   Shelf                Shelf?   @relation(fields: [shelfId], references: [id])
   shelfId              Int?
+  Tags                 Tag[]
 }
 
 model Account {
@@ -90,8 +91,23 @@ model Account {
   records     Record[]
 }
 
+model Tag {
+  id         Int       @id @default(autoincrement())
+  name       String    @unique
+  Document   Document? @relation(fields: [documentId], references: [id])
+  documentId Int?
+  Picture    Picture?  @relation(fields: [pictureId], references: [id])
+  pictureId  BigInt?
+  BlogPost   BlogPost? @relation(fields: [blogPostId], references: [id])
+  blogPostId Int?
+  Article    Article?  @relation(fields: [articleId], references: [id])
+  articleId  Int?
+  Project    Project?  @relation(fields: [projectId], references: [id])
+  projectId  Int?
+}
+
 model Record {
-  id                   Int                 @id @default(autoincrement())
+  id                   BigInt              @id @default(autoincrement())
   name                 String?
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
@@ -120,7 +136,7 @@ model ExpendatureRequest {
 }
 
 model Picture {
-  id        Int        @id @default(autoincrement())
+  id        BigInt     @id @default(autoincrement())
   title     String?
   caption   String?
   data      String?
@@ -131,6 +147,7 @@ model Picture {
   BlogPost  BlogPost[]
   Project   Project[]
   Item      Item[]
+  Tags      Tag[]
 }
 
 model BlogPost {
@@ -143,8 +160,9 @@ model BlogPost {
   author    Member   @relation(fields: [memberId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  pictureId Int?
+  pictureId BigInt?
   memberId  String
+  Tags      Tag[]
 }
 
 model Article {
@@ -157,8 +175,9 @@ model Article {
   author    Member   @relation(fields: [authorId], references: [id])
   authorId  String
   project   Project  @relation(fields: [projectId], references: [id])
-  pictureId Int?
+  pictureId BigInt?
   projectId Int
+  Tags      Tag[]
 }
 
 model Project {
@@ -175,9 +194,10 @@ model Project {
   year               Int
   articles           Article[]
   members            Member[]
-  pictureId          Int?
+  pictureId          BigInt?
   Records            Record[]
   ExpendatureRequest ExpendatureRequest[]
+  Tags               Tag[]
 }
 
 model Session {
