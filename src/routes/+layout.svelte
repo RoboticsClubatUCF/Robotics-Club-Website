@@ -1,11 +1,9 @@
 <script>
-	import Background from '../components/background.svelte';
-	import Nav from '../components/nav.svelte';
-	import '@picocss/pico';
+	import NewNav from '../components/newNav.svelte';
 </script>
 
 <div>
-	<Nav />
+	<NewNav />
 	<div class="page">
 		<slot />
 	</div>

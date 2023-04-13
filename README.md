@@ -29,3 +29,6 @@ add about page
 add sponsors page
 add members list
 add officers list
+
+
+low key want the website to look like the langing page for github
