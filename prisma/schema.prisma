@@ -71,8 +71,8 @@ model Document {
   content              String /// this will be in markdown, and rendered on the page
   author               Member   @relation(fields: [memberId], references: [id])
   memberId             String
-  writePermissionLevel Role
-  readPermissionLevel  Role
+  readPermissionLevel  Int
+  writePermissionLevel Int
   Project              Project? @relation(fields: [projectId], references: [id])
   projectId            Int?
   Shelf                Shelf?   @relation(fields: [shelfId], references: [id])
@@ -215,7 +215,7 @@ model Member {
   membershipExpDate DateTime   @default(now())
   joinedAt          DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
-  role              Role       @default(value: Member)
+  role              Role       @relation(fields: [roleId], references: [id])
   Articles          Article[]
   Projects          Project[]
   BlogPost          BlogPost[]
@@ -223,6 +223,7 @@ model Member {
   accountId         Int?
   Document          Document[]
   AuthUser          AuthUser[]
+  roleId            Int
 }
 
 model AuthUser {
@@ -277,13 +278,11 @@ model Receipt {
   // finish formatting with receipt template
 }
 
-enum Role {
-  NonMember
-  Member
-  Teamlead
-  Officer
-  Alumni
-  officerAlumni
+model Role {
+  id              Int      @id @default(autoincrement())
+  name            String   @unique
+  permissionLevel Int
+  Member          Member[]
 }
 
 enum Season {
