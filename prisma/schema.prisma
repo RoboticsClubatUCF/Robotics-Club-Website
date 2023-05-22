@@ -222,44 +222,7 @@ model Member {
   Account           Account?   @relation(fields: [accountId], references: [id])
   accountId         Int?
   Document          Document[]
-  AuthUser          AuthUser[]
   roleId            Int
-}
-
-model AuthUser {
-  id          String        @id @unique
-  authSession AuthSession[]
-  authKey     AuthKey[]
-  user        Member        @relation(fields: [memberId], references: [id])
-  memberId    String
-
-  @@map("authUser")
-}
-
-model AuthSession {
-  id            String @id @unique
-  userId        String
-  activeExpires Int
-  idleExpires   Int
-
-  authUser   AuthUser? @relation(fields: [authUserId], references: [id], onDelete: Cascade)
-  authUserId String?
-
-  @@index([userId])
-  @@map("authSession")
-}
-
-model AuthKey {
-  id             String    @id @unique
-  hashedPassword String?
-  userId         String
-  primaryKey     Boolean
-  expires        Int?
-  AuthUser       AuthUser? @relation(fields: [authUserId], references: [id], onDelete: Cascade)
-  authUserId     String?
-
-  @@index([userId])
-  @@map("authKey")
 }
 
 model Sponsor {
