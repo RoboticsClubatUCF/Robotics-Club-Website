@@ -11,6 +11,7 @@
     docker compose up # this starts the database
     ```
     run
+    npm i
     npx prisma migrate dev --name RCCF
     npm run dev
 
