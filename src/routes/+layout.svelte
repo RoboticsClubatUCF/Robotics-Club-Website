@@ -11,7 +11,9 @@
 <AppShell>
 	<svelte:fragment slot="pageHeader">
 		<AppBar>
-			<svelte:fragment slot="lead"><h1 class="h1">{info.title}</h1></svelte:fragment>
+			<svelte:fragment slot="lead">
+				<h1 class="h1">{info.title}</h1>
+			</svelte:fragment>
 			<svelte:fragment slot="trail"><SigninButton /></svelte:fragment>
 		</AppBar>
 	</svelte:fragment>

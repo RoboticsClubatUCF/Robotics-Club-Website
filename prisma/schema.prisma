@@ -212,6 +212,7 @@ model Member {
   lastName          String?
   email             String     @unique
   passwordHash      String
+  AuthToken         String     @unique @default(value: uuid())
   membershipExpDate DateTime   @default(now())
   joinedAt          DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
