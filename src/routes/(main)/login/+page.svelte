@@ -10,7 +10,7 @@
 <!-- Form that provides a login screen, followed by the option to create your own account -->
 <div class="h-screen grid place-items-center absolute w-screen top-0">
 	<div class="block card p-4 m-8">
-		<form method="POST">
+		<form method="POST" class="variant-filled-surface p-2 rounded-md">
 			<label class="label m-4">
 				<span>Email</span>
 				<input
@@ -41,7 +41,11 @@
 					<span class="variant-filled-error badge">{$errors.password}</span>
 				{/if}
 			</label>
-			<button class="btn variant-filled-primary">Log In</button>
+			<button class="btn variant-soft-primary m-4 hover:variant-filled-primary">Log In</button>
+			<br />
+			<div class="m-4">
+				<span class="h3">Dont have an account?</span>
+			</div>
 		</form>
 	</div>
 </div>

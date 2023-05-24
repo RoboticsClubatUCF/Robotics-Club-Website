@@ -32,3 +32,8 @@ add members list
 add officers list
 
 low key want the website to look like the langing page for github
+
+### NOTES
+
+authentication
+<https://joyofcode.xyz/sveltekit-authentication-using-cookies>
