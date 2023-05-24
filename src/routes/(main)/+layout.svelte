@@ -19,7 +19,7 @@
 			</svelte:fragment>
 			<TabGroup justify="justify-center">
 				<Tab bind:group={$layoutTab} name="home" value={0}>Home</Tab>
-				<Tab bind:group={$layoutTab} name="about" value={1}>about</Tab>
+				<Tab bind:group={$layoutTab} name="about" value={1}>About</Tab>
 				<Tab bind:group={$layoutTab} name="history" value={2}>History</Tab>
 			</TabGroup>
 			<svelte:fragment slot="trail"><SigninButton /></svelte:fragment>
