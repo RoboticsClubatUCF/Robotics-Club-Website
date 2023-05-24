@@ -18,7 +18,6 @@
 				<a href="/" class="h1 hover:animate-pulse">{info.title}</a>
 			</svelte:fragment>
 			<TabGroup justify="justify-center">
-				<Tab bind:group={$layoutTab} name="home" value={0}>Home</Tab>
 				<Tab bind:group={$layoutTab} name="about" value={1}>About</Tab>
 				<Tab bind:group={$layoutTab} name="history" value={2}>History</Tab>
 			</TabGroup>

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import SignupButton from '../../../components/buttons/signup-button.svelte';
 	import type { PageData } from './$types';
 	import { superForm } from 'sveltekit-superforms/client';
 
@@ -8,8 +9,8 @@
 </script>
 
 <!-- Form that provides a login screen, followed by the option to create your own account -->
-<div class="h-screen grid place-items-center absolute w-screen top-0">
-	<div class="block card p-4 m-8">
+<div class="h-screen grid place-items-center absolute w-screen top-0 pointer-events-none">
+	<div class="block card p-4 m-8 pointer-events-auto">
 		<form method="POST" class="variant-filled-surface p-2 rounded-md">
 			<label class="label m-4">
 				<span>Email</span>
@@ -44,7 +45,8 @@
 			<button class="btn variant-soft-primary m-4 hover:variant-filled-primary">Log In</button>
 			<br />
 			<div class="m-4">
-				<span class="h3">Dont have an account?</span>
+				<span class="h3 mr-2">Dont have an account?</span>
+				<SignupButton />
 			</div>
 		</form>
 	</div>
