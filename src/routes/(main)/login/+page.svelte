@@ -11,7 +11,7 @@
 <!-- Form that provides a login screen, followed by the option to create your own account -->
 <div class="h-screen grid place-items-center absolute w-screen top-0 pointer-events-none">
 	<div class="block card p-4 m-8 pointer-events-auto">
-		<form method="POST" class="variant-filled-surface p-2 rounded-md">
+		<form method="POST" class=" p-2 rounded-md">
 			<label class="label m-4">
 				<span>Email</span>
 				<input
