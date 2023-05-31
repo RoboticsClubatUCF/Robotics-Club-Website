@@ -5,6 +5,6 @@ const prisma = new PrismaClient();
 const metrics = await prisma.$metrics.json();
 console.log('Logging prisma metrics to file');
 writeFileSync(
-	'./metricsLogs/' + new Date().toDateString() + '-METRICS.json',
-	JSON.stringify(metrics)
+  './metricsLogs/' + new Date().toDateString() + '-METRICS.json',
+  JSON.stringify(metrics)
 );

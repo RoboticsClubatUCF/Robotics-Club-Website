@@ -1,5 +1,5 @@
 version: '3.8'
-name: RCCF
+name: rccf
 
 services:
   postgres:
