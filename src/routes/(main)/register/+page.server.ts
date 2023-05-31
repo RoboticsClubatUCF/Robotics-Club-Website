@@ -1,5 +1,6 @@
 import { db } from '$lib/db';
 import { fail, redirect } from '@sveltejs/kit';
+import { randomUUID } from 'crypto';
 import { superValidate } from 'sveltekit-superforms/server';
 import { z } from 'zod';
 import generatePassword from '../../../components/scripts/generatePass';
@@ -20,10 +21,26 @@ const registerSchema = z
         message: 'Passwords do not match!'
       });
     }
+  })
+  .superRefine(async ({ email }, ctx) => {
+    if (
+      await db.member.findFirst({
+        where: {
+          email: email
+        }
+      })
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Account already exists with that email!'
+      });
+    }
   });
 
 export const load: PageServerLoad = async () => {
   const form = await superValidate(registerSchema);
+
+  return { form };
 };
 
 export const actions: Actions = {
@@ -33,11 +50,13 @@ export const actions: Actions = {
     if (!form.valid) {
       return fail(400, { form });
     }
+    // generate the user token, and save the hashed password to the backend
     await db.member.create({
       data: {
         firstName: form.data.name,
         passwordHash: generatePassword(form.data.password),
         email: form.data.email,
+        AuthToken: randomUUID(),
         role: {
           connectOrCreate: {
             where: {
@@ -52,8 +71,6 @@ export const actions: Actions = {
       }
     });
 
-    // generate the user token, and save the hashed password to the backend
-
-    throw redirect(302, '/dashboard');
+    throw redirect(302, '/login');
   }
 };
