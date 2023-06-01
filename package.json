@@ -42,6 +42,7 @@
   "type": "module",
   "dependencies": {
     "@editorjs/editorjs": "^2.26.5",
-    "@prisma/client": "^4.12.0"
+    "@prisma/client": "^4.12.0",
+    "pixi.js": "^7.2.4"
   }
 }

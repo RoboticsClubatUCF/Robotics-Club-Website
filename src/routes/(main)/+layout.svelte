@@ -6,8 +6,6 @@
   import { info } from '../../data/info';
   import SigninButton from '../../components/buttons/signin-button.svelte';
   import LoadHandler from '../../components/loadHandler.svelte';
-  import { layoutTab } from '../../stores';
-  $: console.log($layoutTab);
 </script>
 
 <LoadHandler />
