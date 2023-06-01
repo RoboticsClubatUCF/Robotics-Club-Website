@@ -1,7 +1,12 @@
 import { redirect, type Actions } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async () => {
+export const load: PageServerLoad = async ({ cookies }) => {
+  cookies.set('session', '', {
+    path: '/',
+    expires: new Date(0)
+  });
+  throw redirect(302, '/');
   throw redirect(302, '/');
 };
 
