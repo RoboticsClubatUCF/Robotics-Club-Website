@@ -2,7 +2,7 @@
   import '../../app.postcss';
   import '../../theme.postcss';
   import '@skeletonlabs/skeleton/styles/skeleton.css';
-  import { AppBar, AppShell, Tab, TabGroup } from '@skeletonlabs/skeleton';
+  import { AppBar, AppShell } from '@skeletonlabs/skeleton';
   import { info } from '../../data/info';
   import SigninButton from '../../components/buttons/signin-button.svelte';
   import LoadHandler from '../../components/loadHandler.svelte';

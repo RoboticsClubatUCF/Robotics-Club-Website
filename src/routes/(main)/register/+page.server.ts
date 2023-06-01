@@ -30,11 +30,11 @@ export const actions: Actions = {
       return setError(form, 'confirmPassword', 'Passwords do not match!');
     }
     if (
-      db.member.findFirst({
+      (await db.member.findFirst({
         where: {
           email: form.data.email
         }
-      }) != null
+      })) != null
     ) {
       return setError(form, 'email', 'Email is already being used!');
     }
