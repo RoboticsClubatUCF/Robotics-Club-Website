@@ -1,7 +1,14 @@
-<script>
-  import { AppBar, AppRail, AppRailTile, AppShell } from '@skeletonlabs/skeleton';
+<script lang="ts">
+  import '../../app.postcss';
+  import '../../theme.postcss';
+  import '@skeletonlabs/skeleton/styles/skeleton.css';
+  import { AppBar, AppRail, AppRailTile, AppShell, Avatar } from '@skeletonlabs/skeleton';
   import { info } from '../../data/info';
-  import { page } from '$app/stores';
+  import SignoutButton from '../../components/buttons/signout-button.svelte';
+  import Identicon from 'identicon.js';
+  import type { LayoutServerData } from './$types';
+  import cybr53 from '../../components/scripts/cybr53';
+  export let data: LayoutServerData;
   let currentTile = 0;
 </script>
 
@@ -12,7 +19,13 @@
         <a href="/" class="h1 hover:animate-pulse">{info.mobileTitle}</a>
       </svelte:fragment>
       <svelte:fragment slot="trail">
-        <!-- put user pfp and username -->
+        <div class="flex gap-5">
+          <SignoutButton />
+          <Avatar
+            src={'data:image/png;base64,' + new Identicon(cybr53(data.fname).toString(), 48)}
+            width="w-12"
+          />
+        </div>
       </svelte:fragment>
     </AppBar>
   </svelte:fragment>

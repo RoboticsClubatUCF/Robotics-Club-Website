@@ -23,7 +23,8 @@ export const handle: Handle = async ({ event, resolve }) => {
   // if `user` exists set `events.local`
   if (user) {
     event.locals.member = {
-      fna: user.firstName,
+      fname: user.firstName,
+      email: user.email,
       permissions: {
         name: user.role.name,
         level: user.role.permissionLevel

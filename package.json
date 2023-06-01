@@ -21,6 +21,8 @@
     "@sveltejs/kit": "^1.5.0",
     "@tailwindcss/forms": "^0.5.3",
     "@types/bcrypt": "^5.0.0",
+    "@types/identicon.js": "^2.3.1",
+    "@types/jdenticon": "^2.2.0",
     "@types/node": "^18.15.3",
     "autoprefixer": "^10.4.14",
     "bcrypt": "^5.1.0",
@@ -43,6 +45,8 @@
   "dependencies": {
     "@editorjs/editorjs": "^2.26.5",
     "@prisma/client": "^4.12.0",
+    "identicon.js": "^2.3.3",
+    "jdenticon": "^3.2.0",
     "pixi.js": "^7.2.4"
   }
 }
