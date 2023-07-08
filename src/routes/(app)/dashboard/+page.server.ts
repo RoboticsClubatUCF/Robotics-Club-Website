@@ -7,5 +7,6 @@ export const load: PageServerLoad = async ({ locals }) => {
       email: locals.member.email
     }
   });
-  return { user };
+  const projects = await db.project.findMany({});
+  return { user, projects };
 };

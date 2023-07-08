@@ -12,7 +12,8 @@
     "format": "prettier --plugin-search-dir . --write .",
     "metrics": "node ./metricsLog.js",
     "services": "docker compose up -d",
-    "migrate": "npx prisma generate &&npx prisma migrate dev --name RCCF"
+    "migrate": "npx prisma generate &&npx prisma migrate dev --name RCCF",
+    "studio": "npx prisma studio"
   },
   "devDependencies": {
     "@skeletonlabs/skeleton": "^1.5.1",
