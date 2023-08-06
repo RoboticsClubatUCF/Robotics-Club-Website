@@ -2,10 +2,10 @@
   import '../../app.postcss';
   import '../../theme.postcss';
   import '@skeletonlabs/skeleton/styles/skeleton.css';
-  import { AppBar, AppShell } from '@skeletonlabs/skeleton';
+  import { AppBar, AppShell, LightSwitch, Tab, TabGroup } from '@skeletonlabs/skeleton';
   import { info } from '../../data/info';
-  import SigninButton from '../../components/buttons/signin-button.svelte';
   import LoadHandler from '../../components/loadHandler.svelte';
+  import Navigation from '../../components/navigation.svelte';
 </script>
 
 <LoadHandler />
@@ -15,7 +15,11 @@
       <svelte:fragment slot="lead">
         <a href="/" class="h1 hover:animate-pulse">{info.title}</a>
       </svelte:fragment>
-      <svelte:fragment slot="trail"><SigninButton /></svelte:fragment>
+      <svelte:fragment slot="headline"><Navigation /></svelte:fragment>
+      <svelte:fragment slot="trail">
+        <LightSwitch />
+        <!-- <SigninButton /> -->
+      </svelte:fragment>
     </AppBar>
   </svelte:fragment>
   <slot />

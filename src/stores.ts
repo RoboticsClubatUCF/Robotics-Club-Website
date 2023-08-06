@@ -1,2 +1,1 @@
-import { writable } from 'svelte/store';
-export const layoutTab = writable(0);
+import { writable, type Writable } from 'svelte/store';

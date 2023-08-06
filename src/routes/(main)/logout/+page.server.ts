@@ -7,7 +7,6 @@ export const load: PageServerLoad = async ({ cookies }) => {
     expires: new Date(0)
   });
   throw redirect(302, '/');
-  throw redirect(302, '/');
 };
 
 export const actions: Actions = {
