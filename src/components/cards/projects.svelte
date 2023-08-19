@@ -1,10 +1,11 @@
 <script lang="ts">
   import config from '../../config';
+  import Image from 'svimg';
   export let totalProjects: number;
 </script>
 
 <a class="card card-hover overflow-hidden" href="/projects">
-  <img
+  <Image
     src="/photos/projects.png"
     class="bg-black/50 w-full aspect-[21/9] object-cover"
     alt="Post"

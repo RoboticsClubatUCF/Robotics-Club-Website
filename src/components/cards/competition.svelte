@@ -1,11 +1,12 @@
 <script lang="ts">
   import config from '../../config';
+  import Image from 'svimg';
 </script>
 
 <div class="card card-hover overflow-hidden">
-  <img
+  <Image
     src="/photos/competition.png"
-    class="bg-black/50 w-full aspect-[21/9] object-cover object-left-bottom"
+    class="bg-black/50 w-full aspect-[21/9] object-cover object-bottom"
     alt="Post"
   />
   <div class="p-4 space-y-4">

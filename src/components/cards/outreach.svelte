@@ -1,9 +1,10 @@
 <script lang="ts">
   import config from '../../config';
+  import Image from 'svimg';
 </script>
 
 <div class="card card-hover overflow-hidden">
-  <img
+  <Image
     src="/photos/outreach.png"
     class="bg-black/50 w-full aspect-[21/9] object-cover"
     alt="Post"
