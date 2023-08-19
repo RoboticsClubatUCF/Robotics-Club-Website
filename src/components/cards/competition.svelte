@@ -7,7 +7,6 @@
     src="/photos/competition.png"
     class="bg-black/50 w-full aspect-[21/9] object-cover object-left-bottom"
     alt="Post"
-    loading="lazy"
   />
   <div class="p-4 space-y-4">
     <h6 class="h6">Competition</h6>
