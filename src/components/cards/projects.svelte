@@ -3,7 +3,7 @@
   export let totalProjects: number;
 </script>
 
-<div class="card card-hover overflow-hidden">
+<a class="card card-hover overflow-hidden" href="/projects">
   <img
     src="/photos/projects.png"
     class="bg-black/50 w-full aspect-[21/9] object-cover"
@@ -20,4 +20,4 @@
   </div>
   <hr class="opacity-50" />
   <footer class="card-footer mt-2">{totalProjects} Projects Completed</footer>
-</div>
+</a>
