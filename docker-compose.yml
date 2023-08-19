@@ -2,6 +2,16 @@ version: '3.8'
 name: rccf
 
 services:
+  # web:
+  #   build:
+  #     context: .
+  #     dockerfile: ./dockerfile
+  #   restart: unless-stopped
+  #   ports:
+  #     - 4173:4173
+  #   networks:
+  #     - services
+
   postgres:
     image: postgres
     environment:
@@ -10,26 +20,33 @@ services:
       - PGDATA /data/postgres
     volumes:
       - data:/data/postgres
+    restart: unless-stopped
     ports:
       - 5432:5432
-    restart: unless-stopped
-
-  pgadmin:
-    restart: unless-stopped
-    image: dpage/pgadmin4
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-pgadmin4@pgadmin.org}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
-      PGADMIN_CONFIG_SERVER_MODE: 'False'
-    volumes:
-      - pgadmin:/var/lib/pgadmin
-    ports:
-      - '${PGADMIN_PORT:-5050}:80'
+    networks:
+      - services
+  # pgadmin:
+  #   restart: unless-stopped
+  #   image: dpage/pgadmin4
+  #   environment:
+  #     PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-pgadmin4@pgadmin.org}
+  #     PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
+  #     PGADMIN_CONFIG_SERVER_MODE: 'False'
+  #   volumes:
+  #     - pgadmin:/var/lib/pgadmin
+  #   ports:
+  #     - '${PGADMIN_PORT:-5050}:80'
+  #   depends_on:
+  #     - postgres
+  #   networks:
+  #     - services
 
 volumes:
   data:
   pgadmin:
 
+
 networks:
-  default:
-    name: postgre-service_default
+  services:
+    name: services
+    driver: bridge

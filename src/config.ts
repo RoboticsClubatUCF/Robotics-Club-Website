@@ -1,11 +1,22 @@
 export default {
+  backend_ready: false,
   /**
    * Below are editable aspects of the website, from mission statement, to general info
    */
   information: {
     slogan: 'Building our future overlords one project at a time.',
     missionStatement:
-      'The Robotics Club of Central Florida aims to further both ourselves and the field of robotics through our challenging and innovating projects. We value teamwork, perseverance, and having fun. '
+      'The Robotics Club of Central Florida aims to further both ourselves and the field of robotics through our challenging and innovating projects. We value teamwork, perseverance, and having fun. ',
+    projectStatement:
+      'Students are encouraged to learn hands on skills and methods not only in the field of robotics, but engineering overall, through challenging and stimulating projects.',
+    teachingStatement:
+      'Members are offered a multitude of learning resources, spanning from hands on workshops, to well-written documentation.',
+    competitionStatement:
+      'The Robotics Club of Central Florida engages in many difficult nationwide competitions, revolving around innovating current solutions, and discovering new ones.',
+    outreachStatement:
+      'The Robotics Club of Central Florida gives back to the community with several opportunities for members to attend events, but also to local schools and organizations looking to have an extra set of hands.',
+    researchStatement:
+      'Team Leads often host complex and exciting research through RCCF, and often get to work with bleeding edge technologies.'
   },
 
   /**

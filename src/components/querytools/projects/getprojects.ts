@@ -1,7 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import { db } from '$lib/db';
 
 export default async (amount: number = 10, skip: number = 0) => {
-  const db = new PrismaClient();
   const projects = await db.project.findMany({
     skip: skip,
     take: amount,
@@ -12,6 +11,5 @@ export default async (amount: number = 10, skip: number = 0) => {
       createdAt: 'desc'
     }
   });
-  db.$disconnect();
   return projects;
 };
