@@ -1,4 +1,4 @@
-import { Season, type Project } from '@prisma/client';
+import type { Project } from '@prisma/client';
 import getprojects from '../../../components/querytools/projects/getprojects';
 import type projectCategory from '../../../types/projectCategory';
 import type { PageServerLoad } from './$types';
@@ -10,6 +10,10 @@ export const load = (async () => {
 
   // load all recent projects
   const projects = await getprojects(20);
+  if (projects.length == 0) {
+    let categories: projectCategory[] = [];
+    return { categories };
+  }
 
   let categories: projectCategory[] = [];
 
