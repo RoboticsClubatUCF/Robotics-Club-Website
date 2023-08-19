@@ -1,4 +1,4 @@
-<script>
+<script src="../../../node_modules/flowbite/dist/flowbite.min.js">
   import '../../app.postcss';
   import '../../theme.postcss';
   import '@skeletonlabs/skeleton/styles/skeleton.css';
