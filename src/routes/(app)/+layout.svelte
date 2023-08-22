@@ -2,7 +2,14 @@
   import '../../app.postcss';
   import '../../theme.postcss';
   import '@skeletonlabs/skeleton/styles/skeleton.css';
-  import { AppBar, AppRail, AppRailTile, AppShell, Avatar } from '@skeletonlabs/skeleton';
+  import {
+    AppBar,
+    AppRail,
+    AppRailTile,
+    AppShell,
+    Avatar,
+    LightSwitch
+  } from '@skeletonlabs/skeleton';
   import { info } from '../../data/info';
   import SignoutButton from '../../components/buttons/signout-button.svelte';
   import Identicon from 'identicon.js';
@@ -19,13 +26,12 @@
         <a href="/" class="h1 hover:animate-pulse">{info.mobileTitle}</a>
       </svelte:fragment>
       <svelte:fragment slot="trail">
-        <div class="flex gap-5">
-          <SignoutButton />
-          <Avatar
-            src={'data:image/png;base64,' + new Identicon(cybr53(data.fname).toString(), 48)}
-            width="w-12"
-          />
-        </div>
+        <LightSwitch />
+        <SignoutButton />
+        <Avatar
+          src={'data:image/png;base64,' + new Identicon(cybr53(data.fname).toString(), 48)}
+          width="w-12"
+        />
       </svelte:fragment>
     </AppBar>
   </svelte:fragment>

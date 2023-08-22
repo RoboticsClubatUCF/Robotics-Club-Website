@@ -9,6 +9,7 @@
   const { form, errors, constraints } = superForm(data.form, {
     clearOnSubmit: 'errors-and-message'
   });
+
   let mainEle: HTMLElement;
   onMount(() => {
     injectDots(mainEle, 200);
@@ -40,6 +41,22 @@
         />
         {#if $errors.fname}
           <span class="variant-filled-error badge">{$errors.fname}</span>
+        {/if}
+      </label>
+      <br />
+      <label class="label">
+        <span>Discord Username</span>
+        <input
+          class="input"
+          type="text"
+          name="discord"
+          id="discord"
+          bind:value={$form.discord}
+          {...$constraints}
+          required
+        />
+        {#if $errors.discord}
+          <span class="variant-filled-error badge">{$errors.discord}</span>
         {/if}
       </label>
       <br />

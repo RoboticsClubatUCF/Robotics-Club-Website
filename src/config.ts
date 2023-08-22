@@ -1,5 +1,10 @@
 export default {
-  backend_ready: false,
+  paypal: {
+    CLIENT_ID: '',
+    semester_cost: '0.01',
+    year_cost: '0.01'
+  },
+
   /**
    * Below are editable aspects of the website, from mission statement, to general info
    */

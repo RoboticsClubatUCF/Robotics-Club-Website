@@ -203,23 +203,24 @@ model Project {
 }
 
 model Member {
-  id                String     @id @unique @default(uuid())
-  firstName         String
-  lastName          String?
-  email             String     @unique
-  passwordHash      String
-  AuthToken         String     @unique @default(value: uuid())
-  membershipExpDate DateTime   @default(now())
-  joinedAt          DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
-  role              Role       @relation(fields: [roleId], references: [id])
-  roleId            Int
-  Articles          Article[]
-  Projects          Project[]
-  BlogPost          BlogPost[]
-  Account           Account?   @relation(fields: [accountId], references: [id])
-  accountId         Int?
-  Document          Document[]
+  id                 String     @id @unique @default(uuid())
+  firstName          String
+  lastName           String?
+  email              String     @unique
+  discordProfileName String     @unique
+  passwordHash       String
+  AuthToken          String     @unique @default(value: uuid())
+  membershipExpDate  DateTime   @default(now())
+  joinedAt           DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  role               Role       @relation(fields: [roleId], references: [id])
+  roleId             Int
+  Articles           Article[]
+  Projects           Project[]
+  BlogPost           BlogPost[]
+  Account            Account?   @relation(fields: [accountId], references: [id])
+  accountId          Int?
+  Document           Document[]
 }
 
 model Sponsor {

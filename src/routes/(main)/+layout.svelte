@@ -6,6 +6,7 @@
   import { info } from '../../data/info';
   import LoadHandler from '../../components/loadHandler.svelte';
   import Navigation from '../../components/navigation.svelte';
+  import SigninButton from '../../components/buttons/signin-button.svelte';
 </script>
 
 <LoadHandler />
@@ -18,7 +19,7 @@
       <svelte:fragment slot="headline"><Navigation /></svelte:fragment>
       <svelte:fragment slot="trail">
         <LightSwitch />
-        <!-- <SigninButton /> -->
+        <SigninButton />
       </svelte:fragment>
     </AppBar>
   </svelte:fragment>

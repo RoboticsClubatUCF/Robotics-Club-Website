@@ -10,8 +10,9 @@ import type { Actions, PageServerLoad } from './$types';
 const registerSchema = z.object({
   email: z.string().email(),
   fname: z.string(),
+  discord: z.string(),
   password: z.string().min(8, 'Password must be at least 8 characters long!'),
-  confirmPassword: z.string().min(8)
+  confirmPassword: z.string()
 });
 
 export const load: PageServerLoad = async () => {
@@ -38,6 +39,16 @@ export const actions: Actions = {
     ) {
       return setError(form, 'email', 'Email is already being used!');
     }
+    if (
+      (await db.member.findFirst({
+        where: {
+          discordProfileName: form.data.discord
+        }
+      })) != null
+    ) {
+      return setError(form, 'discord', 'Discord username is already being used!');
+    }
+
     // generate the user token, and save the hashed password to the backend
     await db.member.create({
       data: {
@@ -45,6 +56,7 @@ export const actions: Actions = {
         passwordHash: generatePassword(form.data.password),
         email: form.data.email,
         AuthToken: randomUUID(),
+        discordProfileName: form.data.discord,
         role: {
           connectOrCreate: {
             where: {
