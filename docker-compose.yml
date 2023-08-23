@@ -49,7 +49,6 @@ volumes:
   data:
   pgadmin:
 
-
 networks:
   services:
     name: services

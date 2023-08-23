@@ -12,7 +12,7 @@ const config = {
       outputDir: 'static/g',
       webp: true,
       avif: true
-  }), 
+    }),
     vitePreprocess(),
     preprocess({
       postcss: true
