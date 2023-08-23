@@ -7,13 +7,11 @@
         or docker desktop
         nodejs >=19
 
-    ```
-    docker compose up # this starts the database
-    ```
-    run
-    npm i
-    npx prisma migrate dev --name RCCF
-    npm run dev
+    docker compose up -d
+    change env file to push to localhost for the postgres
+    npx prisma migrade dev --name RCCF
+
+    profit
 
     in all you should have a docker container running postgres running, and another terminal running the svelte server + client, everyting will update as you develop, or evaluate it
 

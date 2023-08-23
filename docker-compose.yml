@@ -2,17 +2,21 @@ version: '3.8'
 name: rccf
 
 services:
-  # web:
-  #   build:
-  #     context: .
-  #     dockerfile: ./dockerfile
-  #   restart: unless-stopped
-  #   ports:
-  #     - 4173:4173
-  #   networks:
-  #     - services
+  web:
+    container_name: website
+    build:
+      context: .
+      dockerfile: ./dockerfile
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    ports:
+      - 4173:4173
+    networks:
+      - services
 
   postgres:
+    container_name: postgres
     image: postgres
     environment:
       - POSTGRES_USER=postgres

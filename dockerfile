@@ -6,4 +6,4 @@ RUN npx prisma generate
 RUN npm run build
 EXPOSE 4173
 # This is Temporary as we dont have a proper build system yet
-ENTRYPOINT [ "npm","run","dev" ]
+ENTRYPOINT [ "npm","run","preview" ]
