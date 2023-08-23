@@ -23,7 +23,7 @@ services:
       - POSTGRES_PASSWORD=password
       - PGDATA /data/postgres
     volumes:
-      - data:/data/postgres
+      - ./rccf-postgres:/data/postgres
     restart: unless-stopped
     ports:
       - 5432:5432
@@ -48,6 +48,7 @@ services:
 volumes:
   data:
   pgadmin:
+
 
 networks:
   services:

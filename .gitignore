@@ -8,3 +8,4 @@ vite.config.ts.timestamp-*
 prisma/migrations
 metricsLogs
 **/g
+**/rccf-postgres
