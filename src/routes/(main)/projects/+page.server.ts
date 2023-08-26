@@ -17,16 +17,6 @@ export const load = (async () => {
 
   let categories: projectCategory[] = [];
 
-  categories.push({
-    year: projects[0].year,
-    semester: [
-      {
-        season: projects[0].season,
-        projects: [projects[0]]
-      }
-    ]
-  } satisfies projectCategory);
-
   let years: number[] = [];
   // enumarate the years
   for (let i = 0; i < projects.length; i++) {
@@ -52,7 +42,7 @@ export const load = (async () => {
         }
       }
     }
-    for (let j = 1; j < projectsOfYear.length; j++) {
+    for (let j = 0; j < projectsOfYear.length; j++) {
       // for every project in this year, we need to sort them into individual semesters,
       const x = categories.findIndex((a) => {
         return a.year == projectsOfYear[j].year;
@@ -60,6 +50,7 @@ export const load = (async () => {
       if (x != undefined || x != -1) {
         try {
           const y = categories[x].semester.findIndex((a) => {
+            console.log(a.season);
             return a.season == projectsOfYear[j].season;
           });
           // now since we have the semester, we can attempt to inject the project into it
@@ -70,7 +61,6 @@ export const load = (async () => {
             season: projectsOfYear[j].season,
             projects: [projectsOfYear[j]]
           });
-          console.log(categories[x].semester);
         }
       }
     }
@@ -81,6 +71,5 @@ export const load = (async () => {
   categories.sort((a, b) => {
     return b.year - a.year;
   });
-  console.log(categories[0]);
   return { categories };
 }) satisfies PageServerLoad;
