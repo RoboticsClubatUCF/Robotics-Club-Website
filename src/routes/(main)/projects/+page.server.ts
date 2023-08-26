@@ -121,5 +121,6 @@ export const load = (async () => {
   categories.sort((a, b) => {
     return b.year - a.year;
   });
+  console.log(categories);
   return { categories };
 }) satisfies PageServerLoad;
