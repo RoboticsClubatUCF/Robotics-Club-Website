@@ -56,28 +56,10 @@ model Item {
 }
 
 model Shelf {
-  id        Int        @id @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   name      String
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  Documents Document[]
-}
-
-model Document {
-  id                   Int      @id @default(autoincrement())
-  title                String
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-  content              String /// this will be in markdown, and rendered on the page
-  author               Member   @relation(fields: [memberId], references: [id])
-  memberId             String
-  readPermissionLevel  Int
-  writePermissionLevel Int
-  Project              Project? @relation(fields: [projectId], references: [id])
-  projectId            Int?
-  Shelf                Shelf?   @relation(fields: [shelfId], references: [id])
-  shelfId              Int?
-  Tags                 Tag[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Account {
@@ -95,7 +77,6 @@ model Tag {
   id         Int       @id @default(autoincrement())
   name       String    @unique
   color      String
-  Document   Document? @relation(fields: [documentId], references: [id])
   documentId Int?
   Picture    Picture?  @relation(fields: [pictureId], references: [id])
   pictureId  Int?
@@ -189,7 +170,7 @@ model Project {
   description        String
   logo               Picture?             @relation(fields: [pictureId], references: [id])
   budget             Float
-  documents          Document[]
+  docsLink           String               @default("")
   remainingFunds     Float
   season             Season               @default(value: Fall)
   year               Int
@@ -220,7 +201,6 @@ model Member {
   BlogPost           BlogPost[]
   Account            Account?   @relation(fields: [accountId], references: [id])
   accountId          Int?
-  Document           Document[]
 }
 
 model Sponsor {

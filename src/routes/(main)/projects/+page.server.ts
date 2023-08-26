@@ -50,7 +50,6 @@ export const load = (async () => {
       if (x != undefined || x != -1) {
         try {
           const y = categories[x].semester.findIndex((a) => {
-            console.log(a.season);
             return a.season == projectsOfYear[j].season;
           });
           // now since we have the semester, we can attempt to inject the project into it

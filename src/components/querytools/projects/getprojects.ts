@@ -5,7 +5,12 @@ export default async (amount: number = 10, skip: number = 0) => {
     skip: skip,
     take: amount,
     include: {
-      logo: true
+      logo: true,
+      _count: {
+        select: {
+          members: true
+        }
+      }
     },
     orderBy: {
       createdAt: 'desc'

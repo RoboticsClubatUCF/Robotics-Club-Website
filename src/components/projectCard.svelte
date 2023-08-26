@@ -6,7 +6,7 @@
 </script>
 
 <div
-  class="card h-72 max-w-full rounded-lg relative"
+  class="card h-72 max-w-72 rounded-lg relative"
   on:mouseenter={() => {
     hover = true;
   }}
@@ -20,13 +20,7 @@
       <!-- load the image using the b64 method -->
     {:else}
       <div class="absolute h3 p-5">{project.title}</div>
-      <img
-        class="h-72 max-w-full rounded-lg"
-        height="18rem"
-        width="100%"
-        src={project.logo.data}
-        alt=""
-      />
+      <img class="h-72 rounded-lg object-cover overflow-hidden" src={project.logo.data} alt="" />
     {/if}
   {:else}
     <!-- if not hovering, display the normal stuff -->
