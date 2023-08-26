@@ -9,7 +9,7 @@
 </script>
 
 <div class="w-screen h-11 bg-surface-200-700-token h2">
-  <div>Active Projects</div>
+  <div>Projects</div>
 </div>
 
 {#if data.categories.length != 0}

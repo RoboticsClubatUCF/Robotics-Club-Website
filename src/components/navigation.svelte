@@ -16,4 +16,11 @@
   <!-- <TabAnchor href="/history" selected={$page.url.pathname === '/history'}>
     <span class="capitalize">history</span>
   </TabAnchor> -->
+  <TabAnchor
+    href="http://secretlibrary.rccf.club"
+    target="_blank"
+    selected={$page.url.pathname === 'secretlibrary.rccf.club'}
+  >
+    <span class="capitalize">library</span>
+  </TabAnchor>
 </RadioGroup>

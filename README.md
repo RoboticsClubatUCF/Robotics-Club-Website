@@ -6,7 +6,8 @@
         docker & docker compose
         or docker desktop
         nodejs >=19
-
+    npm i
+    npm run build # This will take a while
     docker compose up -d
     change env file to push to localhost for the postgres
     npx prisma migrade dev --name RCCF
