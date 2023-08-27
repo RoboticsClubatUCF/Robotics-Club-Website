@@ -16,7 +16,7 @@
     mounted = true;
   });
   let paymentSuccess = {
-    success: true,
+    success: false,
     duesType: 1
   };
   $: if (paymentSuccess.success) {
@@ -60,7 +60,7 @@
           id="survey"
           target="_blank"
           href="https://docs.google.com/forms/d/e/1FAIpQLSc8G4hIVlv9rUusUO6Kb1eZZ-uGbS5TPp0Agi4LYsZZGoHkJQ/viewform?usp=sf_link"
-          class="btn variant-ghost-tertiary hover:variant-filled-tertiary">New Member Survey</a
+          class="btn variant-ghost-tertiary hover:variant-filled-tertiary">Member Survey</a
         >
       {/if}
     </div>
