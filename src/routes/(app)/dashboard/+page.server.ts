@@ -60,8 +60,7 @@ export const actions: Actions = {
         }
       } else if (form.data.duesType == 2) {
         //  THis is for if a user buys dues for a year
-        let a = new Date();
-        return new Date().setFullYear(a.getFullYear(), a.getMonth(), a.getDate());
+        return new Date(new Date().setFullYear(2024)).toISOString();
       }
     }
   }
