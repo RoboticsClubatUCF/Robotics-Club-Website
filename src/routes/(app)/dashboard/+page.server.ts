@@ -17,7 +17,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 const updateDuesSchema = z.object({
-  email: z.string().email()
+  email: z.string().email(),
+  duesType: z.number()
 });
 export const actions: Actions = {
   default: async ({ request }) => {
@@ -41,8 +42,6 @@ export const actions: Actions = {
         membershipExpDate: calculateValidSemester(user?.membershipExpDate)
       }
     });
-    console.log(something);
-
     function calculateValidSemester(currentEndDate: Date | undefined) {
       // slowly increment until the valid next due date is calculated
       let isValidSemester = false;
@@ -51,21 +50,18 @@ export const actions: Actions = {
         startingDate = currentEndDate;
       }
       let currentYear = new Date().getFullYear();
-      /**
-       * to calculate this,
-       *  the user submitted the form so 2 cases occur
-       *    The user is paying for the first time, in which, we need to just give them the next semester
-       *    The user has payed before, in which we need to essentially move them to the next bracket Fall -> Spring || Spring -> Fall
-       */
-      if (currentEndDate?.getTime() ?? 0 < new Date().getTime()) {
+      // This is to calculate when their dues should end, should they pay for the semester option
+      if (form.data.duesType == 1) {
         // This is the first time the user is paying, so we simply look for the next bracket, and put them in there!
         if (new Date().getMonth() < 4) {
           return new Date(currentYear, 4, 5).toISOString();
         } else {
           return new Date(currentYear + 1, 0, 1).toISOString();
         }
-      } else {
-        //  The user still has valid dues, and needs to extend them
+      } else if (form.data.duesType == 2) {
+        //  THis is for if a user buys dues for a year
+        let a = new Date();
+        return new Date().setFullYear(a.getFullYear(), a.getMonth(), a.getDate());
       }
     }
   }

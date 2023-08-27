@@ -4,15 +4,25 @@
   import OneSemesterPayment from '../../../components/paypal/oneSemesterPayment.svelte';
   import { superForm } from 'sveltekit-superforms/client';
   import { onMount } from 'svelte';
+  import PayDues from '../../../components/paypal/payDues.svelte';
 
   export let data: PageServerData;
   let email = data.user!.email;
+  let mounted = false;
   const { form, errors, constraints } = superForm(data.form, {
     clearOnSubmit: 'errors-and-message'
   });
-  let paymentSuccess = false;
-  $: if (paymentSuccess) {
-    document.getElementById('submitPaypal')?.click();
+  onMount(() => {
+    mounted = true;
+  });
+  let paymentSuccess = {
+    success: false,
+    duesType: 1
+  };
+  $: if (paymentSuccess.success) {
+    if (mounted) {
+      document.getElementById('submitPaypal')?.click();
+    }
   }
 </script>
 
@@ -31,9 +41,10 @@
         <h6 class="badge variant-filled-error">Looks like your dues are Expired!</h6>
         <hr />
         <br class="h-5" />
-        <OneSemesterPayment user={data.user} bind:purchaseSuccess={paymentSuccess} />
+        <PayDues purchaseSuccess={paymentSuccess} />
         <form method="post">
           <input type="hidden" name="email" id="email" bind:value={email} />
+          <input type="hidden" name="duesType" id="duesType" bind:value={paymentSuccess.duesType} />
           <button style="visibility: hidden;" type="submit" id="submitPaypal" />
         </form>
       {:else}

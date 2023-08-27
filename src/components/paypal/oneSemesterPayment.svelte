@@ -2,9 +2,7 @@
   import { type PayPalNamespace, loadScript } from '@paypal/paypal-js';
   import { onMount } from 'svelte';
   import config from '../../config';
-  import type { Member } from '@prisma/client';
 
-  export let user: Member | null;
   export let purchaseSuccess = false;
 
   let paypal: PayPalNamespace | null;

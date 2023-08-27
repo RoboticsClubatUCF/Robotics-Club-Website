@@ -2,7 +2,7 @@
   import { superForm } from 'sveltekit-superforms/client';
   import type { PageData } from './$types';
   import { onMount } from 'svelte';
-  import { injectDots } from '../../../components/scripts/dotsAnimation';
+  import { injectDots } from '../../../components/pixijs/dotsAnimation';
   import { modeCurrent } from '@skeletonlabs/skeleton';
 
   export let data: PageData;

@@ -3,7 +3,21 @@
   import { onMount } from 'svelte';
   import config from '../../config';
 
+  let duesSelection = '1';
+  export let purchaseSuccess = {
+    success: false,
+    duesType: Number(duesSelection)
+  };
+
   let paypal: PayPalNamespace | null;
+
+  let duesCost = () => {
+    if (duesSelection == '1') {
+      return config.paypal.semester_cost;
+    }
+    return config.paypal.year_cost;
+  };
+
   onMount(async () => {
     try {
       paypal = await loadScript({
@@ -15,7 +29,7 @@
       });
       if (paypal != null) {
         try {
-          let element = document.getElementById('paypalButtonsYear');
+          let element = document.getElementById('paypalButtonsSemester');
           //@ts-ignore
           let buttons = paypal
             .Buttons({
@@ -23,13 +37,18 @@
                 return actions.order.create({
                   purchase_units: [
                     {
-                      description: 'Dues for One Year of RCCF',
+                      description: 'Dues for RCCF',
                       amount: {
                         currency_code: 'USD',
-                        value: config.paypal.year_cost
+                        value: duesCost()
                       }
                     }
                   ]
+                });
+              },
+              onApprove: function (data, actions) {
+                return actions.order!.capture().then((details) => {
+                  purchaseSuccess.success = true;
                 });
               }
             })
@@ -46,4 +65,12 @@
   });
 </script>
 
-<div id="paypalButtonsYear" />
+<label class="label">
+  <span>Dues Duration</span>
+  <select class="select" bind:value={duesSelection}>
+    <option value="1" selected>Semester ({config.paypal.semester_cost})</option>
+    <option value="2">Year ({config.paypal.year_cost})</option>
+  </select>
+</label>
+<br />
+<div id="paypalButtonsSemester" />
