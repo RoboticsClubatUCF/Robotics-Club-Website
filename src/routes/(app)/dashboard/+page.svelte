@@ -22,7 +22,7 @@
   $: if (paymentSuccess.success) {
     if (mounted) {
       document.getElementById('submitPaypal')?.click();
-      document.getElementById('survey')?.click();
+      // document.getElementById('survey')?.click();
     }
   }
 </script>
