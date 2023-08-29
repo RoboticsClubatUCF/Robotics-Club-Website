@@ -42,7 +42,7 @@
         <h6 class="badge variant-filled-error">Looks like your dues are Expired!</h6>
         <hr />
         <br class="h-5" />
-        <PayDues purchaseSuccess={paymentSuccess} />
+        <PayDues bind:purchaseSuccess={paymentSuccess} />
         <form method="post">
           <input type="hidden" name="email" id="email" bind:value={email} />
           <input type="hidden" name="duesType" id="duesType" bind:value={paymentSuccess.duesType} />
