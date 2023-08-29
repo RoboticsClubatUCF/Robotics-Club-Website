@@ -46,9 +46,13 @@
                   ]
                 });
               },
-              onApprove: function (data, actions) {
-                return actions.order!.capture().then((details) => {
-                  purchaseSuccess.success = true;
+              onApprove: async function (data, actions) {
+                console.log('Approved!');
+                await actions.order!.capture().then((details) => {
+                  purchaseSuccess = {
+                    success: true,
+                    duesType: Number(duesSelection)
+                  };
                 });
               }
             })
