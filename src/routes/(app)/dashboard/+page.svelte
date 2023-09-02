@@ -1,5 +1,12 @@
 <script lang="ts">
-  import { AppShell, modeCurrent } from '@skeletonlabs/skeleton';
+  import {
+    AppBar,
+    AppShell,
+    type DrawerSettings,
+    getDrawerStore,
+    modeCurrent,
+    RadioGroup
+  } from '@skeletonlabs/skeleton';
   import type { PageServerData } from './$types';
   import { superForm } from 'sveltekit-superforms/client';
   import { onMount } from 'svelte';
@@ -26,21 +33,107 @@
       // document.getElementById('survey')?.click();
     }
   }
+  const drawerStore = getDrawerStore();
+  const drawerSettingsDash: DrawerSettings = {
+    id: 'dashboard',
+    meta: {
+      projects: data.user?.Projects,
+      teams: data.user?.Teams
+    }
+  };
 </script>
 
 <AppShell>
-  <svelte:fragment slot="header" />
+  <svelte:fragment slot="header">
+    <AppBar>
+      <svelte:fragment slot="lead">
+        <button
+          class="block lg:hidden btn variant-ghost-tertiary hover:variant-filled-tertiary"
+          on:click={() => {
+            drawerStore.open(drawerSettingsDash);
+          }}>Projects & Teams</button
+        >
+      </svelte:fragment>
+    </AppBar>
+  </svelte:fragment>
   <svelte:fragment slot="sidebarLeft">
     <!-- Hidden below Tailwind's large breakpoint -->
-    <div id="sidebar-left" class=" lg:block">
+    <div id="sidebar-left" class="hidden lg:block">
       <LeftSideBar projects={data.user?.Projects} teams={data.user?.Teams} />
     </div>
   </svelte:fragment>
   <svelte:fragment slot="sidebarRight">
     <!-- Hidden below Tailwind's large breakpoint -->
-    <div id="sidebar-right" class=" lg:block" />
+    <div id="sidebar-right" class="hidden lg:block" />
   </svelte:fragment>
-  <Feed />
+  <div class="m-4">
+    <Feed />
+    <div
+      class=" grid grid-cols-2 place-items-center w-screen top-0 pointer-events-none overflow-scroll"
+    />
+    <div
+      class={$modeCurrent
+        ? 'block card p-8 pointer-events-auto shadow-xl card-hover shadow-surface-300 sm:w-screen md:w-5/6 justify-center'
+        : 'block card p-8 pointer-events-auto shadow-xl card-hover shadow-surface-500 sm:w-screen md:w-5/6 justify-center'}
+    >
+      <div class="p-2 rounded-md">
+        <h2 class="h2">Hello {data.user?.firstName},</h2>
+        <br />
+        {#if (data.user?.membershipExpDate.getTime() ?? 0) < new Date().getTime()}
+          <h6 class="badge variant-filled-error">Looks like your dues are Expired!</h6>
+          <hr />
+          <br class="h-5" />
+          <PayDues bind:purchaseSuccess={paymentSuccess} />
+          <form method="post">
+            <input type="hidden" name="email" id="email" bind:value={email} />
+            <input
+              type="hidden"
+              name="duesType"
+              id="duesType"
+              bind:value={paymentSuccess.duesType}
+            />
+            <button style="visibility: hidden;" type="submit" id="submitPaypal" />
+          </form>
+        {:else}
+          <h6 class="badge variant-filled-success">
+            Your Dues expire on {data.user?.membershipExpDate.toDateString()}
+          </h6>
+          <h6 class="h6">
+            Looks like you're all set! check back in on discord in about a day after paying dues for
+            membership status, and look out for announcements about updates to this site!
+          </h6>
+          <a
+            id="survey"
+            target="_blank"
+            href="https://docs.google.com/forms/d/e/1FAIpQLSc8G4hIVlv9rUusUO6Kb1eZZ-uGbS5TPp0Agi4LYsZZGoHkJQ/viewform?usp=sf_link"
+            class="btn variant-ghost-tertiary hover:variant-filled-tertiary">Member Survey</a
+          >
+        {/if}
+      </div>
+    </div>
+    {#if !((data.user?.membershipExpDate.getTime() ?? 0) < new Date().getTime())}
+      <br />
+      <div
+        class={$modeCurrent
+          ? 'block card p-8 pointer-events-auto shadow-xl shadow-surface-300 sm:w-screen md:w-5/6 justify-center card-hover'
+          : 'block card p-8 pointer-events-auto shadow-xl shadow-surface-500 sm:w-screen md:w-5/6 justify-center card-hover'}
+      >
+        <div class="p-2 rounded-md">
+          <h2 class="h2">Sumo Bots!</h2>
+          <br />
+          <div>
+            <!-- PRINT TEAM INFO HERE -->
+            <!-- IF USER IS NOT PART OF A SUMO BOTS TEAM, GIVE THEM THE BUTTON BELOW -->
+          </div>
+          <a
+            href="./registerTeam"
+            class="btn variant-ghost-secondary hover:variant-filled-secondary capitalize"
+            >Register team</a
+          >
+        </div>
+      </div>
+    {/if}
+  </div>
 </AppShell>
 
 <!-- This entire page needs to be re-done to allow for the new dashboard -->

@@ -3,7 +3,7 @@
   import { page } from '$app/stores';
 </script>
 
-<RadioGroup active="variant-filled-primary" hover="hover:variant-soft-primary">
+<RadioGroup active="variant-filled-primary" hover="hover:variant-ghost-primary">
   <TabAnchor href="/" selected={$page.url.pathname === '/'}>
     <span class="capitalize">home</span>
   </TabAnchor>

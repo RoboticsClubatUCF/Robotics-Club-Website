@@ -106,7 +106,7 @@
           >{$errors.password + ' and ' + $errors.confirmPassword}</span
         >
       {/if}
-      <button class="btn variant-soft-primary mt-4 hover:variant-filled-primary">Sign Up</button>
+      <button class="btn variant-ghost-primary mt-4 hover:variant-filled-primary">Sign Up</button>
     </form>
   </div>
 </div>

@@ -1,3 +1,3 @@
 <script></script>
 
-<a href="/logout" class="btn variant-soft-primary hover:variant-filled-primary">Sign Out</a>
+<a href="/logout" class="btn variant-ghost-primary hover:variant-filled-primary">Sign Out</a>

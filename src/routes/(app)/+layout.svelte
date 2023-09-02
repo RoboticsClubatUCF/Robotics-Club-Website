@@ -7,18 +7,31 @@
     AppShell,
     Avatar,
     Drawer,
-    LightSwitch
+    LightSwitch,
+    getDrawerStore,
+    type DrawerSettings
   } from '@skeletonlabs/skeleton';
   import { info } from '../../data/info';
   import SignoutButton from '../../components/buttons/signout-button.svelte';
   import Identicon from 'identicon.js';
   import type { LayoutServerData } from './$types';
   import cybr53 from '../../components/scripts/cybr53';
+  import LeftSideBar from '../../components/dashboard/leftSidebar/leftSideBar.svelte';
   export let data: LayoutServerData;
+
+  const drawerStore = getDrawerStore();
   let currentTile = 0;
+  $: positionClasses = $drawerStore.open ? 'translate-x-[50%]' : '';
+  const drawerSettingsSet: DrawerSettings = { id: 'settings' };
 </script>
 
-<AppShell>
+<Drawer>
+  {#if $drawerStore.id == 'dashboard'}
+    <LeftSideBar projects={$drawerStore.meta.projects} teams={$drawerStore.meta.teams} />
+  {/if}
+</Drawer>
+
+<AppShell class="transition-transform {positionClasses}">
   <svelte:fragment slot="header">
     <AppBar>
       <svelte:fragment slot="lead">

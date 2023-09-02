@@ -54,7 +54,18 @@ export const actions: Actions = {
         email: form.data.email
       },
       data: {
-        membershipExpDate: calculateValidSemester(user?.membershipExpDate)
+        membershipExpDate: calculateValidSemester(user?.membershipExpDate),
+        role: {
+          connectOrCreate: {
+            where: {
+              name: config.roles.member.name
+            },
+            create: {
+              name: config.roles.member.name,
+              permissionLevel: config.roles.member.level
+            }
+          }
+        }
       }
     });
     function calculateValidSemester(currentEndDate: Date | undefined) {

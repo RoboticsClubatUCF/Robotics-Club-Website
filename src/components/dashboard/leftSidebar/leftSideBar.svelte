@@ -13,7 +13,7 @@
     | null;
 </script>
 
-<div class="h-full card">
+<div class="h-full card mt-4 mr-4">
   <ProjectList data={projects} />
   <br />
   <hr class="!border-t-4" />

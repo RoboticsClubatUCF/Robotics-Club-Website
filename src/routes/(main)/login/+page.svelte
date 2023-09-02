@@ -49,7 +49,7 @@
           <span class="variant-filled-error badge">{$errors.password}</span>
         {/if}
       </label>
-      <button class="btn variant-soft-primary m-4 hover:variant-filled-primary">Log In</button>
+      <button class="btn variant-ghost-primary m-4 hover:variant-filled-primary">Log In</button>
       <br />
       <div class="m-4">
         <span class="h3 mr-2">Dont have an account?</span>
