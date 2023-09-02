@@ -8,6 +8,7 @@
     AppRailTile,
     AppShell,
     Avatar,
+    Drawer,
     LightSwitch
   } from '@skeletonlabs/skeleton';
   import { info } from '../../data/info';

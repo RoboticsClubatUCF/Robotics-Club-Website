@@ -1,1 +1,3 @@
-<script lang="ts"></script>
+<script lang="ts">
+  // Query API for latest posts from projects
+</script>

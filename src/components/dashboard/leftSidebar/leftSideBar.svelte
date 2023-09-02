@@ -13,8 +13,10 @@
     | null;
 </script>
 
-<div class="h-full variant-filled-surface">
+<div class="h-full card">
   <ProjectList data={projects} />
-  <hr />
+  <br />
+  <hr class="!border-t-4" />
+  <br />
   <TeamList data={teams} />
 </div>

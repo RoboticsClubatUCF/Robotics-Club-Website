@@ -29,15 +29,16 @@
 </script>
 
 <AppShell>
+  <svelte:fragment slot="header" />
   <svelte:fragment slot="sidebarLeft">
     <!-- Hidden below Tailwind's large breakpoint -->
-    <div id="sidebar-left" class="hidden lg:block">
+    <div id="sidebar-left" class=" lg:block">
       <LeftSideBar projects={data.user?.Projects} teams={data.user?.Teams} />
     </div>
   </svelte:fragment>
   <svelte:fragment slot="sidebarRight">
     <!-- Hidden below Tailwind's large breakpoint -->
-    <div id="sidebar-right" class="hidden lg:block" />
+    <div id="sidebar-right" class=" lg:block" />
   </svelte:fragment>
   <Feed />
 </AppShell>
