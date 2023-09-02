@@ -10,10 +10,25 @@ export const load: PageServerLoad = async ({ locals }) => {
   const user = await db.member.findFirst({
     where: {
       email: locals.member.email
+    },
+    include: {
+      Projects: {
+        include: {
+          logo: true
+        }
+      },
+      Teams: {
+        include: {
+          _count: {
+            select: {
+              members: true
+            }
+          }
+        }
+      }
     }
   });
-  const projects = await db.project.findMany({});
-  return { user, projects, form };
+  return { user, form };
 };
 
 const updateDuesSchema = z.object({

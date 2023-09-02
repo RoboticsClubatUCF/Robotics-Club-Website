@@ -1,9 +1,11 @@
 <script lang="ts">
-  import { modeCurrent } from '@skeletonlabs/skeleton';
+  import { AppShell, modeCurrent } from '@skeletonlabs/skeleton';
   import type { PageServerData } from './$types';
   import { superForm } from 'sveltekit-superforms/client';
   import { onMount } from 'svelte';
   import PayDues from '../../../components/paypal/payDues.svelte';
+  import Feed from '../../../components/dashboard/feed.svelte';
+  import LeftSideBar from '../../../components/dashboard/leftSidebar/leftSideBar.svelte';
 
   export let data: PageServerData;
   let email = data.user!.email;
@@ -26,8 +28,22 @@
   }
 </script>
 
+<AppShell>
+  <svelte:fragment slot="sidebarLeft">
+    <!-- Hidden below Tailwind's large breakpoint -->
+    <div id="sidebar-left" class="hidden lg:block">
+      <LeftSideBar projects={data.user?.Projects} teams={data.user?.Teams} />
+    </div>
+  </svelte:fragment>
+  <svelte:fragment slot="sidebarRight">
+    <!-- Hidden below Tailwind's large breakpoint -->
+    <div id="sidebar-right" class="hidden lg:block" />
+  </svelte:fragment>
+  <Feed />
+</AppShell>
+
 <!-- This entire page needs to be re-done to allow for the new dashboard -->
-<div
+<!-- <div
   class="h-screen grid grid-cols-2 place-items-center absolute w-screen top-0 pointer-events-none overflow-scroll"
 >
   <div
@@ -65,4 +81,4 @@
       {/if}
     </div>
   </div>
-</div>
+</div> -->

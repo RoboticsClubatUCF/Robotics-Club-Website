@@ -35,21 +35,6 @@
       </svelte:fragment>
     </AppBar>
   </svelte:fragment>
-  <svelte:fragment slot="sidebarRight">
-    <!-- Hidden below Tailwind's large breakpoint -->
-    <div id="sidebar-right" class="hidden lg:block">
-      <AppRail>
-        <!-- add page links -->
-        <!-- use app rail tiles to add links -->
-      </AppRail>
-    </div>
-  </svelte:fragment>
-  <svelte:fragment slot="sidebarLeft">
-    <!-- Hidden below Tailwind's large breakpoint -->
-    <div id="sidebar-left" class="hidden lg:block">
-      <div class="card w-48 h-full" />
-    </div>
-  </svelte:fragment>
 
   <slot />
 </AppShell>

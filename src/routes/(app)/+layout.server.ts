@@ -10,6 +10,9 @@ export const load: LayoutServerLoad = async ({ locals }) => {
   const member = await db.member.findFirst({
     where: {
       email: locals.member.email
+    },
+    include: {
+      Projects: true
     }
   });
   if (member == null) {

@@ -168,6 +168,8 @@ model Team {
   members    Member[]
   maxMembers Int
   minMembers Int
+  Project    Project? @relation(fields: [projectId], references: [id])
+  projectId  Int?
 }
 
 model Project {
@@ -189,6 +191,8 @@ model Project {
   ExpendatureRequest ExpendatureRequest[]
   Tags               Tag[]
   Skills             String[]
+  projectType        projectType          @default(value: standard)
+  teams              Team[] // possibility for no teams created if project does not require them
 }
 
 model Member {
@@ -209,8 +213,7 @@ model Member {
   BlogPost           BlogPost[]
   Account            Account?   @relation(fields: [accountId], references: [id])
   accountId          Int?
-  Team               Team?      @relation(fields: [teamId], references: [id])
-  teamId             String?
+  Teams              Team[]
 }
 
 model Sponsor {
@@ -267,4 +270,5 @@ enum projectType {
   seniorDesign
   externalCompetition // competition outside UCF
   internalCompetition // competition within UCF
+  standard
 }
