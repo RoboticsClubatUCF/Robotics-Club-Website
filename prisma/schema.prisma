@@ -162,6 +162,14 @@ model Article {
   Tags      Tag[]
 }
 
+model Team {
+  id         String   @id @unique @default(uuid())
+  name       String
+  members    Member[]
+  maxMembers Int
+  minMembers Int
+}
+
 model Project {
   id                 Int                  @id @default(autoincrement())
   title              String
@@ -201,6 +209,8 @@ model Member {
   BlogPost           BlogPost[]
   Account            Account?   @relation(fields: [accountId], references: [id])
   accountId          Int?
+  Team               Team?      @relation(fields: [teamId], references: [id])
+  teamId             String?
 }
 
 model Sponsor {
@@ -250,4 +260,11 @@ enum subLocationType {
   Shelf
   TableTop
   Underneath
+}
+
+enum projectType {
+  research
+  seniorDesign
+  externalCompetition // competition outside UCF
+  internalCompetition // competition within UCF
 }

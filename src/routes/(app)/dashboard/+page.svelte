@@ -1,7 +1,6 @@
 <script lang="ts">
   import { modeCurrent } from '@skeletonlabs/skeleton';
   import type { PageServerData } from './$types';
-  import OneSemesterPayment from '../../../components/paypal/oneSemesterPayment.svelte';
   import { superForm } from 'sveltekit-superforms/client';
   import { onMount } from 'svelte';
   import PayDues from '../../../components/paypal/payDues.svelte';
@@ -27,13 +26,14 @@
   }
 </script>
 
+<!-- This entire page needs to be re-done to allow for the new dashboard -->
 <div
-  class="h-screen grid place-items-center absolute w-screen top-0 pointer-events-none overflow-scroll"
+  class="h-screen grid grid-cols-2 place-items-center absolute w-screen top-0 pointer-events-none overflow-scroll"
 >
   <div
     class={$modeCurrent
-      ? 'block card p-8 pointer-events-auto shadow-xl shadow-surface-300 sm:w-screen md:w-1/3 justify-center'
-      : 'block card p-8 pointer-events-auto shadow-xl shadow-surface-500 sm:w-screen md:w-1/3 justify-center'}
+      ? 'block card p-8 pointer-events-auto shadow-xl shadow-surface-300 sm:w-screen md:w-5/6 justify-center'
+      : 'block card p-8 pointer-events-auto shadow-xl shadow-surface-500 sm:w-screen md:w-5/6 justify-center'}
   >
     <div class="p-2 rounded-md">
       <h2 class="h2">Hello {data.user?.firstName},</h2>
@@ -50,7 +50,7 @@
         </form>
       {:else}
         <h6 class="badge variant-filled-success">
-          Your Dues expire on {data.user?.membershipExpDate}
+          Your Dues expire on {data.user?.membershipExpDate.toDateString()}
         </h6>
         <h6 class="h6">
           Looks like you're all set! check back in on discord in about a day after paying dues for
