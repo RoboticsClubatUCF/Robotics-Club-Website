@@ -16,7 +16,8 @@
     "studio": "npx prisma studio"
   },
   "devDependencies": {
-    "@skeletonlabs/skeleton": "^1.11.0",
+    "@skeletonlabs/skeleton": "^2.0.0",
+    "@skeletonlabs/tw-plugin": "^0.1.0",
     "@sveltejs/adapter-auto": "^2.0.0",
     "@sveltejs/adapter-node": "1.2.4",
     "@sveltejs/kit": "^1.5.0",
@@ -24,7 +25,7 @@
     "@types/bcrypt": "^5.0.0",
     "@types/identicon.js": "^2.3.1",
     "@types/jdenticon": "^2.2.0",
-    "@types/node": "^18.15.3",
+    "@types/node": "^18.17.13",
     "autoprefixer": "^10.4.14",
     "bcrypt": "^5.1.0",
     "postcss": "^8.4.23",

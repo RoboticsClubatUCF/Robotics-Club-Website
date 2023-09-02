@@ -1,7 +1,5 @@
 <script lang="ts" src="../../../node_modules/flowbite/dist/flowbite.min.js">
   import '../../app.postcss';
-  import '../../theme.postcss';
-  import '@skeletonlabs/skeleton/styles/skeleton.css';
   import { AppBar, AppShell, LightSwitch, Tab, TabGroup } from '@skeletonlabs/skeleton';
   import { info } from '../../data/info';
   import LoadHandler from '../../components/loadHandler.svelte';
