@@ -4,8 +4,7 @@
     AppShell,
     type DrawerSettings,
     getDrawerStore,
-    modeCurrent,
-    RadioGroup
+    modeCurrent
   } from '@skeletonlabs/skeleton';
   import type { PageServerData } from './$types';
   import { superForm } from 'sveltekit-superforms/client';
