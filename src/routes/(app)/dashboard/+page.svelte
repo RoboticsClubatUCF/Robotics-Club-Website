@@ -58,7 +58,7 @@
   </svelte:fragment>
   <svelte:fragment slot="sidebarLeft">
     <!-- Hidden below Tailwind's large breakpoint -->
-    <div id="sidebar-left" class="hidden lg:block">
+    <div id="sidebar-left" class="hidden lg:block m-2">
       <LeftSideBar projects={data.user?.Projects} teams={data.user?.Teams} />
     </div>
   </svelte:fragment>

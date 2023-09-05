@@ -3,5 +3,5 @@
 </script>
 
 <div class="card">
-  <h3 class="h3">Feed</h3>
+  <h3 class="h3 m-4">Feed</h3>
 </div>
