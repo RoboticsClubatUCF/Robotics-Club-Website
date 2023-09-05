@@ -17,6 +17,7 @@
   import type { LayoutServerData } from './$types';
   import cybr53 from '../../components/scripts/cybr53';
   import LeftSideBar from '../../components/dashboard/leftSidebar/leftSideBar.svelte';
+  import BreadCrumbs from '../../components/breadCrumbs.svelte';
   export let data: LayoutServerData;
 
   const drawerStore = getDrawerStore();
@@ -36,6 +37,8 @@
     <AppBar>
       <svelte:fragment slot="lead">
         <a href="/" class="h1 hover:animate-pulse">{info.mobileTitle}</a>
+        <div class="m-2" />
+        <BreadCrumbs />
       </svelte:fragment>
       <svelte:fragment slot="trail">
         <LightSwitch />
