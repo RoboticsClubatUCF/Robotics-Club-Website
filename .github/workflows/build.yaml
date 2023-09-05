@@ -1,5 +1,5 @@
 name: Build-WebApp
-run-name: ${{ github.actor }} is learning GitHub Actions
+run-name: ${{ github.actor }} is building the Web App
 on:
   push:
 
