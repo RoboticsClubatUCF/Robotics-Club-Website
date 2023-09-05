@@ -1,0 +1,17 @@
+name: Build-WebApp
+run-name: ${{ github.actor }} is learning GitHub Actions
+on:
+  push:
+    tags:
+      - '*v'
+jobs:
+  check-bats-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - run: npm i
+      - run: npm run generate
+      - run: npm run build
