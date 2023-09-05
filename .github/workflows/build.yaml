@@ -2,6 +2,8 @@ name: Build-WebApp
 run-name: ${{ github.actor }} is building the Web App
 on:
   push:
+    tags:
+      - '*v'
 
 jobs:
   build-app:
