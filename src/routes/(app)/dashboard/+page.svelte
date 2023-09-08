@@ -24,7 +24,7 @@
     mounted = true;
   });
   let paymentSuccess = {
-    success: false,
+    success: true,
     duesType: 1
   };
   $: if (paymentSuccess.success) {
