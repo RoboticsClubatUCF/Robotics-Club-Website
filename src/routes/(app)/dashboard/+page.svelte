@@ -69,9 +69,6 @@
   <div class="m-4">
     <Feed />
     <div
-      class=" grid grid-cols-2 place-items-center w-screen top-0 pointer-events-none overflow-scroll"
-    />
-    <div
       class={$modeCurrent
         ? 'block card p-8 pointer-events-auto shadow-xl card-hover shadow-surface-300 sm:w-screen md:w-5/6 justify-center'
         : 'block card p-8 pointer-events-auto shadow-xl card-hover shadow-surface-500 sm:w-screen md:w-5/6 justify-center'}
@@ -113,7 +110,23 @@
     </div>
     {#if !((data.user?.membershipExpDate.getTime() ?? 0) < new Date().getTime())}
       <br />
-      <SumoBotsSignUp />
+      <!-- <SumoBotsSignUp /> -->
+      <!-- <div
+        class={$modeCurrent
+          ? 'block card p-8 pointer-events-auto shadow-xl shadow-surface-300 sm:w-screen md:w-5/6 justify-center card-hover'
+          : 'block card p-8 pointer-events-auto shadow-xl shadow-surface-500 sm:w-screen md:w-5/6 justify-center card-hover'}
+      >
+        <div class="p-2 rounded-md">
+          <h2 class="h2">Test Planka</h2>
+          <br />
+          <div>
+          </div>
+          <button
+            class="btn variant-ghost-secondary hover:variant-filled-secondary"
+            on:click={callPlanka}>Register</button
+          >
+        </div>
+      </div> -->
     {/if}
   </div>
 </AppShell>

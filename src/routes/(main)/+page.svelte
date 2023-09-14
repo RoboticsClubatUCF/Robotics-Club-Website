@@ -1,4 +1,5 @@
 <script lang="ts">
+  import FaDiscord from 'svelte-icons/fa/FaDiscord.svelte';
   import Competition from '../../components/cards/competition.svelte';
   import MissionStatement from '../../components/cards/missionStatement.svelte';
   import Outreach from '../../components/cards/outreach.svelte';
@@ -23,6 +24,17 @@
   <Outreach />
   <Competition />
   <Research />
+</div>
+<div class=" m-8 p-2">
+  <h2 class="h2">Check out our Socials!</h2>
+  <br />
+  <div class="logo-cloud grid-cols-3 lg:!grid-cols-3 gap-1">
+    <a class="logo-item" href="https://discord.gg/m8XZahpNjR">
+      <div class="h-10 w-10"><FaDiscord /></div>
+      <span>Discord</span>
+    </a>
+    <!-- Add more Sodials below -->
+  </div>
 </div>
 
 <style>
