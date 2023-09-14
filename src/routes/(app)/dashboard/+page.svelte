@@ -13,9 +13,11 @@
   import Feed from '../../../components/dashboard/feed.svelte';
   import LeftSideBar from '../../../components/dashboard/leftSidebar/leftSideBar.svelte';
   import SumoBotsSignUp from '../../../components/advertisements/in-club/sumoBotsSignUp.svelte';
+  import RightSideBar from '../../../components/dashboard/rightSidebar/rightSideBar.svelte';
 
   export let data: PageServerData;
   let email = data.user!.email;
+
   let mounted = false;
   const { form, errors, constraints } = superForm(data.form, {
     clearOnSubmit: 'errors-and-message'
@@ -64,7 +66,9 @@
   </svelte:fragment>
   <svelte:fragment slot="sidebarRight">
     <!-- Hidden below Tailwind's large breakpoint -->
-    <div id="sidebar-right" class="hidden lg:block" />
+    <div id="sidebar-right" class="hidden lg:block">
+      <RightSideBar projects={data.availableProjects} />
+    </div>
   </svelte:fragment>
   <div class="m-4">
     <Feed />
@@ -81,7 +85,7 @@
           <hr />
           <br class="h-5" />
           <PayDues bind:purchaseSuccess={paymentSuccess} />
-          <form method="post">
+          <form method="post" action="?/dues">
             <input type="hidden" name="email" id="email" bind:value={email} />
             <input
               type="hidden"

@@ -4,9 +4,20 @@ import type { Actions, PageServerLoad } from './$types';
 import { superValidate } from 'sveltekit-superforms/server';
 import { fail } from '@sveltejs/kit';
 import config from '../../../config';
+import semesterYear from '../../../components/scripts/semesterYear';
 
 export const load: PageServerLoad = async ({ locals }) => {
   const form = await superValidate(updateDuesSchema);
+  const dateInfo = semesterYear();
+  const availableProjects = await db.project.findMany({
+    where: {
+      year: dateInfo.year,
+      season: dateInfo.semester
+    },
+    include: {
+      logo: true
+    }
+  });
   const user = await db.member.findFirst({
     where: {
       email: locals.member.email
@@ -28,7 +39,7 @@ export const load: PageServerLoad = async ({ locals }) => {
       }
     }
   });
-  return { user, form };
+  return { user, form, availableProjects };
 };
 
 const updateDuesSchema = z.object({
@@ -36,7 +47,25 @@ const updateDuesSchema = z.object({
   duesType: z.number()
 });
 export const actions: Actions = {
-  default: async ({ request }) => {
+  joinProject: async ({ request, locals }) => {
+    const form = await request.formData();
+    console.log(form);
+    const id = Number(form.get('projectID'));
+
+    await db.member.update({
+      where: {
+        email: locals.member.email
+      },
+      data: {
+        Projects: {
+          connect: {
+            id: id
+          }
+        }
+      }
+    });
+  },
+  dues: async ({ request }) => {
     const form = await superValidate(request, updateDuesSchema);
     if (!form.valid) {
       return fail(400, { form });
