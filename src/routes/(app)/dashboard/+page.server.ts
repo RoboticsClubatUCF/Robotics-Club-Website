@@ -39,6 +39,15 @@ export const load: PageServerLoad = async ({ locals }) => {
       }
     }
   });
+
+  for (let i = 0; i < availableProjects.length; i++) {
+    for (let j = 0; j < user!.Projects.length; j++) {
+      if (availableProjects[i].id == user!.Projects[j].id) {
+        availableProjects.splice(i, 1);
+      }
+    }
+  }
+  console.log(user?.Projects);
   return { user, form, availableProjects };
 };
 
