@@ -9,7 +9,7 @@ export default {
    * Below are editable aspects of the website, from mission statement, to general info
    */
   information: {
-    slogan: 'Building our future overlords one project at a time.',
+    slogan: 'Building our future overlords, one project at a time.',
     missionStatement:
       'The Robotics Club of Central Florida aims to further both ourselves and the field of robotics through our challenging and innovating projects. We value teamwork, perseverance, and having fun. ',
     projectStatement:
