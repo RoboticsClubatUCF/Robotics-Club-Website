@@ -104,7 +104,6 @@ export const actions: Actions = {
         }
       }
     });
-    console.log(form.data.duesType);
     function calculateValidSemester(currentEndDate: Date | undefined) {
       // slowly increment until the valid next due date is calculated
       let isValidSemester = false;

@@ -45,22 +45,6 @@
       </label>
       <br />
       <label class="label">
-        <span>Discord Username</span>
-        <input
-          class="input"
-          type="text"
-          name="discord"
-          id="discord"
-          bind:value={$form.discord}
-          {...$constraints}
-          required
-        />
-        {#if $errors.discord}
-          <span class="variant-filled-error badge">{$errors.discord}</span>
-        {/if}
-      </label>
-      <br />
-      <label class="label">
         <span>Email</span>
         <input
           class="input"
@@ -73,6 +57,22 @@
         />
         {#if $errors.email}
           <span class="variant-filled-error badge">{$errors.email}</span>
+        {/if}
+      </label>
+      <br />
+      <label class="label">
+        <span>Discord Username</span>
+        <input
+          class="input"
+          type="text"
+          name="discord"
+          id="discord"
+          bind:value={$form.discord}
+          {...$constraints}
+          required
+        />
+        {#if $errors.discord}
+          <span class="variant-filled-error badge">{$errors.discord}</span>
         {/if}
       </label>
       <br />

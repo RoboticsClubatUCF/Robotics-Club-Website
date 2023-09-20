@@ -7,7 +7,8 @@
           members: number;
         };
       })[]
-    | null;
+    | null
+    | undefined;
 </script>
 
 <div>

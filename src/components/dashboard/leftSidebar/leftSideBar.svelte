@@ -3,13 +3,14 @@
   import ProjectList from './projectList.svelte';
   import TeamList from './teamList.svelte';
 
-  export let projects: (Project & { logo: Picture })[] | null;
+  export let projects: (Project & { logo: Picture })[] | undefined | null;
   export let teams:
     | (Team & {
         _count: {
           members: number;
         };
       })[]
+    | undefined
     | null;
 </script>
 

@@ -2,7 +2,7 @@
   import type { Picture, Project } from '@prisma/client';
   import MiniProjectCard from './miniProjectCard.svelte';
 
-  export let data: (Project & { logo: Picture })[] | null;
+  export let data: (Project & { logo: Picture })[] | null | undefined;
 </script>
 
 <div class="">
