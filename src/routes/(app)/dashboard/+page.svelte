@@ -36,11 +36,18 @@
     }
   }
   const drawerStore = getDrawerStore();
-  const drawerSettingsDash: DrawerSettings = {
-    id: 'dashboard',
+  const drawerSettingsLeft: DrawerSettings = {
+    id: 'dashboard1',
     meta: {
       projects: data.user?.Projects,
       teams: data.user?.Teams
+    }
+  };
+  const drawerSettingsRight: DrawerSettings = {
+    id: 'dashboard2',
+    position: 'right',
+    meta: {
+      projects: data.availableProjects
     }
   };
 </script>
@@ -52,8 +59,14 @@
         <button
           class="block lg:hidden btn variant-ghost-tertiary hover:variant-filled-tertiary"
           on:click={() => {
-            drawerStore.open(drawerSettingsDash);
+            drawerStore.open(drawerSettingsLeft);
           }}>Projects & Teams</button
+        >
+        <button
+          class="block lg:hidden btn variant-ghost-tertiary hover:variant-filled-tertiary"
+          on:click={() => {
+            drawerStore.open(drawerSettingsRight);
+          }}>Available Projects</button
         >
       </svelte:fragment>
     </AppBar>

@@ -18,6 +18,7 @@
   import cybr53 from '../../components/scripts/cybr53';
   import LeftSideBar from '../../components/dashboard/leftSidebar/leftSideBar.svelte';
   import BreadCrumbs from '../../components/breadCrumbs.svelte';
+  import RightSideBar from '../../components/dashboard/rightSidebar/rightSideBar.svelte';
   export let data: LayoutServerData;
 
   const drawerStore = getDrawerStore();
@@ -27,8 +28,10 @@
 </script>
 
 <Drawer>
-  {#if $drawerStore.id == 'dashboard'}
+  {#if $drawerStore.id == 'dashboard1'}
     <LeftSideBar projects={$drawerStore.meta.projects} teams={$drawerStore.meta.teams} />
+  {:else if $drawerStore.id == 'dashboard2'}
+    <RightSideBar projects={$drawerStore.meta.projects} />
   {/if}
 </Drawer>
 
