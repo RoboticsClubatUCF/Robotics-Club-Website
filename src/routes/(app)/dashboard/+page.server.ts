@@ -47,7 +47,6 @@ export const load: PageServerLoad = async ({ locals }) => {
       }
     }
   }
-  console.log(user?.Projects);
   return { user, form, availableProjects };
 };
 
@@ -58,7 +57,6 @@ const updateDuesSchema = z.object({
 export const actions: Actions = {
   joinProject: async ({ request, locals }) => {
     const form = await request.formData();
-    console.log(form);
     const id = Number(form.get('projectID'));
 
     await db.member.update({
@@ -106,6 +104,7 @@ export const actions: Actions = {
         }
       }
     });
+    console.log(form.data.duesType);
     function calculateValidSemester(currentEndDate: Date | undefined) {
       // slowly increment until the valid next due date is calculated
       let isValidSemester = false;

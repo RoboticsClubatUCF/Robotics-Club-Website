@@ -28,6 +28,8 @@
     success: false,
     duesType: 1
   };
+  $: console.log(paymentSuccess.duesType);
+
   $: if (paymentSuccess.success) {
     if (mounted) {
       document.getElementById('submitPaypal')?.click();
@@ -59,15 +61,19 @@
   </svelte:fragment>
   <svelte:fragment slot="sidebarLeft">
     <!-- Hidden below Tailwind's large breakpoint -->
-    <div id="sidebar-left" class="hidden lg:block m-2">
-      <LeftSideBar projects={data.user?.Projects} teams={data.user?.Teams} />
-    </div>
+    {#if !((data.user?.membershipExpDate.getTime() ?? 0) < new Date().getTime())}
+      <div id="sidebar-left" class="hidden lg:block m-2">
+        <LeftSideBar projects={data.user?.Projects} teams={data.user?.Teams} />
+      </div>
+    {/if}
   </svelte:fragment>
   <svelte:fragment slot="sidebarRight">
     <!-- Hidden below Tailwind's large breakpoint -->
-    <div id="sidebar-right" class="hidden lg:block">
-      <RightSideBar projects={data.availableProjects} />
-    </div>
+    {#if !((data.user?.membershipExpDate.getTime() ?? 0) < new Date().getTime())}
+      <div id="sidebar-right" class="hidden lg:block">
+        <RightSideBar projects={data.availableProjects} />
+      </div>
+    {/if}
   </svelte:fragment>
   <div class="m-4">
     <Feed />

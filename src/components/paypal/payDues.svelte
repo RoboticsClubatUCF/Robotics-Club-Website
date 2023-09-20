@@ -8,7 +8,10 @@
     success: false,
     duesType: Number(duesSelection)
   };
-
+  $: purchaseSuccess = {
+    success: false,
+    duesType: Number(duesSelection)
+  };
   let paypal: PayPalNamespace | null;
 
   let duesCost = () => {
