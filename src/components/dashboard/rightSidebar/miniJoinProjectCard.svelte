@@ -18,14 +18,14 @@
     {#if data.logo.isLocal}
       <!-- load the image using the b64 method -->
     {:else}
-      <img class="h-12 rounded-lg object-cover overflow-hidden" src={data.logo.data} alt="" />
+      <img class="h-10 rounded-lg object-cover overflow-hidden m-2" src={data.logo.data} alt="" />
     {/if}
   </div>
-  <span class="h4">{data.title}</span>
+  <span class="h4 mt-3">{data.title}</span>
   <form action="?/joinProject" method="post" use:enhance>
     <input type="hidden" readonly name="projectID" id="projectID" bind:value={data.id} />
     <button
-      class="btn variant-ghost-secondary hover:variant-filled-secondary"
+      class="btn variant-ghost-secondary hover:variant-filled-secondary float-right m-2"
       type="submit"
       on:click={() => {
         toastStore.trigger(t);

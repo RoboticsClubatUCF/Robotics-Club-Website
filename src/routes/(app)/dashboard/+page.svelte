@@ -28,7 +28,6 @@
     success: false,
     duesType: 1
   };
-  $: console.log(paymentSuccess.duesType);
 
   $: if (paymentSuccess.success) {
     if (mounted) {
@@ -62,7 +61,7 @@
   <svelte:fragment slot="sidebarLeft">
     <!-- Hidden below Tailwind's large breakpoint -->
     {#if !((data.user?.membershipExpDate.getTime() ?? 0) < new Date().getTime())}
-      <div id="sidebar-left" class="hidden lg:block m-2">
+      <div id="sidebar-left" class="hidden lg:block">
         <LeftSideBar projects={data.user?.Projects} teams={data.user?.Teams} />
       </div>
     {/if}
