@@ -91,8 +91,8 @@
     <Feed />
     <div
       class={$modeCurrent
-        ? 'block card p-8 pointer-events-auto shadow-xl card-hover shadow-surface-300 sm:w-screen md:w-5/6 justify-center'
-        : 'block card p-8 pointer-events-auto shadow-xl card-hover shadow-surface-500 sm:w-screen md:w-5/6 justify-center'}
+        ? 'block card p-8 pointer-events-auto shadow-xl card-hover shadow-surface-300 justify-center'
+        : 'block card p-8 pointer-events-auto shadow-xl card-hover shadow-surface-500 justify-center'}
     >
       <div class="p-2 rounded-md">
         <h2 class="h2">Hello {data.user?.firstName},</h2>

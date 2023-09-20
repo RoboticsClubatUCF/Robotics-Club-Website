@@ -1,6 +1,7 @@
 import { db } from '$lib/db';
 import { error, redirect } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
+import semesterYear from '../../components/scripts/semesterYear';
 
 export const load: LayoutServerLoad = async ({ locals }) => {
   if (!locals.member) {
