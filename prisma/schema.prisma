@@ -137,7 +137,7 @@ model BlogPost {
   title     String
   content   String
   upVotes   Int
-  downVotes Int
+  // downVotes Int // no down voting
   image     Picture? @relation(fields: [pictureId], references: [id])
   author    Member   @relation(fields: [memberId], references: [id])
   createdAt DateTime @default(now())
