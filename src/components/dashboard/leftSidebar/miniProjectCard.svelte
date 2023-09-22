@@ -4,7 +4,7 @@
   export let data: Project & { logo: Picture };
 </script>
 
-<div class="card grid grid-cols-3">
+<div class="card grid grid-cols-3 mt-2">
   <div>
     <!-- icon -->
     {#if data.logo.isLocal}
