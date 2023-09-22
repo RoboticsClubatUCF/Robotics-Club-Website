@@ -98,7 +98,7 @@
         <h2 class="h2">Hello {data.user?.firstName},</h2>
         <br />
         {#if (data.user?.membershipExpDate.getTime() ?? 0) < new Date().getTime()}
-          <h6 class="badge variant-filled-error">Looks like your dues are Expired!</h6>
+          <h6 class="badge variant-filled-error">Looks like your dues are expired!</h6>
           <hr />
           <br class="h-5" />
           <PayDues bind:purchaseSuccess={paymentSuccess} />
