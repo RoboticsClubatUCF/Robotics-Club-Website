@@ -1,0 +1,274 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["metrics"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Location {
+  id                Int             @id @default(autoincrement())
+  generalLocation   locationType
+  generalLocationID Int
+  subLocation       subLocationType
+  subLocationID     Int
+  Item              Item[]
+}
+
+model ItemType {
+  id   Int    @id @default(autoincrement())
+  type String
+  Item Item[]
+}
+
+model ItemCondition {
+  id        Int    @id @default(autoincrement())
+  condition String
+  Item      Item[]
+}
+
+model Item {
+  id              Int           @id @default(autoincrement())
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  name            String
+  description     String
+  image           Picture?      @relation(fields: [pictureId], references: [id])
+  rccfBarcode     String?
+  ucfBarcode      String?
+  saleBarcode     String?
+  quantity        Int
+  yellowTag       Boolean
+  valuePerItem    Float
+  expirationDate  DateTime?
+  type            ItemType      @relation(fields: [itemTypeId], references: [id])
+  condition       ItemCondition @relation(fields: [itemConditionId], references: [id])
+  location        Location      @relation(fields: [locationId], references: [id])
+  itemTypeId      Int
+  itemConditionId Int
+  locationId      Int
+  pictureId       Int?
+}
+
+model Shelf {
+  id        Int      @id @default(autoincrement())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Account {
+  id          Int      @id @default(autoincrement())
+  name        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  description String?
+  funds       Float
+  contacts    Member[] /// 0th contact is the primary
+  records     Record[]
+}
+
+model Tag {
+  id         Int       @id @default(autoincrement())
+  name       String    @unique
+  color      String
+  documentId Int?
+  Picture    Picture?  @relation(fields: [pictureId], references: [id])
+  pictureId  Int?
+  BlogPost   BlogPost? @relation(fields: [blogPostId], references: [id])
+  blogPostId Int?
+  Article    Article?  @relation(fields: [articleId], references: [id])
+  articleId  Int?
+  Project    Project?  @relation(fields: [projectId], references: [id])
+  projectId  Int?
+}
+
+model Record {
+  id                   Int                 @id @default(autoincrement())
+  name                 String?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  description          String?
+  amount               Float
+  project              Project?            @relation(fields: [projectId], references: [id])
+  projectId            Int?
+  Account              Account             @relation(fields: [accountId], references: [id])
+  accountId            Int
+  request              ExpendatureRequest? @relation(fields: [expendatureRequestId], references: [id])
+  expendatureRequestId Int?
+}
+
+model ExpendatureRequest {
+  id          Int      @id @default(autoincrement())
+  name        String?
+  description String?
+  status      Status   @default(value: review)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  amount      Float
+  items       String[]
+  project     Project? @relation(fields: [projectId], references: [id])
+  projectId   Int?
+  Record      Record[]
+}
+
+model Picture {
+  id        Int        @id @default(autoincrement())
+  title     String?
+  caption   String?
+  data      String?
+  isLocal   Boolean    @default(value: true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  Article   Article[]
+  BlogPost  BlogPost[]
+  Project   Project[]
+  Item      Item[]
+  Tags      Tag[]
+}
+
+model BlogPost {
+  id        Int      @id @default(autoincrement())
+  title     String
+  content   String
+  upVotes   Int
+  // downVotes Int // no down voting
+  image     Picture? @relation(fields: [pictureId], references: [id])
+  author    Member   @relation(fields: [memberId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  pictureId Int?
+  memberId  String
+  Tags      Tag[]
+}
+
+model Article {
+  id        Int      @id @default(autoincrement())
+  title     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  content   String
+  image     Picture? @relation(fields: [pictureId], references: [id])
+  author    Member   @relation(fields: [authorId], references: [id])
+  authorId  String
+  project   Project  @relation(fields: [projectId], references: [id])
+  pictureId Int?
+  projectId Int
+  Tags      Tag[]
+}
+
+model Team {
+  id         String   @id @unique @default(uuid())
+  name       String
+  members    Member[]
+  maxMembers Int
+  minMembers Int
+  Project    Project? @relation(fields: [projectId], references: [id])
+  projectId  Int?
+}
+
+model Project {
+  id                 Int                  @id @default(autoincrement())
+  title              String
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  description        String
+  logo               Picture?             @relation(fields: [pictureId], references: [id])
+  budget             Float
+  docsLink           String               @default("")
+  remainingFunds     Float
+  season             Season               @default(value: Fall)
+  year               Int
+  articles           Article[]
+  members            Member[]
+  pictureId          Int?
+  Records            Record[]
+  ExpendatureRequest ExpendatureRequest[]
+  Tags               Tag[]
+  Skills             String[]
+  projectType        projectType          @default(value: standard)
+  teams              Team[] // possibility for no teams created if project does not require them
+}
+
+model Member {
+  id                 String     @id @unique @default(uuid())
+  firstName          String
+  lastName           String?
+  email              String     @unique
+  discordProfileName String     @unique
+  passwordHash       String
+  AuthToken          String     @unique @default(value: uuid())
+  membershipExpDate  DateTime   @default(now())
+  joinedAt           DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  role               Role       @relation(fields: [roleId], references: [id])
+  roleId             Int
+  Articles           Article[]
+  Projects           Project[]
+  BlogPost           BlogPost[]
+  Account            Account?   @relation(fields: [accountId], references: [id])
+  accountId          Int?
+  Teams              Team[]
+}
+
+model Sponsor {
+  id          Int     @id @default(autoincrement())
+  name        String
+  receipt     Receipt @relation(fields: [receiptId], references: [id])
+  description String?
+  amount      Float?
+  receiptId   Int
+}
+
+model Receipt {
+  id      Int       @id @default(autoincrement())
+  title   String
+  Sponsor Sponsor[]
+  // finish formatting with receipt template
+}
+
+model Role {
+  id              Int      @id @default(autoincrement())
+  name            String   @unique
+  permissionLevel Int      @default(value: 0)
+  Member          Member[]
+}
+
+enum Season {
+  Summer
+  Spring
+  Fall
+}
+
+enum Status {
+  approved
+  review
+  denied
+}
+
+enum locationType {
+  Table
+  Rack
+  Cabinet
+  Workbench
+  Locker
+}
+
+enum subLocationType {
+  Shelf
+  TableTop
+  Underneath
+}
+
+enum projectType {
+  research
+  seniorDesign
+  externalCompetition // competition outside UCF
+  internalCompetition // competition within UCF
+  standard
+}

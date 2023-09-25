@@ -1,0 +1,18 @@
+name: Build-WebApp
+run-name: ${{ github.actor }} is building the Web App
+on:
+  push:
+    tags:
+      - '*v'
+
+jobs:
+  build-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - run: npm i
+      - run: npx prisma generate
+      - run: npm run build
