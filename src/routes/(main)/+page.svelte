@@ -1,5 +1,6 @@
 <script lang="ts">
   import FaDiscord from 'svelte-icons/fa/FaDiscord.svelte';
+  import FaInstagram from 'svelte-icons/fa/FaInstagram.svelte';
   import Competition from '../../components/cards/competition.svelte';
   import MissionStatement from '../../components/cards/missionStatement.svelte';
   import Outreach from '../../components/cards/outreach.svelte';
@@ -32,6 +33,10 @@
     <a class="logo-item" href="https://discord.gg/m8XZahpNjR">
       <div class="h-10 w-10"><FaDiscord /></div>
       <span>Discord</span>
+    </a>
+    <a class="logo-item" href="https://www.instagram.com/ucf_robotics/">
+      <div class="h-10 w-10"><FaInstagram /></div>
+      <span>Instagram</span>
     </a>
     <!-- Add more Sodials below -->
   </div>

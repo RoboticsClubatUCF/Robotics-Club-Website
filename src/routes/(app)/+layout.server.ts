@@ -13,7 +13,8 @@ export const load: LayoutServerLoad = async ({ locals }) => {
       email: locals.member.email
     },
     include: {
-      Projects: true
+      Projects: true,
+      role: true
     }
   });
   if (member == null) {
