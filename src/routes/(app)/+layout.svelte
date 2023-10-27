@@ -46,10 +46,13 @@
       <svelte:fragment slot="trail">
         <LightSwitch />
         <SignoutButton />
-        <Avatar
-          src={'data:image/png;base64,' + new Identicon(cybr53(data.fname).toString(), 48)}
-          width="w-12"
-        />
+        <button>
+          <!-- Some kind of settings -->
+          <Avatar
+            src={'data:image/png;base64,' + new Identicon(cybr53(data.fname).toString(), 48)}
+            width="w-12"
+          /></button
+        >
       </svelte:fragment>
     </AppBar>
   </svelte:fragment>
