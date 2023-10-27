@@ -6,6 +6,36 @@ export const load = (async ({ params }) => {
   const project = await db.project.findFirst({
     where: {
       id: Number(params.slug)
+    },
+    include: {
+      members: {
+        orderBy: {
+          role: {
+            permissionLevel: 'desc'
+          }
+        },
+        include: {
+          role: true
+        }
+      },
+      articles: {
+        orderBy: {
+          createdAt: 'desc'
+        },
+        take: 3,
+        include: {
+          author: true,
+          Tags: true,
+          image: true
+        }
+      },
+      Tags: true,
+      teams: {
+        include: {
+          members: true
+        }
+      },
+      logo: true
     }
   });
   if (project == null) {

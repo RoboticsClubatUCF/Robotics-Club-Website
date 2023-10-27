@@ -18,5 +18,5 @@
     </article>
   </div>
   <hr class="opacity-50" />
-  <footer class="card-footer mt-2">6 Workshops Every Semester</footer>
+  <footer class="card-footer mt-2">~6 Workshops Every Semester</footer>
 </div>

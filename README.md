@@ -23,7 +23,6 @@
 
 # TODO
 
-add dashboard - add projects - pay dues - notification if dues expire soon - updates on projects - latest blog posts from projects - delete account - edit account
 add project pages - if teamlead, add ability to make post - if teamlead, add ability to edit project info
 add about page
 add sponsors page
