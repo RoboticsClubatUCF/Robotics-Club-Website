@@ -38,6 +38,7 @@
       <div class="h-10 w-10"><FaInstagram /></div>
       <span>Instagram</span>
     </a>
+
     <!-- Add more Sodials below -->
   </div>
 </div>
