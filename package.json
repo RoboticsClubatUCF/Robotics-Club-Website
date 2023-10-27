@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "dev": "vite dev --host",
+    "dev": "echo $DATABASE_URL='postgresql://postgres:password@localhost:5432/RCCF' && vite dev --host",
     "build": "vite build",
     "preview": "vite preview --host",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
@@ -13,7 +13,7 @@
     "metrics": "node ./metricsLog.js",
     "services": "docker compose up -d",
     "migrate": "npx prisma generate && npx prisma migrate dev --name RCCF",
-    "studio": "npx prisma studio"
+    "studio": "echo $DATABASE_URL='postgresql://postgres:password@localhost:5432/RCCF' && npx prisma studio"
   },
   "devDependencies": {
     "@skeletonlabs/skeleton": "^2.0.0",
