@@ -10,6 +10,9 @@ export default {
    */
   information: {
     slogan: 'Building our future overlords, one project at a time.',
+    outreach: {
+      hero: 'Breaking down barriers'
+    },
     missionStatement:
       'The Robotics Club of Central Florida aims to further both ourselves and the field of robotics through our challenging and innovating projects. We value teamwork, perseverance, and having fun. ',
     projectStatement:

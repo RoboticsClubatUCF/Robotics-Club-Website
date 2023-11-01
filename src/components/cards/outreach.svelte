@@ -3,7 +3,7 @@
   import Image from 'svimg';
 </script>
 
-<div class="card card-hover overflow-hidden">
+<a href="/outreach" class="card card-hover overflow-hidden">
   <Image
     src="/photos/outreach.png"
     class="bg-black/50 w-full aspect-[21/9] object-cover"
@@ -19,4 +19,4 @@
   </div>
   <hr class="opacity-50" />
   <footer class="card-footer mt-2">~12 Opportunities Every Semester</footer>
-</div>
+</a>

@@ -8,6 +8,7 @@ export const load = (async ({ params }) => {
       id: Number(params.slug)
     },
     include: {
+      extraLinks: true,
       members: {
         orderBy: {
           role: {
