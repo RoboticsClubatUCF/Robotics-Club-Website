@@ -47,6 +47,7 @@
         <br />
       </p>
       <hr />
+      <br />
       <a
         class="justify-center align-middle flex variant-ghost-secondary hover:variant-filled-secondary btn"
         href="/contact">Get in Touch</a
