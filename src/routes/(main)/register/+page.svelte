@@ -54,6 +54,7 @@
           bind:value={$form.email}
           {...$constraints}
           required
+          autocomplete="email"
         />
         {#if $errors.email}
           <span class="variant-filled-error badge">{$errors.email}</span>
@@ -86,6 +87,7 @@
           bind:value={$form.password}
           {...$constraints}
           required
+          autocomplete="password"
         />
       </label>
       <br />
