@@ -12,7 +12,6 @@
   import PayDues from '../../../components/paypal/payDues.svelte';
   import Feed from '../../../components/dashboard/feed.svelte';
   import LeftSideBar from '../../../components/dashboard/leftSidebar/leftSideBar.svelte';
-  import SumoBotsSignUp from '../../../components/advertisements/in-club/sumoBotsSignUp.svelte';
   import RightSideBar from '../../../components/dashboard/rightSidebar/rightSideBar.svelte';
   export let data: PageServerData;
   let email = data.user!.email;

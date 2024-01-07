@@ -20,5 +20,6 @@ export const load: LayoutServerLoad = async ({ locals }) => {
   if (member == null) {
     throw error(404, 'Member does not exist');
   }
+
   return { fname, member };
 };
