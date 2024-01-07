@@ -17,20 +17,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
       role: true
     }
   });
-  if (member!.membershipExpDate.getTime() < new Date().getTime()) {
-    await db.member.update({
-      where: {
-        id: member!.id
-      },
-      data: {
-        role: {
-          connect: {
-            name: 'guest'
-          }
-        }
-      }
-    });
-  }
+
   if (member == null) {
     throw error(404, 'Member does not exist');
   }
