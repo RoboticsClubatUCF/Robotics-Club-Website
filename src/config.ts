@@ -1,6 +1,6 @@
 export default {
   paypal: {
-    CLIENT_ID: 'ARJagxbcowj9UZZo7rdH0xB6h7LVkkz2u5Pl9qqkwxfhp9gbngL62XlDtVLAhJw12X2ubAZvJit8FcRV',
+    CLIENT_ID: '',
     semester_cost: '25.00',
     year_cost: '50.00'
   },
