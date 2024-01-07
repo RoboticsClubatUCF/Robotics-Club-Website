@@ -2,7 +2,7 @@
   import { type PayPalNamespace, loadScript } from '@paypal/paypal-js';
   import { onMount } from 'svelte';
   import PAYPAL_API_KEY from '../../paypal';
-
+  import config from '../../config';
   let paypal: PayPalNamespace | null;
   onMount(async () => {
     try {
