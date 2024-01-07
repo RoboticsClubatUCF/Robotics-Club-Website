@@ -1,13 +1,13 @@
 <script lang="ts">
   import { type PayPalNamespace, loadScript } from '@paypal/paypal-js';
   import { onMount } from 'svelte';
-  import config from '../../config';
+  import PAYPAL_API_KEY from '../../paypal';
 
   let paypal: PayPalNamespace | null;
   onMount(async () => {
     try {
       paypal = await loadScript({
-        clientId: config.paypal.CLIENT_ID,
+        clientId: PAYPAL_API_KEY.API_KEY,
         components: 'buttons,marks,messages',
         dataPageType: 'checkout',
 

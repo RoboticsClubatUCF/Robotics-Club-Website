@@ -104,9 +104,7 @@
         />
       </label>
       {#if $errors.password || $errors.confirmPassword}
-        <span class="variant-filled-error badge"
-          >{$errors.password + ' and ' + $errors.confirmPassword}</span
-        >
+        <span class="variant-filled-error badge">Passwords do not match!</span>
       {/if}
       <button class="btn variant-ghost-primary mt-4 hover:variant-filled-primary">Sign Up</button>
     </form>

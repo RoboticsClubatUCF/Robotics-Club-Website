@@ -2,7 +2,7 @@
   import { type PayPalNamespace, loadScript } from '@paypal/paypal-js';
   import { onMount } from 'svelte';
   import config from '../../config';
-  import PAYPAL_API_KEY from '../../../paypal';
+  import PAYPAL_API_KEY from '../../paypal';
   let duesSelection = '1';
   export let purchaseSuccess = {
     success: false,
