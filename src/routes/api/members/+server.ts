@@ -18,5 +18,9 @@ export async function GET({ url }) {
       return m;
     }
   });
-  return new Response(JSON.stringify(validUsers));
+  const users: string[] = [];
+  validUsers.forEach((u) => {
+    users.push(u.discordProfileName);
+  });
+  return new Response(JSON.stringify(users));
 }
