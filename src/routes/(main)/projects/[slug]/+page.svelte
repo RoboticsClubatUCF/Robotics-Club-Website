@@ -5,6 +5,9 @@
   export let data: PageData;
 </script>
 
+<svelte:head>
+  <title>{data.project.title}</title>
+</svelte:head>
 <div class=" p-4 m-2 grid-cols-1 md:grid-cols-2 grid gap-4">
   <div class="card p-4">
     <h2 class="h2 capitalize">{data.project.title}</h2>
