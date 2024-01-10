@@ -20,6 +20,9 @@
   };
 </script>
 
+<svelte:head>
+  <title>Projects @ RCCF</title>
+</svelte:head>
 <div class="w-screen h-11 bg-surface-200-700-token h2">
   <div>Projects</div>
 </div>

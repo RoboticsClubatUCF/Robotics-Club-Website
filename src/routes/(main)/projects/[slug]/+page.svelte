@@ -6,7 +6,7 @@
 </script>
 
 <svelte:head>
-  <title>{data.project.title}</title>
+  <title>{data.project.title} @ RCCF</title>
 </svelte:head>
 <div class=" p-4 m-2 grid-cols-1 md:grid-cols-2 grid gap-4">
   <div class="card p-4">
