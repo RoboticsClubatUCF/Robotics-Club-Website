@@ -13,6 +13,7 @@
   import Feed from '../../../components/dashboard/feed.svelte';
   import LeftSideBar from '../../../components/dashboard/leftSidebar/leftSideBar.svelte';
   import RightSideBar from '../../../components/dashboard/rightSidebar/rightSideBar.svelte';
+  import Payments from '../../../components/stripe/payments.svelte';
   export let data: PageServerData;
   let email = data.user!.email;
 
@@ -27,13 +28,6 @@
     success: false,
     duesType: 1
   };
-
-  $: if (paymentSuccess.success) {
-    if (mounted) {
-      document.getElementById('submitPaypal')?.click();
-      // document.getElementById('survey')?.click();
-    }
-  }
   const drawerStore = getDrawerStore();
   const drawerSettingsLeft: DrawerSettings = {
     id: 'dashboard1',
@@ -100,17 +94,7 @@
           <h6 class="badge variant-filled-error">Looks like your dues are expired!</h6>
           <hr />
           <br class="h-5" />
-          <PayDues bind:purchaseSuccess={paymentSuccess} />
-          <form method="post" action="?/dues">
-            <input type="hidden" name="email" id="email" bind:value={email} />
-            <input
-              type="hidden"
-              name="duesType"
-              id="duesType"
-              bind:value={paymentSuccess.duesType}
-            />
-            <button style="visibility: hidden;" type="submit" id="submitPaypal" />
-          </form>
+          <Payments userID={data.user?.id} />
         {:else}
           <h6 class="badge variant-filled-success">
             Your Dues expire on {data.user?.membershipExpDate.toDateString()}

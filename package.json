@@ -58,6 +58,8 @@
     "flowbite": "^1.8.1",
     "identicon.js": "^2.3.3",
     "pixi.js": "^7.2.4",
-    "svelte-icons": "^2.1.0"
+    "stripe": "^14.14.0",
+    "svelte-icons": "^2.1.0",
+    "svelte-stripe": "^1.1.4"
   }
 }
