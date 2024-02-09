@@ -28,7 +28,6 @@
     "@tailwindcss/forms": "^0.5.6",
     "@types/bcrypt": "^5.0.0",
     "@types/identicon.js": "^2.3.1",
-    "@types/jdenticon": "^2.2.0",
     "@types/node": "^18.17.13",
     "autoprefixer": "^10.4.14",
     "bcrypt": "^5.1.0",
