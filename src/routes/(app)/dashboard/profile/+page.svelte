@@ -2,6 +2,7 @@
   import { superForm } from 'sveltekit-superforms/client';
   import type { PageData } from './$types';
   import successToast from '../../../../components/toasts/successToast';
+  import ProfilePicPreview from '../../../../components/dashboard/profilePicPreview.svelte';
 
   export let data: PageData;
   const { form, constraints, enhance, errors, message } = superForm(data.form);
@@ -75,8 +76,13 @@
           <span class="badge variant-filled-error">{$errors.email}</span>
         {/if}
       </label>
-      <div class="flex flex-row-reverse">
-        <button type="submit" class="btn variant-ghost-secondary btn-xl">Update Profile</button>
+      <div class="grid grid-cols-2 m-4">
+        <ProfilePicPreview hash={data.user.id} />
+        <div class="flex flex-row-reverse">
+          <div>
+            <button type="submit" class="btn variant-ghost-secondary btn-xl">Update Profile</button>
+          </div>
+        </div>
       </div>
     </form>
   </div>
