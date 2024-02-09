@@ -36,7 +36,7 @@ export const actions: Actions = {
       data: {
         email: form.data.email,
         firstName: form.data.firstName,
-        lastName: form.data.lastName,
+        lastName: form.data.lastName ?? '',
         discordProfileName: form.data.discordProfileName
       }
     });

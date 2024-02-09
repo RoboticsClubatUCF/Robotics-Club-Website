@@ -47,7 +47,7 @@
       <svelte:fragment slot="trail">
         <LightSwitch />
         <SignoutButton />
-        <ProfilePic hash={data.member.id} />
+        <a href="/dashboard/profile"> <ProfilePic hash={data.member.id} /></a>
       </svelte:fragment>
     </AppBar>
   </svelte:fragment>

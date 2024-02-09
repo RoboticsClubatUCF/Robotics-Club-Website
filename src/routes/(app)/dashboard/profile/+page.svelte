@@ -51,13 +51,13 @@
         <input
           class="input"
           type="text"
-          name="discordName"
-          id="discordName"
-          bind:value={$form.discordName}
+          name="discordProfileName"
+          id="discordProfileName"
+          bind:value={$form.discordProfileName}
           {...$constraints}
         />
-        {#if $errors.discordName}
-          <span class="badge variant-filled-error">{$errors.discordName}</span>
+        {#if $errors.discordProfileName}
+          <span class="badge variant-filled-error">{$errors.discordProfileName}</span>
         {/if}
       </label>
       <label class="label m-2 p-2">

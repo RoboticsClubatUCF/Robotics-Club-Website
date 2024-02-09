@@ -88,7 +88,12 @@
         : 'block card p-8 pointer-events-auto shadow-m card-hover shadow-surface-500 justify-center'}
     >
       <div class="p-2 rounded-md">
-        <h2 class="h2">Hello {data.user?.firstName},</h2>
+        <h2 class="h2">
+          Hello {data.user?.firstName}
+          {#if data.user?.lastName}
+            {data.user?.lastName}
+          {/if},
+        </h2>
         <br />
         {#if (data.user?.membershipExpDate.getTime() ?? 0) < new Date().getTime()}
           <h6 class="badge variant-filled-error">Looks like your dues are expired!</h6>
