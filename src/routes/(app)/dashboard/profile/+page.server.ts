@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { Actions, PageServerLoad } from './$types';
 import { superValidate } from 'sveltekit-superforms/server';
 import { fail } from '@sveltejs/kit';
+import { db } from '$lib/db';
 let userID = '';
 export const load = (async ({ parent }) => {
   const data = await parent();
@@ -9,6 +10,7 @@ export const load = (async ({ parent }) => {
     data.member.lastName == '';
   }
   userID = data.member!.id;
+  //@ts-ignore
   const form = await superValidate(data.member, editProfileSchema);
   form.message = 'IDLE';
   return { user: data.member, form };
@@ -35,7 +37,7 @@ export const actions: Actions = {
         email: form.data.email,
         firstName: form.data.firstName,
         lastName: form.data.lastName,
-        discordName: form.data.discordName
+        discordProfileName: form.data.discordProfileName
       }
     });
     form.message = 'OK';
