@@ -87,7 +87,9 @@
           <h6 class="badge variant-filled-error">Looks like your dues are expired!</h6>
           <hr />
           <br class="h-5" />
-          <Payments userID={data.user?.id} />
+          {#if data.user?.id}
+            <Payments userID={data.user?.id} />
+          {/if}
         {:else}
           <h6 class="badge variant-filled-success">
             Your Dues expire on {data.user?.membershipExpDate.toDateString()}
