@@ -10,7 +10,7 @@
   <!-- <TabAnchor href="/about" selected={$page.url.pathname === '/about'}>
     <span class="capitalize">about</span>
   </TabAnchor> -->
-  <TabAnchor href="/projects" selected={$page.url.pathname === '/projects'}>
+  <TabAnchor href="/projects" selected={$page.url.pathname === '/projects/'}>
     <span class="capitalize">projects</span>
   </TabAnchor>
   <!-- <TabAnchor href="/history" selected={$page.url.pathname === '/history'}>
