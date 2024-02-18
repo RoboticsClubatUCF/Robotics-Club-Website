@@ -1,5 +1,7 @@
 <script lang="ts">
+  //@ts-ignore
   import FaDiscord from 'svelte-icons/fa/FaDiscord.svelte';
+  //@ts-ignore
   import FaInstagram from 'svelte-icons/fa/FaInstagram.svelte';
   import Competition from '../../components/cards/competition.svelte';
   import MissionStatement from '../../components/cards/missionStatement.svelte';
