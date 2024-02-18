@@ -3,17 +3,22 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "dev": "vite dev --host",
-    "build": "vite build",
+    "dev": " vite dev --host",
+    "db": "docker compose up -d postgres_rccf",
+    "build": "npm run prisma:generate && vite build",
     "preview": "vite preview --host",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "prisma:inline": "cp ./node_modules/.prisma/client/*.js ./node_modules/@prisma/client",
+    "prisma:migrate": "prisma migrate deploy && npm run prisma:inline",
+    "prisma:migrate:dev": "prisma migrate dev && npm run prisma:inline",
+    "prisma:generate": "prisma generate && npm run prisma:inline",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "lint": "prettier --plugin-search-dir . --check .",
     "format": "prettier --plugin-search-dir . --write .",
     "metrics": "node ./metricsLog.js",
     "services": "docker compose up -d",
-    "migrate": "npx prisma generate && npx prisma migrate dev --name RCCF",
-    "studio": "npx prisma studio"
+    "migrate": "npm run prisma:generate && npx prisma migrate dev --name RCCF",
+    "studio": " npx prisma studio"
   },
   "devDependencies": {
     "@skeletonlabs/skeleton": "^2.0.0",
@@ -24,7 +29,6 @@
     "@tailwindcss/forms": "^0.5.6",
     "@types/bcrypt": "^5.0.0",
     "@types/identicon.js": "^2.3.1",
-    "@types/jdenticon": "^2.2.0",
     "@types/node": "^18.17.13",
     "autoprefixer": "^10.4.14",
     "bcrypt": "^5.1.0",
@@ -32,7 +36,7 @@
     "postcss-load-config": "^4.0.1",
     "prettier": "^2.8.0",
     "prettier-plugin-svelte": "^2.8.1",
-    "prisma": "^4.11.0",
+    "prisma": "^4.16.2",
     "svelte": "^3.54.0",
     "svelte-check": "^3.0.1",
     "svelte-preprocess": "^5.0.3",
@@ -48,11 +52,14 @@
   "type": "module",
   "dependencies": {
     "@editorjs/editorjs": "^2.26.5",
-    "@paypal/paypal-js": "^7.0.0",
     "@prisma/client": "^4.12.0",
+    "dotenv": "^16.3.1",
     "flowbite": "^1.8.1",
     "identicon.js": "^2.3.3",
     "pixi.js": "^7.2.4",
-    "svelte-icons": "^2.1.0"
+    "robohash-avatars": "^1.0.1",
+    "stripe": "^14.14.0",
+    "svelte-icons": "^2.1.0",
+    "svelte-stripe": "^1.1.4"
   }
 }

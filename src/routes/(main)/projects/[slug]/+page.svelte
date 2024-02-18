@@ -1,9 +1,13 @@
 <script lang="ts">
   import type { PageData } from './$types';
-
+  //@ts-ignore
+  import FaBook from 'svelte-icons/fa/FaBook.svelte';
   export let data: PageData;
 </script>
 
+<svelte:head>
+  <title>{data.project.title} @ RCCF</title>
+</svelte:head>
 <div class=" p-4 m-2 grid-cols-1 md:grid-cols-2 grid gap-4">
   <div class="card p-4">
     <h2 class="h2 capitalize">{data.project.title}</h2>
@@ -23,6 +27,20 @@
     {#each data.project.Skills as s}
       <span class="badge variant-filled m-1">{s}</span>
     {/each}
+    <hr />
+    <br />
+    <h3 class="h3">Links</h3>
+    <div class="logo-cloud grid-cols-1 lg:!grid-cols-3 gap-1">
+      <a class="logo-item" href={data.project.docsLink}>
+        <div class="h-10 w-10"><FaBook /></div>
+        <span>Docs</span>
+      </a>
+      {#each data.project.extraLinks as link}
+        <a class="logo-item" href={link.url}>
+          <span>{link.label}</span>
+        </a>
+      {/each}
+    </div>
     <hr />
     <br />
   </div>

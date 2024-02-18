@@ -1,20 +1,28 @@
 <script lang="ts">
   import type { PageData } from './$types';
-  import type projectCategory from '../../../types/projectCategory';
   import ProjectCard from '../../../components/projectCard.svelte';
   import { Accordion, AccordionItem } from '@skeletonlabs/skeleton';
+  import type { Season } from '@prisma/client';
+  import semesterYear from '../../../components/scripts/semesterYear';
 
   export let data: PageData;
-
-  const categories: projectCategory[] = [];
   const isYearThisYear = (year: number) => {
     if (year - new Date().getFullYear() == 0) {
       return true;
     }
     return false;
   };
+  const isSemsesterThisSemester = (semester: Season) => {
+    if (semester == semesterYear().semester) {
+      return true;
+    }
+    return false;
+  };
 </script>
 
+<svelte:head>
+  <title>Projects @ RCCF</title>
+</svelte:head>
 <div class="w-screen h-11 bg-surface-200-700-token h2">
   <div>Projects</div>
 </div>
@@ -27,7 +35,10 @@
         <svelte:fragment slot="content">
           <Accordion>
             {#each categoryByYear.semester as categoryBySemester}
-              <AccordionItem>
+              <AccordionItem
+                open={isSemsesterThisSemester(categoryBySemester.season) &&
+                  isYearThisYear(categoryByYear.year)}
+              >
                 <svelte:fragment slot="summary"
                   ><h3 class="h3">{categoryBySemester.season}</h3></svelte:fragment
                 >

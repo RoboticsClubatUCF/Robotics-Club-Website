@@ -1,0 +1,16 @@
+const callPlanka = async () => {
+  console.log(
+    await (
+      await fetch('https://planka.rccf.club/api/users/', {
+        method: 'GET',
+        mode: 'no-cors',
+        credentials: 'include',
+
+        headers: {
+          Authorization:
+            'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ijc2NmEzMzYwLWJlZWEtNDU3MC1iNjRkLTM4ZjJhYWQ4YTQyYSJ9.eyJpYXQiOjE2OTQ2NDgxNDQsInN1YiI6IjEwMzc5NjM0NDYyNDA0MTI3NjQiLCJleHAiOjE3MjYxODQxNDR9.DZ85NsHwibbf_G39vbl2jncSXNvWXI6zQuTfg3UwFWM'
+        }
+      })
+    ).json()
+  );
+};

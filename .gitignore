@@ -9,3 +9,4 @@ prisma/migrations
 metricsLogs
 **/g
 **/rccf-postgres
+src/paypal.ts

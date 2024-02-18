@@ -29,15 +29,20 @@
 <div class=" m-8 p-2">
   <h2 class="h2">Check out our Socials!</h2>
   <br />
-  <div class="logo-cloud grid-cols-3 lg:!grid-cols-3 gap-1">
+  <div class="logo-cloud grid-cols-3 lg:!grid-cols-3 gap-2">
     <a class="logo-item" href="https://discord.gg/m8XZahpNjR">
       <div class="h-10 w-10"><FaDiscord /></div>
       <span>Discord</span>
     </a>
     <a class="logo-item" href="https://www.instagram.com/ucf_robotics/">
       <div class="h-10 w-10"><FaInstagram /></div>
-      <span>Instagram</span>
+      <span>Instagram (Club)</span>
     </a>
+    <a class="logo-item" href="https://instagram.com/ucf.tapemeasure/">
+      <div class="h-10 w-10"><FaInstagram /></div>
+      <span>Instagram (Tapemeasure)</span>
+    </a>
+
     <!-- Add more Sodials below -->
   </div>
 </div>

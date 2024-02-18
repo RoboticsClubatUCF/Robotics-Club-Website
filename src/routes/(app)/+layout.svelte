@@ -19,6 +19,7 @@
   import LeftSideBar from '../../components/dashboard/leftSidebar/leftSideBar.svelte';
   import BreadCrumbs from '../../components/breadCrumbs.svelte';
   import RightSideBar from '../../components/dashboard/rightSidebar/rightSideBar.svelte';
+  import ProfilePic from '../../components/profilePic.svelte';
   export let data: LayoutServerData;
 
   const drawerStore = getDrawerStore();
@@ -46,13 +47,7 @@
       <svelte:fragment slot="trail">
         <LightSwitch />
         <SignoutButton />
-        <button>
-          <!-- Some kind of settings -->
-          <Avatar
-            src={'data:image/png;base64,' + new Identicon(cybr53(data.fname).toString(), 48)}
-            width="w-12"
-          /></button
-        >
+        <a href="/dashboard/profile"> <ProfilePic hash={data.member.id} /></a>
       </svelte:fragment>
     </AppBar>
   </svelte:fragment>

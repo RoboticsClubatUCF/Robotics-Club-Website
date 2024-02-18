@@ -172,6 +172,13 @@ model Team {
   projectId  Int?
 }
 
+model Link {
+  id      Int       @id @default(autoincrement())
+  url     String    @default("")
+  label   String
+  Project Project[]
+}
+
 model Project {
   id                 Int                  @id @default(autoincrement())
   title              String
@@ -181,6 +188,7 @@ model Project {
   logo               Picture?             @relation(fields: [pictureId], references: [id])
   budget             Float
   docsLink           String               @default("")
+  extraLinks         Link[]
   remainingFunds     Float
   season             Season               @default(value: Fall)
   year               Int
