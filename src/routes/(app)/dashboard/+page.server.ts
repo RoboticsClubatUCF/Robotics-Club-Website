@@ -2,9 +2,13 @@ import { db } from '$lib/db';
 import { z } from 'zod';
 import type { Actions, PageServerLoad } from './$types';
 import { superValidate } from 'sveltekit-superforms/server';
-import { fail } from '@sveltejs/kit';
-import config from '../../../config';
 import semesterYear from '../../../components/scripts/semesterYear';
+import config from '../../../config';
+
+const updateDuesSchema = z.object({
+  email: z.string().email(),
+  duesType: z.number()
+});
 
 export const load: PageServerLoad = async ({ locals }) => {
   const form = await superValidate(updateDuesSchema);
@@ -41,8 +45,8 @@ export const load: PageServerLoad = async ({ locals }) => {
   });
 
   for (let i = 0; i < availableProjects.length; i++) {
-    for (let j = 0; j < user!.Projects.length; j++) {
-      if (availableProjects[i].id == user!.Projects[j].id) {
+    for (const element of user!.Projects) {
+      if (availableProjects[i].id == element.id) {
         availableProjects.splice(i, 1);
       }
     }
@@ -50,11 +54,33 @@ export const load: PageServerLoad = async ({ locals }) => {
   return { user, form, availableProjects };
 };
 
-const updateDuesSchema = z.object({
-  email: z.string().email(),
-  duesType: z.number()
-});
 export const actions: Actions = {
+  summerRole: async ({ request, locals }) => {
+    // give someone user role if they click the button
+    const form = await request.formData();
+    const id = form.get('id')?.toString();
+    if (id) {
+      await db.member.update({
+        where: {
+          id: id
+        },
+        data: {
+          membershipExpDate: new Date('9 1 ' + new Date().getFullYear()),
+          role: {
+            connectOrCreate: {
+              create: {
+                permissionLevel: config.roles.member.level,
+                name: config.roles.member.name
+              },
+              where: {
+                name: config.roles.member.name
+              }
+            }
+          }
+        }
+      });
+    }
+  },
   joinProject: async ({ request, locals }) => {
     const form = await request.formData();
     const id = Number(form.get('projectID'));

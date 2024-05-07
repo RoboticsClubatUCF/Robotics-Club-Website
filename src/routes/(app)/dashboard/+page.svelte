@@ -12,6 +12,7 @@
   import LeftSideBar from '../../../components/dashboard/leftSidebar/leftSideBar.svelte';
   import RightSideBar from '../../../components/dashboard/rightSidebar/rightSideBar.svelte';
   import Payments from '../../../components/stripe/payments.svelte';
+  import { enhance } from '$app/forms';
   export let data: PageServerData;
   const { form, errors, constraints } = superForm(data.form, {
     clearOnSubmit: 'errors-and-message'
@@ -69,7 +70,9 @@
     {/if}
   </svelte:fragment>
   <div class="m-4">
-    <Feed />
+    {#if (data.user?.membershipExpDate.getTime() ?? 0) > new Date().getTime()}
+      <Feed />
+    {/if}
     <div
       class={$modeCurrent
         ? 'block card p-8 pointer-events-auto shadow-m card-hover shadow-surface-300 justify-center'
@@ -83,25 +86,40 @@
           {/if},
         </h2>
         <br />
-        {#if (data.user?.membershipExpDate.getTime() ?? 0) < new Date().getTime()}
-          <h6 class="badge variant-filled-error">Looks like your dues are expired!</h6>
-          <hr />
-          <br class="h-5" />
-          <Payments userID={data.user?.id} />
+        {#if (data.user?.membershipExpDate.getTime() ?? 0) < new Date().getTime() && new Date().getMonth() <= 8 && new Date().getMonth() >= 4}
+          {#if data.user?.id}
+            <!-- add a blerb here about how summer is free and cool and you get free membership until sep 1 -->
+            <form action="?/summerRole" method="post" use:enhance>
+              <input type="hidden" name="id" bind:value={data.user.id} />
+              <button type="submit" class="btn variant-ghost-tertiary hover:variant-filled-tertiary"
+                >Join Summer!</button
+              >
+            </form>
+          {/if}
         {:else}
-          <h6 class="badge variant-filled-success">
-            Your Dues expire on {data.user?.membershipExpDate.toDateString()}
-          </h6>
-          <h6 class="h6">
-            Looks like you're all set! check back in on discord in about a day after paying dues for
-            membership status, and look out for announcements about updates to this site!
-          </h6>
-          <a
-            id="survey"
-            target="_blank"
-            href="https://docs.google.com/forms/d/e/1FAIpQLSc8G4hIVlv9rUusUO6Kb1eZZ-uGbS5TPp0Agi4LYsZZGoHkJQ/viewform?usp=sf_link"
-            class="btn variant-ghost-tertiary hover:variant-filled-tertiary">Member Survey</a
-          >
+          <!-- dues are expired and need to pay dues -->
+          {#if (data.user?.membershipExpDate.getTime() ?? 0) < new Date().getTime()}
+            <h6 class="badge variant-filled-error">Looks like your dues are expired!</h6>
+            <hr />
+            <br class="h-5" />
+            {#if data.user?.id}
+              <Payments userID={data.user?.id} />
+            {/if}
+          {:else}
+            <h6 class="badge variant-filled-success">
+              Your Dues expire on {data.user?.membershipExpDate.toDateString()}
+            </h6>
+            <h6 class="h6">
+              Looks like you're all set! check back in on discord in about a day after paying dues
+              for membership status, and look out for announcements about updates to this site!
+            </h6>
+            <a
+              id="survey"
+              target="_blank"
+              href="https://docs.google.com/forms/d/e/1FAIpQLSc8G4hIVlv9rUusUO6Kb1eZZ-uGbS5TPp0Agi4LYsZZGoHkJQ/viewform?usp=sf_link"
+              class="btn variant-ghost-tertiary hover:variant-filled-tertiary">Member Survey</a
+            >
+          {/if}
         {/if}
       </div>
     </div>
