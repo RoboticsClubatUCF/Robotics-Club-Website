@@ -35,6 +35,3 @@ low key want the website to look like the langing page for github
 
 authentication
 <https://joyofcode.xyz/sveltekit-authentication-using-cookies>
-
-paypaljs fixes
-<https://www.paypal-community.com/t5/SDKs/onApprove-not-called-workarounds/td-p/3062325>

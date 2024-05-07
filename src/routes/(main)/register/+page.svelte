@@ -90,6 +90,9 @@
           autocomplete="password"
         />
       </label>
+      {#if $errors.password}
+        <span class="variant-filled-error badge">{$errors.password}</span>
+      {/if}
       <br />
       <label class="label">
         <span>Confirm Password</span>
@@ -103,9 +106,10 @@
           required
         />
       </label>
-      {#if $errors.password || $errors.confirmPassword}
-        <span class="variant-filled-error badge">Passwords do not match!</span>
+      {#if $errors.confirmPassword}
+        <span class="variant-filled-error badge">{$errors.confirmPassword}</span>
       {/if}
+      <br />
       <button class="btn variant-ghost-primary mt-4 hover:variant-filled-primary">Sign Up</button>
     </form>
   </div>

@@ -26,8 +26,7 @@ export const actions: Actions = {
     if (!form.valid) {
       return fail(400, { form });
     }
-    if (form.data.password !== form.data.confirmPassword) {
-      //@ts-ignore
+    if (form.data.password != form.data.confirmPassword) {
       return setError(form, 'confirmPassword', 'Passwords do not match!');
     }
     if (
