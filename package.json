@@ -61,5 +61,8 @@
     "stripe": "^14.14.0",
     "svelte-icons": "^2.1.0",
     "svelte-stripe": "^1.1.4"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
   }
 }
