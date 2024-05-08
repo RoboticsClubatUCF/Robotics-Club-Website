@@ -1,7 +1,7 @@
 
 # Robotics Club Website & Server
 
-A backup and clone of the Robotics Club of Central Florida (RCCF) club website. You can go to our website [here](https://rccf.club/). As this git repo is serving as a backup and commit site more documentation and samples can be found [here](https://secretlibrary.rccf.club/shelves/rccf-website). For more general information or how to join the RCCF web team dm Dwight Howard (@dwight_2) on the RCCF [discord](https://discord.gg/Dpe7gjESmy).
+A backup and clone of the Robotics Club of Central Florida (RCCF) club website. You can go to our website [here](https://rccf.club/). As this git repo is serving as a backup and commit site more documentation and samples can be found [here](https://secretlibrary.rccf.club/shelves/rccf-website). For more general information or how to join the RCCF web team dm the web team lead on the RCCF [discord](https://discord.gg/Dpe7gjESmy).
 
 
 ## Requirements
