@@ -52,7 +52,7 @@ npm run dev
 - [ ] Gallery Page 
 - [ ] Member’s Page
 - [ ] QR Code Tracker System
-- [ ] Fade projects Blocks
+- [ ] Fading Projects Blocks
 
 
 
