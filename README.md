@@ -53,6 +53,7 @@ npm run dev
 - [ ] Member’s Page
 - [ ] QR Code Tracker System
 - [ ] Fading Projects Blocks
+- [ ] Github Link/Icon
 
 
 
