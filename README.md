@@ -47,6 +47,7 @@ npm run dev
 - [ ] Constitution (Within About Us)
 - [ ] Public Tax Info (Within About Us)
 - [ ] Description of Officers (Within About Us)
+- [ ] Sponsors page (Within About Us)
 - [ ] Contact Us Page
 - [ ] Summer Term Button (free trial)
 - [ ] Gallery Page 
