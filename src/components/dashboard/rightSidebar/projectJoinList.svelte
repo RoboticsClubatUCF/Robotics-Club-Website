@@ -6,7 +6,7 @@
 </script>
 
 <div class="">
-  <h2 class="h2">Projects</h2>
+  <h2 class="h2">Join</h2>
   {#if data != null}
     {#each data as project}
       <MiniJoinProjectCard data={project} />
