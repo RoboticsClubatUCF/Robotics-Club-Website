@@ -21,13 +21,13 @@ To install Nodejs packages and dependencies from a package.json file use:
 ```bash
 npm i
 ```
-Improve RUN performance by pre-loading jigs (may fail on windows but not a requirement).
-```bash
-npm run db
-```
 Starts the docker based postgres database.
 ```bash
 docker compose up -d
+```
+Improve RUN performance by pre-loading jigs (may fail on windows but not a requirement).
+```bash
+npm run db
 ```
 Generrates a prisma client for testing.
 ```bash
