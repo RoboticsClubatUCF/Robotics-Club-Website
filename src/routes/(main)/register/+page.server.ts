@@ -9,6 +9,7 @@ import type { Actions, PageServerLoad } from './$types';
 
 const registerSchema = z.object({
   email: z.string().email(),
+  lname: z.string(),
   fname: z.string(),
   discord: z.string(),
   password: z.string().min(8, 'Password must be at least 8 characters long!'),
@@ -52,6 +53,7 @@ export const actions: Actions = {
     await db.member.create({
       data: {
         firstName: form.data.fname,
+        lastName: form.data.lname,
         passwordHash: generatePassword(form.data.password),
         email: form.data.email,
         AuthToken: randomUUID(),
