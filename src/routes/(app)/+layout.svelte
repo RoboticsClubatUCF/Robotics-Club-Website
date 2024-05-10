@@ -40,7 +40,7 @@
   <svelte:fragment slot="header">
     <AppBar>
       <svelte:fragment slot="lead">
-        <a href="/" class="h1 hover:animate-pulse">{info.mobileTitle}</a>
+        <ol class="h1">{info.mobileTitle}</ol>
         <div class="m-2" />
         <BreadCrumbs />
       </svelte:fragment>
