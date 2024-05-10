@@ -82,8 +82,8 @@
         <h2 class="h2">
           Hello {data.user?.firstName}
           {#if data.user?.lastName}
-            {data.user?.lastName}
-          {/if},
+            {data.user?.lastName},
+          {/if}
         </h2>
         <br />
         {#if (data.user?.membershipExpDate.getTime() ?? 0) < new Date().getTime() && new Date().getMonth() <= 8 && new Date().getMonth() >= 4}
@@ -92,7 +92,7 @@
             <form action="?/summerRole" method="post" use:enhance>
               <input type="hidden" name="id" bind:value={data.user.id} />
               <button type="submit" class="btn variant-ghost-tertiary hover:variant-filled-tertiary"
-                >Join Summer!</button
+                >Join As a Summer Member!</button
               >
             </form>
           {/if}
