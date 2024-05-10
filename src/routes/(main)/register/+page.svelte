@@ -45,6 +45,22 @@
       </label>
       <br />
       <label class="label">
+        <span>Last Name</span>
+        <input
+          class="input"
+          type="text"
+          name="lname"
+          id="lname"
+          bind:value={$form.lname}
+          {...$constraints}
+          required
+        />
+        {#if $errors.lname}
+          <span class="variant-filled-error badge">{$errors.lname}</span>
+        {/if}
+      </label>
+      <br />
+      <label class="label">
         <span>Email</span>
         <input
           class="input"

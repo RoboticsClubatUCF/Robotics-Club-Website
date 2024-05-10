@@ -24,6 +24,7 @@ export const handle: Handle = async ({ event, resolve }) => {
   if (user) {
     event.locals.member = {
       fname: user.firstName,
+      lname: user.lastName,
       email: user.email,
       permissions: {
         name: user.role.name,
