@@ -250,8 +250,16 @@ model Role {
 }
 
 model Survey {
-  id     Int      @id @default(autoincrement())
-  Member Member[]
+  id           Int      @id @default(autoincrement())
+  Member       Member[]
+  GitName      String?  @unique
+  UCFemail     String   @unique @default("")
+  Major        String[] @default([])
+  Year         String   @default("")
+  ShirtSize    String   @default("")
+  PrevMem      Boolean  @default(false)
+  Allergies    String[] @default([])
+  Disabilities String[] @default([])
 }
 
 enum Season {

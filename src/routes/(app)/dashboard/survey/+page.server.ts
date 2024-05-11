@@ -1,7 +1,8 @@
 import { z } from "zod";
 import type { Actions, PageServerLoad } from "./$types";
 import { superValidate } from "sveltekit-superforms/server";
-import { fail } from "@sveltejs/kit";
+import { fail, redirect } from "@sveltejs/kit";
+import { db } from "$lib/db";
 const surSchema = z.object({
     // ask questions here
     gitName: z.string(),
@@ -29,7 +30,21 @@ export const actions: Actions = {
         if(!form.valid){
             return fail(400, {form});
         }
+            // generate the user token, and save the hashed password to the backend
+        await db.survey.create({
+            data: {
+            GitName: form.data.gitName,
+            UCFemail: form.data.ucfEmail,
+            Major: form.data.Major,
+            Year: form.data.year,
+            ShirtSize: form.data.shirtSize,
+            PrevMem: form.data.prevMem,
+            Allergies: form.data.allergies,
+            Disabilities: form.data.disabilities
+            }
+        });
         console.log(form.data)
+        //throw redirect(302, '/dashboard');
     }
 };
 
