@@ -18,7 +18,7 @@
     "metrics": "node ./metricsLog.js",
     "services": "docker compose up -d",
     "migrate": "npm run prisma:generate && npx prisma migrate dev --name RCCF",
-    "studio": " npx prisma studio"
+    "studio": "npx prisma studio"
   },
   "devDependencies": {
     "@skeletonlabs/skeleton": "^2.0.0",
@@ -63,6 +63,6 @@
     "svelte-stripe": "^1.1.4"
   },
   "prisma": {
-    "seed": "ts-node prisma/seed.ts"
+    "seed": "node prisma/seed.js"
   }
 }

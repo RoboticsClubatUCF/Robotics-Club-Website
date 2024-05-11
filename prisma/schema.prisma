@@ -222,6 +222,8 @@ model Member {
   Account            Account?   @relation(fields: [accountId], references: [id])
   accountId          Int?
   Teams              Team[]
+  Survey             Survey?    @relation(fields: [surveyId], references: [id])
+  surveyId           Int?
 }
 
 model Sponsor {
@@ -245,6 +247,11 @@ model Role {
   name            String   @unique
   permissionLevel Int      @default(value: 0)
   Member          Member[]
+}
+
+model Survey {
+  id     Int      @id @default(autoincrement())
+  Member Member[]
 }
 
 enum Season {
