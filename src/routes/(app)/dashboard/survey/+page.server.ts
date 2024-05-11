@@ -3,24 +3,29 @@ import type { Actions, PageServerLoad } from "./$types";
 import { superValidate } from "sveltekit-superforms/server";
 import { fail, redirect } from "@sveltejs/kit";
 import { db } from "$lib/db";
+import { userInfo } from "os";
+
+let userID = '';
 const surSchema = z.object({
-    // ask questions here
+    // answers to questions here
     gitName: z.string(),
     ucfEmail: z.string().email(),
-    Major: z.string(),
+    Major: z.string().array(),
     year: z.string(),
     shirtSize: z.string(),
-    prevMem: z.boolean(),
+    prevMem: z.string(),
     allergies: z.string(),
     disabilities: z.string()
 })
 
-export const load: PageServerLoad = async () => {
-    // handles transition front-end and back-end
-    const form = await superValidate(surSchema);
-
-    return{form};
-};
+export const load = (async ({ parent }) => {
+    const data = await parent();
+    userID = data.member!.id;
+    //@ts-ignore
+    const form = await superValidate(data.member, surSchema);
+    form.message = 'IDLE';
+    return { user: data.member, form };
+  }) satisfies PageServerLoad;
 
 export const actions: Actions = {
     default: async({request}) => {
@@ -30,20 +35,27 @@ export const actions: Actions = {
         if(!form.valid){
             return fail(400, {form});
         }
-            // generate the user token, and save the hashed password to the backend
+        
+        console.log(form.data)
+
         await db.survey.create({
             data: {
-            GitName: form.data.gitName,
-            UCFemail: form.data.ucfEmail,
-            Major: form.data.Major,
-            Year: form.data.year,
-            ShirtSize: form.data.shirtSize,
-            PrevMem: form.data.prevMem,
-            Allergies: form.data.allergies,
-            Disabilities: form.data.disabilities
+
+                GitName: form.data.gitName,
+                UCFemail: form.data.ucfEmail,
+                Major: form.data.Major,
+                Year: form.data.year,
+                ShirtSize: form.data.shirtSize,
+                PrevMem: form.data.prevMem,
+                Allergies: form.data.allergies,
+                Disabilities: form.data.disabilities,
+                Member: {
+                    connect:{
+                        id: userID
+                    }
+                } 
             }
         });
-        console.log(form.data)
         //throw redirect(302, '/dashboard');
     }
 };

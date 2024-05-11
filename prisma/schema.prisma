@@ -257,7 +257,7 @@ model Survey {
   Major        String[] @default([])
   Year         String   @default("")
   ShirtSize    String   @default("")
-  PrevMem      Boolean  @default(false)
+  PrevMem      String   @default("")
   Allergies    String[] @default([])
   Disabilities String[] @default([])
 }
