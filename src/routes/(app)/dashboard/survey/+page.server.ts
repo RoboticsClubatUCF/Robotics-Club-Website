@@ -36,11 +36,10 @@ export const actions: Actions = {
             return fail(400, {form});
         }
         
-        console.log(form.data)
+        // console.log(form.data)
 
         await db.survey.create({
             data: {
-
                 GitName: form.data.gitName,
                 UCFemail: form.data.ucfEmail,
                 Major: form.data.Major,
@@ -56,7 +55,7 @@ export const actions: Actions = {
                 } 
             }
         });
-        //throw redirect(302, '/dashboard');
+        // throw redirect(302, '/dashboard');
     }
 };
 
