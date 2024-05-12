@@ -77,8 +77,8 @@
         {/if}
       </label>
       <div class="grid grid-cols-2 m-4">
-        <ProfilePicPreview hash={data.user.id} />
-        <div class="flex flex-row-reverse">
+        <!-- <ProfilePicPreview hash={data.user.id} /> -->
+        <div class="flex">
           <div>
             <button type="submit" class="btn variant-ghost-secondary btn-xl">Update Profile</button>
           </div>
