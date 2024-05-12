@@ -49,12 +49,13 @@ npm run dev
 - [ ] Description of Officers (Within About Us)
 - [ ] Sponsors page (Within About Us)
 - [ ] Contact Us Page
-- [ ] Summer Term Button (free trial)
+- [x] Summer Term Button (free trial)
 - [ ] Gallery Page 
 - [ ] Member’s Page
 - [ ] QR Code Tracker System
 - [ ] Fading Projects Blocks
 - [ ] Github Link/Icon
+- [ ] Member's Survey
 
 
 
