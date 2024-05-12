@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { Actions, PageServerLoad } from "./$types";
-import { superValidate } from "sveltekit-superforms/server";
+import { setError, superValidate } from "sveltekit-superforms/server";
 import { fail, redirect } from "@sveltejs/kit";
 import { db } from "$lib/db";
 import { userInfo } from "os";
@@ -14,8 +14,8 @@ const surSchema = z.object({
     year: z.string(),
     shirtSize: z.string(),
     prevMem: z.string(),
-    allergies: z.string(),
-    disabilities: z.string()
+    allergies: z.string().array(),
+    disabilities: z.string().array()
 })
 
 export const load = (async ({ parent }) => {
@@ -35,8 +35,48 @@ export const actions: Actions = {
         if(!form.valid){
             return fail(400, {form});
         }
+        // pull information for error handeling and constraints
+        const selectedMajors = form.data.Major.filter(major => major !== '');
+        const selectedyear = form.data.year;
+        const selectedshirtSize = form.data.shirtSize;
+        const selectedprevMem = form.data.prevMem;
+        const selectedallergies = form.data.allergies.filter(allergies => allergies !== '');
+        const selecteddisabilities = form.data.disabilities.filter(allergies => allergies !== '');
+
+
+        if (
+            (await db.survey.findFirst({
+              where: {
+                UCFemail: form.data.ucfEmail
+              }
+            })) != null
+          ) {
+            return setError(form, 'ucfEmail', 'Email is already being used!');
+          }
         
-        // console.log(form.data)
+        if (selectedMajors.length === 0) {
+            return setError(form, 'Major', 'At least one of the options must be selected');
+        }
+        if (selectedyear === ''){
+            return setError(form, 'year', 'At least one of the options must be selected');
+        }
+        if (selectedshirtSize === ''){
+            return setError(form, 'shirtSize', 'At least one of the options must be selected');
+        }
+        if (selectedprevMem === ''){
+            return setError(form, 'prevMem', 'At least one of the options must be selected');
+        }
+        if (selectedallergies.length === 0) {
+            return setError(form, 'allergies', 'At least one of the options must be selected');
+        }
+        if (selecteddisabilities.length === 0) {
+            return setError(form, 'disabilities', 'At least one of the options must be selected');
+        }
+
+
+
+        
+        // console.log(form.data.year)
 
         await db.survey.create({
             data: {
@@ -55,7 +95,7 @@ export const actions: Actions = {
                 } 
             }
         });
-        // throw redirect(302, '/dashboard');
+        throw redirect(302, '/dashboard');
     }
 };
 
