@@ -3,7 +3,6 @@ import type { Actions, PageServerLoad } from "./$types";
 import { setError, superValidate } from "sveltekit-superforms/server";
 import { fail, redirect } from "@sveltejs/kit";
 import { db } from "$lib/db";
-import { userInfo } from "os";
 
 let userID = '';
 const surSchema = z.object({
@@ -18,14 +17,14 @@ const surSchema = z.object({
     disabilities: z.string().array()
 })
 
-export const load = (async ({ parent }) => {
+export const load: PageServerLoad = async ({ parent }) => {
     const data = await parent();
     userID = data.member!.id;
-    //@ts-ignore
-    const form = await superValidate(data.member, surSchema);
-    form.message = 'IDLE';
-    return { user: data.member, form };
-  }) satisfies PageServerLoad;
+
+    const form = await superValidate(surSchema);
+  
+    return { form };
+  };
 
 export const actions: Actions = {
     default: async({request}) => {
@@ -41,7 +40,7 @@ export const actions: Actions = {
         const selectedshirtSize = form.data.shirtSize;
         const selectedprevMem = form.data.prevMem;
         const selectedallergies = form.data.allergies.filter(allergies => allergies !== '');
-        const selecteddisabilities = form.data.disabilities.filter(allergies => allergies !== '');
+        const selecteddisabilities = form.data.disabilities.filter(disabilities => disabilities !== '');
 
 
         if (
@@ -72,12 +71,7 @@ export const actions: Actions = {
         if (selecteddisabilities.length === 0) {
             return setError(form, 'disabilities', 'At least one of the options must be selected');
         }
-
-
-
-        
         // console.log(form.data.year)
-
         await db.survey.create({
             data: {
                 GitName: form.data.gitName,

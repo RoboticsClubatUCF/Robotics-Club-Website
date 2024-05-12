@@ -1,12 +1,26 @@
 <script lang="ts">
   import { superForm } from "sveltekit-superforms/client";
-  import type { PageServerData } from "./$types";
   import { modeCurrent } from '@skeletonlabs/skeleton';
+  import type { PageData } from './$types';
+  import { onMount } from "svelte";
+  import { injectDots } from "../../../../components/pixijs/dotsAnimation";
 
-    export let data: PageServerData
 
-    const{form, enhance, errors, constraints} = superForm(data.form);
+  export let data: PageData;
+  const { form, errors, constraints, enhance } = superForm(data.form, {
+    clearOnSubmit: 'errors-and-message'
+  });
+
+  let mainEle: HTMLElement;
+  onMount(() => {
+    injectDots(mainEle, 200);
+  });
 </script>
+
+<div
+  bind:this={mainEle}
+  class="absolute top-20 left-0 right-0 bottom-0 pointer-events-auto -z-20"
+/>
 
 <div class="h-screen grid place-items-center absolute w-screen top-0 pointer-events-none overflow-auto" style="margin-top: 90px; padding-bottom: 110px;">
   <div
@@ -27,9 +41,9 @@
           id="gitName"
           bind:value={$form.gitName}
         />
-        <!-- {#if $errors.gitName}
+        {#if $errors.gitName}
           <span class="variant-filled-error badge">{$errors.gitName}</span>
-        {/if} -->
+        {/if}
       </label>
       <br />
 
