@@ -151,7 +151,7 @@
           <a
             id="survey"
             href="/dashboard/survey"
-            class="btn variant-ghost-tertiary hover:variant-filled-tertiary">Create a Member Survey
+            class="btn variant-ghost-tertiary hover:variant-filled-tertiary">Create a Members Survey
           </a>
         </div>
       </div>
