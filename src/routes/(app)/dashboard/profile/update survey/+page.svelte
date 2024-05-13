@@ -19,7 +19,7 @@
 
 <div class="container w-full m-auto mt-10">
   <div class="card m-2 p-2">
-    <form method="POST" class="p-2 rounded-md" use:enhance>
+    <form method="post" class="p-2 rounded-md" use:enhance>
       <h2 class="h2">Members Survey</h2>
       <br />
 
@@ -32,9 +32,6 @@
           id="gitName"
           bind:value={$form.gitName}
         />
-        {#if $errors.gitName}
-          <span class="variant-filled-error badge">{$errors.gitName}</span>
-        {/if}
       </label>
       <br />
 
