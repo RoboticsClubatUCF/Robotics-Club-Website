@@ -41,6 +41,10 @@ Starts a dev environment for you to see changes being made by you live.
 ```bash
 npm run dev
 ```
+To access the Prisma database use
+```bash
+npm run studio
+```
 ## To-Do
 - [ ] News Letter/Blog Page
 - [ ] About Us Page
