@@ -221,6 +221,10 @@
               <p>Soy</p>
             </label>
             <label class="flex items-center space-x-2">
+              <input class="checkbox" type="checkbox" name="allergies" id="allergies" bind:group={$form.allergies} value="None "/>
+              <p>None</p>
+            </label>
+            <label class="flex items-center space-x-2">
               <input class="checkbox" type="checkbox" name="allergies" id="allergies" bind:group={$form.allergies} value="Other"/>
               <p>Other</p>
             </label>
