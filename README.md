@@ -29,7 +29,7 @@ Improve RUN performance by pre-loading jigs (may fail on windows but not a requi
 ```bash
 npm run db
 ```
-Generrates a prisma client for testing.
+Generates a prisma client for testing.
 ```bash
 npx prisma generate
 ```
@@ -37,9 +37,13 @@ Creates a draft migration that can be edited live before being applied to the da
 ```bash
 npx prisma migrate dev --name RCCF
 ```
-Starts a dev enviornment for you to see changes being made by you live.
+Starts a dev environment for you to see changes being made by you live.
 ```bash
 npm run dev
+```
+To access the Prisma database use
+```bash
+npm run studio
 ```
 ## To-Do
 - [ ] News Letter/Blog Page
@@ -56,6 +60,11 @@ npm run dev
 - [ ] Fading Projects Blocks
 - [ ] Github Link/Icon
 - [ ] Member's Survey
+    - [ ] Major "other" dropdown
+    - [ ] Membership history after selecting yes to "previous member?" (semester, 1 year, 2 years 3 years, etc.)
+    - [ ] Fix allergies/disabilities options
+        - [ ] Add "other" dropdown
+    - [ ] How did you hear about us (to be replaced by QR code tracking)
 
 
 
