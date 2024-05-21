@@ -66,6 +66,7 @@ npm run studio
     - [x] Fix allergies/disabilities options
         - [x] Add "other" dropdown
     - [ ] How did you hear about us?
+    - [ ] Forced renewal of survey (every 4 months)
 
 
 
