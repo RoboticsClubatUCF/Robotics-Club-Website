@@ -49,11 +49,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 
   // Log the DateUpdated value from the user's survey
   const surveyDateUpdated = user?.Survey?.DateUpdated;
-  if (surveyDateUpdated) {
-    console.log(`Survey Date Updated: ${surveyDateUpdated}`);
-  } else {
-    console.log('Survey Date Updated not found');
-  }
+  // if (surveyDateUpdated) {
+  //   console.log(`Survey Date Updated: ${surveyDateUpdated}`);
+  // } else {
+  //   console.log('Survey Date Updated not found');
+  // }
 
   // Remove projects the user is already part of
   for (let i = 0; i < availableProjects.length; i++) {
