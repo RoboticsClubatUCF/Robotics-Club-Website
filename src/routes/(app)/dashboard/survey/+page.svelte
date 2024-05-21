@@ -215,6 +215,10 @@
                 <p>Social Media</p>
             </label>
             <label class="flex items-center space-x-2">
+              <input class="checkbox" type="checkbox" name="discover" id="Knight Connect" bind:group={$form.discover} value="Knight Connect "/>
+              <p>Knight Connect</p>
+            </label>
+            <label class="flex items-center space-x-2">
               <input class="checkbox" type="checkbox" name="discover" id="GANOR" bind:group={$form.discover} value="GANOR "/>
               <p>GANOR</p>
             </label>

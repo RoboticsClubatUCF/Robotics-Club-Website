@@ -13,6 +13,7 @@ const updateDuesSchema = z.object({
 export const load: PageServerLoad = async ({ locals }) => {
   const form = await superValidate(updateDuesSchema);
   const dateInfo = semesterYear();
+
   const availableProjects = await db.project.findMany({
     where: {
       year: dateInfo.year,
@@ -22,6 +23,7 @@ export const load: PageServerLoad = async ({ locals }) => {
       logo: true
     }
   });
+
   const user = await db.member.findFirst({
     where: {
       email: locals.member.email
@@ -40,10 +42,20 @@ export const load: PageServerLoad = async ({ locals }) => {
             }
           }
         }
-      }
+      },
+      Survey: true  // Include the survey information
     }
   });
 
+  // Log the DateUpdated value from the user's survey
+  const surveyDateUpdated = user?.Survey?.DateUpdated;
+  if (surveyDateUpdated) {
+    console.log(`Survey Date Updated: ${surveyDateUpdated}`);
+  } else {
+    console.log('Survey Date Updated not found');
+  }
+
+  // Remove projects the user is already part of
   for (let i = 0; i < availableProjects.length; i++) {
     for (const element of user!.Projects) {
       if (availableProjects[i].id == element.id) {
@@ -51,12 +63,12 @@ export const load: PageServerLoad = async ({ locals }) => {
       }
     }
   }
-  return { user, form, availableProjects };
+
+  return { user, form, availableProjects, surveyDateUpdated };
 };
 
 export const actions: Actions = {
   summerRole: async ({ request, locals }) => {
-    // give someone user role if they click the button
     const form = await request.formData();
     const id = form.get('id')?.toString();
     if (id) {
