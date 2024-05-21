@@ -60,13 +60,13 @@ npm run studio
 - [ ] QR Code Tracker System
 - [ ] Fading Projects Blocks
 - [ ] Github Link/Icon
-- [ ] Member's Survey
+- [x] Member's Survey
     - [x] Major "other" dropdown
     - [x] Membership history after selecting yes to "previous member?" (semester, 1 year, 2 years 3 years, etc.)
     - [x] Fix allergies/disabilities options
         - [x] Add "other" dropdown
-    - [ ] How did you hear about us?
-    - [ ] Forced renewal of survey (every 4 months)
+    - [x] How did you hear about us?
+    - [x] Forced renewal of survey (every 4 months)
 
 
 
