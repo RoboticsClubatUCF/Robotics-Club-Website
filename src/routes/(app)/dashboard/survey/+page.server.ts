@@ -17,6 +17,7 @@ const surSchema = z.object({
     semester: z.number(),
     shirtSize: z.string(),
     prevMem: z.string(),
+    discover: z.string().array(),
     allergies: z.string().array(),
     oAllergies: z.string().optional(),
     otherConcerns: z.string().optional()
@@ -69,6 +70,7 @@ export const actions: Actions = {
         const selectedprevMem = form.data.prevMem;
         const selectedallergies = form.data.allergies.filter(allergies => allergies !== '');
         const enteredNum = form.data.semester;
+        const selectedDiscover = form.data.discover.filter(allergies => allergies !== '');
 
         if (selectedMajors.length === 0) {
             return setError(form, 'Major', 'At least one of the options must be selected');
@@ -81,6 +83,9 @@ export const actions: Actions = {
         }
         if (selectedprevMem === '') {
             return setError(form, 'prevMem', 'At least one of the options must be selected');
+        }
+        if (selectedDiscover.length === 0) {
+            return setError(form, 'discover', 'At least one of the options must be selected');
         }
         if (enteredNum < 1){
             return setError(form, 'semester', 'Please enter a number >= 0');
@@ -107,6 +112,7 @@ export const actions: Actions = {
                 NumberofSemesters: form.data.semester,
                 ShirtSize: form.data.shirtSize,
                 PrevMem: form.data.prevMem,
+                DiscoveredThrough: form.data.discover,
                 Allergies: form.data.allergies,
                 OtherAllergies: form.data.oAllergies,
                 Concerns: form.data.otherConcerns,

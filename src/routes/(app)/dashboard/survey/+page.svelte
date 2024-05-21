@@ -4,7 +4,7 @@
   import type { PageData } from './$types';
   import { onMount } from "svelte";
   import { injectDots } from "../../../../components/pixijs/dotsAnimation";
-
+  import { getMonth } from 'date-fns';
 
   export let data: PageData;
   const { form, errors, constraints, enhance } = superForm(data.form, {
@@ -12,8 +12,17 @@
   });
 
   let mainEle: HTMLElement;
+  let Display = "";
+
   onMount(() => {
     injectDots(mainEle, 200);
+    const today = new Date();
+    const month = getMonth(today) + 1;
+    if (month >= 1 && month <= 4) {
+      Display = "Spring";
+    } else if (month >= 8 && month <= 12) {
+      Display = "Fall";
+    }
   });
 </script>
 
@@ -183,6 +192,101 @@
             </label>
             {/if}
           </div>
+      </label>
+      <br />
+
+      <label class="label">
+        <span>How did you discover us?</span> {#if $errors.discover}<span class="variant-filled-error badge">{$errors.discover}</span>{/if}
+        <div class="space-y-2">
+            <label class="flex items-center space-x-2">
+                <input class="checkbox" type="checkbox" name="discover" id="Friend(s)" bind:group={$form.discover} value="Friend(s) "/>
+                <p>Friend(s)</p>
+            </label>
+            <label class="flex items-center space-x-2">
+                <input class="checkbox" type="checkbox" name="discover" id="Events" bind:group={$form.discover} value="Events "/>
+                <p>Events</p>
+            </label>
+            <label class="flex items-center space-x-2">
+                <input class="checkbox" type="checkbox" name="discover" id="Posters" bind:group={$form.discover} value="Posters "/>
+                <p>Posters</p>
+            </label>
+            <label class="flex items-center space-x-2">
+                <input class="checkbox" type="checkbox" name="discover" id="Social Media" bind:group={$form.discover} value="Social Media "/>
+                <p>Social Media</p>
+            </label>
+            <label class="flex items-center space-x-2">
+              <input class="checkbox" type="checkbox" name="discover" id="GANOR" bind:group={$form.discover} value="GANOR "/>
+              <p>GANOR</p>
+            </label>
+            <label class="flex items-center space-x-2">
+                <input class="checkbox" type="checkbox" name="discover" id="Google" bind:group={$form.discover} value="Google "/>
+                <p>Google</p>
+            </label>
+            {#if Display == "Fall"}
+            <label class="flex items-center space-x-2">
+                  <input class="checkbox" type="checkbox" name="discover" id="Class Presentations" bind:group={$form.discover} value="Class Presentations Fall"/>
+                  <p>Class Presentations</p>
+              </label>
+            {/if}
+            {#if Display == "Spring"}
+            <label class="flex items-center space-x-2">
+                  <input class="checkbox" type="checkbox" name="discover" id="Class Presentations" bind:group={$form.discover} value="Class Presentations Spring"/>
+                  <p>Class Presentations</p>
+              </label>
+            {/if}
+
+            {#if $form.discover.includes("Class Presentations Fall")}
+            <label class="label">
+              <span>Which Fall class?</span>
+                <label class="flex items-center space-x-2">
+                  <input class="checkbox" type="checkbox" name="discover" id="intro to engineering fall" bind:group={$form.discover} value="EGS 1006C "/>
+                  <p>Intro to Engineering</p>
+                </label>
+                <label class="flex items-center space-x-2">
+                  <input class="checkbox" type="checkbox" name="discover" id="intro to robotics fall" bind:group={$form.discover} value="EGN 3060C "/>
+                  <p>Intro to Robotics</p>
+                </label>
+                <label class="flex items-center space-x-2">
+                  <input class="checkbox" type="checkbox" name="discover" id="STEM Seminar I fall" bind:group={$form.discover} value="ISC 2054 "/>
+                  <p>STEM Seminar I</p>
+                </label>
+                <label class="flex items-center space-x-2">
+                  <input class="checkbox" type="checkbox" name="discover" id="STEM Seminar II fall" bind:group={$form.discover} value="ISC 2055 "/>
+                  <p>STEM Seminar II</p>
+                </label>
+                <label class="flex items-center space-x-2">
+                  <input class="checkbox" type="checkbox" name="discover" id="Unlisted fall" bind:group={$form.discover} value="Unlisted "/>
+                  <p>Unlisted</p>
+                </label>
+            </label>
+            {/if}
+
+            {#if $form.discover.includes("Class Presentations Spring")}
+            <label class="label">
+              <span>Which Spring class?</span>
+                <label class="flex items-center space-x-2">
+                  <input class="checkbox" type="checkbox" name="discover" id="intro to engineering spring" bind:group={$form.discover} value="EGS 1006C "/>
+                  <p>Intro to engineering</p>
+                </label>
+                <label class="flex items-center space-x-2">
+                  <input class="checkbox" type="checkbox" name="discover" id="intro to robotics spring" bind:group={$form.discover} value="EGN 3060C "/>
+                  <p>Intro to Robotics</p>
+                </label>
+                <label class="flex items-center space-x-2">
+                  <input class="checkbox" type="checkbox" name="discover" id="STEM Seminar I spring" bind:group={$form.discover} value="ISC 2054 "/>
+                  <p>STEM Seminar I</p>
+                </label>
+                <label class="flex items-center space-x-2">
+                  <input class="checkbox" type="checkbox" name="discover" id="STEM Seminar II spring" bind:group={$form.discover} value="ISC 2055 "/>
+                  <p>STEM Seminar II</p>
+                </label>
+                <label class="flex items-center space-x-2">
+                  <input class="checkbox" type="checkbox" name="discover" id="Unlisted spring" bind:group={$form.discover} value="Unlisted "/>
+                  <p>Unlisted</p>
+                </label>
+            </label>
+            {/if}
+        </div>
       </label>
       <br />
       
