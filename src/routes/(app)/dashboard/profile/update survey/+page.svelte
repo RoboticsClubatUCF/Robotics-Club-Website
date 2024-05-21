@@ -30,6 +30,7 @@
           type="text"
           name="gitName"
           id="gitName"
+          placeholder="User"
           bind:value={$form.gitName}
         />
       </label>
@@ -42,6 +43,7 @@
           type="email"
           name="ucfEmail"
           id="ucfEmail"
+          placeholder="NID@ucf.edu"
           bind:value={$form.ucfEmail}
           {...$constraints}
           required
@@ -52,36 +54,41 @@
 
       <label class="label">
         <span>Major</span> {#if $errors.Major}<span class="variant-filled-error badge">{$errors.Major}</span>{/if}
-          <div class="space-y-2">
+        <div class="space-y-2">
             <label class="flex items-center space-x-2">
-                <input class="checkbox" type="checkbox" name="Major" id="Major" bind:group={$form.Major} value="Aerospace Engineering "/>
+                <input class="checkbox" type="checkbox" name="Major" id="AerospaceEngineering" bind:group={$form.Major} value="Aerospace Engineering "/>
                 <p>Aerospace Engineering</p>
             </label>
             <label class="flex items-center space-x-2">
-                <input class="checkbox" type="checkbox" name="Major" id="Major" bind:group={$form.Major} value="Computer Science "/>
+                <input class="checkbox" type="checkbox" name="Major" id="ComputerScience" bind:group={$form.Major} value="Computer Science "/>
                 <p>Computer Science</p>
             </label>
             <label class="flex items-center space-x-2">
-                <input class="checkbox" type="checkbox" name="Major" id="Major" bind:group={$form.Major} value="Computer Engineering "/>
+                <input class="checkbox" type="checkbox" name="Major" id="ComputerEngineering" bind:group={$form.Major} value="Computer Engineering "/>
                 <p>Computer Engineering</p>
             </label>
             <label class="flex items-center space-x-2">
-                <input class="checkbox" type="checkbox" name="Major" id="Major" bind:group={$form.Major} value="Electrical Engineering "/>
+                <input class="checkbox" type="checkbox" name="Major" id="ElectricalEngineering" bind:group={$form.Major} value="Electrical Engineering "/>
                 <p>Electrical Engineering</p>
             </label>
             <label class="flex items-center space-x-2">
-                <input class="checkbox" type="checkbox" name="Major" id="Major" bind:group={$form.Major} value="Mechanical Engineering "/>
+                <input class="checkbox" type="checkbox" name="Major" id="MechanicalEngineering" bind:group={$form.Major} value="Mechanical Engineering "/>
                 <p>Mechanical Engineering</p>
             </label>
             <label class="flex items-center space-x-2">
-                <input class="checkbox" type="checkbox" name="Major" id="Major" bind:group={$form.Major} value="Not Listed "/>
-                <p>Not Listed</p>
-            </label>
-            <label class="flex items-center space-x-2">
-                <input class="checkbox" type="checkbox" name="Major" id="Major"  bind:group={$form.Major} value="Undecided "/>
+                <input class="checkbox" type="checkbox" name="Major" id="Undecided" bind:group={$form.Major} value="Undecided "/>
                 <p>Undecided</p>
             </label>
-          </div>
+            <label class="flex items-center space-x-2">
+                <input class="checkbox" type="checkbox" name="Major" id="Other" bind:group={$form.Major} value="Other"/>
+                <p>Other</p>
+            </label>
+            {#if $form.Major.includes("Other")}
+            <label class="flex items-center space-x-2">
+                <input class="input" type="text" name="oMajor" id="oMajor" bind:value={$form.oMajor} placeholder="Enter your major "/>
+            </label>
+            {/if}
+        </div>
       </label>
       <br />
 
@@ -158,6 +165,14 @@
               <input class="radio" type="radio" name="prevMem" id="prevMem" bind:group={$form.prevMem} value="No" />
               <p>No</p>
             </label>
+            {#if $form.prevMem.includes("Yes")}
+            <label class="label">
+              <span>Number of Semester(s)? </span>{#if $errors.semester}<span class="variant-filled-error badge">{$errors.semester}</span>{/if}
+              <label class="flex items-center space-x-2">
+                  <input class="input" type="text" name="semester" id="semester" bind:value={$form.semester} placeholder="Num >= 0"/>
+              </label>
+            </label>
+            {/if}
           </div>
       </label>
       <br />
@@ -166,40 +181,63 @@
         <span>Allergies</span> {#if $errors.allergies}<span class="variant-filled-error badge">{$errors.allergies}</span>{/if}
           <div class="space-y-2">
             <label class="flex items-center space-x-2">
-              <input class="checkbox" type="checkbox" name="allergies" id="allergies" bind:group={$form.allergies} value="option 1 "/>
-              <p>Option 1</p>
+              <input class="checkbox" type="checkbox" name="allergies" id="allergies" bind:group={$form.allergies} value="Dairy "/>
+              <p>Dairy</p>
             </label>
             <label class="flex items-center space-x-2">
-              <input class="checkbox" type="checkbox" name="allergies" id="allergies" bind:group={$form.allergies} value="option 2 "/>
-              <p>Option 2</p>
+              <input class="checkbox" type="checkbox" name="allergies" id="allergies" bind:group={$form.allergies} value="Eggs "/>
+              <p>Eggs</p>
             </label>
             <label class="flex items-center space-x-2">
-              <input class="checkbox" type="checkbox" name="allergies" id="allergies" bind:group={$form.allergies} value="option 3 "/>
-              <p>Option 3</p>
+              <input class="checkbox" type="checkbox" name="allergies" id="allergies" bind:group={$form.allergies} value="Fish "/>
+              <p>Fish</p>
             </label>
+            <label class="flex items-center space-x-2">
+              <input class="checkbox" type="checkbox" name="allergies" id="allergies" bind:group={$form.allergies} value="Nuts "/>
+              <p>Nuts</p>
+            </label>
+            <label class="flex items-center space-x-2">
+              <input class="checkbox" type="checkbox" name="allergies" id="allergies" bind:group={$form.allergies} value="Shellfish "/>
+              <p>Shellfish</p>
+            </label>
+            <label class="flex items-center space-x-2">
+              <input class="checkbox" type="checkbox" name="allergies" id="allergies" bind:group={$form.allergies} value="Sesame "/>
+              <p>Sesame</p>
+            </label>
+            <label class="flex items-center space-x-2">
+              <input class="checkbox" type="checkbox" name="allergies" id="allergies" bind:group={$form.allergies} value="Soy "/>
+              <p>Soy</p>
+            </label>
+            <label class="flex items-center space-x-2">
+              <input class="checkbox" type="checkbox" name="allergies" id="allergies" bind:group={$form.allergies} value="None"/>
+              <p>None</p>
+            </label>
+            <label class="flex items-center space-x-2">
+              <input class="checkbox" type="checkbox" name="allergies" id="allergies" bind:group={$form.allergies} value="Other"/>
+              <p>Other</p>
+            </label>
+            {#if $form.allergies.includes("Other")}
+            <label class="flex items-center space-x-2">
+                <input class="input" type="text" name="oAllergies" id="oAllergies" bind:value={$form.oAllergies} placeholder="Allergen1, Allergen2, Allergen3..."/>
+            </label>
+            {/if}
           </div>
+      </label>
+      <br />
+      <label class="label">
+        <span>Concerns (Optional)</span>
+        <textarea
+          class="textarea"
+          name="otherConcerns"
+          id="otherConcerns"
+          bind:value={$form.otherConcerns}
+          placeholder="Enter any concerns you may have about being a member."
+          rows="4"
+          style="min-height: 6em;"
+        ></textarea>
       </label>
       <br />
       
-      <label class="label">
-        <span>Disabilities</span> {#if $errors.disabilities}<span class="variant-filled-error badge">{$errors.disabilities}</span>{/if}
-          <div class="space-y-2">
-            <label class="flex items-center space-x-2">
-              <input class="checkbox" type="checkbox" name="disabilities" id="disabilities" bind:group={$form.disabilities} value="option 1 "/>
-              <p>Option 1</p>
-            </label>
-            <label class="flex items-center space-x-2">
-              <input class="checkbox" type="checkbox" name="disabilities" id="disabilities" bind:group={$form.disabilities} value="option 2 "/>
-              <p>Option 2</p>
-            </label>
-            <label class="flex items-center space-x-2">
-              <input class="checkbox" type="checkbox" name="disabilities" id="disabilities" bind:group={$form.disabilities} value="option 3 "/>
-              <p>Option 3</p>
-            </label>
-          </div>
-      </label>
-      <br />
-
       <button class="btn variant-ghost-primary mt-4 hover:variant-filled-primary">Update Form</button>
     </form>
   </div>

@@ -221,7 +221,7 @@
               <p>Soy</p>
             </label>
             <label class="flex items-center space-x-2">
-              <input class="checkbox" type="checkbox" name="allergies" id="allergies" bind:group={$form.allergies} value="None "/>
+              <input class="checkbox" type="checkbox" name="allergies" id="allergies" bind:group={$form.allergies} value="None"/>
               <p>None</p>
             </label>
             <label class="flex items-center space-x-2">
@@ -250,8 +250,6 @@
       </label>
       <br />
       
-      
-
       <button class="btn variant-ghost-primary mt-4 hover:variant-filled-primary">Submit Form</button>
     </form>
   </div>
