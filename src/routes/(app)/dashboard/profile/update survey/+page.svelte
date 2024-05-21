@@ -20,11 +20,11 @@
 <div class="container w-full m-auto mt-10">
   <div class="card m-2 p-2">
     <form method="post" class="p-2 rounded-md" use:enhance>
-      <h2 class="h2">Members Survey</h2>
+      <h2 class="h2">Updating Members Survey</h2>
       <br />
 
       <label class="label">
-        <span>GitHub Username (Optional)</span>
+        <span>GitHub Username (Optional)</span> {#if $errors.gitName}<span class="variant-filled-error badge">{$errors.gitName}</span>{/if}
         <input
           class="input"
           type="text"
@@ -224,6 +224,7 @@
           </div>
       </label>
       <br />
+      
       <label class="label">
         <span>Concerns (Optional)</span>
         <textarea
@@ -237,7 +238,7 @@
         ></textarea>
       </label>
       <br />
-      
+
       <button class="btn variant-ghost-primary mt-4 hover:variant-filled-primary">Update Form</button>
     </form>
   </div>

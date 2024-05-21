@@ -1,87 +1,108 @@
-import { number, z } from 'zod';
+import { z } from 'zod';
 import type { Actions, PageServerLoad } from './$types';
 import { setError, superValidate } from 'sveltekit-superforms/server';
-import { fail } from '@sveltejs/kit';
+import { fail, redirect } from '@sveltejs/kit';
 import { db } from '$lib/db';
+import type { Nullable } from '../../../../../types';
 
 const editSurveySchema = z.object({
-  // answers to questions here
-  gitName: z.string(),
+  gitName: z.string().optional(),
   ucfEmail: z.string().email().refine(email => email.endsWith('@ucf.edu'), {
-      message: "Email must be a valid UCF email address (@ucf.edu)"
+    message: "Email must be a valid UCF email address (@ucf.edu)"
   }),
-  Major: z.string().array(),
+  Major: z.array(z.string()),
   oMajor: z.string().optional(),
   year: z.string(),
   semester: z.number(),
   shirtSize: z.string(),
   prevMem: z.string(),
-  allergies: z.string().array(),
+  allergies: z.array(z.string()),
   oAllergies: z.string().optional(),
   otherConcerns: z.string().optional()
 });
 
-let surveyID = -1;
+let surveyID: Nullable<number> = -1;
+
 export const load = (async ({ parent }) => {
   const data = await parent();
+
+  surveyID = data.member?.surveyId;
+  if (!surveyID) {
+    throw redirect(302, '/dashboard');  // or some appropriate error handling
+  }
   
-  surveyID = data.member ? data.member.surveyId || 0 : 0;
-  //@ts-ignore
-  const form = await superValidate(data.member, editSurveySchema);
+  const survey = await db.survey.findUnique({
+    where: { id: surveyID }
+  });
+
+  if (!survey) {
+    throw redirect(302, '/dashboard');  // or some appropriate error handling
+  }
+
+  // Create a form object with initial values from the survey
+  const formValues = {
+    gitName: survey.GitName || '',
+    ucfEmail: survey.UCFemail || '',
+    Major: survey.Major || [],
+    oMajor: survey.OtherMajors || '',
+    year: survey.Year || '',
+    semester: survey.NumberofSemesters || 0,
+    shirtSize: survey.ShirtSize || '',
+    prevMem: survey.PrevMem || '',
+    allergies: survey.Allergies || [],
+    oAllergies: survey.OtherAllergies || '',
+    otherConcerns: survey.Concerns || ''
+  };
+
+  const form = await superValidate(formValues, editSurveySchema);
   form.message = 'IDLE';
+
   return { user: data.member, form };
 }) satisfies PageServerLoad;
 
 export const actions: Actions = {
   default: async ({ request }) => {
+    if(!surveyID){
+      return fail(404, { surveyID})
+    }
+
     const form = await superValidate(request, editSurveySchema);
 
     if (!form.valid) {
-      // Again, return { form } and things will just work.
       form.message = 'NO';
       return fail(400, { form });
     }
-    // pull information for error handeling and constraints
-    const selectedMajors = form.data.Major.filter(major => major !== '');
-      const selectedyear = form.data.year;
-      const selectedshirtSize = form.data.shirtSize;
-      const selectedprevMem = form.data.prevMem;
-      const selectedallergies = form.data.allergies.filter(allergies => allergies !== '');
-      const enteredNum = form.data.semester;
 
-    if (
-      (await db.survey.findFirst({
-        where: {
-          UCFemail: form.data.ucfEmail
-        }
-      })) != null
-    ) {
-      return setError(form, 'ucfEmail', 'Email is already being used!');
-    }
+    const selectedMajors = form.data.Major.filter(major => major !== '');
+    const selectedyear = form.data.year;
+    const selectedshirtSize = form.data.shirtSize;
+    const selectedprevMem = form.data.prevMem;
+    const selectedallergies = form.data.allergies.filter(allergy => allergy !== '');
+    const enteredNum = form.data.semester;
+
     if (selectedMajors.length === 0) {
       return setError(form, 'Major', 'At least one of the options must be selected');
     }
     if (selectedyear === '') {
-        return setError(form, 'year', 'At least one of the options must be selected');
+      return setError(form, 'year', 'At least one of the options must be selected');
     }
     if (selectedshirtSize === '') {
-        return setError(form, 'shirtSize', 'At least one of the options must be selected');
+      return setError(form, 'shirtSize', 'At least one of the options must be selected');
     }
     if (selectedprevMem === '') {
-        return setError(form, 'prevMem', 'At least one of the options must be selected');
+      return setError(form, 'prevMem', 'At least one of the options must be selected');
     }
     if (enteredNum < 1){
-        return setError(form, 'semester', 'Please enter a number >= 0');
+      return setError(form, 'semester', 'Please enter a number >= 0');
     }
     if (enteredNum > 30){
-        return setError(form, 'semester', 'Really?');
+      return setError(form, 'semester', 'Really?');
     }
     if (selectedallergies.length === 0) {
-        return setError(form, 'allergies', 'At least one of the options must be selected');
+      return setError(form, 'allergies', 'At least one of the options must be selected');
     }
-    // New validation for allergies: "None" should not be selected with other allergies
     if (selectedallergies.includes("None") && selectedallergies.length > 1) {
-        return setError(form, 'allergies', 'Connot have both None and allergen(s) selected');
+      return setError(form, 'allergies', 'Cannot have both None and allergen(s) selected');
     }
 
     await db.survey.update({
@@ -100,6 +121,7 @@ export const actions: Actions = {
         Concerns: form.data.otherConcerns,
       }
     });
+
     form.message = 'OK';
     return { form };
   }

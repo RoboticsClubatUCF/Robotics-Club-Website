@@ -29,11 +29,11 @@
       : 'block card p-8 pointer-events-auto shadow-xl shadow-surface-500'}
   >
     <form method="POST" class="p-2 rounded-md" use:enhance>
-      <h2 class="h2">Members Survey</h2>
+      <h2 class="h2">Creating Members Survey</h2>
       <br />
 
       <label class="label">
-        <span>GitHub Username (Optional)</span>
+        <span>GitHub Username (Optional)</span> {#if $errors.gitName}<span class="variant-filled-error badge">{$errors.gitName}</span>{/if}
         <input
           class="input"
           type="text"
@@ -42,9 +42,6 @@
           placeholder="User"
           bind:value={$form.gitName}
         />
-        {#if $errors.gitName}
-          <span class="variant-filled-error badge">{$errors.gitName}</span>
-        {/if}
       </label>
       <br />
 
@@ -236,6 +233,7 @@
           </div>
       </label>
       <br />
+      
       <label class="label">
         <span>Concerns (Optional)</span>
         <textarea

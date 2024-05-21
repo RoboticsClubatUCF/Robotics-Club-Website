@@ -94,7 +94,7 @@
               <a
               id="survey"
               href="/dashboard/profile/update survey"
-              class="btn variant-ghost-secondary btn-xl">Update Members Survey
+              class="btn variant-ghost-secondary btn-xl">Members Survey
             </a>
             </div>
           </div>
