@@ -46,25 +46,26 @@ To access the Prisma database use
 npm run studio
 ```
 ## To-Do
-- [ ] News Letter/Blog Page
 - [ ] About Us Page
-- [ ] Constitution (Within About Us)
-- [ ] Public Tax Info (Within About Us)
-- [ ] Description of Officers (Within About Us)
-- [ ] Sponsors page (Within About Us)
+    - [ ] Summarry of what we do!
+    - [ ] Constitution (Within About Us)
+    - [ ] Public Tax Info (Within About Us)
+    - [ ] Description of Officers (Within About Us)
+    - [ ] Sponsors page (Within About Us)
 - [ ] Contact Us Page
-- [x] Summer Term Button (free trial)
 - [ ] Gallery Page 
 - [ ] Member’s Page
+- [ ] News Letter/Blog Page
+- [x] Summer Term Button (free trial)
 - [ ] QR Code Tracker System
 - [ ] Fading Projects Blocks
 - [ ] Github Link/Icon
 - [ ] Member's Survey
-    - [ ] Major "other" dropdown
-    - [ ] Membership history after selecting yes to "previous member?" (semester, 1 year, 2 years 3 years, etc.)
-    - [ ] Fix allergies/disabilities options
-        - [ ] Add "other" dropdown
-    - [ ] How did you hear about us (to be replaced by QR code tracking)
+    - [x] Major "other" dropdown
+    - [x] Membership history after selecting yes to "previous member?" (semester, 1 year, 2 years 3 years, etc.)
+    - [x] Fix allergies/disabilities options
+        - [x] Add "other" dropdown
+    - [ ] How did you hear about us?
 
 
 
