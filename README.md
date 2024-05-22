@@ -67,6 +67,7 @@ npm run studio
         - [x] Add "other" dropdown
     - [x] How did you hear about us?
     - [x] Forced renewal of survey (every 4 months)
+ - [ ] Custom Profile Pictures
 
 
 
