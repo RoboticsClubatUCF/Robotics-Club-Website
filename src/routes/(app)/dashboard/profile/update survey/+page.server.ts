@@ -92,7 +92,7 @@ export const actions: Actions = {
     if (selectedprevMem === '') {
       return setError(form, 'prevMem', 'At least one of the options must be selected');
     }
-    if (enteredNum < 1){
+    if (enteredNum < 1 && selectedprevMem === 'Yes'){
       return setError(form, 'semester', 'Please enter a number >= 0');
     }
     if (enteredNum > 30){
