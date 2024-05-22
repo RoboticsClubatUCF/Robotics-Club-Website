@@ -81,7 +81,7 @@
             </label>
             <label class="flex items-center space-x-2">
                 <input class="checkbox" type="checkbox" name="Major" id="Other" bind:group={$form.Major} value="Other"/>
-                <p>Other</p>
+                <p>Other</p> {#if $errors.oMajor}<span class="variant-filled-error badge">{$errors.oMajor}</span>{/if}
             </label>
             {#if $form.Major.includes("Other")}
             <label class="flex items-center space-x-2">
@@ -214,7 +214,7 @@
             </label>
             <label class="flex items-center space-x-2">
               <input class="checkbox" type="checkbox" name="allergies" id="allergies" bind:group={$form.allergies} value="Other"/>
-              <p>Other</p>
+              <p>Other</p> {#if $errors.oAllergies}<span class="variant-filled-error badge">{$errors.oAllergies}</span>{/if}
             </label>
             {#if $form.allergies.includes("Other")}
             <label class="flex items-center space-x-2">

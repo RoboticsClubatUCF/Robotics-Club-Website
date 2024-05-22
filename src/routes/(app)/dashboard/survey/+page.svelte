@@ -99,7 +99,7 @@
             </label>
             <label class="flex items-center space-x-2">
                 <input class="checkbox" type="checkbox" name="Major" id="Other" bind:group={$form.Major} value="Other"/>
-                <p>Other</p>
+                <p>Other</p> {#if $errors.oMajor}<span class="variant-filled-error badge">{$errors.oMajor}</span>{/if}
             </label>
             {#if $form.Major.includes("Other")}
             <label class="flex items-center space-x-2">
@@ -196,7 +196,7 @@
       <br />
 
       <label class="label">
-        <span>How did you discover us?</span> {#if $errors.discover}<span class="variant-filled-error badge">{$errors.discover}</span>{/if}
+        <span>How did you first discover us?</span> {#if $errors.discover}<span class="variant-filled-error badge">{$errors.discover}</span>{/if}
         <div class="space-y-2">
             <label class="flex items-center space-x-2">
                 <input class="checkbox" type="checkbox" name="discover" id="Friend(s)" bind:group={$form.discover} value="Friend(s) "/>
@@ -331,7 +331,7 @@
             </label>
             <label class="flex items-center space-x-2">
               <input class="checkbox" type="checkbox" name="allergies" id="allergies" bind:group={$form.allergies} value="Other"/>
-              <p>Other</p>
+              <p>Other</p> {#if $errors.oAllergies}<span class="variant-filled-error badge">{$errors.oAllergies}</span>{/if}
             </label>
             {#if $form.allergies.includes("Other")}
             <label class="flex items-center space-x-2">

@@ -75,6 +75,9 @@ export const actions: Actions = {
         if (selectedMajors.length === 0) {
             return setError(form, 'Major', 'At least one of the options must be selected');
         }
+        if (selectedMajors.includes("Other") && !form.data.oMajor) {
+            return setError(form, 'oMajor', 'Please enter Major');
+        }
         if (selectedyear === '') {
             return setError(form, 'year', 'At least one of the options must be selected');
         }
@@ -99,6 +102,9 @@ export const actions: Actions = {
         // New validation for allergies: "None" should not be selected with other allergies
         if (selectedallergies.includes("None") && selectedallergies.length > 1) {
             return setError(form, 'allergies', 'Connot have both None and allergen(s) selected');
+        }
+        if (selectedallergies.includes("Other") && !form.data.oAllergies) {
+            return setError(form, 'oAllergies', 'Please enter Allergen(s)');
         }
 
         // Creating survey entry in the database
