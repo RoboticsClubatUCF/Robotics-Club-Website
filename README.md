@@ -10,10 +10,10 @@ Nodejs install can be found [here](https://nodejs.org/en/download/).
 - Docker
 On Windows use docker desktop found [here](https://www.docker.com/products/docker-desktop/).
 
-On Linux lazy docker is recommended and could be found [here](https://github.com/jesseduffield/lazydocker).
+On Linux lazy docker is recommended and can be found [here](https://github.com/jesseduffield/lazydocker).
 ## Installation
 
-Most of the project is installed using npm, this should be installed alongside Nodejs. Before following the commands below make sure your within the installed dicrectory. In all you should have a docker container running postgres running, and another terminal running the svelte server + client, everything will update as you develop, or evaluate it
+Most of the project is installed using npm, this should be installed alongside Nodejs. Before following the commands below make sure your within the installed directory. In all you should have a docker container running postgres running, and another terminal running the svelte server + client, everything will update as you develop, or evaluate it
 
 
 To install Nodejs packages and dependencies from a package.json file use:
@@ -47,11 +47,13 @@ npm run studio
 ```
 ## To-Do
 - [ ] About Us Page
+    - [ ] Description of Officers (Within About Us)
     - [ ] Summarry of what we do!
+    - [ ] FRQ
     - [ ] Constitution (Within About Us)
     - [ ] Public Tax Info (Within About Us)
-    - [ ] Description of Officers (Within About Us)
-    - [ ] Sponsors page (Within About Us)
+- [ ] Sponsors page
+    - [ ] Tier List
 - [ ] Contact Us Page
 - [ ] Gallery Page 
 - [ ] Member’s Page
@@ -60,6 +62,7 @@ npm run studio
 - [ ] QR Code Tracker System
 - [ ] Fading Projects Blocks
 - [ ] Github Link/Icon
+- [ ] Edit profile as a separate button
 - [x] Member's Survey
     - [x] Major "other" dropdown
     - [x] Membership history after selecting yes to "previous member?" (semester, 1 year, 2 years 3 years, etc.)
@@ -67,7 +70,10 @@ npm run studio
         - [x] Add "other" dropdown
     - [x] How did you hear about us?
     - [x] Forced renewal of survey (every 4 months)
- - [ ] Custom Profile Pictures
+- [ ] Custom Profile Pictures
+- [ ] Actually working Forget Password
+- [ ] Custom Profile Pictures
+- [ ] Add first and last name to the survey database
 
 
 
