@@ -48,7 +48,7 @@ npm run studio
 ## To-Do
 - [ ] About Us Page
     - [ ] Description of Officers
-    - [ ] Summarry of what we do!
+    - [ ] Summary of what we do!
     - [ ] FRQ
     - [ ] Constitution
     - [ ] Public Tax Info
