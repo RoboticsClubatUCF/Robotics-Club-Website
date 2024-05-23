@@ -47,11 +47,11 @@ npm run studio
 ```
 ## To-Do
 - [ ] About Us Page
-    - [ ] Description of Officers (Within About Us)
+    - [ ] Description of Officers
     - [ ] Summarry of what we do!
     - [ ] FRQ
-    - [ ] Constitution (Within About Us)
-    - [ ] Public Tax Info (Within About Us)
+    - [ ] Constitution
+    - [ ] Public Tax Info
 - [ ] Sponsors page
     - [ ] Tier List
 - [ ] Contact Us Page
