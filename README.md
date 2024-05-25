@@ -46,14 +46,13 @@ To access the Prisma database use
 npm run studio
 ```
 ## To-Do
-- [ ] About Us Page
+- [ ] Update Home Page
     - [ ] Description of Officers
-    - [ ] Summary of what we do!
-    - [ ] FRQ
-    - [ ] Constitution
-    - [ ] Public Tax Info
+    - [ ] Update Cards
+    - [ ] FRQ section
 - [ ] Sponsors page
     - [ ] Tier List
+    - [ ] Contact us
 - [ ] Contact Us Page
 - [ ] Gallery Page 
 - [ ] Member’s Page
