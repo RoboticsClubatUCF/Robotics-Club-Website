@@ -53,6 +53,8 @@ npm run studio
 - [ ] Sponsors page
     - [ ] Tier List
     - [ ] Contact us
+- [ ] Annonomous submission/reporting system
+    - [ ] Discord bot intrgration
 - [ ] Contact Us Page
 - [ ] Gallery Page 
 - [ ] Member’s Page
@@ -71,7 +73,6 @@ npm run studio
     - [x] Forced renewal of survey (every 4 months)
 - [ ] Custom Profile Pictures
 - [ ] Actually working Forget Password
-- [ ] Custom Profile Pictures
 - [ ] Add first and last name to the survey database
 
 
