@@ -11,7 +11,7 @@
     alt="Post"
   />
   <div class="p-4 space-y-4">
-    <h6 class="h6">Projects</h6>
+    <h6 class="h4">Projects</h6>
     <article>
       <p>
         {config.information.projectStatement}

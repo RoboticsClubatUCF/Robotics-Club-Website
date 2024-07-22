@@ -13,6 +13,9 @@
   <TabAnchor href="/projects" selected={$page.url.pathname === '/projects/'}>
     <span class="capitalize">projects</span>
   </TabAnchor>
+  <TabAnchor href="/sponsors" selected={$page.url.pathname === '/sponsors/'}>
+    <span class="capitalize">sponsors</span>
+  </TabAnchor>
   <!-- <TabAnchor href="/history" selected={$page.url.pathname === '/history'}>
     <span class="capitalize">history</span>
   </TabAnchor> -->

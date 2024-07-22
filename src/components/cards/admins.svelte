@@ -3,26 +3,8 @@
 
 </script>
 
-<style>
-  .centered {
-    max-width: 100vw; /* Can be in percentage also. */
-    height: auto;
-    margin: 0 auto;
-    position: relative;
-    text-align: center;
-    animation: fadeIn 3s;
-  }
-</style>
-
-<!-- the title -->
-<div class="w-screen flex">
-  <div class="centered h1 animate" style="margin-top: 1rem">
-    Meet The Admins!
-  </div>
-</div>
-
 <!-- the acutal cards -->
-<div class="grid grid-cols-1 md:grid-cols-4 gap-8 p-8 w-full">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 w-full" style="margin-top: 2rem">
   <a class="card card-hover overflow-hidden" href="">
     <Image
       src="/photos/roboskull_black_large.jpg"
@@ -158,24 +140,4 @@
     </div>
     <hr class="opacity-50" />
   </a>
-</div>
-
-<div class="w-screen flex">
-  <div class="centered h1 animate" style="margin-top: 1.5rem">
-    FRQ & What do we Do!
-  </div>
-</div>
-
-
-
-<div class="w-screen flex">
-  <div class="centered h1 animate" style="margin-top: 1.5rem">
-    Our Constitution
-  </div>
-</div>
-
-<div class="w-screen flex">
-  <div class="centered h1 animate" style="margin-top: 1.5rem">
-    Tax Info
-  </div>
 </div>

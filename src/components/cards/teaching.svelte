@@ -10,7 +10,7 @@
     alt="Post"
   />
   <div class="p-4 space-y-4">
-    <h6 class="h6">Learning</h6>
+    <h6 class="h4">Workshops</h6>
     <article>
       <p>
         {config.information.teachingStatement}

@@ -13,17 +13,17 @@ export default {
       hero: 'Breaking down barriers'
     },
     missionStatement:
-      'The Robotics Club of Central Florida aims to further both ourselves and the field of robotics through our challenging and innovating projects. We value teamwork, perseverance, and having fun. ',
+      'The Robotics Club of Central Florida (RCCF) aims to involve students in the field of robotics and further both ourselves and the field of robotics through challenging and innovative projects. RCCF is not only a club where you go to learn about robotics but also a place to gain invaluable opportunities and skills. Anyone is welcomed so come and be a part of the club!',
     projectStatement:
-      'Students are encouraged to learn hands on skills and methods not only in the field of robotics, but engineering overall, through challenging and stimulating projects.',
+      'RCCF offers a wide variety of different projects. Every project is led by a project lead who makes sure students have everything they need to get the most out of their project and team leads that make sure students are involved and learning as much as possible. All projects are drop-in certified, meaning that no formal skills are required!',
     teachingStatement:
-      'Members are offered a multitude of learning resources, spanning from hands on workshops, to well-written documentation.',
+      'Members are also offered special workshops in which they get hands-on and use/create various components and systems. For members and non-members RCCF also offers various workshops and opportunities such as programming and resume critiques. RCCF offers a multitude of learning resources and opportunities so come visit us during one of our workshops!',
     competitionStatement:
-      'The Robotics Club of Central Florida engages in many difficult nationwide competitions, revolving around innovating current solutions, and discovering new ones.',
+      'Members of competition based projects are given the opportunity to compete against other clubs and organizations nationwide. They will get to represent the club at official competition events and gain the opportunity to connect with many industry leaders in the process. As RCCF expands as a club we’ll only get more involved in competitions so if that interests you give us a visit!',
     outreachStatement:
-      'The Robotics Club of Central Florida gives back to the community with several opportunities for members to attend events, but also to local schools and organizations looking to have an extra set of hands.',
+      'RCCF is also involved in much of the surrounding STEM communities as we aim to offer the same opportunities to as many people as possible. Members of our outreach committee often go out of their way to get involved in STEM related conventions and events such as Maker Fair and STEM Day at UCF. Members often volunteer their own time for these events so if you want to sponsor one please go check out our sponsors page!',
     researchStatement:
-      'Team Leads often host complex and exciting research through RCCF, and often get to work with bleeding edge technologies.'
+      'Our projects often include various opportunities to join and collaborate on research. Tape Measure, our resident robotic companion, is one such project that involves research. Research at RCCF is not a formal one so you get all the benefits for being a part of a research team without the pressure of a deadline or failure. RCCF research projects often involve the bleeding edge of technologies so join in on the fun!'
   },
 
   /**
