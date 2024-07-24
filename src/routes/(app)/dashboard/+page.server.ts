@@ -72,12 +72,17 @@ export const actions: Actions = {
     const form = await request.formData();
     const id = form.get('id')?.toString();
     if (id) {
+      const currentYear = new Date().getFullYear();
+      const august = new Date(currentYear, 7, 1); // August 1st
+      const dayOfWeek = august.getDay(); // Day of the week of August 1st
+      const firstDayOfFourthWeek = 22 + (7 - dayOfWeek) % 7; // Calculate the first day of the fourth week of August
+
       await db.member.update({
         where: {
           id: id
         },
         data: {
-          membershipExpDate: new Date('9 1 ' + new Date().getFullYear()),
+          membershipExpDate: new Date(currentYear, 7, firstDayOfFourthWeek), // Set the calculated date
           role: {
             connectOrCreate: {
               create: {
@@ -93,6 +98,7 @@ export const actions: Actions = {
       });
     }
   },
+  
   joinProject: async ({ request, locals }) => {
     const form = await request.formData();
     const id = Number(form.get('projectID'));

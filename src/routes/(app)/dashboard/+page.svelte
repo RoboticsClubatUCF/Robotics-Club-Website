@@ -133,7 +133,7 @@
                     <Payments userID={data.user?.id} />
                 {/if}
                 {:else}
-                  <h6 class="badge variant-filled-success">Your Dues expire on {data.user?.membershipExpDate.toDateString()}</h6>
+                  <h6 class="badge variant-filled-success">Your Dues Expire On {data.user?.membershipExpDate.toDateString()}</h6>
                   <h6 class="h6">
                     Looks like you're all set! Check back in on discord after paying dues for membership status (it can take a second or two), and look out for announcements about updates to this site!
                   </h6>
