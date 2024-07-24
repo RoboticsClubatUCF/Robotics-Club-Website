@@ -252,7 +252,7 @@ model Role {
 model Survey {
   id                Int       @id @default(autoincrement())
   Member            Member[]
-  GitName           String?   @unique
+  GitName           String?
   UCFemail          String    @unique @default("")
   Major             String[]  @default([])
   OtherMajors       String?
