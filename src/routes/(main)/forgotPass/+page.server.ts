@@ -5,6 +5,7 @@ import { z } from 'zod';
 import crypto from 'crypto';
 import postmark from 'postmark';
 import type { Actions, PageServerLoad } from './$types';
+import { POSTMARK_API_TOKEN } from '$env/static/private';
 
 const forgotPasswordSchema = z.object({
   email: z.string().email()
@@ -96,7 +97,7 @@ export const actions: Actions = {
     });
 
     // Send an email with the reset link
-    const client = new postmark.ServerClient("b8485332-0c92-408f-b0cb-4224b5164b39");
+    const client = new postmark.ServerClient(POSTMARK_API_TOKEN);
     const resetLink = `http://localhost:5173/forgotPass/reset-password?token=${token}`;
 
     try {

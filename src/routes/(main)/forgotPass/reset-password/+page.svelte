@@ -13,6 +13,10 @@
   <div class="card p-8 shadow-xl">
     <form method="POST" class="p-2 rounded-md">
       <h2 class="h2">Create New Password</h2>
+      
+      <!-- Hidden token input -->
+      <input type="hidden" name="token" value={$form.token} />
+
       <label class="label m-4">
         <span>New Password</span>
         <input
@@ -29,6 +33,7 @@
           <span class="variant-filled-error badge">{$errors.newPassword}</span>
         {/if}
       </label>
+      
       <label class="label m-4">
         <span>Confirm Password</span>
         <input
@@ -44,6 +49,7 @@
           <span class="variant-filled-error badge">{$errors.confirmPass}</span>
         {/if}
       </label>
+
       <button class="btn variant-ghost-primary m-4 hover:variant-filled-primary">Submit</button>
     </form>
   </div>
