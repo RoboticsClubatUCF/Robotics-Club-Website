@@ -204,26 +204,27 @@ model Project {
 }
 
 model Member {
-  id                 String     @id @unique @default(uuid())
+  id                 String              @id @unique @default(uuid())
   firstName          String
   lastName           String?
-  email              String     @unique
-  discordProfileName String     @unique
+  email              String              @unique
+  discordProfileName String              @unique
   passwordHash       String
-  AuthToken          String     @unique @default(value: uuid())
-  membershipExpDate  DateTime   @default(now())
-  joinedAt           DateTime   @default(now())
-  updatedAt          DateTime   @updatedAt
-  role               Role       @relation(fields: [roleId], references: [id])
+  AuthToken          String              @unique @default(value: uuid())
+  membershipExpDate  DateTime            @default(now())
+  joinedAt           DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  role               Role                @relation(fields: [roleId], references: [id])
   roleId             Int
   Articles           Article[]
   Projects           Project[]
   BlogPost           BlogPost[]
-  Account            Account?   @relation(fields: [accountId], references: [id])
+  Account            Account?            @relation(fields: [accountId], references: [id])
   accountId          Int?
   Teams              Team[]
-  Survey             Survey?    @relation(fields: [surveyId], references: [id])
+  Survey             Survey?             @relation(fields: [surveyId], references: [id])
   surveyId           Int?
+  PasswordResetToken PasswordResetToken?
 }
 
 model Sponsor {
@@ -266,6 +267,14 @@ model Survey {
   DiscoveredThrough String[]  @default([])
   DateCreated       DateTime  @default(now())
   DateUpdated       DateTime? @updatedAt
+}
+
+model PasswordResetToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  expiresAt DateTime
+  userId    String   @unique
+  user      Member   @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 enum Season {

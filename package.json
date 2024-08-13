@@ -62,7 +62,8 @@
     "stripe": "^14.14.0",
     "svelte-icons": "^2.1.0",
     "svelte-stripe": "^1.1.4",
-    "date-fns": "3.6.0"
+    "date-fns": "3.6.0",
+    "postmark": "4.0.4"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
