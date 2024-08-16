@@ -104,7 +104,7 @@ export const actions: Actions = {
 
     // Send an email with the reset link
     const client = new postmark.ServerClient(POSTMARK_API_TOKEN);
-    const resetLink = `http://localhost:5173/forgotPass/reset-password?token=${token}`;
+    const resetLink = `http://rccf.club/forgotPass/reset-password?token=${token}`;
 
     try {
       await client.sendEmailWithTemplate({
