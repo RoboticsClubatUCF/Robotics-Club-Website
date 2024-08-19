@@ -7,7 +7,7 @@ export async function GET({ url }) {
     where: {
       role: {
         permissionLevel: {
-          gte: 4
+          gte: 1
         }
       }
     }

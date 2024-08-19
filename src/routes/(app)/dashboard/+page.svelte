@@ -4,7 +4,7 @@
     AppShell,
     type DrawerSettings,
     getDrawerStore,
-    modeCurrent
+    modeCurrent,
   } from '@skeletonlabs/skeleton';
   import type { PageServerData } from './$types';
   import { superForm } from 'sveltekit-superforms/client';
@@ -13,12 +13,18 @@
   import RightSideBar from '../../../components/dashboard/rightSidebar/rightSideBar.svelte';
   import Payments from '../../../components/stripe/payments.svelte';
   import { enhance } from '$app/forms';
+  import { Autocomplete, popup } from '@skeletonlabs/skeleton';
+  import type { AutocompleteOption, PopupSettings } from '@skeletonlabs/skeleton';
+  import successToast from '../../../components/toasts/successToast';
+  import failToast from '../../../components/toasts/failToast';
   
   export let data: PageServerData;
-  const { form, errors, constraints } = superForm(data.form, {
+  const { form, errors, constraints, message } = superForm(data.form, {
     clearOnSubmit: 'errors-and-message'
   });
+
   const drawerStore = getDrawerStore();
+
   const drawerSettingsLeft: DrawerSettings = {
     id: 'dashboard1',
     meta: {
@@ -26,6 +32,7 @@
       teams: data.user?.Teams
     }
   };
+
   const drawerSettingsRight: DrawerSettings = {
     id: 'dashboard2',
     position: 'right',
@@ -55,7 +62,56 @@
       break;
     }
   }
+  
+  let selectedMemberId: string | null = null;
+  let change: boolean | null = false;
+  let input: string = '';
+
+  let popupSettings: PopupSettings = {
+    event: 'focus-click',  // Trigger popup on focus and click
+    target: 'popupAutocomplete',  // The ID to target for the popup
+    placement: 'bottom'  // Position the popup below the input
+  };
+
+  // Map members from the database for autocomplete options
+  const memberOptions: AutocompleteOption[] = data.members.map(member => ({
+    label: `${member.firstName} ${member.lastName}`,
+    value: member.id,
+    keywords: `${member.firstName} ${member.lastName}, ${member.discordProfileName}`,
+    meta: {}
+  }));
+
+  // Handle member selection from autocomplete
+  function onMemberSelection(event: CustomEvent<AutocompleteOption>): void {
+    input = event.detail.label;  // Update input field with selected member's name
+    selectedMemberId = event.detail.value as string | null;  // Store selected member ID
+    console.log(selectedMemberId);
+  }
+
+  let selectedAdminId: string | null = null;
+  let changeAdmin: boolean | null = false;
+  let adminInput: string = '';
+
+function onAdminSelection(event: CustomEvent<AutocompleteOption>): void {
+  adminInput = event.detail.label;  // Update input field with selected admin's name
+  selectedAdminId = event.detail.value as string | null;  // Store selected admin ID
+  console.log(selectedAdminId);
+}
+
+$: if ($message === 'OK') {
+  successToast('Configuration Updated Successfully!');
+}else if ($message === 'NO') {
+  failToast('Error 404, Member Not Found');
+}
+
 </script>
+
+<style>
+.scroll_div{
+  overflow: auto;
+  max-height: 100px;
+}
+</style>
 
 <AppShell>
   <svelte:fragment slot="header">
@@ -144,6 +200,108 @@
         {#if !((data.user?.membershipExpDate.getTime() ?? 0) < new Date().getTime())}
           <br />
         {/if}
+        
+        {#if data.user?.role.permissionLevel > 1}
+        <div class={$modeCurrent ? 'block card p-8 pointer-events-auto shadow-m shadow-surface-300 justify-center' : 'block card p-8 pointer-events-auto shadow-m shadow-surface-500 justify-center'}>
+          <div class="p-2 rounded-md">
+            <h2 class="h2">
+              {data.user?.role?.name?.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')} Dashboard
+            </h2>
+            <!-- Get to set president, admin, & officers -->
+            {#if data.user?.role.permissionLevel >= 5}
+              <br />
+              {#if data.user?.role.name === "admin"}
+              <div>
+                <h6 class="h5">
+                  Configure President Position
+                </h6>
+                {#if data.currentPresident && !change}
+                  <p>Current President: {data.currentPresident.firstName} {data.currentPresident.lastName}</p>
+                  <button type="submit" class="btn variant-ghost-tertiary hover:variant-filled-tertiary mt-1" on:click={() => selectedMemberId = null} on:click={() => change = true}>Change</button>
+                {/if}
+    
+                {#if !data.currentPresident || change}
+                  <input
+                    class="input autocomplete"
+                    type="search"
+                    name="autocomplete-search"
+                    bind:value={input}
+                    placeholder="Search for a member..."
+                    use:popup={popupSettings}
+                  />
+                  <div class="card p-4 w-72 shadow-xl scroll_div" data-popup="popupAutocomplete">
+                    <Autocomplete
+                      bind:input={input}
+                      options={memberOptions}
+                      on:selection={onMemberSelection}
+                    />
+                  </div>
+                  <form action="?/changePresident" method="post" use:enhance on:submit={() => change = false}>
+                    <input type="hidden" name="presidentId" value={selectedMemberId} />
+                    <button type="submit" class="btn variant-ghost-tertiary hover:variant-filled-tertiary mt-2">Confirm Appointment</button>
+                  </form>
+                {/if}
+              </div>
+              {/if}
+              {#if data.user?.role.name === "president"}
+              <div>
+                <h6 class="h5">Configure Admin Position</h6>
+                
+                {#if data.currentAdmin && !changeAdmin}
+                  <p>Current Admin: {data.currentAdmin.firstName} {data.currentAdmin.lastName}</p>
+                  <button type="submit" class="btn variant-ghost-tertiary hover:variant-filled-tertiary mt-1" on:click={() => selectedAdminId = null} on:click={() => changeAdmin = true}>Change Admin</button>
+                {/if}
+            
+                {#if !data.currentAdmin || changeAdmin}
+                  <input
+                    class="input autocomplete"
+                    type="search"
+                    name="autocomplete-search-admin"
+                    bind:value={adminInput}
+                    placeholder="Search for a member..."
+                    use:popup={popupSettings}
+                  />
+                  <div class="card p-4 w-72 shadow-xl scroll_div" data-popup="popupAutocomplete">
+                    <Autocomplete
+                      bind:input={adminInput}
+                      options={memberOptions}
+                      on:selection={onAdminSelection}
+                    />
+                  </div>
+                  <form action="?/changeAdmin" method="post" use:enhance on:submit={() => changeAdmin = false}>
+                    <input type="hidden" name="adminId" value={selectedAdminId} />
+                    <button type="submit" class="btn variant-ghost-tertiary hover:variant-filled-tertiary mt-2">Confirm Appointment</button>
+                  </form>
+                {/if}
+              </div>
+            {/if}
+                        
+            {/if}
+              <!-- Get to set project leads-->
+            {#if data.user?.role.permissionLevel >= 4}
+              <br />
+              <h6 class="h5">
+                Configure Project Leads
+              </h6>
+            {/if}
+              <!-- Get to create teams & set team leads -->
+            {#if data.user?.role.permissionLevel >= 3}
+              <br />
+              <h6 class="h5">
+                Configure Teams & Team Leads
+              </h6>
+            {/if}
+              <!-- Get to assign people into their team -->
+            {#if data.user?.role.permissionLevel >= 2}
+              <br />
+              <h6 class="h5">
+                Configure Teams
+              </h6>
+            {/if}
+          </div>
+        </div>
+        {/if}
+
         {#if (data.user?.membershipExpDate.getTime() ?? 0) > new Date().getTime()}
           <Feed />
         {/if}
