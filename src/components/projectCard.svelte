@@ -5,7 +5,7 @@
   let hover = false;
 </script>
 
-<a href="./projects/{project.id}">
+<a href="/projects/{project.id}">
   <div
     class="card h-72 max-w-72 rounded-lg relative"
     on:mouseenter={() => {
