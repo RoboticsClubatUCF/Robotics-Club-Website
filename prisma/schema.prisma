@@ -121,8 +121,8 @@ model Picture {
   id        Int        @id @default(autoincrement())
   title     String?
   caption   String?
-  data      String?
-  isLocal   Boolean    @default(value: true)
+  data      String? 
+  isLocal   Boolean    @default(value: false)
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   Article   Article[]
@@ -165,6 +165,8 @@ model Article {
 model Team {
   id         String   @id @unique @default(uuid())
   name       String
+  teamLead   Member?  @relation("TeamLead", fields: [teamLeadId], references: [id])
+  teamLeadId String? // Foreign key for team lead
   members    Member[]
   maxMembers Int
   minMembers Int
@@ -186,10 +188,10 @@ model Project {
   updatedAt          DateTime             @updatedAt
   description        String
   logo               Picture?             @relation(fields: [pictureId], references: [id])
-  budget             Float
+  budget             Float?
   docsLink           String               @default("")
   extraLinks         Link[]
-  remainingFunds     Float
+  remainingFunds     Float?
   season             Season               @default(value: Fall)
   year               Int
   articles           Article[]
@@ -200,6 +202,8 @@ model Project {
   Tags               Tag[]
   Skills             String[]
   projectType        projectType          @default(value: standard)
+  projectLead        Member?              @relation("ProjectLead", fields: [projectLeadId], references: [id])
+  projectLeadId      String? // Foreign key for project lead
   teams              Team[] // possibility for no teams created if project does not require them
 }
 
@@ -217,14 +221,16 @@ model Member {
   role               Role                @relation(fields: [roleId], references: [id])
   roleId             Int
   Articles           Article[]
-  Projects           Project[]
   BlogPost           BlogPost[]
   Account            Account?            @relation(fields: [accountId], references: [id])
   accountId          Int?
+  Projects           Project[]
   Teams              Team[]
   Survey             Survey?             @relation(fields: [surveyId], references: [id])
   surveyId           Int?
   PasswordResetToken PasswordResetToken?
+  teamLead           Team[]              @relation("TeamLead")
+  projectLead        Project[]           @relation("ProjectLead")
 }
 
 model Sponsor {

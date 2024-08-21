@@ -1,11 +1,4 @@
 <script lang="ts">
-  import {
-    AppBar,
-    AppShell,
-    type DrawerSettings,
-    getDrawerStore,
-    modeCurrent
-  } from '@skeletonlabs/skeleton';
   import { superForm } from 'sveltekit-superforms/client';
   import type { PageData } from './$types';
   import successToast from '../../../../../components/toasts/successToast';

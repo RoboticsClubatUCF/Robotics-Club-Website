@@ -281,8 +281,12 @@ $: if ($message === 'OK') {
             {#if data.user?.role.permissionLevel >= 4}
               <br />
               <h6 class="h5">
-                Configure Project Leads
+                Configure Projects
               </h6>
+              <p>Select or Create a Project</p>
+              <a href="/dashboard/create-project" class="btn variant-ghost-tertiary hover:variant-filled-tertiary">Create Project</a>
+              <a href="/dashboard/edit-projects" class="btn variant-ghost-tertiary hover:variant-filled-tertiary">Edit Project</a>
+
             {/if}
               <!-- Get to create teams & set team leads -->
             {#if data.user?.role.permissionLevel >= 3}

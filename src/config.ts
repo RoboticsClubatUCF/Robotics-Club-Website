@@ -51,7 +51,7 @@ export default {
     },
     team_lead: {
       level: 2,
-      name: 'lead'
+      name: ' team lead'
     },
     member: {
       level: 1,

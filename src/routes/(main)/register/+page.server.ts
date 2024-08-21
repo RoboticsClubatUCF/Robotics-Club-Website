@@ -4,7 +4,7 @@ import { randomUUID } from 'crypto';
 import { setError, superValidate } from 'sveltekit-superforms/server';
 import { z } from 'zod';
 import generatePassword from '../../../components/scripts/generatePass';
-import config from '../../../config';
+import config from '../../../config.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 const registerSchema = z.object({

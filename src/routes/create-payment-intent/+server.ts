@@ -1,6 +1,6 @@
 import Stripe from 'stripe';
 import { SECRET_STRIPE_KEY } from '$env/static/private';
-import config from '../../config';
+import config from '../../config.ts';
 import { duesType } from '../../stores';
 import { get } from 'svelte/store';
 

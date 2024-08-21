@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { Actions, PageData, PageServerLoad } from './$types';
 import { setError, superValidate } from 'sveltekit-superforms/server';
 import semesterYear from '../../../components/scripts/semesterYear';
-import config from '../../../config';
+import config from '../../../config.ts';
 
 const updateDuesSchema = z.object({
   email: z.string().email(),
