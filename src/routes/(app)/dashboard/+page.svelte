@@ -92,17 +92,17 @@
   let changeAdmin: boolean | null = false;
   let adminInput: string = '';
 
-function onAdminSelection(event: CustomEvent<AutocompleteOption>): void {
-  adminInput = event.detail.label;  // Update input field with selected admin's name
-  selectedAdminId = event.detail.value as string | null;  // Store selected admin ID
-  console.log(selectedAdminId);
-}
+  function onAdminSelection(event: CustomEvent<AutocompleteOption>): void {
+    adminInput = event.detail.label;  // Update input field with selected admin's name
+    selectedAdminId = event.detail.value as string | null;  // Store selected admin ID
+    // console.log(selectedAdminId);
+  }
 
-$: if ($message === 'OK') {
-  successToast('Configuration Updated Successfully!');
-}else if ($message === 'NO') {
-  failToast('Error 404, Member Not Found');
-}
+  $: if ($message === 'OK') {
+    successToast('Configuration Updated Successfully!');
+  }else if ($message === 'NO') {
+    failToast('Error 404, Member Not Found');
+  }
 
 </script>
 
@@ -291,16 +291,23 @@ $: if ($message === 'OK') {
               <!-- Get to create teams & set team leads -->
             {#if data.user?.role.permissionLevel >= 3}
               <br />
+              <br />
               <h6 class="h5">
                 Configure Teams & Team Leads
               </h6>
+              <p>Create, Edit, or Mange a Team</p>
+              <a href="/dashboard/create-team" class="btn variant-ghost-tertiary hover:variant-filled-tertiary">Create Team</a>
+              <a href="/dashboard/edit-teams" class="btn variant-ghost-tertiary hover:variant-filled-tertiary">Edit Team</a>
             {/if}
               <!-- Get to assign people into their team -->
             {#if data.user?.role.permissionLevel >= 2}
               <br />
+              <br />
               <h6 class="h5">
                 Configure Teams
               </h6>
+              <p>Appoint Members to a Team</p>
+              <a href="/dashboard/appoint-to-team" class="btn variant-ghost-tertiary hover:variant-filled-tertiary">Appoint to Team</a>
             {/if}
           </div>
         </div>
