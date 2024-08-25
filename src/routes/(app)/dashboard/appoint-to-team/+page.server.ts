@@ -56,23 +56,29 @@ export const actions: Actions = {
         if (!form.valid) {
             return fail(400, { form });
         }
+        console.log("Received Team ID:", form.data.teamId); // Verify received teamId
+        console.log("Received Members:", form.data.members); // Verify received members
 
-        for(let i = 0; i < form.data.members.length; i++){
-            console.log(form.data.members[i]);
-            console.log(form.data.teamId);
-            await db.team.update({
-                where: {
-                    id: form.data.teamId,
+        // Split the string of member IDs into an array
+        const memberIdsArray = form.data.members[0].split(',');
+
+        // Map the array of member IDs to the format required by Prisma
+        const memberConnections = memberIdsArray.map((memberId) => ({
+            id: memberId.trim(),
+        }));
+
+        // Update the team with the connected members
+        await db.team.update({
+            where: {
+                id: form.data.teamId,
+            },
+            data: {
+                members: {
+                    connect: memberConnections,
                 },
-                data: {
-                    members: {
-                        connect:{
-                            id: form.data.members[i]
-                        }
-                    }
-                }
-            })
-        }
+            },
+        });
+        
 
         throw redirect(302, '/dashboard');
     }

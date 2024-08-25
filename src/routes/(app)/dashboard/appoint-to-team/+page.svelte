@@ -6,7 +6,7 @@
     import { injectDots } from "../../../../components/pixijs/dotsAnimation";
     import { Autocomplete, popup } from '@skeletonlabs/skeleton';
     import type { AutocompleteOption, PopupSettings } from '@skeletonlabs/skeleton';
-  import { append } from "svelte/internal";
+    import { append } from "svelte/internal";
   
     export let data: PageServerData;
     const { form, errors, constraints, enhance, message } = superForm(data.form, {
@@ -23,7 +23,7 @@
     let memInput: string = '';
     let inputList: string[] = [];  // Initialize as an empty array
     let memIdList: string[] = [];  // Initialize as an empty array
-    let teamId: string | unknown = '';
+    let teamId: string = '';
     let popupSettingsTeam: PopupSettings = {
         event: 'focus-click',
         target: 'popupAutocompleteTeam',
@@ -40,15 +40,16 @@
     const memberOptions: AutocompleteOption[] = data.members.map(member => ({
         label: `${member.firstName} ${member.lastName}`,
         value: member.id,
-        keywords: `${member.firstName} ${member.lastName}, ${member.discordProfileName}`,
+        keywords: `${member.firstName} ${member.lastName}, ${member.firstName}, ${member.lastName}, ${member.discordProfileName}`,
         meta: {}
     }));
 
     function onTeamSelection(event: CustomEvent<AutocompleteOption>): void {
-        input = event.detail.label;  // Update input field with selected admin's name
-        teamId = event.detail.value;
-        console.log(inputList)
+        input = event.detail.label;
+        teamId = event.detail.value as string;
+        // console.log("Selected Team ID:", teamId); // Debugging line
     }
+
 
     function onMemberSelection(event: CustomEvent<AutocompleteOption>): void {
         memInput = event.detail.label;  // Update input field with selected admin's name
@@ -88,6 +89,7 @@
             name="autocomplete-search-lead"
             bind:value={input}
             placeholder="Search..."
+            autocomplete="off"
             use:popup={popupSettingsTeam}
             />
             <div class="card p-4 w-72 shadow-xl scroll_div" data-popup="popupAutocompleteTeam">
