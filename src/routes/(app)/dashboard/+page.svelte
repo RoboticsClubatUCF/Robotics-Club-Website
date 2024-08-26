@@ -55,6 +55,25 @@
       break;
     }
   }
+
+  function isSummerPeriod() {
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    
+    // Calculate the date of the fourth week in August (matching the original code)
+    const august = new Date(currentYear, 7, 1);
+    const dayOfWeek = august.getDay();
+    const firstDayOfFourthWeek = 22 + (7 - dayOfWeek) % 7;
+    const fourthWeekInAugust = new Date(currentYear, 7, firstDayOfFourthWeek);
+    
+    // Set start date to May 1st
+    const startDate = new Date(currentYear, 4, 1);
+    
+    // console.log("Start: ", startDate);
+    // console.log("End: ", fourthWeekInAugust);
+    
+    return currentDate >= startDate && currentDate <= fourthWeekInAugust;
+  }
 </script>
 
 <AppShell>
@@ -117,7 +136,7 @@
             </h2>
             <br />
             
-            {#if (data.user?.membershipExpDate.getTime() ?? 0) < new Date().getTime() && new Date().getMonth() <= 8 && new Date().getMonth() >= 4}
+            {#if (data.user?.membershipExpDate.getTime() ?? 0) < new Date().getTime() && isSummerPeriod()}
               {#if data.user?.id}
                 <form action="?/summerRole" method="post" use:enhance>
                   <input type="hidden" name="id" bind:value={data.user.id} />
