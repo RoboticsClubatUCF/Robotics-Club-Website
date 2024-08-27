@@ -167,7 +167,7 @@
             </label>
             {#if $form.prevMem.includes("Yes")}
             <label class="label">
-              <span>Number of Semester(s)? </span>{#if $errors.semester}<span class="variant-filled-error badge">{$errors.semester}</span>{/if}
+              <span>Number of Semester(s) you have been in the club? </span>{#if $errors.semester}<span class="variant-filled-error badge">{$errors.semester}</span>{/if}
               <label class="flex items-center space-x-2">
                   <input class="input" type="text" name="semester" id="semester" bind:value={$form.semester} placeholder="Num >= 0"/>
               </label>
