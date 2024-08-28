@@ -104,13 +104,32 @@
     failToast('Error 404, Member Not Found');
   }
 
+  function isSummerPeriod() {
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    
+    // Calculate the date of the fourth week in August (matching the original code)
+    const august = new Date(currentYear, 7, 1);
+    const dayOfWeek = august.getDay();
+    const firstDayOfFourthWeek = 22 + (7 - dayOfWeek) % 7;
+    const fourthWeekInAugust = new Date(currentYear, 7, firstDayOfFourthWeek);
+    
+    // Set start date to May 1st
+    const startDate = new Date(currentYear, 4, 1);
+    
+    // console.log("Start: ", startDate);
+    // console.log("End: ", fourthWeekInAugust);
+    
+    return currentDate >= startDate && currentDate <= fourthWeekInAugust;
+  }
+
 </script>
 
 <style>
-.scroll_div{
-  overflow: auto;
-  max-height: 100px;
-}
+  .scroll_div{
+    overflow: auto;
+    max-height: 100px;
+  }
 </style>
 
 <AppShell>
@@ -172,148 +191,145 @@
               {/if}
             </h2>
             <br />
-            
-            {#if (data.user?.membershipExpDate.getTime() ?? 0) < new Date().getTime() && new Date().getMonth() <= 8 && new Date().getMonth() >= 4}
+
+            {#if (data.user?.membershipExpDate.getTime() ?? 0) < new Date().getTime() && isSummerPeriod()}
               {#if data.user?.id}
                 <form action="?/summerRole" method="post" use:enhance>
                   <input type="hidden" name="id" bind:value={data.user.id} />
                   <button type="submit" class="btn variant-ghost-tertiary hover:variant-filled-tertiary">Join As a Summer Member!</button>
                 </form>
               {/if}
-              {:else}
-                {#if (data.user?.membershipExpDate.getTime() ?? 0) < new Date().getTime()}
-                  <h6 class="badge variant-filled-error">Looks like your dues are expired!</h6>
-                  <hr />
-                  <br class="h-5" />
-                  {#if data.user?.id}
-                    <Payments userID={data.user?.id} />
-                {/if}
-                {:else}
-                  <h6 class="badge variant-filled-success">Your Dues Expire On {data.user?.membershipExpDate.toDateString()}</h6>
-                  <h6 class="h6">
-                    Looks like you're all set! Check back in on discord after paying dues for membership status (it can take a second or two), and look out for announcements about updates to this site!
-                  </h6>
-                {/if}
-            {/if}
-          </div>
-        </div>
-        {#if !((data.user?.membershipExpDate.getTime() ?? 0) < new Date().getTime())}
-          <br />
-        {/if}
-        
-        {#if data.user?.role.permissionLevel > 1}
-        <div class={$modeCurrent ? 'block card p-8 pointer-events-auto shadow-m shadow-surface-300 justify-center' : 'block card p-8 pointer-events-auto shadow-m shadow-surface-500 justify-center'}>
-          <div class="p-2 rounded-md">
-            <h2 class="h2">
-              {data.user?.role?.name?.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')} Dashboard
-            </h2>
-            <!-- Get to set president, admin, & officers -->
-            {#if data.user?.role.permissionLevel >= 5}
-              <br />
-              {#if data.user?.role.name === "admin"}
-              <div>
-                <h6 class="h5">
-                  Configure President Position
-                </h6>
-                {#if data.currentPresident && !change}
-                  <p>Current President: {data.currentPresident.firstName} {data.currentPresident.lastName}</p>
-                  <button type="submit" class="btn variant-ghost-tertiary hover:variant-filled-tertiary mt-1" on:click={() => selectedMemberId = null} on:click={() => change = true}>Change</button>
-                {/if}
-    
-                {#if !data.currentPresident || change}
-                  <input
-                    class="input autocomplete"
-                    type="search"
-                    name="autocomplete-search"
-                    bind:value={input}
-                    placeholder="Search for a member..."
-                    use:popup={popupSettings}
-                  />
-                  <div class="card p-4 w-72 shadow-xl scroll_div" data-popup="popupAutocomplete">
-                    <Autocomplete
-                      bind:input={input}
-                      options={memberOptions}
-                      on:selection={onMemberSelection}
-                    />
-                  </div>
-                  <form action="?/changePresident" method="post" use:enhance on:submit={() => change = false}>
-                    <input type="hidden" name="presidentId" value={selectedMemberId} />
-                    <button type="submit" class="btn variant-ghost-tertiary hover:variant-filled-tertiary mt-2">Confirm Appointment</button>
-                  </form>
-                {/if}
-              </div>
+            {:else}
+              {#if (data.user?.membershipExpDate.getTime() ?? 0) < new Date().getTime()}
+                <h6 class="badge variant-filled-error">Looks like your dues are expired!</h6>
+                <hr />
+                <br class="h-5" />
+                {#if data.user?.id}
+                  <Payments userID={data.user?.id} />
               {/if}
-              {#if data.user?.role.name === "president"}
-              <div>
-                <h6 class="h5">Configure Admin Position</h6>
-                
-                {#if data.currentAdmin && !changeAdmin}
-                  <p>Current Admin: {data.currentAdmin.firstName} {data.currentAdmin.lastName}</p>
-                  <button type="submit" class="btn variant-ghost-tertiary hover:variant-filled-tertiary mt-1" on:click={() => selectedAdminId = null} on:click={() => changeAdmin = true}>Change Admin</button>
-                {/if}
-            
-                {#if !data.currentAdmin || changeAdmin}
-                  <input
-                    class="input autocomplete"
-                    type="search"
-                    name="autocomplete-search-admin"
-                    bind:value={adminInput}
-                    placeholder="Search for a member..."
-                    use:popup={popupSettings}
-                  />
-                  <div class="card p-4 w-72 shadow-xl scroll_div" data-popup="popupAutocomplete">
-                    <Autocomplete
-                      bind:input={adminInput}
-                      options={memberOptions}
-                      on:selection={onAdminSelection}
-                    />
-                  </div>
-                  <form action="?/changeAdmin" method="post" use:enhance on:submit={() => changeAdmin = false}>
-                    <input type="hidden" name="adminId" value={selectedAdminId} />
-                    <button type="submit" class="btn variant-ghost-tertiary hover:variant-filled-tertiary mt-2">Confirm Appointment</button>
-                  </form>
-                {/if}
-              </div>
-            {/if}
-                        
-            {/if}
-              <!-- Get to set project leads-->
-            {#if data.user?.role.permissionLevel >= 4}
-              <br />
-              <h6 class="h5">
-                Configure Projects
-              </h6>
-              <p>Select or Create a Project</p>
-              <a href="/dashboard/create-project" class="btn variant-ghost-tertiary hover:variant-filled-tertiary">Create Project</a>
-              <a href="/dashboard/edit-projects" class="btn variant-ghost-tertiary hover:variant-filled-tertiary">Edit Project</a>
-
-            {/if}
-              <!-- Get to create teams & set team leads -->
-            {#if data.user?.role.permissionLevel >= 3}
-              <br />
-              <br />
-              <h6 class="h5">
-                Configure Teams & Team Leads
-              </h6>
-              <p>Create, Edit, or Mange a Team</p>
-              <a href="/dashboard/create-team" class="btn variant-ghost-tertiary hover:variant-filled-tertiary">Create Team</a>
-              <a href="/dashboard/edit-teams" class="btn variant-ghost-tertiary hover:variant-filled-tertiary">Edit Team</a>
-            {/if}
-              <!-- Get to assign people into their team -->
-            {#if data.user?.role.permissionLevel >= 2}
-              <br />
-              <br />
-              <h6 class="h5">
-                Configure Teams
-              </h6>
-              <p>Appoint Members to a Team</p>
-              <a href="/dashboard/appoint-to-team" class="btn variant-ghost-tertiary hover:variant-filled-tertiary">Appoint to Team</a>
+              {:else}
+                <h6 class="badge variant-filled-success">Your Dues Expire On {data.user?.membershipExpDate.toDateString()}</h6>
+                <h6 class="h6">
+                  Looks like you're all set! Check back in on discord after paying dues for membership status (it can take a minute or two), and look out for announcements about updates to this site!
+                </h6>
+              {/if}
             {/if}
           </div>
         </div>
-        {/if}
 
         {#if (data.user?.membershipExpDate.getTime() ?? 0) > new Date().getTime()}
+        <br/>
+          {#if data.user?.role.permissionLevel > 1}
+          <div class={$modeCurrent ? 'block card p-8 pointer-events-auto shadow-m shadow-surface-300 justify-center' : 'block card p-8 pointer-events-auto shadow-m shadow-surface-500 justify-center'}>
+            <div class="p-2 rounded-md">
+              <h2 class="h2">
+                {data.user?.role?.name?.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')} Dashboard
+              </h2>
+              <!-- Get to set president, admin, & officers -->
+              {#if data.user?.role.permissionLevel >= 5}
+                <br />
+                {#if data.user?.role.name === "admin"}
+                <div>
+                  <h6 class="h5">
+                    Configure President Position
+                  </h6>
+                  {#if data.currentPresident && !change}
+                    <p>Current President: {data.currentPresident.firstName} {data.currentPresident.lastName}</p>
+                    <button type="submit" class="btn variant-ghost-tertiary hover:variant-filled-tertiary mt-1" on:click={() => selectedMemberId = null} on:click={() => change = true}>Change</button>
+                  {/if}
+      
+                  {#if !data.currentPresident || change}
+                    <input
+                      class="input autocomplete"
+                      type="search"
+                      name="autocomplete-search"
+                      bind:value={input}
+                      placeholder="Search for a member..."
+                      use:popup={popupSettings}
+                    />
+                    <div class="card p-4 w-72 shadow-xl scroll_div" data-popup="popupAutocomplete">
+                      <Autocomplete
+                        bind:input={input}
+                        options={memberOptions}
+                        on:selection={onMemberSelection}
+                      />
+                    </div>
+                    <form action="?/changePresident" method="post" use:enhance on:submit={() => change = false}>
+                      <input type="hidden" name="presidentId" value={selectedMemberId} />
+                      <button type="submit" class="btn variant-ghost-tertiary hover:variant-filled-tertiary mt-2">Confirm Appointment</button>
+                    </form>
+                  {/if}
+                </div>
+                {/if}
+                {#if data.user?.role.name === "president"}
+                <div>
+                  <h6 class="h5">Configure Admin Position</h6>
+                  
+                  {#if data.currentAdmin && !changeAdmin}
+                    <p>Current Admin: {data.currentAdmin.firstName} {data.currentAdmin.lastName}</p>
+                    <button type="submit" class="btn variant-ghost-tertiary hover:variant-filled-tertiary mt-1" on:click={() => selectedAdminId = null} on:click={() => changeAdmin = true}>Change Admin</button>
+                  {/if}
+              
+                  {#if !data.currentAdmin || changeAdmin}
+                    <input
+                      class="input autocomplete"
+                      type="search"
+                      name="autocomplete-search-admin"
+                      bind:value={adminInput}
+                      placeholder="Search for a member..."
+                      use:popup={popupSettings}
+                    />
+                    <div class="card p-4 w-72 shadow-xl scroll_div" data-popup="popupAutocomplete">
+                      <Autocomplete
+                        bind:input={adminInput}
+                        options={memberOptions}
+                        on:selection={onAdminSelection}
+                      />
+                    </div>
+                    <form action="?/changeAdmin" method="post" use:enhance on:submit={() => changeAdmin = false}>
+                      <input type="hidden" name="adminId" value={selectedAdminId} />
+                      <button type="submit" class="btn variant-ghost-tertiary hover:variant-filled-tertiary mt-2">Confirm Appointment</button>
+                    </form>
+                  {/if}
+                </div>
+              {/if}
+                          
+              {/if}
+                <!-- Get to set project leads-->
+              {#if data.user?.role.permissionLevel >= 4}
+                <br />
+                <h6 class="h5">
+                  Configure Projects
+                </h6>
+                <p>Select or Create a Project</p>
+                <a href="/dashboard/create-project" class="btn variant-ghost-tertiary hover:variant-filled-tertiary">Create Project</a>
+                <a href="/dashboard/edit-projects" class="btn variant-ghost-tertiary hover:variant-filled-tertiary">Edit Project</a>
+
+              {/if}
+                <!-- Get to create teams & set team leads -->
+              {#if data.user?.role.permissionLevel >= 3}
+                <br />
+                <br />
+                <h6 class="h5">
+                  Configure Teams & Team Leads
+                </h6>
+                <p>Create, Edit, or Mange a Team</p>
+                <a href="/dashboard/create-team" class="btn variant-ghost-tertiary hover:variant-filled-tertiary">Create Team</a>
+                <a href="/dashboard/edit-teams" class="btn variant-ghost-tertiary hover:variant-filled-tertiary">Edit Team</a>
+              {/if}
+                <!-- Get to assign people into their team -->
+              {#if data.user?.role.permissionLevel >= 2}
+                <br />
+                <br />
+                <h6 class="h5">
+                  Configure Teams
+                </h6>
+                <p>Appoint Members to a Team</p>
+                <a href="/dashboard/appoint-to-team" class="btn variant-ghost-tertiary hover:variant-filled-tertiary">Appoint to Team</a>
+              {/if}
+            </div>
+          </div>
+          {/if}
           <Feed />
         {/if}
       </div>

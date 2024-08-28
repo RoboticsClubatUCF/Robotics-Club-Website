@@ -220,7 +220,7 @@
             </label>
             <label class="flex items-center space-x-2">
               <input class="checkbox" type="checkbox" name="discover" id="GANOR" bind:group={$form.discover} value="GANOR "/>
-              <p>GANOR</p>
+              <p>GNOR</p>
             </label>
             <label class="flex items-center space-x-2">
                 <input class="checkbox" type="checkbox" name="discover" id="Google" bind:group={$form.discover} value="Google "/>

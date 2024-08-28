@@ -75,9 +75,9 @@ export const actions: Actions = {
         if (selectedyear === '' || !yearNum) {
             return setError(form, 'year', 'Please Enter a Valid Year');
         }
-        console.log("raw skills: ", form.data.Skills);
+        // console.log("raw skills: ", form.data.Skills);
         const skillsArray = form.data.Skills[0].split(',');
-        console.log("split skills: ", skillsArray);
+        // console.log("split skills: ", skillsArray);
 
         // Creating survey entry in the database
         await db.project.create({

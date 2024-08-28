@@ -55,7 +55,7 @@ export const actions: Actions = {
             return fail(400, { form });
         }
 
-        // Check if the user already has a survey to handle race condition
+        // make ucf email be unique
         if (await db.survey.findFirst({
             where: {
                 UCFemail: form.data.ucfEmail

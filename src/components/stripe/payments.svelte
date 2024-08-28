@@ -12,7 +12,8 @@
   let processing = false;
   export let userID: string;
   let thm: 'night' | 'stripe' | 'flat' | undefined = 'night';
-  let duesSelection = '1';
+  let duesSelection = '';
+  let hide: boolean = false;
 
   const appearance = {
     theme: thm,
@@ -22,17 +23,17 @@
   onMount(async () => {
     stripe = await loadStripe(PUBLIC_STRIPE_KEY);
 
-    // create payment intent server side
-    clientSecret = await createPayment();
+    // clientSecret = await createPayment();
   });
 
   async function createPayment() {
+
     const response = await fetch('/create-payment-intent', {
       method: 'POST',
       headers: {
         'content-type': 'application/json'
       },
-      body: JSON.stringify({})
+      body: JSON.stringify({ duesType: duesSelection })
     });
     const { clientSecret } = await response.json();
 
@@ -62,18 +63,42 @@
       }
     }
   }
+
+  function reloadPage(){
+    location.reload();
+  }
+
+  async function test(){
+    // create payment intent server side
+    clientSecret = await createPayment();
+    hide = true;
+  }
 </script>
 
-<!-- <label class="label">
-  <span>Select Yearly or Semesterly Dues</span>
-  <select class="select" bind:value={duesSelection}>
-    <option value="1">1 Year</option>
-    <option value="2">1 Semester</option>
-  </select>
-</label> -->
 {#if error}
   <h4 class="h4">Please try again</h4>
   <p class="badge variant-filled-error">{error.message}</p>
+{/if}
+
+{#if !hide}
+<label class="label">
+  <span>Pay Dues For The Semester or Year</span>
+  <select class="select" bind:value={duesSelection} on:change={test}>
+    <option value='1'>Semester: $25</option>
+    <option value='2'>Year: $50</option>
+  </select>
+</label>
+{:else}
+  {#if duesSelection == '1'}
+    <span>Semesterly Dues</span>
+    <button on:click={reloadPage} class="btn variant-ghost-tertiary hover:variant-filled-tertiary">Cancel</button>
+
+  {/if}
+  {#if duesSelection == '2'}
+    <span>Yearly Dues</span>
+    <button on:click={reloadPage} class="btn variant-ghost-tertiary hover:variant-filled-tertiary">Cancel</button>
+
+  {/if}
 {/if}
 
 {#if duesSelection}
@@ -96,7 +121,12 @@
           {#if processing}
             Processing...
           {:else}
+            {#if duesSelection === '1'}
             Pay ${config.paypal.semester_cost}
+            {/if}
+            {#if duesSelection === '2'}
+            Pay ${config.paypal.year_cost}
+            {/if}
           {/if}
         </button>
       </form>
