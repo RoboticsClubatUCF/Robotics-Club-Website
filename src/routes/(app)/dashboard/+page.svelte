@@ -66,8 +66,8 @@
     const firstDayOfFourthWeek = 22 + (7 - dayOfWeek) % 7;
     const fourthWeekInAugust = new Date(currentYear, 7, firstDayOfFourthWeek);
     
-    // Set start date to May 1st
-    const startDate = new Date(currentYear, 4, 1);
+    // Set start date to June 1st
+    const startDate = new Date(currentYear, 5, 1);
     
     // console.log("Start: ", startDate);
     // console.log("End: ", fourthWeekInAugust);
@@ -154,7 +154,7 @@
                 {:else}
                   <h6 class="badge variant-filled-success">Your Dues Expire On {data.user?.membershipExpDate.toDateString()}</h6>
                   <h6 class="h6">
-                    Looks like you're all set! Check back in on discord after paying dues for membership status (it can take a second or two), and look out for announcements about updates to this site!
+                    Looks like you're all set! Check back in on discord after paying dues for membership status (it updates every 15 minutes), and look out for announcements about updates to this site!
                   </h6>
                 {/if}
             {/if}

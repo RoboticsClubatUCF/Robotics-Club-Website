@@ -1,3 +1,3 @@
 import { writable, type Writable } from 'svelte/store';
 
-export const duesType = writable('1');
+export const duesStoreType: Writable<string> = writable('1');
