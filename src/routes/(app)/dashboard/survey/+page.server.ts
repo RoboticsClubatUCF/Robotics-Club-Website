@@ -15,16 +15,14 @@ const surSchema = z.object({
     .refine((email) => email.endsWith('@ucf.edu'), {
       message: 'Email must be a valid UCF email address (@ucf.edu)'
     }),
-  Major: z.string().array(),
-  //   exmaple on moving error messages into zod object
-  //   Major: z.string().array().min(1,"At least one of the options must be selected"),
+  Major: z.string().array().min(1,"Select a Major or 'Other'"),
   oMajor: z.string().optional(),
-  year: z.string(),
+  year: z.string().min(1, "Select a Year"),
   semester: z.number(),
-  shirtSize: z.string(),
-  prevMem: z.string(),
-  discover: z.string().array(),
-  allergies: z.string().array(),
+  shirtSize: z.string().min(1, "Select a Shirt Size"),
+  prevMem: z.string().min(1, "Select 'Yes' or 'No'"),
+  discover: z.string().array().min(1, "Select One of The Options"),
+  allergies: z.string().array().min(1, "Select One of The Options or 'None'"),
   oAllergies: z.string().optional(),
   otherConcerns: z.string().optional()
 });
@@ -73,48 +71,14 @@ export const actions: Actions = {
       return setError(form, 'ucfEmail', 'Email is already being used!');
     }
 
-    const selectedMajors = form.data.Major.filter((major) => major !== '');
-    const selectedyear = form.data.year;
-    const selectedshirtSize = form.data.shirtSize;
     const selectedprevMem = form.data.prevMem;
-    const selectedallergies = form.data.allergies.filter((allergies) => allergies !== '');
     const enteredNum = form.data.semester;
-    const selectedDiscover = form.data.discover.filter((allergies) => allergies !== '');
 
-    // please move all of these errors into the ZOD object, so when the form is validated, all of these steps are taken into account
-    if (selectedMajors.length === 0) {
-      return setError(form, 'Major', 'At least one of the options must be selected');
-    }
-    if (selectedMajors.includes('Other') && !form.data.oMajor) {
-      return setError(form, 'oMajor', 'Please enter Major');
-    }
-    if (selectedyear === '') {
-      return setError(form, 'year', 'At least one of the options must be selected');
-    }
-    if (selectedshirtSize === '') {
-      return setError(form, 'shirtSize', 'At least one of the options must be selected');
-    }
-    if (selectedprevMem === '') {
-      return setError(form, 'prevMem', 'At least one of the options must be selected');
-    }
-    if (selectedDiscover.length === 0) {
-      return setError(form, 'discover', 'At least one of the options must be selected');
-    }
     if (enteredNum < 1 && selectedprevMem === 'Yes') {
       return setError(form, 'semester', 'Please enter a number >= 0');
     }
     if (enteredNum > 30) {
       return setError(form, 'semester', 'Really?');
-    }
-    if (selectedallergies.length === 0) {
-      return setError(form, 'allergies', 'At least one of the options must be selected');
-    }
-    // New validation for allergies: "None" should not be selected with other allergies
-    if (selectedallergies.includes('None') && selectedallergies.length > 1) {
-      return setError(form, 'allergies', 'Connot have both None and allergen(s) selected');
-    }
-    if (selectedallergies.includes('Other') && !form.data.oAllergies) {
-      return setError(form, 'oAllergies', 'Please enter Allergen(s)');
     }
 
     console.log('On create userEmail: ' + userEmail);
