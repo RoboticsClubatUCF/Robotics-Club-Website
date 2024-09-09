@@ -185,7 +185,7 @@
             </label>
             {#if $form.prevMem.includes("Yes")}
             <label class="label">
-              <span>Number of Semester(s)? </span>{#if $errors.semester}<span class="variant-filled-error badge">{$errors.semester}</span>{/if}
+              <span>Number of Semester(s) With RCCF? </span>{#if $errors.semester}<span class="variant-filled-error badge">{$errors.semester}</span>{/if}
               <label class="flex items-center space-x-2">
                   <input class="input" type="text" name="semester" id="semester" bind:value={$form.semester} placeholder="Num >= 0"/>
               </label>
@@ -220,7 +220,7 @@
             </label>
             <label class="flex items-center space-x-2">
               <input class="checkbox" type="checkbox" name="discover" id="GANOR" bind:group={$form.discover} value="GANOR "/>
-              <p>GANOR</p>
+              <p>GNOR</p>
             </label>
             <label class="flex items-center space-x-2">
                 <input class="checkbox" type="checkbox" name="discover" id="Google" bind:group={$form.discover} value="Google "/>
