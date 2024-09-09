@@ -4,7 +4,8 @@ import { setError, superValidate } from "sveltekit-superforms/server";
 import { fail, redirect } from "@sveltejs/kit";
 import { db } from "$lib/db";
 
-let userID = '';
+let userEmail = '';
+console.log("On Inital: " + userEmail);
 const surSchema = z.object({
     // answers to questions here
     gitName: z.string(),
@@ -23,16 +24,15 @@ const surSchema = z.object({
     otherConcerns: z.string().optional()
 });
 
-export const load: PageServerLoad = async ({ parent }) => {
-    const data = await parent();
-    userID = data.member!.id;
+export const load: PageServerLoad = async ({ locals }) => {
+    userEmail = locals.member!.email;
 
     // Check if user already has a survey
     const existingSurvey = await db.survey.findFirst({
         where: {
             Member: {
                 some: {
-                    id: userID
+                    email: userEmail
                 }
             }
         }
@@ -40,6 +40,8 @@ export const load: PageServerLoad = async ({ parent }) => {
 
     if (existingSurvey) {
         throw redirect(302, '/dashboard');
+    }else{
+        console.log("On load userEmail: " + userEmail);
     }
 
     const form = await superValidate(surSchema);
@@ -107,6 +109,8 @@ export const actions: Actions = {
             return setError(form, 'oAllergies', 'Please enter Allergen(s)');
         }
 
+        console.log("On create userEmail: " + userEmail);
+
         // Creating survey entry in the database
         await db.survey.create({
             data: {
@@ -124,7 +128,7 @@ export const actions: Actions = {
                 Concerns: form.data.otherConcerns,
                 Member: {
                     connect: {
-                        id: userID
+                        email: userEmail
                     }
                 }
             }
