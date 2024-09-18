@@ -60,7 +60,7 @@ export const actions: Actions = {
       return fail(400, { form });
     }
 
-    // Check if the user already has a survey to handle race condition
+    // Check if the user already has a survey to handle condition
     if (
       await db.survey.findFirst({
         where: {
