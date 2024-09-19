@@ -71,7 +71,7 @@
     </div>
   </a>
 
-  <a class="card card-hover overflow-hidden" href="">
+  <a class="card card-hover overflow-hidden" href="https://www.linkedin.com/in/hannah-moore-116b041ba/">
     <Image
       src="/photos/Hannah.jpg"
       class="bg-black/50 w-full aspect-[10/8] object-cover"
@@ -82,7 +82,7 @@
     </div>
   </a>
 
-  <a class="card card-hover overflow-hidden" href="">
+  <a class="card card-hover overflow-hidden" href="https://www.linkedin.com/in/kalani-decosta-92192b250/">
     <Image
       src="/photos/kalani.jpg"
       class="bg-black/50 w-full aspect-[10/8] object-cover"
