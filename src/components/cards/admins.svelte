@@ -5,72 +5,48 @@
 
 <!-- the acutal cards -->
 <div class="grid grid-cols-1 md:grid-cols-4 gap-4 w-full" style="margin-top: 2rem">
-  <a class="card card-hover overflow-hidden" href="">
+  <a class="card card-hover overflow-hidden" href="https://www.linkedin.com/in/dwighthowardii/">
     <Image
-      src="/photos/roboskull_black_large.jpg"
+      src="/photos/DwightWTM.jpg"
       class="bg-black/50 w-full aspect-[10/8] object-cover"
       alt="Post"
     />
     <div class="p-4 space-y-4">
-      <h6 class="h6">Dwight Howard II - President</h6>
-      <article>
-        <p>
-          Description goes here
-        </p>
-      </article>
+      <h6 class="h3">Dwight Howard II - President</h6>
     </div>
-    <hr class="opacity-50" />
   </a>
 
-  <a class="card card-hover overflow-hidden" href="">
+  <a class="card card-hover overflow-hidden" href="https://www.linkedin.com/in/giancarloluna/">
     <Image
-      src="/photos/roboskull_black_large.jpg"
+      src="/photos/Giani.jpg"
       class="bg-black/50 w-full aspect-[10/8] object-cover"
       alt="Post"
     />
     <div class="p-4 space-y-4">
-      <h6 class="h6">Giancarlo Luna - Vice President</h6>
-      <article>
-        <p>
-          Description goes here
-        </p>
-      </article>
+      <h6 class="h3">Giancarlo Luna - Vice President</h6>
     </div>
-    <hr class="opacity-50" />
   </a>
   
   <a class="card card-hover overflow-hidden" href="https://www.ist.ucf.edu/faculty/crystal-maraj-ph-d/">
     <Image
-      src="/photos/roboskull_black_large.jpg"
+      src="/photos/Crytal1.jpg"
       class="bg-black/50 w-full aspect-[10/8] object-cover"
       alt="Post"
     />
     <div class="p-4 space-y-4">
-      <h6 class="h6">Crystal Maraj - Advisor</h6>
-      <article>
-        <p>
-          Description goes here
-        </p>
-      </article>
+      <h6 class="h3">Crystal Maraj - Advisor</h6>
     </div>
-    <hr class="opacity-50" />
   </a>
 
-  <a class="card card-hover overflow-hidden" href="">
+  <a class="card card-hover overflow-hidden" href="https://www.linkedin.com/in/olivia-mueller-8977a7250/">
     <Image
-      src="/photos/roboskull_black_large.jpg"
+      src="/photos/OllieMueller1.jpg"
       class="bg-black/50 w-full aspect-[10/8] object-cover"
       alt="Post"
     />
     <div class="p-4 space-y-4">
-      <h6 class="h6">Ollie Mueller - Treasurer</h6>
-      <article>
-        <p>
-          Description goes here
-        </p>
-      </article>
+      <h6 class="h3">Ollie Mueller - Treasurer</h6>
     </div>
-    <hr class="opacity-50" />
   </a>
   
   <a class="card card-hover overflow-hidden" href="">
@@ -80,64 +56,40 @@
       alt="Post"
     />
     <div class="p-4 space-y-4">
-      <h6 class="h6">Claire Xia - Secretary</h6>
-      <article>
-        <p>
-          Description goes here
-        </p>
-      </article>
+      <h6 class="h3">Clover Xia - Secretary</h6>
     </div>
-    <hr class="opacity-50" />
   </a>
 
-  <a class="card card-hover overflow-hidden" href="">
+  <a class="card card-hover overflow-hidden" href="https://www.linkedin.com/in/tevinmukudi/">
     <Image
-      src="/photos/roboskull_black_large.jpg"
+      src="/photos/tiven.jpg"
       class="bg-black/50 w-full aspect-[10/8] object-cover"
       alt="Post"
     />
     <div class="p-4 space-y-4">
-      <h6 class="h6">Tevin Mukudi - Outreach</h6>
-      <article>
-        <p>
-          Description goes here
-        </p>
-      </article>
+      <h6 class="h3">Tevin Mukudi - Outreach</h6>
     </div>
-    <hr class="opacity-50" />
   </a>
 
   <a class="card card-hover overflow-hidden" href="">
     <Image
-      src="/photos/roboskull_black_large.jpg"
+      src="/photos/Hannah.jpg"
       class="bg-black/50 w-full aspect-[10/8] object-cover"
       alt="Post"
     />
     <div class="p-4 space-y-4">
-      <h6 class="h6">Hannah Moore - Social Media Manager</h6>
-      <article>
-        <p>
-          Description goes here
-        </p>
-      </article>
+      <h6 class="h3">Hannah Moore - Social Media Manager</h6>
     </div>
-    <hr class="opacity-50" />
   </a>
 
   <a class="card card-hover overflow-hidden" href="">
     <Image
-      src="/photos/roboskull_black_large.jpg"
+      src="/photos/kalani.jpg"
       class="bg-black/50 w-full aspect-[10/8] object-cover"
       alt="Post"
     />
     <div class="p-4 space-y-4">
-      <h6 class="h6">Kalani DeCosta - Lab Manager</h6>
-      <article>
-        <p>
-          Description goes here
-        </p>
-      </article>
+      <h6 class="h3">Kalani DeCosta - Lab Manager</h6>
     </div>
-    <hr class="opacity-50" />
   </a>
 </div>

@@ -46,10 +46,9 @@ To access the Prisma database use
 npm run studio
 ```
 ## To-Do
-- [ ] Update Home Page
-    - [ ] Description of Officers
-    - [ ] Update Cards
-    - [ ] FRQ section
+- [x] Update Home Page
+    - [x] Update Cards
+    - [x] FAQ section
 - [ ] Sponsors page
     - [ ] Tier List
     - [ ] Contact us
@@ -62,7 +61,7 @@ npm run studio
 - [x] Summer Term Button (free trial)
 - [ ] QR Code Tracker System
 - [ ] Fading Projects Blocks
-- [ ] Github Link/Icon
+- [x] Github Link/Icon
 - [ ] Edit profile as a separate button
 - [x] Member's Survey
     - [x] Major "other" dropdown
