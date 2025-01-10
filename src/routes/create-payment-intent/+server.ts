@@ -9,7 +9,7 @@ export async function POST({ request }) {
   const { duesType } = await request.json();
 
   const amount = duesType === '1' ? config.paypal.semester_cost : config.paypal.year_cost;
-  console.log(amount);
+  // console.log(amount);
 
   const paymentIntent = await stripe.paymentIntents.create({
     amount: Number(amount) * 100, // Stripe amounts are in cents
