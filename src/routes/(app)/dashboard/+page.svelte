@@ -293,7 +293,9 @@
                   {/if}
                 </div>
               {/if}
-                          
+              
+              <!-- configure officers -->
+
               {/if}
                 <!-- Get to set project leads-->
               {#if data.user?.role.permissionLevel >= 4}

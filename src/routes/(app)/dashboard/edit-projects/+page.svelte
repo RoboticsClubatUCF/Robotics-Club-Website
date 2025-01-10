@@ -9,9 +9,9 @@
   
     export let data: PageData;
     const { form, errors, constraints, enhance, message } = superForm(data.form, {
-      clearOnSubmit: 'errors-and-message'
+      clearOnSubmit: 'errors-and-message',
     });
-  
+
     let mainEle: HTMLElement;
   
     onMount(() => {
@@ -26,17 +26,22 @@
     target: 'popupAutocomplete',
     placement: 'bottom',
   };
-  const projectOptions: AutocompleteOption[] = data.member.Projects.map (project => ({
+
+  const projectOptions: AutocompleteOption[] = data.member.Projects.map ((project: { title: any; id: any; season: any; year: any; }) => ({
     label: `${project.title}`,
     value: project.id,
     keywords: `${project.title}, ${project.season}, ${project.year}`,
     meta: {}
   }));
-  
+
   function onProjectSelection(event: CustomEvent<AutocompleteOption>): void {
     input = event.detail.label;
     projectId = event.detail.value as number | null;
+    console.log(projectId);
   };
+
+  // setInterval(()=>console.log(data.currentProject), 1000);
+
 </script>
   
   <div
@@ -76,10 +81,12 @@
               on:selection={onProjectSelection}
             />
             </div>
-            <input type="hidden" name="projectId" value={projectId} />
+            <input type="hidden" name="id" value={projectId} />
             <button type="submit" class="btn variant-ghost-tertiary hover:variant-filled-tertiary mt-2">Edit</button>
         </form>
       {/if}
+
+      <!-- Once a project is selected display it -->
       {#if data.currentProject}
       <form action="?/updateProject" method="POST" class="p-2 rounded-md" use:enhance>
         <label class="label">

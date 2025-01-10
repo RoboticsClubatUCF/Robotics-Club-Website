@@ -18,6 +18,10 @@ const editProSchema = z.object({
     id: z.number()
 });
 
+const projectSelectionSchema = z.object({
+    id: z.number()
+})
+
 export const load: PageServerLoad = async ({ parent }) => {
     const data = await parent();
     pLevel = data.member!.role.permissionLevel;
@@ -32,13 +36,16 @@ export const load: PageServerLoad = async ({ parent }) => {
     });
        
     const form = await superValidate(editProSchema);
+    const selectionForm = await superValidate(projectSelectionSchema);
+
+    console.log("On load Project id is: " + form.data.id);
 
     const currentProject = await db.project.findUnique({
         where: {id: form.data.id}
     })
 
     return {
-        form, currentProject,
+        form, selectionForm, currentProject,
         member: {
             Projects: allProjects // Pass all projects to the frontend
         }
@@ -48,19 +55,30 @@ export const load: PageServerLoad = async ({ parent }) => {
 // Handle form submission
 export const actions: Actions = {
     selectProject: async ({ request }) => {
+        console.log("Project select has been triggered!");
         // Parse the form data
-        const form = await superValidate(request, editProSchema);
-
-        // If form validation fails, return with errors
+        const form = await superValidate(request, projectSelectionSchema);
+    
         if (!form.valid) {
             return fail(400, { form });
         }
-
+    
         const projectId = form.data.id;
-        console.log(projectId);
+    
+        // Find the project
+        const project = await db.project.findUnique({
+            where: { id: projectId },
+        });
 
-        // 
+        console.log(project);
+    
+        if (!project) {
+            return setError(form, 'id', 'Project not found.');
+        }else{
+            return { form, currentProject: project };
+        }
     },
+    
 
     updateProject: async ({ request }) => {
         // Parse the form data
@@ -72,3 +90,4 @@ export const actions: Actions = {
         }
     }
 };
+
