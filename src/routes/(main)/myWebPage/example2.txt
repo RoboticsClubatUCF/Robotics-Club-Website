@@ -1,0 +1,12 @@
+<div>
+<h1>Welcome to My First Svelte Page</h1>
+<p>This is a <b>bold</b> word and this is <i>italic</i>.</p>
+
+<h2>My Favorite Foods</h2>
+<ul>
+  <li>Pizza</li>
+  <li>Sushi</li>
+  <li>Tacos</li>
+</ul>
+
+<img src="https://img.freepik.com/free-photo/single-banana-isolated-white-background_839833-17794.jpg?semt=ais_incoming&w=740&q=80" alt="somthing">
