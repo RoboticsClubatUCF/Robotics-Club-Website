@@ -1,4 +1,0 @@
-<div>
-  <h1>My Profile</h1>
-  <p>Hello! My name is Alex and I’m learning Svelte.</p>
-</div>
