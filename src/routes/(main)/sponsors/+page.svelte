@@ -14,7 +14,7 @@
 <!-- Brandons Scroller -->
 
 <div>
-  <div class="h1" style="font-size: 9vh; line-height: 5rem; text-align: center; padding: 3%;">
+  <div class="h1" style="font-size: 5rem; line-height: 5rem; text-align: center; padding: 3%;">
     <!-- scroller title -->
     <b>TOP SPONSORS</b>
   </div>
@@ -70,7 +70,7 @@
     <div class="m-4 centered" style="margin-top: rem">
       <div class="sponsorContainer sponsor-wrapper">
         <div class="centered">
-          <div class="h1" style="font-size: 5vh; line-height: 5rem;">
+          <div class="h1" style="font-size: 5rem; line-height: 5rem;">
             <b>SPONSORSHIP TIERS</b>
           </div>
           <br />
@@ -86,38 +86,48 @@
               <p>Current Supporters:</p>
               <div class="currentSupporters">
                 <div class="sponsor-logo">
-                  <a href="">
-                    <img src="/photos/PlaceHolderImg.png" alt="Discord" />
+                  <a href="https://www.retengax.com.br/">
+                    <img src="/photos/RetengaxTransparent.png" alt="Retengax" />
                   </a>
                 </div>
                 <div class="sponsor-logo">
-                  <a href="">
-                    <img src="/photos/PlaceHolderImg.png" alt="Discord" />
+                  <a href="https://www.goengineer.com/">
+                    <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQcI8iitb1xCWitrAjcMgtqmkQrGi0aAY9xpf48RKL-O_1GzCPqo5zEkzoOz6CB-GI3wA4&usqp=CAU" alt="Go Engineer" />
                   </a>
                 </div>
                 <div class="sponsor-logo">
-                  <a href="">
-                    <img src="/photos/PlaceHolderImg.png" alt="Discord" />
+                  <a href="https://www.orlandorecycles.com/">
+                    <img src="https://static.wixstatic.com/media/7cdbae_45341b034ab7454fa06333ed8df1fbf8~mv2.png" alt = "Orlando Recycles" />
                   </a>
                 </div>
                 <div class="sponsor-logo">
-                  <a href="">
-                    <img src="/photos/PlaceHolderImg.png" alt="Discord" />
+                  <a href="https://www.protocase.com/">
+                    <img src="/photos/ProtocaseTransparent.png" alt = "Protocase" />
                   </a>
                 </div>
                 <div class="sponsor-logo">
-                  <a href="">
-                    <img src="/photos/PlaceHolderImg.png" alt="Discord" />
+                  <a href="https://www.cecs.ucf.edu/">
+                    <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRwvvA5u034vT8SJmEZwe6QS17C5qTCZqmYqA&s" alt = "UCF CECS" />
                   </a>
                 </div>
                 <div class="sponsor-logo">
-                  <a href="">
-                    <img src="/photos/PlaceHolderImg.png" alt="Discord" />
+                  <a href="https://www.gobilda.com/">
+                    <img src="/photos/GoBildaTransparent.png" alt="GoBilda" />
                   </a>
                 </div>
                 <div class="sponsor-logo">
-                  <a href="">
-                    <img src="/photos/PlaceHolderImg.png" alt="Discord" />
+                  <a href="https://sendcutsend.com/">
+                    <img src="https://www.svgrepo.com/show/331572/sendcutsend.svg" alt = "SendCutSend" />
+                  </a>
+                </div>
+                <div class="sponsor-logo">
+                  <a href="https://www.ece.ucf.edu/">
+                    <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTPvs7k6cCvraaDncfyyaX--0K0eIZfYxayLA&s" alt = "UCF ECE" />
+                  </a>
+                </div>
+                <div class="sponsor-logo">
+                  <a href="https://rccf.club/">
+                    <img src="/photos/PlaceHolderImg.png" alt="PlaceHolder" />
                   </a>
                 </div>
               </div>
@@ -133,38 +143,48 @@
               <p>Current Supporters:</p>
               <div class="currentSupporters">
                 <div class="sponsor-logo">
-                  <a href="">
-                    <img src="/photos/PlaceHolderImg.png" alt="Discord" />
+                  <a href="https://www.retengax.com.br/">
+                    <img src="/photos/RetengaxTransparent.png" alt="Retengax" />
                   </a>
                 </div>
                 <div class="sponsor-logo">
-                  <a href="">
-                    <img src="/photos/PlaceHolderImg.png" alt="Discord" />
+                  <a href="https://www.goengineer.com/">
+                    <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQcI8iitb1xCWitrAjcMgtqmkQrGi0aAY9xpf48RKL-O_1GzCPqo5zEkzoOz6CB-GI3wA4&usqp=CAU" alt="Go Engineer" />
                   </a>
                 </div>
                 <div class="sponsor-logo">
-                  <a href="">
-                    <img src="/photos/PlaceHolderImg.png" alt="Discord" />
+                  <a href="https://www.orlandorecycles.com/">
+                    <img src="https://static.wixstatic.com/media/7cdbae_45341b034ab7454fa06333ed8df1fbf8~mv2.png" alt = "Orlando Recycles" />
                   </a>
                 </div>
                 <div class="sponsor-logo">
-                  <a href="">
-                    <img src="/photos/PlaceHolderImg.png" alt="Discord" />
+                  <a href="https://www.protocase.com/">
+                    <img src="/photos/ProtocaseTransparent.png" alt = "Protocase" />
                   </a>
                 </div>
                 <div class="sponsor-logo">
-                  <a href="">
-                    <img src="/photos/PlaceHolderImg.png" alt="Discord" />
+                  <a href="https://www.cecs.ucf.edu/">
+                    <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRwvvA5u034vT8SJmEZwe6QS17C5qTCZqmYqA&s" alt = "UCF CECS" />
                   </a>
                 </div>
                 <div class="sponsor-logo">
-                  <a href="">
-                    <img src="/photos/PlaceHolderImg.png" alt="Discord" />
+                  <a href="https://www.gobilda.com/">
+                    <img src="/photos/GoBildaTransparent.png" alt="GoBilda" />
                   </a>
                 </div>
                 <div class="sponsor-logo">
-                  <a href="">
-                    <img src="/photos/PlaceHolderImg.png" alt="Discord" />
+                  <a href="https://sendcutsend.com/">
+                    <img src="https://www.svgrepo.com/show/331572/sendcutsend.svg" alt = "SendCutSend" />
+                  </a>
+                </div>
+                <div class="sponsor-logo">
+                  <a href="https://www.ece.ucf.edu/">
+                    <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTPvs7k6cCvraaDncfyyaX--0K0eIZfYxayLA&s" alt = "UCF ECE" />
+                  </a>
+                </div>
+                <div class="sponsor-logo">
+                  <a href="https://rccf.club/">
+                    <img src="/photos/PlaceHolderImg.png" alt="PlaceHolder" />
                   </a>
                 </div>
               </div>
@@ -179,38 +199,48 @@
               <p>Current Supporters:</p>
               <div class="currentSupporters">
                 <div class="sponsor-logo">
-                  <a href="">
-                    <img src="/photos/PlaceHolderImg.png" alt="Discord" />
+                  <a href="https://www.retengax.com.br/">
+                    <img src="/photos/RetengaxTransparent.png" alt="Retengax" />
                   </a>
                 </div>
                 <div class="sponsor-logo">
-                  <a href="">
-                    <img src="/photos/PlaceHolderImg.png" alt="Discord" />
+                  <a href="https://www.goengineer.com/">
+                    <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQcI8iitb1xCWitrAjcMgtqmkQrGi0aAY9xpf48RKL-O_1GzCPqo5zEkzoOz6CB-GI3wA4&usqp=CAU" alt="Go Engineer" />
                   </a>
                 </div>
                 <div class="sponsor-logo">
-                  <a href="">
-                    <img src="/photos/PlaceHolderImg.png" alt="Discord" />
+                  <a href="https://www.orlandorecycles.com/">
+                    <img src="https://static.wixstatic.com/media/7cdbae_45341b034ab7454fa06333ed8df1fbf8~mv2.png" alt = "Orlando Recycles" />
                   </a>
                 </div>
                 <div class="sponsor-logo">
-                  <a href="">
-                    <img src="/photos/PlaceHolderImg.png" alt="Discord" />
+                  <a href="https://www.protocase.com/">
+                    <img src="/photos/ProtocaseTransparent.png" alt = "Protocase" />
                   </a>
                 </div>
                 <div class="sponsor-logo">
-                  <a href="">
-                    <img src="/photos/PlaceHolderImg.png" alt="Discord" />
+                  <a href="https://www.cecs.ucf.edu/">
+                    <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRwvvA5u034vT8SJmEZwe6QS17C5qTCZqmYqA&s" alt = "UCF CECS" />
                   </a>
                 </div>
                 <div class="sponsor-logo">
-                  <a href="">
-                    <img src="/photos/PlaceHolderImg.png" alt="Discord" />
+                  <a href="https://www.gobilda.com/">
+                    <img src="/photos/GoBildaTransparent.png" alt="GoBilda" />
                   </a>
                 </div>
                 <div class="sponsor-logo">
-                  <a href="">
-                    <img src="/photos/PlaceHolderImg.png" alt="Discord" />
+                  <a href="https://sendcutsend.com/">
+                    <img src="https://www.svgrepo.com/show/331572/sendcutsend.svg" alt = "SendCutSend" />
+                  </a>
+                </div>
+                <div class="sponsor-logo">
+                  <a href="https://www.ece.ucf.edu/">
+                    <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTPvs7k6cCvraaDncfyyaX--0K0eIZfYxayLA&s" alt = "UCF ECE" />
+                  </a>
+                </div>
+                <div class="sponsor-logo">
+                  <a href="https://rccf.club/">
+                    <img src="/photos/PlaceHolderImg.png" alt="PlaceHolder" />
                   </a>
                 </div>
               </div>
@@ -226,38 +256,48 @@
               <p>Current Supporters:</p>
               <div class="currentSupporters">
                 <div class="sponsor-logo">
-                  <a href="">
-                    <img src="/photos/PlaceHolderImg.png" alt="Discord" />
+                  <a href="https://www.retengax.com.br/">
+                    <img src="/photos/RetengaxTransparent.png" alt="Retengax" />
                   </a>
                 </div>
                 <div class="sponsor-logo">
-                  <a href="">
-                    <img src="/photos/PlaceHolderImg.png" alt="Discord" />
+                  <a href="https://www.goengineer.com/">
+                    <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQcI8iitb1xCWitrAjcMgtqmkQrGi0aAY9xpf48RKL-O_1GzCPqo5zEkzoOz6CB-GI3wA4&usqp=CAU" alt="Go Engineer" />
                   </a>
                 </div>
                 <div class="sponsor-logo">
-                  <a href="">
-                    <img src="/photos/PlaceHolderImg.png" alt="Discord" />
+                  <a href="https://www.orlandorecycles.com/">
+                    <img src="https://static.wixstatic.com/media/7cdbae_45341b034ab7454fa06333ed8df1fbf8~mv2.png" alt = "Orlando Recycles" />
                   </a>
                 </div>
                 <div class="sponsor-logo">
-                  <a href="">
-                    <img src="/photos/PlaceHolderImg.png" alt="Discord" />
+                  <a href="https://www.protocase.com/">
+                    <img src="/photos/ProtocaseTransparent.png" alt = "Protocase" />
                   </a>
                 </div>
                 <div class="sponsor-logo">
-                  <a href="">
-                    <img src="/photos/PlaceHolderImg.png" alt="Discord" />
+                  <a href="https://www.cecs.ucf.edu/">
+                    <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRwvvA5u034vT8SJmEZwe6QS17C5qTCZqmYqA&s" alt = "UCF CECS" />
                   </a>
                 </div>
                 <div class="sponsor-logo">
-                  <a href="">
-                    <img src="/photos/PlaceHolderImg.png" alt="Discord" />
+                  <a href="https://www.gobilda.com/">
+                    <img src="/photos/GoBildaTransparent.png" alt="GoBilda" />
                   </a>
                 </div>
                 <div class="sponsor-logo">
-                  <a href="">
-                    <img src="/photos/PlaceHolderImg.png" alt="Discord" />
+                  <a href="https://sendcutsend.com/">
+                    <img src="https://www.svgrepo.com/show/331572/sendcutsend.svg" alt = "SendCutSend" />
+                  </a>
+                </div>
+                <div class="sponsor-logo">
+                  <a href="https://www.ece.ucf.edu/">
+                    <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTPvs7k6cCvraaDncfyyaX--0K0eIZfYxayLA&s" alt = "UCF ECE" />
+                  </a>
+                </div>
+                <div class="sponsor-logo">
+                  <a href="https://rccf.club/">
+                    <img src="/photos/PlaceHolderImg.png" alt="PlaceHolder" />
                   </a>
                 </div>
               </div>
@@ -278,6 +318,20 @@
         <a href="mailto:outreach@rccf.club" class="text-blue-500 underline">outreach@rccf.club</a>
       </div>
     </div>
+  </div>
+  <div>
+  <main>
+    <!-- svelte-ignore a11y-img-redundant-alt -->
+    <img src={imageUrl} alt="Image description" />
+    <!-- svelte-ignore a11y-img-redundant-alt -->
+    <img src={"https://lh3.googleusercontent.com/pw/AP1GczPo2li6sb8MSLo-TzvYzTaYorf_o8ogywvmAE3uo3bsTTK_UHZI7PFhDbZUrJnv1AhN0xVARAPEEg4Z_UbBigzPYObemFC9OPMfLJs6VzK71FlbLn0=w2400"} alt="Image description" />
+    <!-- svelte-ignore a11y-img-redundant-alt -->
+    <img src={"https://lh3.googleusercontent.com/pw/AP1GczNUJ2rVGh-LyeWqjex65MdtxVo6-HJ_kQs1kfIJwbbKoyd0t6HqrxvCVa6xTo2OX53ZrA2jl9iU2nspKhKp_2LvGH9kYztHstPrz-iBHl_PnWtrHc8=w2400"} alt="Image description" />
+        <h1><br></h1>
+    <!-- svelte-ignore a11y-img-redundant-alt -->
+    <img src={"https://lh3.googleusercontent.com/pw/AP1GczMi_pH21kxBUCqEuqio8A-tphN2IhuVgJ5EfjtL_RwNLfs8ln1dyg06d5I0kRWASOAtPJgpZ8T5jR-G29sjqY7wHfRmJE2E2_0UC_MzMvm3AaG1eSI=w2400"} alt="Image description" />
+
+  </main>
   </div>
 </div>
 
@@ -493,18 +547,52 @@
         display: block;
         margin: 0 auto;
     }
-</style>
-  
-<main>
-    <!-- svelte-ignore a11y-img-redundant-alt -->
-    <img src={imageUrl} alt="Image description" />
-    <!-- svelte-ignore a11y-img-redundant-alt -->
-    <img src={"https://lh3.googleusercontent.com/pw/AP1GczPo2li6sb8MSLo-TzvYzTaYorf_o8ogywvmAE3uo3bsTTK_UHZI7PFhDbZUrJnv1AhN0xVARAPEEg4Z_UbBigzPYObemFC9OPMfLJs6VzK71FlbLn0=w2400"} alt="Image description" />
-    <!-- svelte-ignore a11y-img-redundant-alt -->
-    <img src={"https://lh3.googleusercontent.com/pw/AP1GczNUJ2rVGh-LyeWqjex65MdtxVo6-HJ_kQs1kfIJwbbKoyd0t6HqrxvCVa6xTo2OX53ZrA2jl9iU2nspKhKp_2LvGH9kYztHstPrz-iBHl_PnWtrHc8=w2400"} alt="Image description" />
-        <h1><br></h1>
-    <!-- svelte-ignore a11y-img-redundant-alt -->
-    <img src={"https://lh3.googleusercontent.com/pw/AP1GczMi_pH21kxBUCqEuqio8A-tphN2IhuVgJ5EfjtL_RwNLfs8ln1dyg06d5I0kRWASOAtPJgpZ8T5jR-G29sjqY7wHfRmJE2E2_0UC_MzMvm3AaG1eSI=w2400"} alt="Image description" />
 
-</main>
+    /* For mobile or low width screens */
+    @media (max-width: 800px) {
+    .h1 {
+      font-size: 2.5rem !important;
+      line-height: 2.5rem !important;
+      padding: 5% !important;
+    }
+
+    .sponsorContainer {
+      max-width: 100vw;
+      padding: 0 10px;
+    }
+
+    .sponsorshipTiers {
+      font-size: 120%;
+      line-height: 2rem;
+    }
+
+    .tierInfo {
+      line-height: 1.5rem;
+      padding-left: 20px;
+      padding-top: 10px;
+      padding-bottom: 10px;
+      font-size: 75%;
+    }
+
+    .processorPatron,
+    .circuitSupporter,
+    .boltBacker,
+    .aluminumAlly {
+      max-width: 95% !important;
+      padding-left: 15px;
+      padding-right: 15px;
+      font-size: 80%;
+    }
+
+    .sponsor-logo img {
+      width: 60px;
+      height: 60px;
+    }
+
+    .sponsorInfo {
+      font-size: 100%;
+      line-height: 1.5rem;
+    }
+  }
+</style>
   
