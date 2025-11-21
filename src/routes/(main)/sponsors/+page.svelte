@@ -51,6 +51,16 @@
       <div class="content-item">Protocase <br /></div>
       <img src = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRwvvA5u034vT8SJmEZwe6QS17C5qTCZqmYqA&s" alt = "UCF CECS"  width = "70px">
       <div class="content-item">UCF CECS <br /></div>
+      <img src="/photos/RetengaxTransparent.png" alt="Retengax" width="70px" />
+      <div class="content-item">Retengax <br /></div>
+      <img src = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQcI8iitb1xCWitrAjcMgtqmkQrGi0aAY9xpf48RKL-O_1GzCPqo5zEkzoOz6CB-GI3wA4&usqp=CAU" alt = "Go Engineer"  width = "70px">
+      <div class="content-item">Go Engineer <br /></div>
+      <img src = "https://static.wixstatic.com/media/7cdbae_45341b034ab7454fa06333ed8df1fbf8~mv2.png" alt = "Orlando Recycles"  width = "70px">
+      <div class="content-item">Orlando Recycles <br /></div>
+      <img src = "/photos/ProtocaseTransparent.png" alt = "Protocase"  width = "70px">
+      <div class="content-item">Protocase <br /></div>
+      <img src = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRwvvA5u034vT8SJmEZwe6QS17C5qTCZqmYqA&s" alt = "UCF CECS"  width = "70px">
+      <div class="content-item">UCF CECS <br /></div>
 
     </div>
   </div>
@@ -86,48 +96,13 @@
               <p>Current Supporters:</p>
               <div class="currentSupporters">
                 <div class="sponsor-logo">
-                  <a href="https://www.retengax.com.br/">
-                    <img src="/photos/RetengaxTransparent.png" alt="Retengax" />
-                  </a>
-                </div>
-                <div class="sponsor-logo">
                   <a href="https://www.goengineer.com/">
                     <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQcI8iitb1xCWitrAjcMgtqmkQrGi0aAY9xpf48RKL-O_1GzCPqo5zEkzoOz6CB-GI3wA4&usqp=CAU" alt="Go Engineer" />
                   </a>
                 </div>
                 <div class="sponsor-logo">
-                  <a href="https://www.orlandorecycles.com/">
-                    <img src="https://static.wixstatic.com/media/7cdbae_45341b034ab7454fa06333ed8df1fbf8~mv2.png" alt = "Orlando Recycles" />
-                  </a>
-                </div>
-                <div class="sponsor-logo">
-                  <a href="https://www.protocase.com/">
-                    <img src="/photos/ProtocaseTransparent.png" alt = "Protocase" />
-                  </a>
-                </div>
-                <div class="sponsor-logo">
-                  <a href="https://www.cecs.ucf.edu/">
-                    <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRwvvA5u034vT8SJmEZwe6QS17C5qTCZqmYqA&s" alt = "UCF CECS" />
-                  </a>
-                </div>
-                <div class="sponsor-logo">
-                  <a href="https://www.gobilda.com/">
-                    <img src="/photos/GoBildaTransparent.png" alt="GoBilda" />
-                  </a>
-                </div>
-                <div class="sponsor-logo">
-                  <a href="https://sendcutsend.com/">
-                    <img src="https://www.svgrepo.com/show/331572/sendcutsend.svg" alt = "SendCutSend" />
-                  </a>
-                </div>
-                <div class="sponsor-logo">
-                  <a href="https://www.ece.ucf.edu/">
-                    <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTPvs7k6cCvraaDncfyyaX--0K0eIZfYxayLA&s" alt = "UCF ECE" />
-                  </a>
-                </div>
-                <div class="sponsor-logo">
-                  <a href="https://rccf.club/">
-                    <img src="/photos/PlaceHolderImg.png" alt="PlaceHolder" />
+                  <a href="https://www.retengax.com.br/">
+                    <img src="/photos/RetengaxTransparent.png" alt="Retengax" />
                   </a>
                 </div>
               </div>
@@ -143,16 +118,6 @@
               <p>Current Supporters:</p>
               <div class="currentSupporters">
                 <div class="sponsor-logo">
-                  <a href="https://www.retengax.com.br/">
-                    <img src="/photos/RetengaxTransparent.png" alt="Retengax" />
-                  </a>
-                </div>
-                <div class="sponsor-logo">
-                  <a href="https://www.goengineer.com/">
-                    <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQcI8iitb1xCWitrAjcMgtqmkQrGi0aAY9xpf48RKL-O_1GzCPqo5zEkzoOz6CB-GI3wA4&usqp=CAU" alt="Go Engineer" />
-                  </a>
-                </div>
-                <div class="sponsor-logo">
                   <a href="https://www.orlandorecycles.com/">
                     <img src="https://static.wixstatic.com/media/7cdbae_45341b034ab7454fa06333ed8df1fbf8~mv2.png" alt = "Orlando Recycles" />
                   </a>
@@ -165,26 +130,6 @@
                 <div class="sponsor-logo">
                   <a href="https://www.cecs.ucf.edu/">
                     <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRwvvA5u034vT8SJmEZwe6QS17C5qTCZqmYqA&s" alt = "UCF CECS" />
-                  </a>
-                </div>
-                <div class="sponsor-logo">
-                  <a href="https://www.gobilda.com/">
-                    <img src="/photos/GoBildaTransparent.png" alt="GoBilda" />
-                  </a>
-                </div>
-                <div class="sponsor-logo">
-                  <a href="https://sendcutsend.com/">
-                    <img src="https://www.svgrepo.com/show/331572/sendcutsend.svg" alt = "SendCutSend" />
-                  </a>
-                </div>
-                <div class="sponsor-logo">
-                  <a href="https://www.ece.ucf.edu/">
-                    <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTPvs7k6cCvraaDncfyyaX--0K0eIZfYxayLA&s" alt = "UCF ECE" />
-                  </a>
-                </div>
-                <div class="sponsor-logo">
-                  <a href="https://rccf.club/">
-                    <img src="/photos/PlaceHolderImg.png" alt="PlaceHolder" />
                   </a>
                 </div>
               </div>
@@ -198,51 +143,17 @@
               <li>+ Aluminum Ally</li>
               <p>Current Supporters:</p>
               <div class="currentSupporters">
-                <div class="sponsor-logo">
-                  <a href="https://www.retengax.com.br/">
-                    <img src="/photos/RetengaxTransparent.png" alt="Retengax" />
-                  </a>
-                </div>
-                <div class="sponsor-logo">
-                  <a href="https://www.goengineer.com/">
-                    <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQcI8iitb1xCWitrAjcMgtqmkQrGi0aAY9xpf48RKL-O_1GzCPqo5zEkzoOz6CB-GI3wA4&usqp=CAU" alt="Go Engineer" />
-                  </a>
-                </div>
-                <div class="sponsor-logo">
-                  <a href="https://www.orlandorecycles.com/">
-                    <img src="https://static.wixstatic.com/media/7cdbae_45341b034ab7454fa06333ed8df1fbf8~mv2.png" alt = "Orlando Recycles" />
-                  </a>
-                </div>
-                <div class="sponsor-logo">
-                  <a href="https://www.protocase.com/">
-                    <img src="/photos/ProtocaseTransparent.png" alt = "Protocase" />
-                  </a>
-                </div>
-                <div class="sponsor-logo">
-                  <a href="https://www.cecs.ucf.edu/">
-                    <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRwvvA5u034vT8SJmEZwe6QS17C5qTCZqmYqA&s" alt = "UCF CECS" />
-                  </a>
-                </div>
-                <div class="sponsor-logo">
-                  <a href="https://www.gobilda.com/">
-                    <img src="/photos/GoBildaTransparent.png" alt="GoBilda" />
-                  </a>
+                <div class = "sponsor-logo">
+                  <a href="https://www.redbull.com/us-en">
+                  <img src = "https://cdn.brandfetch.io/iddByYpFsc/w/400/h/400/theme/dark/icon.png?c=1bxid64Mup7aczewSAYMX&t=1667560742112" alt = "RedBull">
+                </a>
                 </div>
                 <div class="sponsor-logo">
                   <a href="https://sendcutsend.com/">
                     <img src="https://www.svgrepo.com/show/331572/sendcutsend.svg" alt = "SendCutSend" />
                   </a>
                 </div>
-                <div class="sponsor-logo">
-                  <a href="https://www.ece.ucf.edu/">
-                    <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTPvs7k6cCvraaDncfyyaX--0K0eIZfYxayLA&s" alt = "UCF ECE" />
-                  </a>
-                </div>
-                <div class="sponsor-logo">
-                  <a href="https://rccf.club/">
-                    <img src="/photos/PlaceHolderImg.png" alt="PlaceHolder" />
-                  </a>
-                </div>
+
               </div>
             </ul>
             <div class="aluminumAlly">
@@ -255,49 +166,10 @@
               <li>Member made sponsorship gift</li>
               <p>Current Supporters:</p>
               <div class="currentSupporters">
-                <div class="sponsor-logo">
-                  <a href="https://www.retengax.com.br/">
-                    <img src="/photos/RetengaxTransparent.png" alt="Retengax" />
-                  </a>
-                </div>
-                <div class="sponsor-logo">
-                  <a href="https://www.goengineer.com/">
-                    <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQcI8iitb1xCWitrAjcMgtqmkQrGi0aAY9xpf48RKL-O_1GzCPqo5zEkzoOz6CB-GI3wA4&usqp=CAU" alt="Go Engineer" />
-                  </a>
-                </div>
-                <div class="sponsor-logo">
-                  <a href="https://www.orlandorecycles.com/">
-                    <img src="https://static.wixstatic.com/media/7cdbae_45341b034ab7454fa06333ed8df1fbf8~mv2.png" alt = "Orlando Recycles" />
-                  </a>
-                </div>
-                <div class="sponsor-logo">
-                  <a href="https://www.protocase.com/">
-                    <img src="/photos/ProtocaseTransparent.png" alt = "Protocase" />
-                  </a>
-                </div>
-                <div class="sponsor-logo">
-                  <a href="https://www.cecs.ucf.edu/">
-                    <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRwvvA5u034vT8SJmEZwe6QS17C5qTCZqmYqA&s" alt = "UCF CECS" />
-                  </a>
-                </div>
+                
                 <div class="sponsor-logo">
                   <a href="https://www.gobilda.com/">
                     <img src="/photos/GoBildaTransparent.png" alt="GoBilda" />
-                  </a>
-                </div>
-                <div class="sponsor-logo">
-                  <a href="https://sendcutsend.com/">
-                    <img src="https://www.svgrepo.com/show/331572/sendcutsend.svg" alt = "SendCutSend" />
-                  </a>
-                </div>
-                <div class="sponsor-logo">
-                  <a href="https://www.ece.ucf.edu/">
-                    <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTPvs7k6cCvraaDncfyyaX--0K0eIZfYxayLA&s" alt = "UCF ECE" />
-                  </a>
-                </div>
-                <div class="sponsor-logo">
-                  <a href="https://rccf.club/">
-                    <img src="/photos/PlaceHolderImg.png" alt="PlaceHolder" />
                   </a>
                 </div>
               </div>
@@ -509,7 +381,7 @@
       transform: translateX(0%);
     }
     to {
-      transform: translateX(-33.5%);
+      transform: translateX(-25%);
     }
   }
 
