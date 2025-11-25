@@ -4,9 +4,26 @@
   import { modeCurrent } from '@skeletonlabs/skeleton';
 
   let mainEle: HTMLElement;
-  onMount(() => {
-    injectDots(mainEle, 200);
-  });
+  let dotsInjected = false;
+
+  function updateDots() {
+    if (!mainEle) return;
+
+    if (!$modeCurrent && !dotsInjected) {
+      injectDots(mainEle, 200);
+      dotsInjected = true;
+    }
+    else if (dotsInjected) {
+      const canvas = mainEle.querySelector('canvas');
+      if (canvas) {
+        canvas.remove();
+        dotsInjected = false;
+      }
+    }
+  }
+
+  $: $modeCurrent, mainEle && updateDots();
+
     // Image link to load
     let imageUrl = "https://lh3.googleusercontent.com/pw/AP1GczPgwQIAh4n8CAPbGOEQod39G73J6kmg1OxO5RKxnOEdcULy52h5DdDLxmE9vTKLfO7tYJGCQIV-E7TramY7eH_VvlgA1nX4MdcN5zJanqqBzauTUsY=w2400";
 </script>
@@ -191,20 +208,6 @@
       </div>
     </div>
   </div>
-  <div>
-  <main>
-    <!-- svelte-ignore a11y-img-redundant-alt -->
-    <img src={imageUrl} alt="Image description" />
-    <!-- svelte-ignore a11y-img-redundant-alt -->
-    <img src={"https://lh3.googleusercontent.com/pw/AP1GczPo2li6sb8MSLo-TzvYzTaYorf_o8ogywvmAE3uo3bsTTK_UHZI7PFhDbZUrJnv1AhN0xVARAPEEg4Z_UbBigzPYObemFC9OPMfLJs6VzK71FlbLn0=w2400"} alt="Image description" />
-    <!-- svelte-ignore a11y-img-redundant-alt -->
-    <img src={"https://lh3.googleusercontent.com/pw/AP1GczNUJ2rVGh-LyeWqjex65MdtxVo6-HJ_kQs1kfIJwbbKoyd0t6HqrxvCVa6xTo2OX53ZrA2jl9iU2nspKhKp_2LvGH9kYztHstPrz-iBHl_PnWtrHc8=w2400"} alt="Image description" />
-        <h1><br></h1>
-    <!-- svelte-ignore a11y-img-redundant-alt -->
-    <img src={"https://lh3.googleusercontent.com/pw/AP1GczMi_pH21kxBUCqEuqio8A-tphN2IhuVgJ5EfjtL_RwNLfs8ln1dyg06d5I0kRWASOAtPJgpZ8T5jR-G29sjqY7wHfRmJE2E2_0UC_MzMvm3AaG1eSI=w2400"} alt="Image description" />
-
-  </main>
-  </div>
 </div>
 
 <style>
@@ -292,6 +295,10 @@
     word-wrap: break-word;
   }
 
+  .content-item {
+    font-family: var(--theme-font-family-heading);
+  }
+
   .boltBacker {
     background-color: #6f590a;
     border-radius: 10px;
@@ -359,7 +366,6 @@
     height: 90px;
     border-top: solid;
     border-bottom: solid;
-    background-color: rgb(32, 32, 32);
   }
 
   .scroller-inner {
