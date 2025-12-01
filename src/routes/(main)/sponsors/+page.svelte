@@ -38,43 +38,43 @@
 <!--  -->
   <div class="scroller-container">
     <div class="scroller-inner">
-      <img src="/photos/RetengaxTransparent.png" alt="Retengax" width="70px" />
+      <img src="https://lh3.googleusercontent.com/pw/AP1GczOGcEn1Ztbwkhrfkyb6yuhgUvByGfARYW5qJo1iBRDfefpX-fUJWo4DDATe0fBL_UhrGpDTHt72Hg9rUZntqHPWG44bAaOkBBQLNuGnUw-VEtkC0IrizoG_3QHCTrrIcsaR8RJ53w3UoW7PsYvZwO16=w192-h192-s-no-gm?authuser=0" alt="Retengax" width="70px" />
       <div class="content-item">Retengax <br /></div>
       <img src = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQcI8iitb1xCWitrAjcMgtqmkQrGi0aAY9xpf48RKL-O_1GzCPqo5zEkzoOz6CB-GI3wA4&usqp=CAU" alt = "Go Engineer"  width = "70px">
       <div class="content-item">Go Engineer <br /></div>
       <img src = "https://static.wixstatic.com/media/7cdbae_45341b034ab7454fa06333ed8df1fbf8~mv2.png" alt = "Orlando Recycles"  width = "70px">
       <div class="content-item">Orlando Recycles <br /></div>
-      <img src = "/photos/ProtocaseTransparent.png" alt = "Protocase"  width = "70px">
+      <img src = "https://lh3.googleusercontent.com/pw/AP1GczP4LH7ppxLX_QYV_ciUL4052712OmUTUlrC83gwEWenPesQSV5QxB9g94t-4i4wKz9dY7vLJD6zQ9EZ3cW_am3cF70UWLEWWtzOnBSzmksyW8a_m8y8JQaxXR9BTmNUEOLb9LkdnPouzm12eDbQpK-h=w131-h133-s-no-gm?authuser=0" alt = "Protocase"  width = "70px">
       <div class="content-item">Protocase <br /></div>
       <img src = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRwvvA5u034vT8SJmEZwe6QS17C5qTCZqmYqA&s" alt = "UCF CECS"  width = "70px">
       <div class="content-item">UCF CECS <br /></div>
-      <img src="/photos/RetengaxTransparent.png" alt="Retengax" width="70px" />
+      <img src="https://lh3.googleusercontent.com/pw/AP1GczOGcEn1Ztbwkhrfkyb6yuhgUvByGfARYW5qJo1iBRDfefpX-fUJWo4DDATe0fBL_UhrGpDTHt72Hg9rUZntqHPWG44bAaOkBBQLNuGnUw-VEtkC0IrizoG_3QHCTrrIcsaR8RJ53w3UoW7PsYvZwO16=w192-h192-s-no-gm?authuser=0" alt="Retengax" width="70px" />
       <div class="content-item">Retengax <br /></div>
       <img src = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQcI8iitb1xCWitrAjcMgtqmkQrGi0aAY9xpf48RKL-O_1GzCPqo5zEkzoOz6CB-GI3wA4&usqp=CAU" alt = "Go Engineer"  width = "70px">
       <div class="content-item">Go Engineer <br /></div>
       <img src = "https://static.wixstatic.com/media/7cdbae_45341b034ab7454fa06333ed8df1fbf8~mv2.png" alt = "Orlando Recycles"  width = "70px">
       <div class="content-item">Orlando Recycles <br /></div>
-      <img src = "/photos/ProtocaseTransparent.png" alt = "Protocase"  width = "70px">
+      <img src = "https://lh3.googleusercontent.com/pw/AP1GczP4LH7ppxLX_QYV_ciUL4052712OmUTUlrC83gwEWenPesQSV5QxB9g94t-4i4wKz9dY7vLJD6zQ9EZ3cW_am3cF70UWLEWWtzOnBSzmksyW8a_m8y8JQaxXR9BTmNUEOLb9LkdnPouzm12eDbQpK-h=w131-h133-s-no-gm?authuser=0" alt = "Protocase"  width = "70px">
       <div class="content-item">Protocase <br /></div>
       <img src = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRwvvA5u034vT8SJmEZwe6QS17C5qTCZqmYqA&s" alt = "UCF CECS"  width = "70px">
       <div class="content-item">UCF CECS <br /></div>
-      <img src="/photos/RetengaxTransparent.png" alt="Retengax" width="70px" />
+      <img src="https://lh3.googleusercontent.com/pw/AP1GczOGcEn1Ztbwkhrfkyb6yuhgUvByGfARYW5qJo1iBRDfefpX-fUJWo4DDATe0fBL_UhrGpDTHt72Hg9rUZntqHPWG44bAaOkBBQLNuGnUw-VEtkC0IrizoG_3QHCTrrIcsaR8RJ53w3UoW7PsYvZwO16=w192-h192-s-no-gm?authuser=0" alt="Retengax" width="70px" />
       <div class="content-item">Retengax <br /></div>
       <img src = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQcI8iitb1xCWitrAjcMgtqmkQrGi0aAY9xpf48RKL-O_1GzCPqo5zEkzoOz6CB-GI3wA4&usqp=CAU" alt = "Go Engineer"  width = "70px">
       <div class="content-item">Go Engineer <br /></div>
       <img src = "https://static.wixstatic.com/media/7cdbae_45341b034ab7454fa06333ed8df1fbf8~mv2.png" alt = "Orlando Recycles"  width = "70px">
       <div class="content-item">Orlando Recycles <br /></div>
-      <img src = "/photos/ProtocaseTransparent.png" alt = "Protocase"  width = "70px">
+      <img src = "https://lh3.googleusercontent.com/pw/AP1GczP4LH7ppxLX_QYV_ciUL4052712OmUTUlrC83gwEWenPesQSV5QxB9g94t-4i4wKz9dY7vLJD6zQ9EZ3cW_am3cF70UWLEWWtzOnBSzmksyW8a_m8y8JQaxXR9BTmNUEOLb9LkdnPouzm12eDbQpK-h=w131-h133-s-no-gm?authuser=0" alt = "Protocase"  width = "70px">
       <div class="content-item">Protocase <br /></div>
       <img src = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRwvvA5u034vT8SJmEZwe6QS17C5qTCZqmYqA&s" alt = "UCF CECS"  width = "70px">
       <div class="content-item">UCF CECS <br /></div>
-      <img src="/photos/RetengaxTransparent.png" alt="Retengax" width="70px" />
+      <img src="https://lh3.googleusercontent.com/pw/AP1GczOGcEn1Ztbwkhrfkyb6yuhgUvByGfARYW5qJo1iBRDfefpX-fUJWo4DDATe0fBL_UhrGpDTHt72Hg9rUZntqHPWG44bAaOkBBQLNuGnUw-VEtkC0IrizoG_3QHCTrrIcsaR8RJ53w3UoW7PsYvZwO16=w192-h192-s-no-gm?authuser=0" alt="Retengax" width="70px" />
       <div class="content-item">Retengax <br /></div>
       <img src = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQcI8iitb1xCWitrAjcMgtqmkQrGi0aAY9xpf48RKL-O_1GzCPqo5zEkzoOz6CB-GI3wA4&usqp=CAU" alt = "Go Engineer"  width = "70px">
       <div class="content-item">Go Engineer <br /></div>
       <img src = "https://static.wixstatic.com/media/7cdbae_45341b034ab7454fa06333ed8df1fbf8~mv2.png" alt = "Orlando Recycles"  width = "70px">
       <div class="content-item">Orlando Recycles <br /></div>
-      <img src = "/photos/ProtocaseTransparent.png" alt = "Protocase"  width = "70px">
+      <img src = "https://lh3.googleusercontent.com/pw/AP1GczP4LH7ppxLX_QYV_ciUL4052712OmUTUlrC83gwEWenPesQSV5QxB9g94t-4i4wKz9dY7vLJD6zQ9EZ3cW_am3cF70UWLEWWtzOnBSzmksyW8a_m8y8JQaxXR9BTmNUEOLb9LkdnPouzm12eDbQpK-h=w131-h133-s-no-gm?authuser=0" alt = "Protocase"  width = "70px">
       <div class="content-item">Protocase <br /></div>
       <img src = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRwvvA5u034vT8SJmEZwe6QS17C5qTCZqmYqA&s" alt = "UCF CECS"  width = "70px">
       <div class="content-item">UCF CECS <br /></div>
@@ -119,7 +119,7 @@
                 </div>
                 <div class="sponsor-logo">
                   <a href="https://www.retengax.com.br/">
-                    <img src="/photos/RetengaxTransparent.png" alt="Retengax" />
+                    <img src="https://lh3.googleusercontent.com/pw/AP1GczOGcEn1Ztbwkhrfkyb6yuhgUvByGfARYW5qJo1iBRDfefpX-fUJWo4DDATe0fBL_UhrGpDTHt72Hg9rUZntqHPWG44bAaOkBBQLNuGnUw-VEtkC0IrizoG_3QHCTrrIcsaR8RJ53w3UoW7PsYvZwO16=w192-h192-s-no-gm?authuser=0" alt="Retengax" />
                   </a>
                 </div>
               </div>
@@ -141,7 +141,7 @@
                 </div>
                 <div class="sponsor-logo">
                   <a href="https://www.protocase.com/">
-                    <img src="/photos/ProtocaseTransparent.png" alt = "Protocase" />
+                    <img src="https://lh3.googleusercontent.com/pw/AP1GczP4LH7ppxLX_QYV_ciUL4052712OmUTUlrC83gwEWenPesQSV5QxB9g94t-4i4wKz9dY7vLJD6zQ9EZ3cW_am3cF70UWLEWWtzOnBSzmksyW8a_m8y8JQaxXR9BTmNUEOLb9LkdnPouzm12eDbQpK-h=w131-h133-s-no-gm?authuser=0" alt = "Protocase" />
                   </a>
                 </div>
                 <div class="sponsor-logo">
@@ -186,7 +186,7 @@
                 
                 <div class="sponsor-logo">
                   <a href="https://www.gobilda.com/">
-                    <img src="/photos/GoBildaTransparent.png" alt="GoBilda" />
+                    <img src="https://lh3.googleusercontent.com/pw/AP1GczMtxPR3SMWXkulENPr2NDN-K328CRuYgLIb7PJDBw748kpAIAUPfwd3VlaDKhde5UaRD9WdvFxhzPHl2fxaOewwHXYchMc_4qpkjx7rvVWrGy6FjoPCs5upzqlS-13memuceAnk-JU75v_43NDJssYH=w900-h900-s-no-gm?authuser=0" alt="GoBilda" />
                   </a>
                 </div>
               </div>
