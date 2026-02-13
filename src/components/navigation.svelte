@@ -5,7 +5,7 @@
 
 <RadioGroup active="variant-filled-primary" hover="hover:variant-ghost-primary">
   <TabAnchor href="/" selected={$page.url.pathname === '/'}>
-    <span class="capitalize">home</span>
+    <span class="capitalize" style="">home</span>
   </TabAnchor>
   <!-- <TabAnchor href="/about" selected={$page.url.pathname === '/about'}>
     <span class="capitalize">about</span>
@@ -27,3 +27,23 @@
     <span class="capitalize">library</span>
   </TabAnchor>
 </RadioGroup>
+
+<style>
+  @media (max-width: 540px) {
+    .capitalize {
+      font-size: .7rem !important;
+      line-height: .7rem !important;
+      margin-left: -10px !important
+      
+    }
+    
+  }
+  @media (max-width: 350px) {
+    .capitalize {
+      font-size: .6rem !important;
+      line-height: .6rem !important;
+      margin-left: -13px !important
+      
+    }
+  }
+</style>
