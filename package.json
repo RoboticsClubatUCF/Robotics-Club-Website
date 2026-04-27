@@ -8,7 +8,7 @@
     "build": "npm run prisma:generate && vite build",
     "preview": "vite preview --host",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "prisma:inline": "cp ./node_modules/.prisma/client/*.js ./node_modules/@prisma/client",
+    "prisma:inline": "node -e \"const fs=require('fs'),path=require('path'),src='./node_modules/.prisma/client',dst='./node_modules/@prisma/client';fs.readdirSync(src).filter(f=>f.endsWith('.js')).forEach(f=>fs.copyFileSync(path.join(src,f),path.join(dst,f)));\"",
     "prisma:migrate": "prisma migrate deploy && npm run prisma:inline",
     "prisma:migrate:dev": "prisma migrate dev && npm run prisma:inline",
     "prisma:generate": "prisma generate && npm run prisma:inline",
@@ -33,6 +33,7 @@
     "@types/node": "^18.19.0",
     "autoprefixer": "^10.4.20",
     "bcrypt": "^5.1.1",
+    "date-fns": "3.6.0",
     "postcss": "^8.4.47",
     "postcss-load-config": "^4.0.2",
     "prettier": "^3.3.3",
@@ -41,30 +42,29 @@
     "svelte": "^4.2.19",
     "svelte-check": "^3.8.6",
     "svelte-preprocess": "^5.1.4",
-    "sveltekit-superforms": "^2.22.1",
+    "sveltekit-superforms": "2.16.1",
     "svimg": "^4.0.0",
     "tailwindcss": "^3.4.14",
     "tslib": "^2.8.1",
     "typescript": "^5.3.3",
     "vite": "^5.4.14",
     "vite-plugin-tailwind-purgecss": "^0.3.0",
-    "zod": "^3.23.8",
-    "date-fns": "3.6.0"
+    "zod": "^3.23.8"
   },
   "type": "module",
   "dependencies": {
     "@editorjs/editorjs": "^2.26.5",
     "@prisma/client": "^4.12.0",
+    "date-fns": "3.6.0",
     "dotenv": "^16.3.1",
     "flowbite": "^1.8.1",
     "identicon.js": "^2.3.3",
     "pixi.js": "^7.2.4",
+    "postmark": "4.0.4",
     "robohash-avatars": "^1.0.1",
     "stripe": "^14.14.0",
     "svelte-icons": "^2.1.0",
-    "svelte-stripe": "^1.1.4",
-    "date-fns": "3.6.0",
-    "postmark": "4.0.4"
+    "svelte-stripe": "^1.1.4"
   },
   "prisma": {
     "seed": "node prisma/seed.js"

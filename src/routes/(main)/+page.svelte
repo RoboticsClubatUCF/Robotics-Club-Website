@@ -16,22 +16,47 @@
 </script>
 
 <div class="w-full">
-  <Hero />
+  <Hero slogan={data.siteContent.slogan} editMode={data.editMode} />
 </div>
 
 <!-- Page Content -->
 <div class="grid md:grid-cols-3 gap-8 p-4 w-full">
-  <MissionStatement />
-  <Projects totalProjects={data.projectCount} />
-  <Teaching />
-  <Outreach />
-  <Competition />
-  <Research />
+  <MissionStatement
+    text={data.siteContent.missionStatement}
+    image={data.siteContent.cardImages.mission}
+    editMode={data.editMode}
+  />
+  <Projects
+    totalProjects={data.projectCount}
+    text={data.siteContent.projectStatement}
+    image={data.siteContent.cardImages.projects}
+    editMode={data.editMode}
+  />
+  <Teaching
+    text={data.siteContent.teachingStatement}
+    image={data.siteContent.cardImages.teaching}
+    editMode={data.editMode}
+  />
+  <Outreach
+    text={data.siteContent.outreachStatement}
+    image={data.siteContent.cardImages.outreach}
+    editMode={data.editMode}
+  />
+  <Competition
+    text={data.siteContent.competitionStatement}
+    image={data.siteContent.cardImages.competition}
+    editMode={data.editMode}
+  />
+  <Research
+    text={data.siteContent.researchStatement}
+    image={data.siteContent.cardImages.research}
+    editMode={data.editMode}
+  />
 </div>
 
 <div class="m-4">
   <h2 class="centered h2">Meet the Team!</h2>
-  <Admins />
+  <Admins officers={data.officers} editMode={data.editMode} />
 </div>
 
 <div class="m-4 mt-8">
@@ -59,6 +84,5 @@
       <div class="h-10 w-10"><FaInstagram /></div>
       <span>Instagram (Tapemeasure)</span>
     </a>
-    <!-- Add more Sodials below -->
   </div>
 </div>

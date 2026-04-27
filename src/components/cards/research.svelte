@@ -1,18 +1,24 @@
 <script lang="ts">
-  import config from '../../config';
+  import EditableText from '../EditableText.svelte';
+  import EditableImage from '../EditableImage.svelte';
+  export let text: string;
+  export let image: string;
+  export let editMode: boolean = false;
 </script>
 
 <div class="card overflow-hidden">
-  <img
-    src="/photos/research.png"
-    class="bg-black/50 w-full aspect-[21/9] object-cover"
+  <EditableImage
+    contentKey="home.card.research.image"
+    value={image}
     alt="Research"
+    imgClass="bg-black/50 w-full aspect-[21/9] object-cover"
+    {editMode}
   />
   <div class="p-4 space-y-4">
     <h6 class="h4">Research</h6>
     <article>
       <p>
-        {config.information.researchStatement}
+        <EditableText contentKey="home.researchStatement" value={text} {editMode} />
       </p>
     </article>
   </div>

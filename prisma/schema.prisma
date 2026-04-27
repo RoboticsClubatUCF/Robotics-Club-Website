@@ -214,6 +214,9 @@ model Member {
   membershipExpDate  DateTime            @default(now())
   joinedAt           DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
+  position           String?
+  bio                String?
+  profileLink        String?
   role               Role                @relation(fields: [roleId], references: [id])
   roleId             Int
   Articles           Article[]
@@ -225,6 +228,15 @@ model Member {
   Survey             Survey?             @relation(fields: [surveyId], references: [id])
   surveyId           Int?
   PasswordResetToken PasswordResetToken?
+}
+
+model SiteContent {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  value     String
+  type      String   @default("text")
+  updatedAt DateTime @updatedAt
+  updatedBy String?
 }
 
 model Sponsor {

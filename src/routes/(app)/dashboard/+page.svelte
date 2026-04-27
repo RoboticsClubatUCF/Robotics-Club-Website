@@ -169,13 +169,27 @@
               <h2 class="h2">
                 {data.user?.role?.name?.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')} Dashboard
               </h2>
-                  <!-- Get to set project leads-->
+                  <!-- Configure Projects (officer+) -->
                 {#if data.user?.role.permissionLevel >= 10}
                 <br>
-                <h6 class="h5">
-                  Configure Projects
-                </h6>
+                <h6 class="h5">Configure Projects</h6>
                 <a href="/dashboard/create-project" class="btn variant-ghost-tertiary hover:variant-filled-tertiary">Create Project</a>
+
+                <br /><br />
+                <h6 class="h5">Website Editor</h6>
+                <p class="text-sm opacity-70 mb-2">Enter edit mode to change text, images, and content on the public site.</p>
+                <a href="/api/edit-mode?enable=true&to=/" class="btn variant-ghost-warning hover:variant-filled-warning">
+                  Edit Website
+                </a>
+
+                {#if data.user?.role.permissionLevel >= 999}
+                <br /><br />
+                <h6 class="h5">Role Management</h6>
+                <p class="text-sm opacity-70 mb-2">Assign or change member roles.</p>
+                <a href="/dashboard/admin" class="btn variant-ghost-error hover:variant-filled-error">
+                  Manage Roles
+                </a>
+                {/if}
                 {/if}
             </div>
           </div>
