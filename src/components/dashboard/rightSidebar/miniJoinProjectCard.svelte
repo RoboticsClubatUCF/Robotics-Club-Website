@@ -1,9 +1,9 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import type { Picture, Project } from '@prisma/client';
+  import type { Prisma } from '@prisma/client';
   import { getToastStore, type ToastSettings } from '@skeletonlabs/skeleton';
 
-  export let data: Project & { logo: Picture };
+  export let data: Prisma.ProjectGetPayload<{ include: { logo: true } }>;
   const t: ToastSettings = {
     message: 'You Joined ' + data.title,
     // Provide any utility or variant background style:
@@ -15,9 +15,9 @@
 <div class="card grid grid-cols-3 gap-4 mt-2">
   <div>
     <!-- icon -->
-    {#if data.logo.isLocal}
+    {#if data.logo?.isLocal}
       <!-- load the image using the b64 method -->
-    {:else}
+    {:else if data.logo}
       <img class="h-10 rounded-lg object-cover overflow-hidden m-2" src={data.logo.data} alt="" />
     {/if}
   </div>

@@ -15,17 +15,6 @@
   export let data: PageServerData;
 </script>
 
-<style>
-  .centered {
-    max-width: 100vw; /* Can be in percentage also. */
-    height: auto;
-    margin: 0 auto;
-    position: relative;
-    text-align: center;
-    animation: fadeIn 3s;
-  }
-</style>
-
 <div class="w-full">
   <Hero />
 </div>
@@ -45,7 +34,7 @@
   <Admins />
 </div>
 
-<div class="m-4" style="margin-top: 2rem">
+<div class="m-4 mt-8">
   <h2 class="centered h2">Frequently Asked Questions!</h2>
   <FRQ />
 </div>

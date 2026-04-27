@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -E \"\\\\.\\(ts|js|svelte\\)$\")",
+      "Bash(npm install *)",
+      "Bash(npm ls *)",
+      "Bash(npx svelte-kit *)",
+      "Bash(npm run *)",
+      "Bash(node -e \"const pkg = require\\('./node_modules/zod/package.json'\\); console.log\\('zod:', pkg.version\\)\")",
+      "Bash(node -e \"const pkg = require\\('./node_modules/sveltekit-superforms/package.json'\\); console.log\\('superforms:', pkg.version\\)\")",
+      "Bash(node -e \"const d=JSON.parse\\(require\\('fs'\\).readFileSync\\('/dev/stdin','utf8'\\)\\); console.log\\('peerDeps:', JSON.stringify\\(d.peerDependencies,null,2\\)\\)\")",
+      "Bash(node -e \"const p = require\\('./node_modules/zod/package.json'\\); console.log\\('version:', p.version\\); console.log\\('exports:', JSON.stringify\\(Object.keys\\(p.exports||{}\\), null, 2\\)\\)\")",
+      "Bash(node -e \"const z = require\\('./node_modules/zod'\\); console.log\\('zod main version:', z.ZodType ? 'has ZodType' : 'no ZodType'\\); console.log\\('keys:', Object.keys\\(z\\).slice\\(0,10\\)\\)\")",
+      "Bash(node -p \"JSON.parse\\(require\\('fs'\\).readFileSync\\(process.argv[1]\\)\\).exports['.'].require\" node_modules/zod/package.json)",
+      "Bash(head -5 node_modules/zod/v3/index.cjs)",
+      "Bash(head -5 node_modules/zod/v3/index.js)",
+      "Bash(node -p \"require\\('./node_modules/sveltekit-superforms/package.json'\\).peerDependencies\")",
+      "Bash(node -p \"require\\('./node_modules/zod-v3-to-json-schema/package.json'\\).version\")",
+      "Bash(npm show *)",
+      "Bash(node -p \"JSON.parse\\(require\\('fs'\\).readFileSync\\('/dev/stdin','utf8'\\)\\).filter\\(v => v.startsWith\\('3.'\\)\\).slice\\(-15\\)\")",
+      "Bash(npm view *)",
+      "Bash(xargs sed *)"
+    ]
+  }
+}

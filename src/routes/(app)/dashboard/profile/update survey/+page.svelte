@@ -6,7 +6,7 @@
     getDrawerStore,
     modeCurrent
   } from '@skeletonlabs/skeleton';
-  import { superForm } from 'sveltekit-superforms/client';
+  import { superForm } from 'sveltekit-superforms';
   import type { PageData } from './$types';
   import successToast from '../../../../../components/toasts/successToast';
 
@@ -228,13 +228,12 @@
       <label class="label">
         <span>Concerns (Optional)</span>
         <textarea
-          class="textarea"
+          class="textarea min-h-[6em]"
           name="otherConcerns"
           id="otherConcerns"
           bind:value={$form.otherConcerns}
           placeholder="Enter any concerns you may have about being a member."
           rows="4"
-          style="min-height: 6em;"
         ></textarea>
       </label>
       <br />

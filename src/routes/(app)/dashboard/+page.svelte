@@ -7,7 +7,7 @@
     modeCurrent
   } from '@skeletonlabs/skeleton';
   import type { PageServerData } from './$types';
-  import { superForm } from 'sveltekit-superforms/client';
+  import { superForm } from 'sveltekit-superforms';
   import Feed from '../../../components/dashboard/feed.svelte';
   import LeftSideBar from '../../../components/dashboard/leftSidebar/leftSideBar.svelte';
   import RightSideBar from '../../../components/dashboard/rightSidebar/rightSideBar.svelte';

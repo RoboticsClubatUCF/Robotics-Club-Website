@@ -1,7 +1,7 @@
 <script lang="ts">
-  import type { Picture, Project } from '@prisma/client';
+  import type { Prisma } from '@prisma/client';
 
-  export let project: Project & { logo: Picture };
+  export let project: Prisma.ProjectGetPayload<{ include: { logo: true } }>;
   let hover = false;
 
   // Function to truncate the description to 2 sentences
@@ -25,9 +25,9 @@
   >
     {#if !hover}
       <!-- if not hovering, just show the picture and the title over it -->
-      {#if project.logo.isLocal}
+      {#if project.logo?.isLocal}
         <!-- load the image using the b64 method -->
-      {:else}
+      {:else if project.logo}
         <div class="absolute m-5 p-2 h3 rounded-lg variant-filled-surface">{project.title}</div>
         <img
           class="h-72 w-full rounded-lg object-contain overflow-hidden"

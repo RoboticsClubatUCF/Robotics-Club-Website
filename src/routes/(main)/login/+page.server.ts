@@ -1,5 +1,6 @@
-import { z } from 'zod';
-import { superValidate } from 'sveltekit-superforms/server';
+import { z } from 'zod/v3';
+import { superValidate } from 'sveltekit-superforms';
+import { zod } from '$lib/zodAdapter';
 import type { Actions, PageServerLoad } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
 import { db } from '$lib/db';
@@ -11,14 +12,14 @@ const loginSchema = z.object({
 });
 
 export const load: PageServerLoad = async () => {
-  const form = await superValidate(loginSchema);
+  const form = await superValidate(zod(loginSchema));
 
   return { form };
 };
 
 export const actions: Actions = {
   default: async ({ request, cookies }) => {
-    const form = await superValidate(request, loginSchema);
+    const form = await superValidate(request, zod(loginSchema));
     if (!form.valid) {
       return fail(400, { form });
     }

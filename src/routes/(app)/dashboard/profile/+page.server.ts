@@ -1,6 +1,7 @@
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import type { Actions, PageServerLoad } from './$types';
-import { superValidate } from 'sveltekit-superforms/server';
+import { superValidate } from 'sveltekit-superforms';
+import { zod } from '$lib/zodAdapter';
 import { fail } from '@sveltejs/kit';
 import { db } from '$lib/db';
 let userID = '';
@@ -10,8 +11,8 @@ export const load = (async ({ parent }) => {
     data.member.lastName == '';
   }
   userID = data.member!.id;
-  //@ts-ignore
-  const form = await superValidate(data.member, editProfileSchema);
+  // @ts-ignore — data.member has extra Prisma fields not in editProfileSchema
+  const form = await superValidate(data.member, zod(editProfileSchema));
   form.message = 'IDLE';
   return { user: data.member, form };
 }) satisfies PageServerLoad;
@@ -24,7 +25,7 @@ const editProfileSchema = z.object({
 });
 export const actions: Actions = {
   default: async ({ request }) => {
-    const form = await superValidate(request, editProfileSchema);
+    const form = await superValidate(request, zod(editProfileSchema));
 
     if (!form.valid) {
       // Again, return { form } and things will just work.

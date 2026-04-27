@@ -1,9 +1,9 @@
 <script lang="ts">
-  import type { Picture, Project, Team } from '@prisma/client';
+  import type { Prisma, Team } from '@prisma/client';
   import ProjectList from './projectList.svelte';
   import TeamList from './teamList.svelte';
 
-  export let projects: (Project & { logo: Picture })[] | undefined | null;
+  export let projects: Prisma.ProjectGetPayload<{ include: { logo: true } }>[] | undefined | null;
   export let teams:
     | (Team & {
         _count: {

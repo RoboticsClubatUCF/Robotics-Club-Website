@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { superForm } from "sveltekit-superforms/client";
+  import { superForm } from 'sveltekit-superforms';
   import { modeCurrent } from '@skeletonlabs/skeleton';
   import type { PageData } from './$types';
   import { onMount } from "svelte";
@@ -31,7 +31,7 @@
   class="absolute top-20 left-0 right-0 bottom-0 pointer-events-auto -z-20"
 />
 
-<div class="h-screen grid place-items-center absolute w-screen top-0 pointer-events-none overflow-auto" style="margin-top: 90px; padding-bottom: 110px;">
+<div class="h-screen grid place-items-center absolute w-screen top-0 pointer-events-none overflow-auto mt-[90px] pb-[110px]">
   <div
     class={$modeCurrent
       ? 'block card p-8 pointer-events-auto shadow-xl shadow-surface-300'
@@ -345,13 +345,12 @@
       <label class="label">
         <span>Concerns (Optional)</span>
         <textarea
-          class="textarea"
+          class="textarea min-h-[6em]"
           name="otherConcerns"
           id="otherConcerns"
           bind:value={$form.otherConcerns}
           placeholder="Enter any concerns you may have about being a member."
           rows="4"
-          style="min-height: 6em;"
         ></textarea>
       </label>
       <br />

@@ -1,17 +1,11 @@
 <script lang="ts">
-  import Image from 'svimg';
-
 </script>
 
 <!-- the acutal cards -->
-<div class="grid grid-cols-1 md:grid-cols-4 gap-4 w-full" style="margin-top: 2rem">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 w-full mt-8">
 
   <a class="card card-hover overflow-hidden" href="https://www.ist.ucf.edu/faculty/crystal-maraj-ph-d/">
-    <Image
-      src="/photos/Crytal1.jpg"
-      class="bg-black/50 w-full aspect-[10/8] object-cover"
-      alt="Post"
-    />
+    <img src="/photos/Crytal1.jpg" class="bg-black/50 w-full aspect-[10/8] object-cover" alt="Crystal Maraj" />
     <div class="p-4 space-y-4">
       <h6 class="h3">Crystal Maraj - Advisor</h6>
     </div>

@@ -6,7 +6,7 @@
     getDrawerStore,
     modeCurrent
   } from '@skeletonlabs/skeleton';
-  import { superForm } from 'sveltekit-superforms/client';
+  import { superForm } from 'sveltekit-superforms';
   import type { PageData } from './$types';
   import successToast from '../../../../components/toasts/successToast';
   import ProfilePicPreview from '../../../../components/dashboard/profilePicPreview.svelte';

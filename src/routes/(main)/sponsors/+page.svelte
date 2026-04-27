@@ -28,10 +28,11 @@
     let imageUrl = "https://lh3.googleusercontent.com/pw/AP1GczPgwQIAh4n8CAPbGOEQod39G73J6kmg1OxO5RKxnOEdcULy52h5DdDLxmE9vTKLfO7tYJGCQIV-E7TramY7eH_VvlgA1nX4MdcN5zJanqqBzauTUsY=w2400";
 </script>
 
-<!-- Brandons Scroller -->
+<div class="sponsors-page">
 
+<!-- Brandons Scroller -->
 <div>
-  <div class="h1" style="font-size: 5rem; line-height: 5rem; text-align: center; padding: 3%;">
+  <div class="h1 text-[5rem] leading-[5rem] text-center p-[3%]">
     <!-- scroller title -->
     <b>TOP SPONSORS</b>
   </div>
@@ -86,18 +87,17 @@
 <!-- Kits Sponsorship Tiers -->
 <div bind:this={mainEle} class="absolute top-0 left-0 right-0 bottom-0 pointer-events-auto -z-20" />
 <div
-  class="h-screen grid place-items-center w-screen top-0 pointer-events-none"
-  style="margin-top:50px; padding-bottom: 130px;"
+  class="h-screen grid place-items-center w-screen top-0 pointer-events-none mt-[50px] pb-[130px]"
 >
   <div
     class={$modeCurrent
       ? 'block card p-8 pointer-events-auto shadow-xl shadow-surface-300'
       : 'block card p-8 pointer-events-auto shadow-xl shadow-surface-500'}
   >
-    <div class="m-4 centered" style="margin-top: rem">
+    <div class="m-4 centered">
       <div class="sponsorContainer sponsor-wrapper">
         <div class="centered">
-          <div class="h1" style="font-size: 5rem; line-height: 5rem;">
+          <div class="h1 text-[5rem] leading-[5rem]">
             <b>SPONSORSHIP TIERS</b>
           </div>
           <br />
@@ -183,7 +183,7 @@
               <li>Member made sponsorship gift</li>
               <p>Current Supporters:</p>
               <div class="currentSupporters">
-                
+
                 <div class="sponsor-logo">
                   <a href="https://www.gobilda.com/">
                     <img src="https://lh3.googleusercontent.com/pw/AP1GczMtxPR3SMWXkulENPr2NDN-K328CRuYgLIb7PJDBw748kpAIAUPfwd3VlaDKhde5UaRD9WdvFxhzPHl2fxaOewwHXYchMc_4qpkjx7rvVWrGy6FjoPCs5upzqlS-13memuceAnk-JU75v_43NDJssYH=w900-h900-s-no-gm?authuser=0" alt="GoBilda" />
@@ -195,7 +195,7 @@
         </div>
       </div>
 
-      <hr style="border: 1px solid" />
+      <hr class="border" />
       <div class="sponsorInfo">
         <br />* Logo size determined by donation ammount
         <br />
@@ -210,267 +210,4 @@
   </div>
 </div>
 
-<style>
-  .centered {
-    max-width: none;
-    width: auto;
-    height: auto;
-    margin-top: 3rem;
-
-    margin-bottom: 2rem;
-    margin: 0 auto;
-    position: relative;
-    text-align: center;
-    animation: fadeIn 3s;
-  }
-
-  .sponsor-wrapper {
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    display: flex;
-  }
-
-  .sponsorContainer {
-    display: flex;
-    flex-direction: row;
-    position: relative;
-    justify-content: center;
-    align-items: stretch;
-    flex-wrap: nowrap;
-    min-width: 0;
-    width: 80vw;
-    height: 100%;
-  }
-
-
-  .sponsorshipTiers {
-    font-size: 200%;
-    line-height: 5rem;
-    font-family: var(--theme-font-family-heading);
-  }
-
-  .tierInfo {
-    line-height: 4rem;
-    font-family: var(--theme-font-family-heading);
-    text-align: left;
-    list-style-type: disc;
-    margin-left: 10px;
-    gap: 50px;
-    padding-left: 50px;
-    padding-top: 20px;
-    padding-bottom: 20px;
-    font-size: 85%;
-  }
-
-  .processorPatron {
-    background-color: #d1a504;
-    border-radius: 10px;
-    width: 100%;
-    text-align: left;
-    padding-left: 25px;
-    padding-right: 25px;
-    margin-left: 10px;
-    color: white;
-    display: flex;
-    justify-content: space-between;
-    max-width: 96%;
-    flex-wrap: wrap;
-    word-wrap: break-word;
-  }
-
-  .circuitSupporter {
-    background-color: #9f7e08;
-    border-radius: 10px;
-    width: 100%;
-    text-align: left;
-    padding-left: 25px;
-    padding-right: 25px;
-    margin-left: 10px;
-    color: white;
-    display: flex;
-    justify-content: space-between;
-    max-width: 85%;
-    flex-wrap: wrap;
-    word-wrap: break-word;
-  }
-
-  .content-item {
-    font-family: var(--theme-font-family-heading);
-  }
-
-  .boltBacker {
-    background-color: #6f590a;
-    border-radius: 10px;
-    width: 100%;
-    text-align: left;
-    padding-left: 25px;
-    padding-right: 25px;
-    margin-left: 10px;
-    color: white;
-    display: flex;
-    justify-content: space-between;
-    max-width: 70%;
-    flex-wrap: wrap;
-    word-wrap: break-word;
-  }
-
-  .aluminumAlly {
-    background-color: #3f340c;
-    border-radius: 10px;
-    width: 100%;
-    text-align: left;
-    padding-left: 25px;
-    padding-right: 25px;
-    margin-left: 10px;
-    color: white;
-    display: flex;
-    justify-content: space-between;
-    max-width: 55%;
-    flex-wrap: wrap;
-    word-wrap: break-word;
-  }
-
-  .sponsorInfo {
-    font-size: 150%;
-    line-height: 3rem;
-    font-family: var(--theme-font-family-heading);
-  }
-
-  .currentSupporters {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 10px;
-  }
-
-  .sponsor-logo {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    margin-bottom: 15px;
-    object-fit: contain;
-  }
-
-  .sponsor-logo img {
-    width: 100px;
-    height: 100px;
-    object-fit: contain;
-    border-radius: 0 !important;
-  }
-
-  .scroller-container {
-    width: 100%;
-    overflow: hidden;
-    font-size: 30pt;
-    height: 90px;
-    border-top: solid;
-    border-bottom: solid;
-  }
-
-  .scroller-inner {
-    padding-top: 25px;
-    display: flex;
-    white-space: pre-wrap;
-    width: max-content;
-    animation: scrollLeft 15s linear infinite;
-    font-family: var(--theme-font-family-heading);
-    gap: 10px;
-  }
-
-  .scroller-inner img {
-    margin-top: -18px;
-  }
-
-  @keyframes scrollLeft {
-    from {
-      transform: translateX(0%);
-    }
-    to {
-      transform: translateX(-25%);
-    }
-  }
-
-  @keyframes enterScreen {
-    from {
-      opacity: 0%;
-    }
-    to {
-      opacity: 100%;
-    }
-  } 
-   /*   
-    .sponsorContainer > div {
-        display: flex;
-    }
-
-  .sideBox{
-        background-color: #ffc904;
-        width: 75px;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        align-self: stretch;
-    }
-
-  .sideBox img {
-    padding-bottom: 10px;
-    margin-top: auto;
-    scale: 0.75;
-  } */
-
-    img {
-        max-width: 100%;
-        height: auto;
-        display: block;
-        margin: 0 auto;
-    }
-
-    /* For mobile or low width screens */
-    @media (max-width: 800px) {
-    .h1 {
-      font-size: 2.5rem !important;
-      line-height: 2.5rem !important;
-      padding: 5% !important;
-    }
-
-    .sponsorContainer {
-      max-width: 100vw;
-      padding: 0 10px;
-    }
-
-    .sponsorshipTiers {
-      font-size: 120%;
-      line-height: 2rem;
-    }
-
-    .tierInfo {
-      line-height: 1.5rem;
-      padding-left: 20px;
-      padding-top: 10px;
-      padding-bottom: 10px;
-      font-size: 75%;
-    }
-
-    .processorPatron,
-    .circuitSupporter,
-    .boltBacker,
-    .aluminumAlly {
-      max-width: 95% !important;
-      padding-left: 15px;
-      padding-right: 15px;
-      font-size: 80%;
-    }
-
-    .sponsor-logo img {
-      width: 60px;
-      height: 60px;
-    }
-
-    .sponsorInfo {
-      font-size: 100%;
-      line-height: 1.5rem;
-    }
-  }
-</style>
-  
+</div>

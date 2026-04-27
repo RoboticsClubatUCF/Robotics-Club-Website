@@ -25,7 +25,7 @@ export const load = (async () => {
     }
   }
   for (let i = 0; i < years.length; i++) {
-    let projectsOfYear: Project[] = []; // the projects that happened in a certain year
+    let projectsOfYear: typeof projects[number][] = []; // the projects that happened in a certain year
     for (let j = 0; j < projects.length; j++) {
       if (projects[j].year == years[i]) {
         // if this project is on this year

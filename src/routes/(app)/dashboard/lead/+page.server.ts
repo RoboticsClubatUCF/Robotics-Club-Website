@@ -1,10 +1,11 @@
 import { redirect, type Actions } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { z } from 'zod';
-import { superValidate } from 'sveltekit-superforms/server';
+import { z } from 'zod/v3';
+import { superValidate } from 'sveltekit-superforms';
+import { zod } from '$lib/zodAdapter';
 
 export const load = (async ({ locals }) => {
-  const form = superValidate(blogpostSchema);
+  const form = await superValidate(zod(blogpostSchema));
   if (locals.member.permissions.level < 8) {
     throw redirect(302, '/');
   }
@@ -18,6 +19,6 @@ const blogpostSchema = z.object({
 });
 export const actions: Actions = {
   blogPost: async ({ locals, request }) => {
-    const form = superValidate(request, blogpostSchema);
+    const form = await superValidate(request, zod(blogpostSchema));
   }
 };

@@ -1,6 +1,7 @@
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import type { Actions, PageServerLoad } from './$types';
-import { setError, superValidate } from 'sveltekit-superforms/server';
+import { setError, superValidate } from 'sveltekit-superforms';
+import { zod } from '$lib/zodAdapter';
 import { fail, redirect } from '@sveltejs/kit';
 import { db } from '$lib/db';
 import type { Nullable } from '../../../../../types';
@@ -54,7 +55,7 @@ export const load = (async ({ parent }) => {
     otherConcerns: survey.Concerns || ''
   };
 
-  const form = await superValidate(formValues, editSurveySchema);
+  const form = await superValidate(formValues, zod(editSurveySchema));
   form.message = 'IDLE';
 
   return { user: data.member, form };
@@ -66,7 +67,7 @@ export const actions: Actions = {
       return fail(404, { surveyID})
     }
 
-    const form = await superValidate(request, editSurveySchema);
+    const form = await superValidate(request, zod(editSurveySchema));
 
     if (!form.valid) {
       form.message = 'NO';
@@ -81,7 +82,7 @@ export const actions: Actions = {
     const enteredNum = form.data.semester;
 
     if (selectedMajors.length === 0) {
-      return setError(form, 'Major', 'At least one of the options must be selected');
+      return setError(form, 'Major' as any, 'At least one of the options must be selected');
     }
     if (selectedMajors.includes("Other") && !form.data.oMajor) {
       return setError(form, 'oMajor', 'Please enter Major');
@@ -102,10 +103,10 @@ export const actions: Actions = {
       return setError(form, 'semester', 'Really?');
     }
     if (selectedallergies.length === 0) {
-      return setError(form, 'allergies', 'At least one of the options must be selected');
+      return setError(form, 'allergies' as any, 'At least one of the options must be selected');
     }
     if (selectedallergies.includes("None") && selectedallergies.length > 1) {
-      return setError(form, 'allergies', 'Cannot have both None and allergen(s) selected');
+      return setError(form, 'allergies' as any, 'Cannot have both None and allergen(s) selected');
     }
     if (selectedallergies.includes("Other") && !form.data.oAllergies) {
       return setError(form, 'oAllergies', 'Please enter Allergen(s)');

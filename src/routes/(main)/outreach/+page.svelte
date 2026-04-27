@@ -1,36 +1,6 @@
 <script lang="ts">
   import config from '../../../config';
-  import Image from 'svimg';
 </script>
-
-<style>
-  .content-section {
-    display: flex;
-    flex-wrap: wrap; /* Allow wrapping on smaller screens */
-    gap: 1.5rem; /* Adjust spacing */
-    align-items: center; /* Vertically align items */
-    justify-content: center; /* Center content horizontally */
-  }
-
-  .text-container,
-  .image-container {
-    max-width: 500px; /* Set consistent max-width for text and images */
-    flex: 1 1 auto; /* Allow flex resizing */
-  }
-
-  .image-container img {
-    width: 100%; /* Ensure images scale down proportionally */
-    height: auto;
-    border-radius: 0.5rem; /* Keep rounded corners */
-  }
-
-  @media (max-width: 768px) {
-    .content-section {
-      flex-direction: column; /* Stack items on smaller screens */
-      text-align: center;
-    }
-  }
-</style>
 
 <div class="p-4 m-4">
   <!-- Hero Section -->
@@ -45,7 +15,7 @@
         At the Robotics Club of Central Florida, one of our most important goals is breaking
         down barriers of entry to robotics and make robotics accessible for everyone. We recognize that diversity
         in STEM not only fosters innovation, creativity, and progress but can also become barriers
-        for many people. That’s why our outreach committee and its members' initiatives focus on
+        for many people. That's why our outreach committee and its members' initiatives focus on
         reaching a wide range of communities, ensuring that everyone, regardless of background,
         has the opportunity to explore and excel in robotics. Through inclusive workshops,
         presentations, and hands-on demonstrations, we strive to eliminate the barriers in the
@@ -95,8 +65,8 @@
     <br />
     <div class="flex-1">
       <p class="text-lg text-center">
-        If you'd like to invite us to an event or school, please contact our outreach committee through 
-        this email: 
+        If you'd like to invite us to an event or school, please contact our outreach committee through
+        this email:
         <a href="mailto:outreach@rccf.club" class="text-blue-500 underline">outreach@rccf.club</a>
       </p>
     </div>

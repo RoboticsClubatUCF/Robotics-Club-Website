@@ -1,8 +1,10 @@
-import { z } from "zod";
+import { z } from 'zod/v3';
 import type { Actions, PageServerLoad } from "./$types";
-import { setError, superValidate } from "sveltekit-superforms/server";
+import { setError, superValidate } from 'sveltekit-superforms';
+import { zod } from '$lib/zodAdapter';
 import { fail, redirect } from "@sveltejs/kit";
 import { db } from "$lib/db";
+import { Season } from '@prisma/client';
 
 let pLevel = 0;
 
@@ -10,7 +12,7 @@ const createProSchema = z.object({
     title: z.string(),
     description: z.string(),
     docsLink: z.string(),
-    season: z.custom(),
+    season: z.string(),
     year: z.string(),
     logo: z.string(),
     Skills: z.string().array(),
@@ -36,13 +38,13 @@ export const load: PageServerLoad = async ({ parent, locals }) => {
         }
     });
 
-    const form = await superValidate(createProSchema);
+    const form = await superValidate(zod(createProSchema));
     return { form, members };
 };
 
 export const actions: Actions = {
     default: async({ request }) => {
-        const form = await superValidate(request, createProSchema);
+        const form = await superValidate(request, zod(createProSchema));
         // Validating forms
         if (!form.valid) {
             return fail(400, { form });
@@ -87,7 +89,7 @@ export const actions: Actions = {
                     }
                 },
                 docsLink: form.data.docsLink,
-                season: form.data.season,
+                season: form.data.season as Season,
                 year: yearNum,
                 Skills: skillsArray,
                 budget: 0, 

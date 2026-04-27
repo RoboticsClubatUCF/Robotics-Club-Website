@@ -2,8 +2,8 @@
     import { Accordion, AccordionItem } from "@skeletonlabs/skeleton";
 </script>
 
-<div style="margin-top: 2rem">
-    <Accordion class="card" style="margin-top: 2rem">
+<div class="mt-8">
+    <Accordion class="card mt-8">
         <AccordionItem>
             <svelte:fragment slot="summary"><strong>Do I need experience to join?</strong></svelte:fragment>
             <svelte:fragment slot="content">No, all projects are drop-in certified, so no skills or experience are required for you to join a project! It is, however, required that you become a member before participating in any projects.</svelte:fragment>
@@ -19,7 +19,7 @@
                 <ol>
                     <li>1. Create an RCCF web account by going to sign in -> become a member</li>
                     <li>2. Fill out your members' survey and pay dues</li>
-                    <li>3. Join a general body meeting (times posted on <a href="https://discord.gg/m8XZahpNjR" target="_blank" style="color: blue; text-decoration: underline;">Discord</a>)</li>
+                    <li>3. Join a general body meeting (times posted on <a href="https://discord.gg/m8XZahpNjR" target="_blank" class="text-blue-500 underline">Discord</a>)</li>
                 </ol>
             </svelte:fragment>
         </AccordionItem>
@@ -33,15 +33,15 @@
         </AccordionItem>
         <AccordionItem>
             <svelte:fragment slot="summary"><strong>Where is the lab located?</strong></svelte:fragment>
-            <svelte:fragment slot="content">We are located in UCF’s Institute For Simulation & Training at <a href="https://maps.app.goo.gl/rzwvL5BvsXfBURs96" target="_blank" style="color: blue; text-decoration: underline;">3100 Technology Pkwy, Orlando, FL 32826</a>. If you have trouble getting in you can find an aerial map guide <a href="https://lh3.googleusercontent.com/pw/AP1GczMndj7-ZhX2CdDndMSGVFOrRJVwvq9_AcnH1ZX474rDzDvU-CkYoMvG-9HDrqodn_NFkwVsr_PwVrtM9BwTZ37aHyqr4wXqKYki0vIAhbyBh0Y7Tn4TDm1MS6dMgME1zX5EhhhbcnPCO0lwzUAPVT0=w955-h906-s-no-gm?authuser=0" target="_blank" style="color: blue; text-decoration: underline;">Here</a>.</svelte:fragment>
+            <svelte:fragment slot="content">We are located in UCF's Institute For Simulation & Training at <a href="https://maps.app.goo.gl/rzwvL5BvsXfBURs96" target="_blank" class="text-blue-500 underline">3100 Technology Pkwy, Orlando, FL 32826</a>. If you have trouble getting in you can find an aerial map guide <a href="https://lh3.googleusercontent.com/pw/AP1GczMndj7-ZhX2CdDndMSGVFOrRJVwvq9_AcnH1ZX474rDzDvU-CkYoMvG-9HDrqodn_NFkwVsr_PwVrtM9BwTZ37aHyqr4wXqKYki0vIAhbyBh0Y7Tn4TDm1MS6dMgME1zX5EhhhbcnPCO0lwzUAPVT0=w955-h906-s-no-gm?authuser=0" target="_blank" class="text-blue-500 underline">Here</a>.</svelte:fragment>
         </AccordionItem>
         <AccordionItem>
             <svelte:fragment slot="summary"><strong>How do I join a project?</strong></svelte:fragment>
-            <svelte:fragment slot="content">Joining a project is easy. Once you’ve become a member and paid your dues head over to the discord and in bot-cmds type in /teams to pull up all the projects and then all you have to do is pick the ones you want to join. Of course, show up to the meetings as well.</svelte:fragment>
+            <svelte:fragment slot="content">Joining a project is easy. Once you've become a member and paid your dues head over to the discord and in bot-cmds type in /teams to pull up all the projects and then all you have to do is pick the ones you want to join. Of course, show up to the meetings as well.</svelte:fragment>
         </AccordionItem>
         <AccordionItem>
             <svelte:fragment slot="summary"><strong>How do sponsorships work?</strong></svelte:fragment>
-            <svelte:fragment slot="content">If you would like to sponsor us check out what we offer in our <a href="/sponsors" style="color: blue; text-decoration: underline;">sponsors’ page</a>, otherwise it’s basically a way to financially support RCCF and its mission.</svelte:fragment>
+            <svelte:fragment slot="content">If you would like to sponsor us check out what we offer in our <a href="/sponsors" class="text-blue-500 underline">sponsors' page</a>, otherwise it's basically a way to financially support RCCF and its mission.</svelte:fragment>
         </AccordionItem>
         <!-- more questions -->
     </Accordion>

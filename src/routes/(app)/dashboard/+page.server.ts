@@ -1,7 +1,8 @@
 import { db } from '$lib/db';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import type { Actions, PageServerLoad } from './$types';
-import { superValidate } from 'sveltekit-superforms/server';
+import { superValidate } from 'sveltekit-superforms';
+import { zod } from '$lib/zodAdapter';
 import semesterYear from '../../../components/scripts/semesterYear';
 import config from '../../../config';
 
@@ -11,7 +12,7 @@ const updateDuesSchema = z.object({
 });
 
 export const load: PageServerLoad = async ({ locals }) => {
-  const form = await superValidate(updateDuesSchema);
+  const form = await superValidate(zod(updateDuesSchema));
   const dateInfo = semesterYear();
 
   const availableProjects = await db.project.findMany({

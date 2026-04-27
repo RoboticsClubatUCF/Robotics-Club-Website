@@ -2,7 +2,7 @@
   import type { Role } from '@prisma/client';
   import config from '../../../config';
 
-  let role: Role;
+  export let role: Role;
 </script>
 
 <div class="p-2 m-2">

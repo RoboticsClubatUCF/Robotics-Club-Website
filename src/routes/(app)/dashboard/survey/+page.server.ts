@@ -1,6 +1,7 @@
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import type { Actions, PageServerLoad } from './$types';
-import { setError, superValidate } from 'sveltekit-superforms/server';
+import { setError, superValidate } from 'sveltekit-superforms';
+import { zod } from '$lib/zodAdapter';
 import { fail, redirect } from '@sveltejs/kit';
 import { db } from '$lib/db';
 
@@ -47,13 +48,13 @@ export const load: PageServerLoad = async ({ locals, parent }) => {
     console.log('On load userEmail: ' + userEmail);
   }
 
-  const form = await superValidate(surSchema);
+  const form = await superValidate(zod(surSchema));
   return { form };
 };
 
 export const actions: Actions = {
   default: async ({ request }) => {
-    const form = await superValidate(request, surSchema);
+    const form = await superValidate(request, zod(surSchema));
 
     // Validating forms
     if (!form.valid) {

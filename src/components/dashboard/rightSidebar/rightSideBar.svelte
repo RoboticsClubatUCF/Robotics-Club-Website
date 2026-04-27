@@ -1,8 +1,8 @@
 <script lang="ts">
-  import type { Project, Picture, Team } from '@prisma/client';
+  import type { Prisma } from '@prisma/client';
   import ProjectJoinList from './projectJoinList.svelte';
 
-  export let projects: (Project & { logo: Picture })[] | null | undefined;
+  export let projects: Prisma.ProjectGetPayload<{ include: { logo: true } }>[] | null | undefined;
 </script>
 
 <div class="h-full card m-2 p-4">
