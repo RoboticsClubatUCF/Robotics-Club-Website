@@ -45,6 +45,10 @@ export default {
       level: 8,
       name: 'lead'
     },
+    teamLead: {
+      level: 7,
+      name: 'team lead'
+    },
     committee: {
       level: 6,
       name: 'committee'

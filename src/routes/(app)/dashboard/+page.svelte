@@ -193,7 +193,7 @@
                   Edit Website
                 </a>
 
-                {#if data.user?.role.permissionLevel >= 999}
+                {#if data.user?.role.permissionLevel >= 8}
                 <br /><br />
                 <h6 class="h5">Role Management</h6>
                 <p class="text-sm opacity-70 mb-2">Assign or change member roles.</p>

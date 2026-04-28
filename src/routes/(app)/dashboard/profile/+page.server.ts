@@ -4,7 +4,10 @@ import { superValidate } from 'sveltekit-superforms';
 import { zod } from '$lib/zodAdapter';
 import { fail } from '@sveltejs/kit';
 import { db } from '$lib/db';
+import { assignMemberRole } from '$lib/discord';
+
 let userID = '';
+
 export const load = (async ({ parent }) => {
   const data = await parent();
   if (data.member && data.member?.lastName == undefined) {
@@ -23,15 +26,16 @@ const editProfileSchema = z.object({
   discordProfileName: z.string(),
   email: z.string().email()
 });
+
 export const actions: Actions = {
-  default: async ({ request }) => {
+  default: async ({ request, fetch }) => {
     const form = await superValidate(request, zod(editProfileSchema));
 
     if (!form.valid) {
-      // Again, return { form } and things will just work.
       form.message = 'NO';
       return fail(400, { form });
     }
+
     await db.member.update({
       where: { id: userID },
       data: {
@@ -41,7 +45,15 @@ export const actions: Actions = {
         discordProfileName: form.data.discordProfileName
       }
     });
-    form.message = 'OK';
+
+    const discord = await assignMemberRole(form.data.discordProfileName, fetch);
+    if (!discord.success) {
+      console.error('[Discord sync]', discord.error);
+      form.message = 'OK_DISCORD_FAIL';
+    } else {
+      form.message = 'OK';
+    }
+
     return { form };
   }
 };

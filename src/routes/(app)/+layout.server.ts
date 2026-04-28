@@ -14,7 +14,8 @@ export const load: LayoutServerLoad = async ({ locals }) => {
     },
     include: {
       Projects: true,
-      role: true
+      role: true,
+      roles: true
     }
   });
 

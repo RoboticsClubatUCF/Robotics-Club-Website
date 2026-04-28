@@ -217,8 +217,9 @@ model Member {
   position           String?
   bio                String?
   profileLink        String?
-  role               Role                @relation(fields: [roleId], references: [id])
+  role               Role                @relation("PrimaryRole", fields: [roleId], references: [id])
   roleId             Int
+  roles              Role[]              @relation("MemberRoles")
   Articles           Article[]
   Projects           Project[]
   BlogPost           BlogPost[]
@@ -260,7 +261,8 @@ model Role {
   id              Int      @id @default(autoincrement())
   name            String   @unique
   permissionLevel Int      @default(value: 0)
-  Member          Member[]
+  Member          Member[] @relation("PrimaryRole")
+  roleMembers     Member[] @relation("MemberRoles")
 }
 
 model Survey {

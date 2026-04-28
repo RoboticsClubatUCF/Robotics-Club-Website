@@ -25,12 +25,17 @@
       </div>
       <hr class="membership-divider" />
       <div class="membership-row">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="discord-icon" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="discord-icon" class:discord-ok={data.discordSynced} aria-hidden="true">
           <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zm0 16a3 3 0 01-2.83-2h5.66A3 3 0 0110 18z"/>
         </svg>
         <div>
-          <p class="membership-label">Discord Role Pending</p>
-          <p class="membership-sub">Your role will sync automatically within 15 minutes</p>
+          {#if data.discordSynced}
+            <p class="membership-label">Discord Role Assigned</p>
+            <p class="membership-sub">Your member role has been applied in Discord</p>
+          {:else}
+            <p class="membership-label">Discord Role Pending</p>
+            <p class="membership-sub">Make sure your Discord username in your profile is correct, then update it to sync</p>
+          {/if}
         </div>
       </div>
     </div>
@@ -96,6 +101,10 @@
     color: #a5b4fc;
     flex-shrink: 0;
     margin-top: 0.1rem;
+  }
+
+  .discord-ok {
+    color: #22c55e;
   }
 
   .membership-label {
