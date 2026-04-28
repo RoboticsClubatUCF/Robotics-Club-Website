@@ -17,6 +17,7 @@
   let editSeason = 'Fall';
   let editYear = '';
   let editSkills = '';
+  let editDiscordRoleId = '';
 
   function startEdit(p: Project) {
     editingId = p.id;
@@ -27,6 +28,7 @@
     editSeason = p.season;
     editYear = String(p.year);
     editSkills = (p.Skills ?? []).join(', ');
+    editDiscordRoleId = (p as any).discordRoleId ?? '1111111';
   }
 
   function cancelEdit() {
@@ -37,6 +39,7 @@
   let showCreate = false;
   let creating = false;
   let deleting: number | null = null;
+  let duplicating: number | null = null;
   let saving = false;
 
   const SEASONS = ['Fall', 'Spring', 'Summer'];
@@ -112,6 +115,10 @@
             <input type="text" name="Skills" class="input" placeholder="Python, CAD, Welding" />
           </label>
         </div>
+        <label class="label">
+          <span class="text-xs font-bold">Discord Role ID</span>
+          <input type="text" name="discordRoleId" class="input" placeholder="Leave blank for no Discord role" />
+        </label>
         <div class="flex gap-2">
           <button type="submit" disabled={creating} class="btn variant-filled-success">
             {creating ? 'Creating…' : 'Create'}
@@ -184,6 +191,10 @@
                   <input type="text" name="Skills" class="input" bind:value={editSkills} />
                 </label>
               </div>
+              <label class="label">
+                <span class="text-xs font-bold">Discord Role ID</span>
+                <input type="text" name="discordRoleId" class="input" bind:value={editDiscordRoleId} placeholder="Leave blank for no Discord role" />
+              </label>
               {#if editLogo}
                 <img src={editLogo} alt="Preview" class="h-12 object-contain rounded" />
               {/if}
@@ -217,6 +228,27 @@
                 on:click={() => startEdit(project)}
                 class="btn btn-sm variant-filled-warning"
               >Edit</button>
+              <form
+                method="POST"
+                action="?/duplicate"
+                use:enhance={() => {
+                  duplicating = project.id;
+                  return async ({ update }) => {
+                    await update();
+                    duplicating = null;
+                  };
+                }}
+              >
+                <input type="hidden" name="id" value={project.id} />
+                <button
+                  type="submit"
+                  disabled={duplicating === project.id}
+                  class="btn btn-sm variant-filled-secondary"
+                  title="Duplicate for current semester"
+                >
+                  {duplicating === project.id ? '…' : 'Duplicate'}
+                </button>
+              </form>
               <form
                 method="POST"
                 action="?/delete"

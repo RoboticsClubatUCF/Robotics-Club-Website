@@ -1,19 +1,44 @@
 <script lang="ts">
-  import type { PageData } from './$types';
+  import type { PageData, ActionData } from './$types';
+  import { enhance } from '$app/forms';
   //@ts-ignore
   import FaBook from 'svelte-icons/fa/FaBook.svelte';
+
   export let data: PageData;
+  export let form: ActionData;
 </script>
 
 <svelte:head>
   <title>{data.project.title} @ RCCF</title>
 </svelte:head>
-<div class=" p-4 m-2 grid-cols-1 md:grid-cols-2 grid gap-4">
+<div class="p-4 m-2 grid-cols-1 md:grid-cols-2 grid gap-4">
   <div class="card p-4">
     <h2 class="h2 capitalize">{data.project.title}</h2>
     <br />
     <img class="rounded-md w-full" src={data.project.logo?.data} alt="" />
+
+    {#if data.isCurrent && data.canJoin}
+      <div class="mt-4">
+        {#if form?.joined ?? data.isJoined}
+          <form method="POST" action="?/leaveProject" use:enhance>
+            <button type="submit" class="btn variant-ghost-error hover:variant-filled-error w-full">
+              Leave Project
+            </button>
+          </form>
+        {:else}
+          <form method="POST" action="?/joinProject" use:enhance>
+            <button type="submit" class="btn variant-ghost-success hover:variant-filled-success w-full">
+              Join Project
+            </button>
+          </form>
+        {/if}
+        {#if form?.error}
+          <p class="text-error-500 text-sm mt-2">{form.error}</p>
+        {/if}
+      </div>
+    {/if}
   </div>
+
   <div class="card p-4">
     <h3 class="h3">Season</h3>
     <p class="h4">{data.project.season}, {data.project.year}</p>
@@ -44,17 +69,21 @@
     <hr />
     <br />
   </div>
+
   <div class="card p-4">
-    <h3 class="h3">Members</h3>
+    <h3 class="h3">Members <span class="badge variant-ghost ml-2">{data.project.members.length}</span></h3>
     {#each data.project.members as m}
       <div class="card hover:card-hover variant-filled-surface p-1 m-2 flex">
-        <a class="h5 flex-1 hover:animate-pulse" href={'/member/' + m.id}
-          >{m.firstName} {m.lastName}</a
-        >
+        <a class="h5 flex-1 hover:animate-pulse" href={'/member/' + m.id}>
+          {m.firstName} {m.lastName}
+        </a>
         <p class="mr-5">{m.role.name}</p>
       </div>
+    {:else}
+      <p class="opacity-50 text-sm mt-2">No members yet.</p>
     {/each}
   </div>
+
   <div class="card p-4">
     <h3 class="h3">Latest Updates</h3>
     <div class="grid grid-cols-1 grid-flow-row-dense">
@@ -79,9 +108,9 @@
             <hr />
             <br />
             <p>
-              Written By : <a class="h5 hover:animate-pulse" href={'/member/' + a.author.id}
-                >{a.author.firstName}</a
-              >
+              Written By : <a class="h5 hover:animate-pulse" href={'/member/' + a.author.id}>
+                {a.author.firstName}
+              </a>
             </p>
           </div>
         </a>

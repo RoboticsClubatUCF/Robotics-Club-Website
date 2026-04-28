@@ -7,29 +7,17 @@
     modeCurrent
   } from '@skeletonlabs/skeleton';
   import type { PageServerData } from './$types';
-  import { superForm } from 'sveltekit-superforms';
   import Feed from '../../../components/dashboard/feed.svelte';
   import LeftSideBar from '../../../components/dashboard/leftSidebar/leftSideBar.svelte';
-  import RightSideBar from '../../../components/dashboard/rightSidebar/rightSideBar.svelte';
   import { enhance } from '$app/forms';
-  
+
   export let data: PageServerData;
-  const { form, errors, constraints } = superForm(data.form, {
-    clearOnSubmit: 'errors-and-message'
-  });
   const drawerStore = getDrawerStore();
   const drawerSettingsLeft: DrawerSettings = {
     id: 'dashboard1',
     meta: {
       projects: data.user?.Projects,
       teams: data.user?.Teams
-    }
-  };
-  const drawerSettingsRight: DrawerSettings = {
-    id: 'dashboard2',
-    position: 'right',
-    meta: {
-      projects: data.availableProjects
     }
   };
 
@@ -58,19 +46,14 @@
   function isSummerPeriod() {
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
-    
-    // Calculate the date of the fourth week in August (matching the original code)
+
     const august = new Date(currentYear, 7, 1);
     const dayOfWeek = august.getDay();
     const firstDayOfFourthWeek = 22 + (7 - dayOfWeek) % 7;
     const fourthWeekInAugust = new Date(currentYear, 7, firstDayOfFourthWeek);
-    
-    // Set start date to June 1st
+
     const startDate = new Date(currentYear, 5, 1);
-    
-    // console.log("Start: ", startDate);
-    // console.log("End: ", fourthWeekInAugust);
-    
+
     return currentDate >= startDate && currentDate <= fourthWeekInAugust;
   }
 </script>
@@ -84,15 +67,10 @@
           on:click={() => {
             drawerStore.open(drawerSettingsLeft);
           }}>Projects & Teams</button>
-        <button
-          class="block lg:hidden btn variant-ghost-tertiary hover:variant-filled-tertiary"
-          on:click={() => {
-            drawerStore.open(drawerSettingsRight);
-          }}>Available Projects</button>
       </svelte:fragment>
     </AppBar>
   </svelte:fragment>
-  
+
   <svelte:fragment slot="sidebarLeft">
     {#if !((data.user?.membershipExpDate.getTime() ?? 0) < new Date().getTime())}
       <div id="sidebar-left" class="hidden lg:block">
@@ -100,15 +78,7 @@
       </div>
     {/if}
   </svelte:fragment>
-  
-  <svelte:fragment slot="sidebarRight">
-    {#if !((data.user?.membershipExpDate.getTime() ?? 0) < new Date().getTime())}
-      <div id="sidebar-right" class="hidden lg:block">
-        <RightSideBar projects={data.availableProjects} />
-      </div>
-    {/if}
-  </svelte:fragment>
-  
+
   {#if data.user && data.user.surveyId !== null}
     {#if promptSurveyUpdate}
       <div class="m-4">
@@ -134,7 +104,7 @@
               {/if}
             </h2>
             <br />
-            
+
             {#if (data.user?.membershipExpDate.getTime() ?? 0) < new Date().getTime() && isSummerPeriod()}
               {#if data.user?.id}
                 <form action="?/summerRole" method="post" use:enhance>
@@ -166,41 +136,36 @@
               <h2 class="h2">
                 {data.user?.role?.name?.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')} Dashboard
               </h2>
-                  <!-- Configure Projects (officer+) -->
-                {#if data.user?.role.permissionLevel >= 10}
-                <br>
-                <h6 class="h5">Configure Projects</h6>
-                <a href="/dashboard/manage-project" class="btn variant-ghost-tertiary hover:variant-filled-tertiary">Manage Projects</a>
-
-                <br /><br />
-                <h6 class="h5">Statistics</h6>
-                <p class="text-sm opacity-70 mb-2">View membership breakdowns by role, shirt size, major, and more.</p>
-                <a href="/dashboard/statistics" class="btn variant-ghost-secondary hover:variant-filled-secondary">
-                  View Statistics
-                </a>
-
-                <br /><br />
-                <h6 class="h5">Dues Acknowledgement</h6>
-                <p class="text-sm opacity-70 mb-2">Edit the agreement message members must read before paying dues.</p>
-                <a href="/dashboard/acknowledge" class="btn variant-ghost-tertiary hover:variant-filled-tertiary">
-                  Edit Acknowledgement
-                </a>
-
-                <br /><br />
-                <h6 class="h5">Website Editor</h6>
-                <p class="text-sm opacity-70 mb-2">Enter edit mode to change text, images, and content on the public site.</p>
-                <a href="/api/edit-mode?enable=true&to=/" class="btn variant-ghost-warning hover:variant-filled-warning">
-                  Edit Website
-                </a>
-
                 {#if data.user?.role.permissionLevel >= 8}
-                <br /><br />
-                <h6 class="h5">Role Management</h6>
-                <p class="text-sm opacity-70 mb-2">Assign or change member roles.</p>
-                <a href="/dashboard/admin" class="btn variant-ghost-error hover:variant-filled-error">
-                  Manage Roles
-                </a>
-                {/if}
+                <br />
+                <div class="grid grid-cols-2 gap-3">
+                  <a href="/dashboard/manage-project" class="card p-3 hover:card-hover flex flex-col gap-1">
+                    <span class="font-semibold text-sm">Manage Projects</span>
+                    <span class="text-xs opacity-50">Create, edit, or duplicate</span>
+                  </a>
+                  <a href="/dashboard/admin" class="card p-3 hover:card-hover flex flex-col gap-1">
+                    <span class="font-semibold text-sm">Manage Roles</span>
+                    <span class="text-xs opacity-50">Assign or change member roles</span>
+                  </a>
+                  {#if data.user?.role.permissionLevel >= 10}
+                  <a href="/dashboard/manage-sponsors" class="card p-3 hover:card-hover flex flex-col gap-1">
+                    <span class="font-semibold text-sm">Manage Sponsors</span>
+                    <span class="text-xs opacity-50">Add, edit, or remove sponsors</span>
+                  </a>
+                  <a href="/dashboard/statistics" class="card p-3 hover:card-hover flex flex-col gap-1">
+                    <span class="font-semibold text-sm">Statistics</span>
+                    <span class="text-xs opacity-50">Membership breakdowns</span>
+                  </a>
+                  <a href="/dashboard/acknowledge" class="card p-3 hover:card-hover flex flex-col gap-1">
+                    <span class="font-semibold text-sm">Dues Agreement</span>
+                    <span class="text-xs opacity-50">Edit acknowledgement message</span>
+                  </a>
+                  <a href="/api/edit-mode?enable=true&to=/" class="card p-3 hover:card-hover flex flex-col gap-1">
+                    <span class="font-semibold text-sm">Edit Website</span>
+                    <span class="text-xs opacity-50">Edit public page content</span>
+                  </a>
+                  {/if}
+                </div>
                 {/if}
             </div>
           </div>

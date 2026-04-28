@@ -4,7 +4,7 @@
   export let data: Prisma.ProjectGetPayload<{ include: { logo: true } }>;
 </script>
 
-<div class="card grid grid-cols-3 mt-2">
+<a href="/projects/{data.id}" class="card grid grid-cols-3 mt-2 items-center gap-3 p-2 hover:card-hover">
   <div>
     <!-- icon -->
     {#if data.logo?.isLocal}
@@ -13,5 +13,5 @@
       <img class="h-12 rounded-lg object-cover overflow-hidden" src={data.logo.data} alt="" />
     {/if}
   </div>
-  <span class="h4">{data.title}</span>
-</div>
+  <span class="h4 col-span-2">{data.title}</span>
+</a>

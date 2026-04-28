@@ -2,9 +2,10 @@ import type { Actions, PageServerLoad } from './$types';
 import { redirect, error } from '@sveltejs/kit';
 import { db } from '$lib/db';
 import type { Season } from '@prisma/client';
+import semesterYear from '../../../../components/scripts/semesterYear';
 
 export const load: PageServerLoad = async ({ locals }) => {
-  if (locals.member.permissions.level < 10) {
+  if (locals.member.permissions.level < 8) {
     throw redirect(302, '/dashboard');
   }
 
@@ -18,7 +19,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 export const actions: Actions = {
   create: async ({ request, locals }) => {
-    if (locals.member.permissions.level < 10) throw error(403, 'Forbidden');
+    if (locals.member.permissions.level < 8) throw error(403, 'Forbidden');
     const form = await request.formData();
     const title = (form.get('title') as string)?.trim();
     const description = (form.get('description') as string) ?? '';
@@ -29,6 +30,7 @@ export const actions: Actions = {
     const year = parseInt(yearRaw);
     const skillsRaw = (form.get('Skills') as string) ?? '';
     const skills = skillsRaw.split(',').map((s) => s.trim()).filter(Boolean);
+    const discordRoleId = ((form.get('discordRoleId') as string) ?? '').trim() || '1111111';
 
     if (!title || !logoUrl || !docsLink || !season || !year) {
       return { error: 'Please fill in all required fields.' };
@@ -43,6 +45,7 @@ export const actions: Actions = {
         season,
         year,
         Skills: skills,
+        discordRoleId,
         budget: 0,
         remainingFunds: 0
       }
@@ -50,7 +53,7 @@ export const actions: Actions = {
   },
 
   update: async ({ request, locals }) => {
-    if (locals.member.permissions.level < 10) throw error(403, 'Forbidden');
+    if (locals.member.permissions.level < 8) throw error(403, 'Forbidden');
     const form = await request.formData();
     const id = parseInt(form.get('id') as string);
     const title = (form.get('title') as string)?.trim();
@@ -61,6 +64,7 @@ export const actions: Actions = {
     const year = parseInt(form.get('year') as string);
     const skillsRaw = (form.get('Skills') as string) ?? '';
     const skills = skillsRaw.split(',').map((s) => s.trim()).filter(Boolean);
+    const discordRoleId = ((form.get('discordRoleId') as string) ?? '').trim() || '1111111';
 
     if (!title || !season || !year) {
       return { error: 'Missing required fields.' };
@@ -72,26 +76,26 @@ export const actions: Actions = {
       await db.picture.update({ where: { id: existing.pictureId }, data: { data: logoUrl } });
       await db.project.update({
         where: { id },
-        data: { title, description, docsLink, season, year, Skills: skills }
+        data: { title, description, docsLink, season, year, Skills: skills, discordRoleId }
       });
     } else if (logoUrl) {
       await db.project.update({
         where: { id },
         data: {
-          title, description, docsLink, season, year, Skills: skills,
+          title, description, docsLink, season, year, Skills: skills, discordRoleId,
           logo: { create: { data: logoUrl, isLocal: false } }
         }
       });
     } else {
       await db.project.update({
         where: { id },
-        data: { title, description, docsLink, season, year, Skills: skills }
+        data: { title, description, docsLink, season, year, Skills: skills, discordRoleId }
       });
     }
   },
 
   delete: async ({ request, locals }) => {
-    if (locals.member.permissions.level < 10) throw error(403, 'Forbidden');
+    if (locals.member.permissions.level < 8) throw error(403, 'Forbidden');
     const form = await request.formData();
     const id = parseInt(form.get('id') as string);
 
@@ -108,5 +112,34 @@ export const actions: Actions = {
     if (project?.pictureId) {
       try { await db.picture.delete({ where: { id: project.pictureId } }); } catch { /* skip if still referenced */ }
     }
+  },
+
+  duplicate: async ({ request, locals }) => {
+    if (locals.member.permissions.level < 8) throw error(403, 'Forbidden');
+    const form = await request.formData();
+    const id = parseInt(form.get('id') as string);
+
+    const source = await db.project.findUnique({
+      where: { id },
+      include: { logo: true }
+    });
+    if (!source) return { error: 'Project not found.' };
+
+    const { year, semester } = semesterYear();
+
+    await db.project.create({
+      data: {
+        title: source.title,
+        description: source.description,
+        docsLink: source.docsLink,
+        season: semester as Season,
+        year,
+        Skills: source.Skills,
+        discordRoleId: source.discordRoleId,
+        budget: 0,
+        remainingFunds: 0,
+        ...(source.logo ? { logo: { create: { data: source.logo.data, isLocal: source.logo.isLocal } } } : {})
+      }
+    });
   }
 };

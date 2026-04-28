@@ -192,6 +192,7 @@ model Project {
   remainingFunds     Float
   season             Season               @default(value: Fall)
   year               Int
+  discordRoleId      String               @default("1111111")
   articles           Article[]
   members            Member[]
   pictureId          Int?

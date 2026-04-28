@@ -1,5 +1,5 @@
 import { db } from '$lib/db';
-import { syncMemberRoles } from '$lib/discord';
+import { syncMemberRoles, removeProjectRole } from '$lib/discord';
 import type { Handle } from '@sveltejs/kit';
 
 async function sweepExpiredMemberships() {
@@ -8,7 +8,11 @@ async function sweepExpiredMemberships() {
       membershipExpDate: { lt: new Date() },
       role: { permissionLevel: { gte: 4, lt: 10 } }
     },
-    include: { role: true, roles: true }
+    include: {
+      role: true,
+      roles: true,
+      Projects: { select: { id: true, discordRoleId: true } }
+    }
   });
 
   if (expired.length === 0) return;
@@ -24,10 +28,7 @@ async function sweepExpiredMemberships() {
   }
 
   for (const member of expired) {
-    // Use the roles many-to-many if populated; fall back to primary role for legacy members
     const effectiveRoles = member.roles.length > 0 ? member.roles : [member.role];
-
-    // Retain only admin (>=999) and officer (>=10) roles on expiry
     const keepRoles = effectiveRoles.filter((r) => r.permissionLevel >= 10);
     const maxKept = keepRoles.reduce<(typeof effectiveRoles)[0] | null>(
       (max, r) => (!max || r.permissionLevel > max.permissionLevel ? r : max),
@@ -35,13 +36,24 @@ async function sweepExpiredMemberships() {
     );
     const newPrimaryRole = maxKept ?? guestRole;
 
+    // Remove Discord project roles before disconnecting from projects
+    for (const project of member.Projects) {
+      if (project.discordRoleId !== '1111111') {
+        await removeProjectRole(member.discordProfileName, project.discordRoleId).catch((e) =>
+          console.error('[Discord project expire]', member.discordProfileName, e)
+        );
+        await new Promise((r) => setTimeout(r, 300));
+      }
+    }
+
     await db.member.update({
       where: { id: member.id },
       data: {
         role: { connect: { id: newPrimaryRole.id } },
         ...(member.roles.length > 0
           ? { roles: { set: keepRoles.map((r) => ({ id: r.id })) } }
-          : {})
+          : {}),
+        Projects: { set: [] }
       }
     });
 
@@ -53,15 +65,12 @@ async function sweepExpiredMemberships() {
       console.error('[Discord expire]', member.discordProfileName, result.error);
     }
 
-    // Pause between members to stay within Discord rate limits
     await new Promise((r) => setTimeout(r, 500));
   }
 
   console.log(`[Expiration sweep] Expired ${expired.length} membership(s)`);
 }
 
-// Run at startup and every hour. The globalThis guard prevents duplicate
-// intervals from spawning on HMR hot-reloads in dev mode.
 // @ts-ignore
 if (!globalThis.__membershipSweepStarted) {
   // @ts-ignore

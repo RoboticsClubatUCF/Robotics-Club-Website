@@ -13,16 +13,12 @@
   }
 </script>
 
-<a href="/projects/{project.id}">
-  <div
-    class="card h-72 max-w-72 rounded-lg relative"
-    on:mouseenter={() => {
-      hover = true;
-    }}
-    on:mouseleave={() => {
-      hover = false;
-    }}
-  >
+<a
+  href="/projects/{project.id}"
+  on:mouseenter={() => { hover = true; }}
+  on:mouseleave={() => { hover = false; }}
+>
+  <div class="card h-72 max-w-72 rounded-lg relative overflow-hidden">
     {#if !hover}
       <!-- if not hovering, just show the picture and the title over it -->
       {#if project.logo?.isLocal}
@@ -39,7 +35,7 @@
       <!-- if hovering, display the goods -->
       <div class="absolute p-2">
         <h3 class="h3 m-5">{project.title}</h3>
-        <p>{truncateDescription(project.description)}</p>
+        <p class="line-clamp-6 text-sm">{truncateDescription(project.description)}</p>
         {#each project.Skills as skill}
           <span class="badge variant-filled-surface">{skill}</span>
         {/each}
