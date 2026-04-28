@@ -258,6 +258,14 @@ model Receipt {
   // finish formatting with receipt template
 }
 
+model WebSponsor {
+  id       Int    @id @default(autoincrement())
+  name     String
+  imageUrl String @default("")
+  link     String @default("")
+  tier     String @default("aluminum")
+}
+
 model Role {
   id              Int      @id @default(autoincrement())
   name            String   @unique

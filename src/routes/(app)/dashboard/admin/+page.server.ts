@@ -78,8 +78,11 @@ export const actions: Actions = {
       ...validSelected.map((n) => roleByName.get(n)).filter(Boolean)
     ] as typeof allRoles;
 
-    // Primary role = highest permission level in the new set (or guest)
-    const maxRole = newRoleObjects.reduce(
+    // Always keep at least guest so roles is never empty
+    const finalRoles = newRoleObjects.length > 0 ? newRoleObjects : [guestRole];
+
+    // Primary role = highest permission level in the final set
+    const maxRole = finalRoles.reduce(
       (max, r) => (r.permissionLevel > max.permissionLevel ? r : max),
       guestRole
     );
@@ -87,15 +90,16 @@ export const actions: Actions = {
     await db.member.update({
       where: { id: memberId },
       data: {
+        // role always mirrors the highest entry in roles — handles both promotion and demotion.
         role: { connect: { id: maxRole.id } },
-        roles: { set: newRoleObjects.map((r) => ({ id: r.id })) }
+        roles: { set: finalRoles.map((r) => ({ id: r.id })) }
       }
     });
 
     // Sync Discord with the full new role set
     const discordResult = await syncMemberRoles(
       target.discordProfileName,
-      newRoleObjects.map((r) => r.name)
+      finalRoles.map((r) => r.name)
     );
     if (!discordResult.success) {
       console.error('[Discord role sync]', target.discordProfileName, discordResult.error);

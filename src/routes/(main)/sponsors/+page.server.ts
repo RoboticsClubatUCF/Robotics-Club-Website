@@ -2,10 +2,11 @@ import { db } from '$lib/db';
 import type { PageServerLoad } from './$types';
 
 export type Sponsor = {
+  id: number;
   name: string;
   imageUrl: string;
   link: string;
-  tier: 'processor' | 'circuit' | 'bolt' | 'aluminum';
+  tier: string;
 };
 
 type TierInfo = {
@@ -14,63 +15,6 @@ type TierInfo = {
   benefits: string[];
 };
 
-const DEFAULT_SPONSORS: Sponsor[] = [
-  {
-    name: 'Go Engineer',
-    imageUrl:
-      'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQcI8iitb1xCWitrAjcMgtqmkQrGi0aAY9xpf48RKL-O_1GzCPqo5zEkzoOz6CB-GI3wA4&usqp=CAU',
-    link: 'https://www.goengineer.com/',
-    tier: 'processor'
-  },
-  {
-    name: 'Retengax',
-    imageUrl:
-      'https://lh3.googleusercontent.com/pw/AP1GczOGcEn1Ztbwkhrfkyb6yuhgUvByGfARYW5qJo1iBRDfefpX-fUJWo4DDATe0fBL_UhrGpDTHt72Hg9rUZntqHPWG44bAaOkBBQLNuGnUw-VEtkC0IrizoG_3QHCTrrIcsaR8RJ53w3UoW7PsYvZwO16=w192-h192-s-no-gm?authuser=0',
-    link: 'https://www.retengax.com.br/',
-    tier: 'processor'
-  },
-  {
-    name: 'Orlando Recycles',
-    imageUrl:
-      'https://static.wixstatic.com/media/7cdbae_45341b034ab7454fa06333ed8df1fbf8~mv2.png',
-    link: 'https://www.orlandorecycles.com/',
-    tier: 'circuit'
-  },
-  {
-    name: 'Protocase',
-    imageUrl:
-      'https://lh3.googleusercontent.com/pw/AP1GczP4LH7ppxLX_QYV_ciUL4052712OmUTUlrC83gwEWenPesQSV5QxB9g94t-4i4wKz9dY7vLJD6zQ9EZ3cW_am3cF70UWLEWWtzOnBSzmksyW8a_m8y8JQaxXR9BTmNUEOLb9LkdnPouzm12eDbQpK-h=w131-h133-s-no-gm?authuser=0',
-    link: 'https://www.protocase.com/',
-    tier: 'circuit'
-  },
-  {
-    name: 'UCF CECS',
-    imageUrl:
-      'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRwvvA5u034vT8SJmEZwe6QS17C5qTCZqmYqA&s',
-    link: 'https://www.cecs.ucf.edu/',
-    tier: 'circuit'
-  },
-  {
-    name: 'RedBull',
-    imageUrl:
-      'https://cdn.brandfetch.io/iddByYpFsc/w/400/h/400/theme/dark/icon.png?c=1bxid64Mup7aczewSAYMX&t=1667560742112',
-    link: 'https://www.redbull.com/us-en',
-    tier: 'bolt'
-  },
-  {
-    name: 'SendCutSend',
-    imageUrl: 'https://www.svgrepo.com/show/331572/sendcutsend.svg',
-    link: 'https://sendcutsend.com/',
-    tier: 'bolt'
-  },
-  {
-    name: 'GoBilda',
-    imageUrl:
-      'https://lh3.googleusercontent.com/pw/AP1GczMtxPR3SMWXkulENPr2NDN-K328CRuYgLIb7PJDBw748kpAIAWpdPFpwd3VlaDKhde5UaRD9WdvFxhzPHl2fxaOewwHXYchMc_4qpkjx7rvVWrGy6FjoPCs5upzqlS-13memuceAnk-JU75v_43NDJssYH=w900-h900-s-no-gm?authuser=0',
-    link: 'https://www.gobilda.com/',
-    tier: 'aluminum'
-  }
-];
 
 const DEFAULT_TIERS: Record<string, TierInfo> = {
   processor: {
@@ -104,7 +48,6 @@ const DEFAULT_TIERS: Record<string, TierInfo> = {
 };
 
 const CONTENT_KEYS = [
-  'sponsors.list',
   'sponsors.scroller.title',
   'sponsors.tiers.title',
   'sponsors.tier.processor.name',
@@ -139,14 +82,12 @@ function parseTier(cm: Record<string, string>, key: string): TierInfo {
 }
 
 export const load: PageServerLoad = async () => {
-  const dbContent = await db.siteContent.findMany({ where: { key: { in: CONTENT_KEYS } } });
+  const [dbContent, sponsors] = await Promise.all([
+    db.siteContent.findMany({ where: { key: { in: CONTENT_KEYS } } }),
+    db.webSponsor.findMany({ orderBy: { id: 'asc' } })
+  ]);
   const cm: Record<string, string> = {};
   for (const row of dbContent) cm[row.key] = row.value;
-
-  let sponsors: Sponsor[] = DEFAULT_SPONSORS;
-  try {
-    if (cm['sponsors.list']) sponsors = JSON.parse(cm['sponsors.list']);
-  } catch { /* use default */ }
 
   return {
     sponsors,

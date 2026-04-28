@@ -1,7 +1,18 @@
 import { db } from '$lib/db';
 import type { Actions, PageServerLoad } from './$types';
+import type { Prisma } from '@prisma/client';
 import semesterYear from '../../../components/scripts/semesterYear';
 import config from '../../../config';
+
+export type DashboardUser = Prisma.MemberGetPayload<{
+  include: {
+    Projects: { include: { logo: true } };
+    Teams: { include: { _count: { select: { members: true } } } };
+    Survey: true;
+    role: true;
+    roles: true;
+  }
+}>;
 
 export const load: PageServerLoad = async ({ locals }) => {
   const dateInfo = semesterYear();
@@ -33,7 +44,7 @@ export const load: PageServerLoad = async ({ locals }) => {
       role: true,
       roles: true
     }
-  });
+  }) as DashboardUser | null;
 
   const surveyDateUpdated = user?.Survey?.DateUpdated;
 
@@ -57,6 +68,17 @@ export const actions: Actions = {
         data: {
           membershipExpDate: new Date(currentYear, 7, firstDayOfFourthWeek),
           role: {
+            connectOrCreate: {
+              create: {
+                permissionLevel: config.roles.member.level,
+                name: config.roles.member.name
+              },
+              where: {
+                name: config.roles.member.name
+              }
+            }
+          },
+          roles: {
             connectOrCreate: {
               create: {
                 permissionLevel: config.roles.member.level,

@@ -11,21 +11,25 @@
   const TIER_KEYS: TierKey[] = ['processor', 'circuit', 'bolt', 'aluminum'];
 
   // ---- Edit state ----
-  let editingIndex: number | null = null;
+  let editingId: number | null = null;
   let editName = '';
   let editImageUrl = '';
   let editLink = '';
   let editTier: TierKey = 'aluminum';
 
-  function startEdit(i: number, s: Sponsor) {
-    editingIndex = i;
+  function startEdit(s: Sponsor) {
+    editingId = s.id;
     editName = s.name;
     editImageUrl = s.imageUrl;
     editLink = s.link;
     editTier = s.tier as TierKey;
   }
 
-  function cancelEdit() { editingIndex = null; }
+  function cancelEdit() { editingId = null; }
+
+  function tierLabel(key: string) {
+    return data.tiers[key as TierKey];
+  }
 
   // ---- Create state ----
   let showCreate = false;
@@ -38,7 +42,7 @@
   <div class="flex items-center justify-between">
     <h2 class="h2">Manage Sponsors</h2>
     <button
-      on:click={() => { showCreate = !showCreate; editingIndex = null; }}
+      on:click={() => { showCreate = !showCreate; editingId = null; }}
       class="btn variant-ghost-success hover:variant-filled-success"
     >
       {showCreate ? 'Cancel' : '+ New Sponsor'}
@@ -105,8 +109,8 @@
     <p class="opacity-50 text-sm italic">No sponsors yet. Add one above.</p>
   {:else}
     <div class="space-y-3">
-      {#each data.sponsors as sponsor, i (i)}
-        {#if editingIndex === i}
+      {#each data.sponsors as sponsor (sponsor.id)}
+        {#if editingId === sponsor.id}
           <div class={$modeCurrent
             ? 'card p-5 border-2 border-warning-500 shadow-xl shadow-surface-300 space-y-3'
             : 'card p-5 border-2 border-warning-500 shadow-xl shadow-surface-500 space-y-3'}>
@@ -119,12 +123,12 @@
                 return async ({ update }) => {
                   await update();
                   saving = false;
-                  editingIndex = null;
+                  editingId = null;
                 };
               }}
               class="space-y-3"
             >
-              <input type="hidden" name="index" value={i} />
+              <input type="hidden" name="id" value={sponsor.id} />
               <div class="grid grid-cols-2 gap-3">
                 <label class="label">
                   <span class="text-xs font-bold">Name *</span>
@@ -170,34 +174,34 @@
             <div class="flex-1 min-w-0">
               <p class="font-semibold">{sponsor.name}</p>
               <p class="text-xs opacity-50">
-                {data.tiers[sponsor.tier as TierKey]?.name} — {data.tiers[sponsor.tier as TierKey]?.amount}
+                {tierLabel(sponsor.tier)?.name} — {tierLabel(sponsor.tier)?.amount}
               </p>
               {#if sponsor.link}
                 <a href={sponsor.link} target="_blank" class="text-xs text-primary-500 underline truncate block">{sponsor.link}</a>
               {/if}
             </div>
             <div class="flex gap-2 shrink-0">
-              <button on:click={() => startEdit(i, sponsor)} class="btn btn-sm variant-filled-warning">Edit</button>
+              <button on:click={() => startEdit(sponsor)} class="btn btn-sm variant-filled-warning">Edit</button>
               <form
                 method="POST"
                 action="?/delete"
                 use:enhance={({ cancel }) => {
                   if (!confirm(`Remove "${sponsor.name}"?`)) { cancel(); return; }
-                  deleting = i;
+                  deleting = sponsor.id;
                   return async ({ update }) => {
                     await update();
                     deleting = null;
                   };
                 }}
               >
-                <input type="hidden" name="index" value={i} />
+                <input type="hidden" name="id" value={sponsor.id} />
                 <button
                   type="submit"
-                  disabled={deleting === i}
+                  disabled={deleting === sponsor.id}
                   class="btn btn-sm variant-filled-error"
                   title="Remove sponsor"
                 >
-                  {deleting === i ? '…' : '×'}
+                  {deleting === sponsor.id ? '…' : '×'}
                 </button>
               </form>
             </div>

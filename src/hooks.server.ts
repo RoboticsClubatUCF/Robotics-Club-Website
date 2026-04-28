@@ -6,7 +6,8 @@ async function sweepExpiredMemberships() {
   const expired = await db.member.findMany({
     where: {
       membershipExpDate: { lt: new Date() },
-      role: { permissionLevel: { gte: 4, lt: 10 } }
+      // Include members through officers (4–998); admins (999+) are never swept.
+      role: { permissionLevel: { gte: 4, lt: 999 } }
     },
     include: {
       role: true,
@@ -29,14 +30,16 @@ async function sweepExpiredMemberships() {
 
   for (const member of expired) {
     const effectiveRoles = member.roles.length > 0 ? member.roles : [member.role];
+    // Keep officer-level roles (10+); everything else is cleared on expiry.
     const keepRoles = effectiveRoles.filter((r) => r.permissionLevel >= 10);
-    const maxKept = keepRoles.reduce<(typeof effectiveRoles)[0] | null>(
-      (max, r) => (!max || r.permissionLevel > max.permissionLevel ? r : max),
-      null
+    // Always fall back to [guest] so roles is never left empty.
+    const newRoles = keepRoles.length > 0 ? keepRoles : [guestRole];
+    const newPrimaryRole = newRoles.reduce(
+      (max, r) => (r.permissionLevel > max.permissionLevel ? r : max),
+      guestRole
     );
-    const newPrimaryRole = maxKept ?? guestRole;
 
-    // Remove Discord project roles before disconnecting from projects
+    // Remove all Discord project roles before disconnecting from projects.
     for (const project of member.Projects) {
       if (project.discordRoleId !== '1111111') {
         await removeProjectRole(member.discordProfileName, project.discordRoleId).catch((e) =>
@@ -49,14 +52,15 @@ async function sweepExpiredMemberships() {
     await db.member.update({
       where: { id: member.id },
       data: {
+        // role always mirrors the highest entry in roles.
         role: { connect: { id: newPrimaryRole.id } },
-        ...(member.roles.length > 0
-          ? { roles: { set: keepRoles.map((r) => ({ id: r.id })) } }
-          : {}),
+        roles: { set: newRoles.map((r) => ({ id: r.id })) },
         Projects: { set: [] }
       }
     });
 
+    // keepRoles names: empty array clears all Discord roles for regular members;
+    // ['officer'] (or similar) keeps officer/admin Discord roles for those ranks.
     const result = await syncMemberRoles(
       member.discordProfileName,
       keepRoles.map((r) => r.name)

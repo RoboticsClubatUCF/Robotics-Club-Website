@@ -26,7 +26,7 @@ export const load = (async ({ params, locals, fetch }) => {
   }
 
   // Build update: always extend expiry and add "member" to the roles set.
-  // Only promote the primary role to "member" if the current level is below it,
+  // Promote the primary role to "member" only when the current level is below it,
   // so officers/admins who pay dues keep their higher primary role.
   const updateData: Parameters<typeof db.member.update>[0]['data'] = {
     membershipExpDate: calculateValidSemester(self.membershipExpDate),

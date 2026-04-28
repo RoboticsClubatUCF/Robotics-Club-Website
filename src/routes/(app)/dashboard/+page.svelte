@@ -6,12 +6,12 @@
     getDrawerStore,
     modeCurrent
   } from '@skeletonlabs/skeleton';
-  import type { PageServerData } from './$types';
+  import type { DashboardUser } from './+page.server';
   import Feed from '../../../components/dashboard/feed.svelte';
   import LeftSideBar from '../../../components/dashboard/leftSidebar/leftSideBar.svelte';
   import { enhance } from '$app/forms';
 
-  export let data: PageServerData;
+  export let data: { user: DashboardUser | null; surveyDateUpdated: Date | undefined };
   const drawerStore = getDrawerStore();
   const drawerSettingsLeft: DrawerSettings = {
     id: 'dashboard1',
@@ -56,6 +56,12 @@
 
     return currentDate >= startDate && currentDate <= fourthWeekInAugust;
   }
+
+  function titleCase(s: string): string {
+    return s.split(' ').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  }
+
+  $: userRole = data.user?.role ?? { name: 'guest', permissionLevel: 0 };
 </script>
 
 <AppShell>
@@ -130,41 +136,71 @@
 
         {#if (data.user?.membershipExpDate.getTime() ?? 0) > new Date().getTime()}
           <br/>
-          {#if data.user?.role.permissionLevel > 4}
+          {#if userRole.permissionLevel > 4}
           <div class={$modeCurrent ? 'block card p-8 pointer-events-auto shadow-m shadow-surface-300 justify-center' : 'block card p-8 pointer-events-auto shadow-m shadow-surface-500 justify-center'}>
             <div class="p-2 rounded-md">
               <h2 class="h2">
-                {data.user?.role?.name?.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')} Dashboard
+                {titleCase(userRole.name)} Dashboard
               </h2>
-                {#if data.user?.role.permissionLevel >= 8}
+                {#if userRole.permissionLevel >= 8}
                 <br />
-                <div class="grid grid-cols-2 gap-3">
-                  <a href="/dashboard/manage-project" class="card p-3 hover:card-hover flex flex-col gap-1">
-                    <span class="font-semibold text-sm">Manage Projects</span>
-                    <span class="text-xs opacity-50">Create, edit, or duplicate</span>
-                  </a>
-                  <a href="/dashboard/admin" class="card p-3 hover:card-hover flex flex-col gap-1">
-                    <span class="font-semibold text-sm">Manage Roles</span>
-                    <span class="text-xs opacity-50">Assign or change member roles</span>
-                  </a>
-                  {#if data.user?.role.permissionLevel >= 10}
-                  <a href="/dashboard/manage-sponsors" class="card p-3 hover:card-hover flex flex-col gap-1">
-                    <span class="font-semibold text-sm">Manage Sponsors</span>
-                    <span class="text-xs opacity-50">Add, edit, or remove sponsors</span>
-                  </a>
-                  <a href="/dashboard/statistics" class="card p-3 hover:card-hover flex flex-col gap-1">
-                    <span class="font-semibold text-sm">Statistics</span>
-                    <span class="text-xs opacity-50">Membership breakdowns</span>
-                  </a>
-                  <a href="/dashboard/acknowledge" class="card p-3 hover:card-hover flex flex-col gap-1">
-                    <span class="font-semibold text-sm">Dues Agreement</span>
-                    <span class="text-xs opacity-50">Edit acknowledgement message</span>
-                  </a>
-                  <a href="/api/edit-mode?enable=true&to=/" class="card p-3 hover:card-hover flex flex-col gap-1">
-                    <span class="font-semibold text-sm">Edit Website</span>
-                    <span class="text-xs opacity-50">Edit public page content</span>
-                  </a>
+                <div class="space-y-5">
+
+                  {#if userRole.permissionLevel >= 10}
+                  <!-- Website & Content -->
+                  <div>
+                    <p class="text-xs font-bold uppercase tracking-widest opacity-40 mb-2">Website &amp; Content</p>
+                    <div class="grid grid-cols-3 gap-3">
+                      <a href="/api/edit-mode?enable=true&to=/" class="card p-3 hover:card-hover flex flex-col gap-1">
+                        <span class="font-semibold text-sm">Edit Home Page</span>
+                        <span class="text-xs opacity-50">Edit public content inline</span>
+                      </a>
+                      <a href="/api/edit-mode?enable=true&to=/sponsors" class="card p-3 hover:card-hover flex flex-col gap-1">
+                        <span class="font-semibold text-sm">Edit Sponsors Page</span>
+                        <span class="text-xs opacity-50">Titles, tiers &amp; benefits</span>
+                      </a>
+                      <a href="/dashboard/manage-sponsors" class="card p-3 hover:card-hover flex flex-col gap-1">
+                        <span class="font-semibold text-sm">Manage Sponsors</span>
+                        <span class="text-xs opacity-50">Add, edit, or remove sponsors</span>
+                      </a>
+                    </div>
+                  </div>
                   {/if}
+
+                  <!-- Members & Projects -->
+                  <div>
+                    <p class="text-xs font-bold uppercase tracking-widest opacity-40 mb-2">Members &amp; Projects</p>
+                    <div class="grid grid-cols-2 gap-3">
+                      <a href="/dashboard/admin" class="card p-3 hover:card-hover flex flex-col gap-1">
+                        <span class="font-semibold text-sm">Manage Roles</span>
+                        <span class="text-xs opacity-50">View and assign member roles</span>
+                      </a>
+                      <a href="/dashboard/manage-project" class="card p-3 hover:card-hover flex flex-col gap-1">
+                        <span class="font-semibold text-sm">Manage Projects</span>
+                        <span class="text-xs opacity-50">Create, edit, or duplicate</span>
+                      </a>
+                      {#if userRole.permissionLevel >= 10}
+                      <a href="/dashboard/statistics" class="card p-3 hover:card-hover flex flex-col gap-1">
+                        <span class="font-semibold text-sm">Statistics</span>
+                        <span class="text-xs opacity-50">Membership breakdowns</span>
+                      </a>
+                      {/if}
+                    </div>
+                  </div>
+
+                  {#if userRole.permissionLevel >= 10}
+                  <!-- Settings -->
+                  <div>
+                    <p class="text-xs font-bold uppercase tracking-widest opacity-40 mb-2">Settings</p>
+                    <div class="grid grid-cols-2 gap-3">
+                      <a href="/dashboard/acknowledge" class="card p-3 hover:card-hover flex flex-col gap-1">
+                        <span class="font-semibold text-sm">Dues Agreement</span>
+                        <span class="text-xs opacity-50">Edit acknowledgement message</span>
+                      </a>
+                    </div>
+                  </div>
+                  {/if}
+
                 </div>
                 {/if}
             </div>

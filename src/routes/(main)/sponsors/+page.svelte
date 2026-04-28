@@ -5,12 +5,20 @@
   import type { PageData } from './$types';
   export let data: PageData;
 
-  type Sponsor = { name: string; imageUrl: string; link: string; tier: string };
   type TierKey = 'processor' | 'circuit' | 'bolt' | 'aluminum';
 
-  let sponsors: Sponsor[] = [...data.sponsors];
-  let saving = false;
-  let saveError = '';
+  const TIER_PRIORITY: Record<TierKey, number> = { processor: 0, circuit: 1, bolt: 2, aluminum: 3 };
+
+  // Top 5 sponsors sorted by tier priority (highest tier first)
+  $: topSponsors = [...data.sponsors]
+    .sort((a, b) => TIER_PRIORITY[a.tier as TierKey] - TIER_PRIORITY[b.tier as TierKey])
+    .slice(0, 5);
+
+  // Duration scales with total character count so long names don't race past
+  $: scrollDuration = Math.max(
+    8,
+    topSponsors.reduce((sum, s) => sum + s.name.length, 0) * 0.4 + topSponsors.length * 2
+  );
 
   // ----- dot animation -----
   let mainEle: HTMLElement;
@@ -29,6 +37,8 @@
   type BenefitEdit = { tierKey: TierKey; index: number } | null;
   let editingBenefit: BenefitEdit = null;
   let editBenefitText = '';
+  let saving = false;
+  let saveError = '';
 
   let tierBenefits: Record<TierKey, string[]> = {
     processor: [...data.siteContent.tiers.processor.benefits],
@@ -92,6 +102,19 @@
 
 <div class="sponsors-page">
 
+<!-- Edit-mode quick-access bar -->
+{#if data.editMode}
+  <div class="w-full bg-surface-200-700-token flex items-center justify-between px-4 py-2 border-b border-surface-300-600-token">
+    <span class="text-xs opacity-60 font-semibold uppercase tracking-wide">Editing sponsors page</span>
+    <a
+      href="/dashboard/manage-sponsors"
+      class="btn btn-sm variant-filled-primary"
+    >
+      Manage Sponsors (add / remove) →
+    </a>
+  </div>
+{/if}
+
 <!-- Scroller section -->
 <div>
   <div class="h1 text-[5rem] leading-[5rem] text-center p-[3%]">
@@ -103,15 +126,17 @@
     />
   </div>
 
-  <!-- Animated scroller -->
-  <div class="scroller-container">
-    <div class="scroller-inner">
-      {#each [...sponsors, ...sponsors, ...sponsors, ...sponsors] as sponsor, i (i)}
-        <img src={sponsor.imageUrl} alt={sponsor.name} width="70px" />
-        <div class="content-item">{sponsor.name}<br /></div>
-      {/each}
+  <!-- Animated scroller — 2 identical copies so animation translates exactly -50% -->
+  {#if topSponsors.length > 0}
+    <div class="scroller-container">
+      <div class="scroller-inner" style="--scroll-duration: {scrollDuration}s">
+        {#each [...topSponsors, ...topSponsors] as sponsor, i (i)}
+          <img src={sponsor.imageUrl} alt={sponsor.name} width="70px" />
+          <div class="content-item">{sponsor.name}<br /></div>
+        {/each}
+      </div>
     </div>
-  </div>
+  {/if}
 </div>
 
 <!-- Sponsorship Tiers -->
@@ -136,7 +161,7 @@
             {#each TIER_ORDER as tierKey}
               {@const tier = data.siteContent.tiers[tierKey]}
               {@const tierClass = TIER_CLASSES[tierKey]}
-              {@const tieredSponsors = sponsors.filter((s) => s.tier === tierKey)}
+              {@const tieredSponsors = data.sponsors.filter((s) => s.tier === tierKey)}
 
               <div class={tierClass}>
                 <div>

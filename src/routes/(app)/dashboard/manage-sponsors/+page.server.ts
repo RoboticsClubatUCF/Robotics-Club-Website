@@ -2,15 +2,8 @@ import type { Actions, PageServerLoad } from './$types';
 import { redirect, error } from '@sveltejs/kit';
 import { db } from '$lib/db';
 
-export type Sponsor = {
-  name: string;
-  imageUrl: string;
-  link: string;
-  tier: 'processor' | 'circuit' | 'bolt' | 'aluminum';
-};
-
 const TIER_KEYS = ['processor', 'circuit', 'bolt', 'aluminum'] as const;
-const SPONSOR_KEY = 'sponsors.list';
+type TierKey = (typeof TIER_KEYS)[number];
 
 const DEFAULT_TIERS = {
   processor: { name: 'Processor Patron', amount: '$5,000+' },
@@ -19,26 +12,12 @@ const DEFAULT_TIERS = {
   aluminum:  { name: 'Aluminum Ally', amount: '$250' }
 };
 
-async function readSponsors(): Promise<Sponsor[]> {
-  const row = await db.siteContent.findUnique({ where: { key: SPONSOR_KEY } });
-  if (!row?.value) return [];
-  try { return JSON.parse(row.value); } catch { return []; }
-}
-
-async function writeSponsors(sponsors: Sponsor[]) {
-  await db.siteContent.upsert({
-    where: { key: SPONSOR_KEY },
-    update: { value: JSON.stringify(sponsors) },
-    create: { key: SPONSOR_KEY, value: JSON.stringify(sponsors), type: 'text' }
-  });
-}
-
 export const load: PageServerLoad = async ({ locals }) => {
   if (!locals.member || locals.member.permissions.level < 10) {
     throw redirect(302, '/dashboard');
   }
 
-  const sponsors = await readSponsors();
+  const sponsors = await db.webSponsor.findMany({ orderBy: { id: 'asc' } });
 
   const contentKeys = TIER_KEYS.flatMap((k) => [
     `sponsors.tier.${k}.name`,
@@ -56,7 +35,7 @@ export const load: PageServerLoad = async ({ locals }) => {
         amount: cm[`sponsors.tier.${k}.amount`] ?? DEFAULT_TIERS[k].amount
       }
     ])
-  ) as Record<(typeof TIER_KEYS)[number], { name: string; amount: string }>;
+  ) as Record<TierKey, { name: string; amount: string }>;
 
   return { sponsors, tiers };
 };
@@ -68,40 +47,33 @@ export const actions: Actions = {
     const name = (form.get('name') as string)?.trim();
     const imageUrl = (form.get('imageUrl') as string)?.trim() ?? '';
     const link = (form.get('link') as string)?.trim() ?? '';
-    const tier = form.get('tier') as Sponsor['tier'];
+    const tier = form.get('tier') as string;
 
     if (!name || !tier) return { error: 'Name and tier are required.' };
 
-    const sponsors = await readSponsors();
-    sponsors.push({ name, imageUrl, link, tier });
-    await writeSponsors(sponsors);
+    await db.webSponsor.create({ data: { name, imageUrl, link, tier } });
   },
 
   update: async ({ request, locals }) => {
     if (locals.member.permissions.level < 10) throw error(403, 'Forbidden');
     const form = await request.formData();
-    const index = parseInt(form.get('index') as string);
+    const id = parseInt(form.get('id') as string);
     const name = (form.get('name') as string)?.trim();
     const imageUrl = (form.get('imageUrl') as string)?.trim() ?? '';
     const link = (form.get('link') as string)?.trim() ?? '';
-    const tier = form.get('tier') as Sponsor['tier'];
+    const tier = form.get('tier') as string;
 
-    if (!name || !tier) return { error: 'Name and tier are required.' };
+    if (!name || !tier || isNaN(id)) return { error: 'Name and tier are required.' };
 
-    const sponsors = await readSponsors();
-    if (index < 0 || index >= sponsors.length) return { error: 'Invalid sponsor.' };
-    sponsors[index] = { name, imageUrl, link, tier };
-    await writeSponsors(sponsors);
+    await db.webSponsor.update({ where: { id }, data: { name, imageUrl, link, tier } });
   },
 
   delete: async ({ request, locals }) => {
     if (locals.member.permissions.level < 10) throw error(403, 'Forbidden');
     const form = await request.formData();
-    const index = parseInt(form.get('index') as string);
+    const id = parseInt(form.get('id') as string);
 
-    const sponsors = await readSponsors();
-    if (index < 0 || index >= sponsors.length) return { error: 'Invalid sponsor.' };
-    sponsors.splice(index, 1);
-    await writeSponsors(sponsors);
+    if (isNaN(id)) return { error: 'Invalid sponsor.' };
+    await db.webSponsor.delete({ where: { id } });
   }
 };

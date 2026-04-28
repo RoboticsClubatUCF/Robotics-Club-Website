@@ -69,6 +69,17 @@ export const actions: Actions = {
               permissionLevel: config.roles.guest.level
             }
           }
+        },
+        roles: {
+          connectOrCreate: {
+            where: {
+              name: config.roles.guest.name
+            },
+            create: {
+              name: config.roles.guest.name,
+              permissionLevel: config.roles.guest.level
+            }
+          }
         }
       }
     });
