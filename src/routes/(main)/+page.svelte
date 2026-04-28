@@ -11,8 +11,10 @@
   import Hero from '../../components/hero.svelte';
   import Admins from '../../components/cards/admins.svelte';
   import FRQ from '../../components/frq.svelte';
-  import type { PageServerData } from './$types';
-  export let data: PageServerData;
+  import EditableText from '../../components/EditableText.svelte';
+  import EditableLink from '../../components/EditableLink.svelte';
+  import type { PageData } from './$types';
+  export let data: PageData;
 </script>
 
 <div class="w-full">
@@ -55,34 +57,78 @@
 </div>
 
 <div class="m-4">
-  <h2 class="centered h2">Meet the Team!</h2>
+  <h2 class="centered h2">
+    <EditableText
+      contentKey="home.section.team"
+      value={data.siteContent.sections.team}
+      editMode={data.editMode}
+      multiline={false}
+    />
+  </h2>
   <Admins officers={data.officers} editMode={data.editMode} />
 </div>
 
 <div class="m-4 mt-8">
-  <h2 class="centered h2">Frequently Asked Questions!</h2>
-  <FRQ />
+  <h2 class="centered h2">
+    <EditableText
+      contentKey="home.section.faq"
+      value={data.siteContent.sections.faq}
+      editMode={data.editMode}
+      multiline={false}
+    />
+  </h2>
+  <FRQ items={data.siteContent.faqItems} editMode={data.editMode} />
 </div>
 
 <div class="m-4">
-  <h2 class="centered h2">Check out our Socials!</h2>
+  <h2 class="centered h2">
+    <EditableText
+      contentKey="home.section.socials"
+      value={data.siteContent.sections.socials}
+      editMode={data.editMode}
+      multiline={false}
+    />
+  </h2>
   <br />
   <div class="logo-cloud grid-cols-2 lg:!grid-cols-2 gap-2">
-    <a class="logo-item" href="https://discord.gg/m8XZahpNjR">
+    <EditableLink
+      contentKey="home.social.discord"
+      href={data.siteContent.socials.discord}
+      editMode={data.editMode}
+      linkClass="logo-item"
+    >
       <div class="h-10 w-10"><FaDiscord /></div>
       <span>Discord</span>
-    </a>
-    <a class="logo-item" href="https://github.com/RoboticsClubatUCF">
+    </EditableLink>
+
+    <EditableLink
+      contentKey="home.social.github"
+      href={data.siteContent.socials.github}
+      editMode={data.editMode}
+      linkClass="logo-item"
+    >
       <div class="h-10 w-10"><FaGithub /></div>
       <span>Github</span>
-    </a>
-    <a class="logo-item" href="https://www.instagram.com/ucf_robotics/">
+    </EditableLink>
+
+    <EditableLink
+      contentKey="home.social.instagram.club"
+      href={data.siteContent.socials.instagramClub}
+      editMode={data.editMode}
+      linkClass="logo-item"
+    >
       <div class="h-10 w-10"><FaInstagram /></div>
       <span>Instagram (Club)</span>
-    </a>
-    <a class="logo-item" href="https://www.instagram.com/rccf.tapemeasure/">
+    </EditableLink>
+
+    <EditableLink
+      contentKey="home.social.instagram.tapemeasure"
+      href={data.siteContent.socials.instagramTapemeasure}
+      editMode={data.editMode}
+      linkClass="logo-item"
+    >
       <div class="h-10 w-10"><FaInstagram /></div>
       <span>Instagram (Tapemeasure)</span>
-    </a>
+    </EditableLink>
   </div>
 </div>

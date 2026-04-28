@@ -3,8 +3,8 @@ import { redirect, error } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
-  if (locals.member.permissions.level <= 5) {
-    throw redirect(302, '/');
+  if (locals.member.permissions.level < 10) {
+    throw redirect(302, '/dashboard');
   }
 
   const members = await db.member.findMany({

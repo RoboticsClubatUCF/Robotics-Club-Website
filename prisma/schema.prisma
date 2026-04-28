@@ -227,6 +227,7 @@ model Member {
   Teams              Team[]
   Survey             Survey?             @relation(fields: [surveyId], references: [id])
   surveyId           Int?
+  acknowledgedAt     DateTime?
   PasswordResetToken PasswordResetToken?
 }
 

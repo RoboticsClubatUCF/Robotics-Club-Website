@@ -16,7 +16,15 @@ const CONTENT_KEYS = [
   'home.card.teaching.image',
   'home.card.competition.image',
   'home.card.outreach.image',
-  'home.card.research.image'
+  'home.card.research.image',
+  'home.section.team',
+  'home.section.faq',
+  'home.section.socials',
+  'home.social.discord',
+  'home.social.github',
+  'home.social.instagram.club',
+  'home.social.instagram.tapemeasure',
+  'home.faq.items'
 ];
 
 export const load: PageServerLoad = async () => {
@@ -31,12 +39,22 @@ export const load: PageServerLoad = async () => {
     contentMap[row.key] = row.value;
   }
 
+  let faqItems: { question: string; answer: string }[] = [];
+  try {
+    if (contentMap['home.faq.items']) {
+      faqItems = JSON.parse(contentMap['home.faq.items']);
+    }
+  } catch {
+    faqItems = [];
+  }
+
   const siteContent = {
     slogan: contentMap['home.slogan'] ?? config.information.slogan,
     missionStatement: contentMap['home.missionStatement'] ?? config.information.missionStatement,
     projectStatement: contentMap['home.projectStatement'] ?? config.information.projectStatement,
     teachingStatement: contentMap['home.teachingStatement'] ?? config.information.teachingStatement,
-    competitionStatement: contentMap['home.competitionStatement'] ?? config.information.competitionStatement,
+    competitionStatement:
+      contentMap['home.competitionStatement'] ?? config.information.competitionStatement,
     outreachStatement: contentMap['home.outreachStatement'] ?? config.information.outreachStatement,
     researchStatement: contentMap['home.researchStatement'] ?? config.information.researchStatement,
     cardImages: {
@@ -46,7 +64,22 @@ export const load: PageServerLoad = async () => {
       competition: contentMap['home.card.competition.image'] ?? '/photos/competition.png',
       outreach: contentMap['home.card.outreach.image'] ?? '/photos/outreach.png',
       research: contentMap['home.card.research.image'] ?? '/photos/research.png'
-    }
+    },
+    sections: {
+      team: contentMap['home.section.team'] ?? 'Meet the Team!',
+      faq: contentMap['home.section.faq'] ?? 'Frequently Asked Questions!',
+      socials: contentMap['home.section.socials'] ?? 'Check out our Socials!'
+    },
+    socials: {
+      discord: contentMap['home.social.discord'] ?? 'https://discord.gg/m8XZahpNjR',
+      github: contentMap['home.social.github'] ?? 'https://github.com/RoboticsClubatUCF',
+      instagramClub:
+        contentMap['home.social.instagram.club'] ?? 'https://www.instagram.com/ucf_robotics/',
+      instagramTapemeasure:
+        contentMap['home.social.instagram.tapemeasure'] ??
+        'https://www.instagram.com/rccf.tapemeasure/'
+    },
+    faqItems
   };
 
   const officers = await db.member.findMany({

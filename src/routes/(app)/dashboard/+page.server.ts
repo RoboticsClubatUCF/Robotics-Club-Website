@@ -74,6 +74,9 @@ export const actions: Actions = {
     const form = await request.formData();
     const id = form.get('id')?.toString();
     if (id) {
+      // Only allow a member to set their own summer role
+      const self = await db.member.findFirst({ where: { email: locals.member.email }, select: { id: true } });
+      if (self?.id !== id) return;
       const currentYear = new Date().getFullYear();
       const august = new Date(currentYear, 7, 1); // August 1st
       const dayOfWeek = august.getDay(); // Day of the week of August 1st

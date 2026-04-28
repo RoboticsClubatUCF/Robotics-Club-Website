@@ -2,11 +2,9 @@ import { z } from 'zod/v3';
 import type { Actions, PageServerLoad } from "./$types";
 import { setError, superValidate } from 'sveltekit-superforms';
 import { zod } from '$lib/zodAdapter';
-import { fail, redirect } from "@sveltejs/kit";
+import { fail, redirect, error } from "@sveltejs/kit";
 import { db } from "$lib/db";
 import { Season } from '@prisma/client';
-
-let pLevel = 0;
 
 const createProSchema = z.object({
     title: z.string(),
@@ -18,11 +16,8 @@ const createProSchema = z.object({
     Skills: z.string().array(),
 });
 
-export const load: PageServerLoad = async ({ parent, locals }) => {
-    const data = await parent();
-    pLevel = data.member!.role.permissionLevel;
-    // check user permission level
-    if (!(pLevel >= 10)) {
+export const load: PageServerLoad = async ({ locals }) => {
+    if (locals.member.permissions.level < 10) {
         throw redirect(302, '/dashboard');
     }
 
@@ -43,7 +38,10 @@ export const load: PageServerLoad = async ({ parent, locals }) => {
 };
 
 export const actions: Actions = {
-    default: async({ request }) => {
+    default: async({ request, locals }) => {
+        if (locals.member.permissions.level < 10) {
+            throw error(403, 'Forbidden');
+        }
         const form = await superValidate(request, zod(createProSchema));
         // Validating forms
         if (!form.valid) {

@@ -11,7 +11,6 @@
   import Feed from '../../../components/dashboard/feed.svelte';
   import LeftSideBar from '../../../components/dashboard/leftSidebar/leftSideBar.svelte';
   import RightSideBar from '../../../components/dashboard/rightSidebar/rightSideBar.svelte';
-  import Payments from '../../../components/stripe/payments.svelte';
   import { enhance } from '$app/forms';
   
   export let data: PageServerData;
@@ -148,9 +147,7 @@
                   <h6 class="badge variant-filled-error">Looks like your dues are expired!</h6>
                   <hr />
                   <br class="h-5" />
-                  {#if data.user?.id}
-                    <Payments userID={data.user?.id} />
-                {/if}
+                  <a href="/dashboard/acknowledge" class="btn variant-ghost-tertiary hover:variant-filled-tertiary">Pay Dues</a>
                 {:else}
                   <h6 class="badge variant-filled-success">Your Dues Expire On {data.user?.membershipExpDate.toDateString()}</h6>
                   <h6 class="h6">
@@ -173,7 +170,21 @@
                 {#if data.user?.role.permissionLevel >= 10}
                 <br>
                 <h6 class="h5">Configure Projects</h6>
-                <a href="/dashboard/create-project" class="btn variant-ghost-tertiary hover:variant-filled-tertiary">Create Project</a>
+                <a href="/dashboard/manage-project" class="btn variant-ghost-tertiary hover:variant-filled-tertiary">Manage Projects</a>
+
+                <br /><br />
+                <h6 class="h5">Statistics</h6>
+                <p class="text-sm opacity-70 mb-2">View membership breakdowns by role, shirt size, major, and more.</p>
+                <a href="/dashboard/statistics" class="btn variant-ghost-secondary hover:variant-filled-secondary">
+                  View Statistics
+                </a>
+
+                <br /><br />
+                <h6 class="h5">Dues Acknowledgement</h6>
+                <p class="text-sm opacity-70 mb-2">Edit the agreement message members must read before paying dues.</p>
+                <a href="/dashboard/acknowledge" class="btn variant-ghost-tertiary hover:variant-filled-tertiary">
+                  Edit Acknowledgement
+                </a>
 
                 <br /><br />
                 <h6 class="h5">Website Editor</h6>

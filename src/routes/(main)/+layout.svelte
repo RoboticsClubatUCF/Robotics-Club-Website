@@ -32,17 +32,6 @@
           Exit Edit Mode
         </a>
       </div>
-    {:else if data.canEdit}
-      <div class="w-full bg-surface-200-700-token flex items-center justify-end px-4 py-1 gap-2 border-b border-surface-300-600-token">
-        <span class="text-xs opacity-60">Officer tools:</span>
-        <a
-          href="/api/edit-mode?enable=true&to={encodeURIComponent(currentPath)}"
-          class="btn btn-sm variant-ghost-warning"
-        >
-          Enter Edit Mode
-        </a>
-        <a href="/dashboard" class="btn btn-sm variant-ghost-tertiary">Dashboard</a>
-      </div>
     {/if}
     <AppBar>
       <svelte:fragment slot="lead">

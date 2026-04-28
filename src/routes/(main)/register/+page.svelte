@@ -4,6 +4,7 @@
   import { onMount } from 'svelte';
   import { injectDots } from '../../../components/pixijs/dotsAnimation';
   import { modeCurrent } from '@skeletonlabs/skeleton';
+  import DiscordUsernameInfo from '../../../components/DiscordUsernameInfo.svelte';
 
   export let data: PageData;
   const { form, errors, constraints } = superForm(data.form, {
@@ -78,7 +79,7 @@
       </label>
       <br />
       <label class="label">
-        <span>Discord Username</span>
+        <span>Discord Username <DiscordUsernameInfo /></span>
         <input
           class="input"
           type="text"

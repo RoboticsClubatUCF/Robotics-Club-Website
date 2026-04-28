@@ -10,6 +10,7 @@
   import type { PageData } from './$types';
   import successToast from '../../../../components/toasts/successToast';
   import ProfilePicPreview from '../../../../components/dashboard/profilePicPreview.svelte';
+  import DiscordUsernameInfo from '../../../../components/DiscordUsernameInfo.svelte';
 
   export let data: PageData;
   const { form, constraints, enhance, errors, message } = superForm(data.form);
@@ -56,7 +57,7 @@
           </label>
         </div>
         <label class="label m-2 p-2">
-          <span>Discord Username</span>
+          <span>Discord Username <DiscordUsernameInfo /></span>
           <input
             class="input"
             type="text"

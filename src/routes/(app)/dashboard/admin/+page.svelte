@@ -46,10 +46,10 @@
 
 <div class="m-6 space-y-6">
   <div>
-    <h1 class="h1">Admin Dashboard</h1>
+    <h1 class="h1">Role Management</h1>
     <p class="opacity-60 text-sm mt-1">
       {#if data.isAdmin}
-        Admin — you can view and change any member's role.
+        View and change any member's role.
       {:else}
         Officer view — read-only member list.
       {/if}

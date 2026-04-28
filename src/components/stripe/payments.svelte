@@ -89,16 +89,7 @@
   </select>
 </label>
 {:else}
-  {#if duesSelection == '1'}
-    <span>Semesterly Dues</span>
-    <button on:click={reloadPage} class="btn variant-ghost-tertiary hover:variant-filled-tertiary">Cancel</button>
-
-  {/if}
-  {#if duesSelection == '2'}
-    <span>Yearly Dues</span>
-    <button on:click={reloadPage} class="btn variant-ghost-tertiary hover:variant-filled-tertiary">Cancel</button>
-
-  {/if}
+  <h2 class="h2 mb-1">{duesSelection === '1' ? 'Pay Semester Dues' : 'Pay Yearly Dues'}</h2>
 {/if}
 
 {#if duesSelection}
@@ -129,6 +120,8 @@
             {/if}
           {/if}
         </button>
+        <button type="button" on:click={reloadPage} class="btn variant-ghost-tertiary hover:variant-filled-tertiary">Cancel</button>
+        <p class="text-sm opacity-60">After payment you will be redirected to a confirmation page.</p>
       </form>
     </Elements>
   {:else}
