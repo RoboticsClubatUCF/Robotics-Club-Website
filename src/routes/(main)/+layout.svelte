@@ -39,7 +39,7 @@
     {/if}
     <AppBar>
       <svelte:fragment slot="lead">
-        <a href="/" class="h1 hover:animate-pulse whitespace-nowrap">
+        <a href="/" class="h1 whitespace-nowrap">
           <span class="sm:hidden">{info.mobileTitle}</span>
           <span class="hidden sm:inline">{info.title}</span>
         </a>
@@ -100,9 +100,9 @@
               >Library ↗</a>
               <hr class="opacity-20" />
               {#if data.user}
-                <a href="/dashboard" on:click={closeMenu} class="btn w-full variant-ghost-primary hover:variant-filled-primary">Dashboard</a>
+                <a href="/dashboard" on:click={closeMenu} class="btn w-full variant-ghost-primary hover:variant-filled-primary justify-start">Dashboard</a>
               {:else}
-                <a href="/login" on:click={closeMenu} class="btn w-full variant-ghost-primary hover:variant-filled-primary">Sign In</a>
+                <a href="/login" on:click={closeMenu} class="btn w-full variant-ghost-primary hover:variant-filled-primary justify-start">Sign In</a>
               {/if}
             </nav>
           {/if}
