@@ -1,6 +1,8 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import type { Member, Role } from '@prisma/client';
+  import FaUsers from 'svelte-icons/fa/FaUsers.svelte';
+  import FaSearch from 'svelte-icons/fa/FaSearch.svelte';
 
   type MemberWithRoles = Member & { role: Role; roles: Role[] };
 
@@ -12,7 +14,6 @@
 
   export let form: { memberId?: string; error?: string; success?: boolean; discordSynced?: boolean } | null = null;
 
-  // Roles shown as assignable checkboxes, scoped to what the viewer can change
   const MANAGEABLE_ORDER = ['officer', 'lead', 'team lead', 'member'];
 
   function assignableRoles(roles: Role[]): Role[] {
@@ -25,7 +26,6 @@
     return [];
   }
 
-  // Display label for each role name
   const ROLE_LABELS: Record<string, string> = {
     admin: 'Admin',
     officer: 'Officer',
@@ -49,12 +49,10 @@
     return 'badge variant-ghost';
   }
 
-  // Effective roles for display: use many-to-many if populated, else primary role
   function displayRoles(member: MemberWithRoles): Role[] {
     return member.roles.length > 0 ? member.roles : [member.role];
   }
 
-  // Mutual exclusivity: uncheck the other when one is selected
   function handleMutualExclusion(event: Event) {
     const cb = event.target as HTMLInputElement;
     if (!cb.checked) return;
@@ -86,26 +84,38 @@
     data.viewerLevel >= 8   ? 'Project Lead' : '';
 </script>
 
-<div class="m-6 space-y-6">
-  <div>
-    <h1 class="h1">Manage Roles</h1>
-    <p class="opacity-60 text-sm mt-1">
-      {viewerLabel} view —
-      {#if assignable.length === 0}
-        read-only member list.
-      {:else}
-        you can assign: {assignable.map((r) => roleLabel(r.name)).join(', ')}.
-      {/if}
-    </p>
+<div class="p-6 space-y-6">
+
+  <!-- Header -->
+  <div class="flex items-center gap-3">
+    <div class="w-7 h-7 opacity-60 shrink-0"><FaUsers /></div>
+    <div>
+      <h1 class="h1">Manage Roles</h1>
+      <p class="text-sm opacity-50 mt-0.5">
+        {viewerLabel} view —
+        {#if assignable.length === 0}
+          read-only.
+        {:else}
+          assignable: {assignable.map((r) => roleLabel(r.name)).join(', ')}.
+        {/if}
+      </p>
+    </div>
   </div>
 
-  <input
-    type="search"
-    bind:value={search}
-    placeholder="Search by name or email…"
-    class="input w-full max-w-md"
-  />
+  <!-- Search -->
+  <div class="relative max-w-sm">
+    <div class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-40 pointer-events-none">
+      <FaSearch />
+    </div>
+    <input
+      type="search"
+      bind:value={search}
+      placeholder="Search by name or email…"
+      class="input pl-9 w-full"
+    />
+  </div>
 
+  <!-- Table -->
   <div class="table-container">
     <table class="table table-hover">
       <thead>
@@ -121,9 +131,9 @@
         {#each filtered as member (member.id)}
           {@const effective = displayRoles(member)}
           <tr>
-            <td>{member.firstName} {member.lastName ?? ''}</td>
-            <td class="text-sm opacity-70">{member.email}</td>
-            <td class="text-sm opacity-70">{member.discordProfileName}</td>
+            <td class="font-medium">{member.firstName} {member.lastName ?? ''}</td>
+            <td class="text-sm opacity-60">{member.email}</td>
+            <td class="text-sm opacity-60">{member.discordProfileName}</td>
             <td>
               <div class="flex flex-wrap gap-1">
                 {#each effective as r}
@@ -138,12 +148,12 @@
                   action="?/updateRoles"
                   use:enhance
                   on:change={handleMutualExclusion}
-                  class="space-y-1"
+                  class="space-y-2"
                 >
                   <input type="hidden" name="memberId" value={member.id} />
                   <div class="flex flex-wrap gap-x-4 gap-y-1">
                     {#each assignable as role}
-                      <label class="flex items-center gap-1 text-sm cursor-pointer">
+                      <label class="flex items-center gap-1.5 text-sm cursor-pointer">
                         <input
                           type="checkbox"
                           name="role"
@@ -155,16 +165,16 @@
                       </label>
                     {/each}
                   </div>
-                  <div class="flex items-center gap-2 mt-1">
+                  <div class="flex items-center gap-2">
                     <button type="submit" class="btn btn-sm variant-filled-warning">Apply</button>
                     {#if form?.memberId === member.id && form?.success}
                       <span class="text-xs text-success-500">
-                        Saved{form.discordSynced ? ' & Discord synced' : ' (Discord sync failed)'}
+                        Saved{form.discordSynced ? ' & synced' : ''}
                       </span>
                     {/if}
                   </div>
                   {#if form?.memberId === member.id && form?.error}
-                    <p class="text-xs text-error-500 mt-1">{form.error}</p>
+                    <p class="text-xs text-error-500">{form.error}</p>
                   {/if}
                 </form>
               </td>
@@ -176,6 +186,7 @@
   </div>
 
   {#if filtered.length === 0}
-    <p class="text-center opacity-50 py-8">No members match your search.</p>
+    <p class="text-center opacity-40 py-10">No members match your search.</p>
   {/if}
+
 </div>

@@ -11,10 +11,10 @@
     <!-- <TabAnchor href="/about" selected={$page.url.pathname === '/about'}>
       <span class="capitalize">about</span>
     </TabAnchor> -->
-    <TabAnchor href="/projects" selected={$page.url.pathname === '/projects/'}>
+    <TabAnchor href="/projects" selected={$page.url.pathname === '/projects'}>
       <span class="capitalize">projects</span>
     </TabAnchor>
-    <TabAnchor href="/sponsors" selected={$page.url.pathname === '/sponsors/'}>
+    <TabAnchor href="/sponsors" selected={$page.url.pathname === '/sponsors'}>
       <span class="capitalize">sponsors</span>
     </TabAnchor>
     <TabAnchor href="/outreach" selected={$page.url.pathname === '/outreach'}>
