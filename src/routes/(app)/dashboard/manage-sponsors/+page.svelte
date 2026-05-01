@@ -72,7 +72,7 @@
         }}
         class="space-y-3"
       >
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label class="label">
             <span class="text-xs font-bold">Name *</span>
             <input type="text" name="name" class="input" placeholder="Sponsor name" required />
@@ -129,7 +129,7 @@
               class="space-y-3"
             >
               <input type="hidden" name="id" value={sponsor.id} />
-              <div class="grid grid-cols-2 gap-3">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label class="label">
                   <span class="text-xs font-bold">Name *</span>
                   <input type="text" name="name" class="input" bind:value={editName} required />

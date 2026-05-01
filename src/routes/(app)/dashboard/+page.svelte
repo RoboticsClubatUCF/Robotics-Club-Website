@@ -18,7 +18,7 @@
   import FaStar from 'svelte-icons/fa/FaStar.svelte';
   import FaShieldAlt from 'svelte-icons/fa/FaShieldAlt.svelte';
 
-  export let data: { user: DashboardUser | null; surveyDateUpdated: Date | undefined };
+  export let data: { user: DashboardUser | null; surveyDateUpdated: Date | undefined; member?: { id: string } };
   const drawerStore = getDrawerStore();
   const drawerSettingsLeft: DrawerSettings = {
     id: 'dashboard1',

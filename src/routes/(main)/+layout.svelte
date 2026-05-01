@@ -1,6 +1,6 @@
 <script lang="ts" src="../../../node_modules/flowbite/dist/flowbite.min.js">
   import '../../app.postcss';
-  import { AppBar, AppShell, LightSwitch } from '@skeletonlabs/skeleton';
+  import { AppBar, AppShell } from '@skeletonlabs/skeleton';
   import { page } from '$app/stores';
   import { info } from '../../data/info';
   import LoadHandler from '../../components/loadHandler.svelte';
@@ -11,6 +11,10 @@
   export let data: LayoutServerData;
 
   $: currentPath = $page.url.pathname;
+
+  let menuOpen = false;
+  function toggleMenu() { menuOpen = !menuOpen; }
+  function closeMenu() { menuOpen = false; }
 </script>
 
 <LoadHandler />
@@ -35,16 +39,74 @@
     {/if}
     <AppBar>
       <svelte:fragment slot="lead">
-        <a href="/" class="h1 hover:animate-pulse">{info.title}</a>
+        <a href="/" class="h1 hover:animate-pulse whitespace-nowrap">
+          <span class="sm:hidden">{info.mobileTitle}</span>
+          <span class="hidden sm:inline">{info.title}</span>
+        </a>
       </svelte:fragment>
-      <svelte:fragment slot="headline"><Navigation /></svelte:fragment>
+      <svelte:fragment slot="headline">
+        <!-- Desktop nav only -->
+        <div class="hidden sm:block">
+          <Navigation />
+        </div>
+      </svelte:fragment>
       <svelte:fragment slot="trail">
-        <LightSwitch />
-        {#if data.user}
-          <DashboardButton />
-        {:else}
-          <SigninButton />
-        {/if}
+        <!-- Desktop: auth button only -->
+        <div class="hidden sm:flex items-center gap-2">
+          {#if data.user}
+            <DashboardButton />
+          {:else}
+            <SigninButton />
+          {/if}
+        </div>
+
+        <!-- Mobile: hamburger opens from top-right -->
+        <div class="sm:hidden relative">
+          <button
+            class="btn variant-ghost-surface p-2"
+            on:click={toggleMenu}
+            aria-label="Toggle navigation"
+            aria-expanded={menuOpen}
+          >
+            {#if menuOpen}
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            {:else}
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            {/if}
+          </button>
+
+          {#if menuOpen}
+            <button
+              class="fixed inset-0 z-40 bg-transparent cursor-default"
+              on:click={closeMenu}
+              tabindex="-1"
+              aria-label="Close menu"
+            />
+            <nav class="absolute right-0 top-full mt-1 z-50 card shadow-xl p-2 min-w-[160px] space-y-1">
+              <a href="/" on:click={closeMenu} class="btn w-full variant-ghost hover:variant-filled-primary justify-start">Home</a>
+              <a href="/projects" on:click={closeMenu} class="btn w-full variant-ghost hover:variant-filled-primary justify-start">Projects</a>
+              <a href="/sponsors" on:click={closeMenu} class="btn w-full variant-ghost hover:variant-filled-primary justify-start">Sponsors</a>
+              <a href="/outreach" on:click={closeMenu} class="btn w-full variant-ghost hover:variant-filled-primary justify-start">Outreach</a>
+              <a
+                href="http://secretlibrary.rccf.club"
+                target="_blank"
+                rel="noopener noreferrer"
+                on:click={closeMenu}
+                class="btn w-full variant-ghost hover:variant-filled-primary justify-start"
+              >Library ↗</a>
+              <hr class="opacity-20" />
+              {#if data.user}
+                <a href="/dashboard" on:click={closeMenu} class="btn w-full variant-ghost-primary hover:variant-filled-primary">Dashboard</a>
+              {:else}
+                <a href="/login" on:click={closeMenu} class="btn w-full variant-ghost-primary hover:variant-filled-primary">Sign In</a>
+              {/if}
+            </nav>
+          {/if}
+        </div>
       </svelte:fragment>
     </AppBar>
   </svelte:fragment>

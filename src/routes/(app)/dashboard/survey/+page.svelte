@@ -31,11 +31,11 @@
   class="absolute top-20 left-0 right-0 bottom-0 pointer-events-auto -z-20"
 />
 
-<div class="h-screen grid place-items-center absolute w-screen top-0 pointer-events-none overflow-auto mt-[90px] pb-[110px]">
+<div class="flex justify-center w-full mt-[90px] pb-[110px] px-4 py-4">
   <div
     class={$modeCurrent
-      ? 'block card p-8 pointer-events-auto shadow-xl shadow-surface-300'
-      : 'block card p-8 pointer-events-auto shadow-xl shadow-surface-500'}
+      ? 'block card p-6 sm:p-8 pointer-events-auto shadow-xl shadow-surface-300 w-full max-w-lg'
+      : 'block card p-6 sm:p-8 pointer-events-auto shadow-xl shadow-surface-500 w-full max-w-lg'}
   >
     <form method="POST" class="p-2 rounded-md" use:enhance>
       <h2 class="h2">Creating Members Survey</h2>

@@ -1,8 +1,10 @@
 <script lang="ts">
   import { browser } from '$app/environment';
   import { onMount } from 'svelte';
-  import { modeCurrent } from '@skeletonlabs/skeleton';
+  import { modeCurrent, LightSwitch } from '@skeletonlabs/skeleton';
   import { superForm } from 'sveltekit-superforms';
+  import SignoutButton from '../../../../components/buttons/signout-button.svelte';
+  import ProfilePic from '../../../../components/profilePic.svelte';
   import type { PageData } from './$types';
   import successToast from '../../../../components/toasts/successToast';
   import DiscordUsernameInfo from '../../../../components/DiscordUsernameInfo.svelte';
@@ -58,12 +60,25 @@
 </script>
 
 {#if data.user && data.user.surveyId !== null}
-  <div class="container w-full m-auto mt-10">
-    <div class="card m-2 p-2">
-      <h2 class="h2 card-header">Edit profile</h2>
-      <form method="post" use:enhance>
-        <div class="grid grid-cols-2">
-          <label class="label m-2 p-2">
+  <div class="max-w-2xl mx-auto px-4 py-6 space-y-4">
+
+    <!-- Profile header -->
+    <div class="card p-6 flex items-center gap-4">
+      <ProfilePic hash={data.user.id} />
+      <div>
+        <h2 class="h2">
+          {data.user.firstName}{data.user.lastName ? ` ${data.user.lastName}` : ''}
+        </h2>
+        <p class="text-sm opacity-60">{data.user.email}</p>
+      </div>
+    </div>
+
+    <!-- Edit profile form -->
+    <div class="card p-6 space-y-4">
+      <h3 class="h3">Personal Info</h3>
+      <form method="post" use:enhance class="space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <label class="label">
             <span>First Name</span>
             <input
               class="input"
@@ -78,7 +93,7 @@
               <span class="badge variant-filled-error">{$errors.firstName}</span>
             {/if}
           </label>
-          <label class="label m-2 p-2">
+          <label class="label">
             <span>Last Name</span>
             <input
               class="input"
@@ -94,7 +109,8 @@
             {/if}
           </label>
         </div>
-        <label class="label m-2 p-2">
+
+        <label class="label">
           <span>Discord Username <DiscordUsernameInfo /></span>
           <input
             class="input"
@@ -108,7 +124,8 @@
             <span class="badge variant-filled-error">{$errors.discordProfileName}</span>
           {/if}
         </label>
-        <label class="label m-2 p-2">
+
+        <label class="label">
           <span>Email</span>
           <input
             class="input"
@@ -125,62 +142,69 @@
         </label>
 
         {#if $message === 'OK_DISCORD_FAIL'}
-          <p class="text-warning-500 text-sm m-2 px-2">
+          <p class="text-warning-500 text-sm">
             Profile saved, but your Discord username was not found in the server. Make sure
             it is spelled correctly and that you have joined the RCCF Discord.
           </p>
         {/if}
 
-        <div class="grid grid-cols-2 m-4">
-          <div class="flex">
-            <div>
-              <button
-                type="submit"
-                class="btn variant-ghost-secondary btn-xl"
-                disabled={cooldownRemaining > 0}
-              >
-                {#if cooldownRemaining > 0}
-                  Update Profile ({cooldownRemaining}s)
-                {:else}
-                  Update Profile
-                {/if}
-              </button>
-              <br/>
-              <br/>
-              <a
-                id="survey"
-                href="/dashboard/profile/update survey"
-                class="btn variant-ghost-secondary btn-xl">Members Survey
-              </a>
-            </div>
-          </div>
-        </div>
+        <button
+          type="submit"
+          class="btn variant-ghost-secondary"
+          disabled={cooldownRemaining > 0}
+        >
+          {cooldownRemaining > 0 ? `Update Profile (${cooldownRemaining}s)` : 'Update Profile'}
+        </button>
       </form>
     </div>
-  </div>
-  {:else}
-  <div class="m-4">
-    <div
-      class={$modeCurrent
-        ? 'block card p-8 pointer-events-auto shadow-m shadow-surface-300 justify-center'
-        : 'block card p-8 pointer-events-auto shadow-m shadow-surface-500 justify-center'}
-    >
-      <div class="p-2 rounded-md">
-        <h2 class="h2">Oops looks like you haven't filled out a members survey yet...</h2>
-        <span> </span>
-        <br/>
 
-        <h3 class="h3">The members survey is a requirement for anyone trying to become a member of RCCF!
-          It's a quick 1-3 minute survey on some general and important information about you as a possible member!
-          You can create one with the button below and if you need to change it later you can update your survey in your profile by clicking on the avatar in the top right corner!
-        </h3>
-        <br/>
-        <a
-          id="survey"
-          href="/dashboard/survey"
-          class="btn variant-ghost-tertiary hover:variant-filled-tertiary">Create a Members Survey
+    <!-- Member survey -->
+    <div class="card p-6 flex items-center justify-between gap-4">
+      <div>
+        <h3 class="h3">Member Survey</h3>
+        <p class="text-sm opacity-60 mt-1">Updated annually — required for active membership.</p>
+      </div>
+      <a href="/dashboard/profile/update survey" class="btn variant-ghost-secondary shrink-0">
+        Update Survey
+      </a>
+    </div>
+
+    <!-- Settings -->
+    <div class="card p-6 space-y-4">
+      <h3 class="h3">Settings</h3>
+      <div class="flex items-center justify-between">
+        <span class="text-sm">Color Theme</span>
+        <LightSwitch />
+      </div>
+      <hr class="opacity-20" />
+      <SignoutButton />
+    </div>
+
+  </div>
+
+{:else}
+  <div class="max-w-2xl mx-auto px-4 py-6 space-y-4">
+    <div class="card p-6">
+      <h2 class="h2">No member survey on file</h2>
+      <p class="mt-2 opacity-60 text-sm">
+        The member survey is required before joining RCCF. It takes 1–3 minutes and can be updated later from this page.
+      </p>
+      <div class="mt-4">
+        <a href="/dashboard/survey" class="btn variant-ghost-tertiary hover:variant-filled-tertiary">
+          Create Member Survey
         </a>
       </div>
+    </div>
+
+    <!-- Settings still accessible even without a survey -->
+    <div class="card p-6 space-y-4">
+      <h3 class="h3">Settings</h3>
+      <div class="flex items-center justify-between">
+        <span class="text-sm">Color Theme</span>
+        <LightSwitch />
+      </div>
+      <hr class="opacity-20" />
+      <SignoutButton />
     </div>
   </div>
 {/if}

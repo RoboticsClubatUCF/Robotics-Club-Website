@@ -4,7 +4,6 @@
   export let project: Prisma.ProjectGetPayload<{ include: { logo: true } }>;
   let hover = false;
 
-  // Function to truncate the description to 2 sentences
   function truncateDescription(description: string): string {
     const sentences = description.split('. ').filter((s) => s.trim() !== '');
     return sentences.length > 2
@@ -13,16 +12,35 @@
   }
 </script>
 
-<a
-  href="/projects/{project.id}"
-  on:mouseenter={() => { hover = true; }}
-  on:mouseleave={() => { hover = false; }}
->
-  <div class="card h-72 max-w-72 rounded-lg relative overflow-hidden">
+<a href="/projects/{project.id}">
+  <!-- Mobile layout: always shows title + description -->
+  <div class="card md:hidden p-3 space-y-1">
+    {#if project.logo}
+      <img
+        class="w-full h-32 rounded object-contain mb-2"
+        src={project.logo.data}
+        alt={project.title}
+      />
+    {/if}
+    <h3 class="h5 font-bold">{project.title}</h3>
+    <p class="text-sm line-clamp-3 opacity-70">{truncateDescription(project.description)}</p>
+    <div class="flex flex-wrap gap-1 mt-1">
+      {#each project.Skills as skill}
+        <span class="badge variant-filled-surface text-xs">{skill}</span>
+      {/each}
+    </div>
+  </div>
+
+  <!-- Desktop layout: hover to reveal details -->
+  <div
+    role="presentation"
+    class="hidden md:block card h-72 max-w-72 rounded-lg relative overflow-hidden"
+    on:mouseenter={() => { hover = true; }}
+    on:mouseleave={() => { hover = false; }}
+  >
     {#if !hover}
-      <!-- if not hovering, just show the picture and the title over it -->
       {#if project.logo?.isLocal}
-        <!-- load the image using the b64 method -->
+        <!-- local image placeholder -->
       {:else if project.logo}
         <div class="absolute m-5 p-2 h3 rounded-lg variant-filled-surface">{project.title}</div>
         <img
@@ -32,7 +50,6 @@
         />
       {/if}
     {:else}
-      <!-- if hovering, display the goods -->
       <div class="absolute p-2">
         <h3 class="h3 m-5">{project.title}</h3>
         <p class="line-clamp-6 text-sm">{truncateDescription(project.description)}</p>

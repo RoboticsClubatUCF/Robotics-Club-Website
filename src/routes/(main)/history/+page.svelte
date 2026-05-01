@@ -77,7 +77,7 @@
       {#each items as item, i (i)}
         {#if editingIndex === i}
           <div class="card p-4 border-2 border-warning-500 space-y-2">
-            <div class="grid grid-cols-2 gap-2">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <label class="label">
                 <span class="text-xs font-bold">Date</span>
                 <input type="text" bind:value={editDate} class="input" placeholder="e.g. March 2022" />

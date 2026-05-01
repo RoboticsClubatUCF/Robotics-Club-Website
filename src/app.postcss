@@ -33,21 +33,7 @@ body {
   100% { opacity: 1; }
 }
 
-/* Navigation responsive text sizing */
-@media (max-width: 540px) {
-  .site-navigation .capitalize {
-    font-size: .7rem !important;
-    line-height: .7rem !important;
-    margin-left: -10px !important;
-  }
-}
-@media (max-width: 350px) {
-  .site-navigation .capitalize {
-    font-size: .6rem !important;
-    line-height: .6rem !important;
-    margin-left: -13px !important;
-  }
-}
+/* Navigation hides on mobile — hamburger menu takes over (see navigation.svelte) */
 
 /* Breadcrumbs */
 .bread {
@@ -283,47 +269,53 @@ body {
 }
 
 @media (max-width: 800px) {
-  .sponsors-page .h1 {
-    font-size: 2.5rem !important;
-    line-height: 2.5rem !important;
-    padding: 5% !important;
-  }
-
   .sponsorContainer {
-    max-width: 100vw;
-    padding: 0 10px;
+    max-width: 100%;
+    width: 100%;
+    padding: 0 4px;
   }
 
   .sponsorshipTiers {
-    font-size: 120%;
-    line-height: 2rem;
+    font-size: 100%;
+    line-height: 1.75rem;
   }
 
   .tierInfo {
     line-height: 1.5rem;
-    padding-left: 20px;
-    padding-top: 10px;
-    padding-bottom: 10px;
+    padding-left: 16px;
+    padding-top: 8px;
+    padding-bottom: 8px;
     font-size: 75%;
+    gap: 8px;
   }
 
   .processorPatron,
   .circuitSupporter,
   .boltBacker,
   .aluminumAlly {
-    max-width: 95% !important;
-    padding-left: 15px;
-    padding-right: 15px;
+    max-width: 100% !important;
+    padding-left: 12px;
+    padding-right: 12px;
     font-size: 80%;
+    margin-left: 0;
   }
 
   .sponsor-logo img {
-    width: 60px;
-    height: 60px;
+    width: 50px;
+    height: 50px;
   }
 
   .sponsorInfo {
-    font-size: 100%;
+    font-size: 90%;
     line-height: 1.5rem;
+  }
+
+  .scroller-container {
+    font-size: 18pt;
+    height: 60px;
+  }
+
+  .scroller-inner {
+    padding-top: 12px;
   }
 }

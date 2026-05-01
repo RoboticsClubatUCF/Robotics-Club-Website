@@ -116,13 +116,13 @@
   </div>
 
   <!-- Table -->
-  <div class="table-container">
-    <table class="table table-hover">
+  <div class="table-container overflow-x-auto">
+    <table class="table table-hover min-w-[600px]">
       <thead>
         <tr>
           <th>Name</th>
-          <th>Email</th>
-          <th>Discord</th>
+          <th class="hidden sm:table-cell">Email</th>
+          <th class="hidden md:table-cell">Discord</th>
           <th>Current Roles</th>
           {#if assignable.length > 0}<th>Assign Roles</th>{/if}
         </tr>
@@ -131,9 +131,9 @@
         {#each filtered as member (member.id)}
           {@const effective = displayRoles(member)}
           <tr>
-            <td class="font-medium">{member.firstName} {member.lastName ?? ''}</td>
-            <td class="text-sm opacity-60">{member.email}</td>
-            <td class="text-sm opacity-60">{member.discordProfileName}</td>
+            <td class="font-medium whitespace-nowrap">{member.firstName} {member.lastName ?? ''}</td>
+            <td class="text-sm opacity-60 hidden sm:table-cell max-w-[160px] truncate">{member.email}</td>
+            <td class="text-sm opacity-60 hidden md:table-cell">{member.discordProfileName}</td>
             <td>
               <div class="flex flex-wrap gap-1">
                 {#each effective as r}

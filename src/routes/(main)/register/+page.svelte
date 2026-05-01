@@ -21,11 +21,11 @@
   bind:this={mainEle}
   class="absolute top-0 left-0 right-0 bottom-0 pointer-events-auto -z-20"
 />
-<div class="grid place-items-center w-screen top-0 pointer-events-none mt-[50px] h-[70vh]">
+<div class="flex justify-center w-full top-0 pointer-events-none mt-[50px] pb-8 px-4">
   <div
     class={$modeCurrent
-      ? 'block card p-8 pointer-events-auto shadow-xl shadow-surface-300'
-      : 'block card p-8 pointer-events-auto shadow-xl shadow-surface-500'}
+      ? 'block card p-6 sm:p-8 pointer-events-auto shadow-xl shadow-surface-300 w-full max-w-md'
+      : 'block card p-6 sm:p-8 pointer-events-auto shadow-xl shadow-surface-500 w-full max-w-md'}
   >
     <form method="POST" class="p-2 rounded-md">
       <h2 class="h2">Make an Account</h2>

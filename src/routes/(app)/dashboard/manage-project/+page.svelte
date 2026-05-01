@@ -79,7 +79,7 @@
         }}
         class="space-y-3"
       >
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label class="label">
             <span class="text-xs font-bold">Title *</span>
             <input type="text" name="title" class="input" placeholder="Project title" required />
@@ -95,7 +95,7 @@
           <span class="text-xs font-bold">Description</span>
           <textarea name="description" class="textarea" rows="2" placeholder="Optional description" />
         </label>
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label class="label">
             <span class="text-xs font-bold">Logo Image URL *</span>
             <input type="url" name="logo" class="input" placeholder="https://…" required />
@@ -105,7 +105,7 @@
             <input type="url" name="docsLink" class="input" placeholder="https://…" required />
           </label>
         </div>
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label class="label">
             <span class="text-xs font-bold">Year *</span>
             <input type="number" name="year" class="input" placeholder={String(new Date().getFullYear())} required />
@@ -155,7 +155,7 @@
               class="space-y-3"
             >
               <input type="hidden" name="id" value={project.id} />
-              <div class="grid grid-cols-2 gap-3">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label class="label">
                   <span class="text-xs font-bold">Title *</span>
                   <input type="text" name="title" class="input" bind:value={editTitle} required />
@@ -171,7 +171,7 @@
                 <span class="text-xs font-bold">Description</span>
                 <textarea name="description" class="textarea" rows="2" bind:value={editDescription} />
               </label>
-              <div class="grid grid-cols-2 gap-3">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label class="label">
                   <span class="text-xs font-bold">Logo Image URL</span>
                   <input type="url" name="logo" class="input" bind:value={editLogo} placeholder="https://…" />
@@ -181,7 +181,7 @@
                   <input type="url" name="docsLink" class="input" bind:value={editDocsLink} placeholder="https://…" />
                 </label>
               </div>
-              <div class="grid grid-cols-2 gap-3">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label class="label">
                   <span class="text-xs font-bold">Year *</span>
                   <input type="number" name="year" class="input" bind:value={editYear} required />
@@ -223,7 +223,7 @@
                 <p class="text-xs opacity-40">{project.Skills.join(', ')}</p>
               {/if}
             </div>
-            <div class="flex gap-2 shrink-0">
+            <div class="flex flex-wrap gap-2 shrink-0">
               <button
                 on:click={() => startEdit(project)}
                 class="btn btn-sm variant-filled-warning"

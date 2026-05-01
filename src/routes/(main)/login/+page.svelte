@@ -11,11 +11,11 @@
 </script>
 
 <!-- Form that provides a login screen, followed by the option to create your own account -->
-<div class="h-screen grid place-items-center absolute w-screen top-0 pointer-events-none">
+<div class="min-h-screen flex items-center justify-center absolute w-full top-0 pointer-events-none px-4 py-12">
   <div
     class={$modeCurrent
-      ? 'block card p-8 pointer-events-auto shadow-xl shadow-surface-300'
-      : 'block card p-8 pointer-events-auto shadow-xl shadow-surface-500'}
+      ? 'block card p-6 sm:p-8 pointer-events-auto shadow-xl shadow-surface-300 w-full max-w-sm'
+      : 'block card p-6 sm:p-8 pointer-events-auto shadow-xl shadow-surface-500 w-full max-w-sm'}
   >
     <form method="POST" class="p-2 rounded-md">
       <h2 class="h2">Sign In</h2>

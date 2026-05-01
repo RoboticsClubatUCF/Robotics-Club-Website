@@ -7,12 +7,10 @@
     AppShell,
     Avatar,
     Drawer,
-    LightSwitch,
     getDrawerStore,
     type DrawerSettings
   } from '@skeletonlabs/skeleton';
   import { info } from '../../data/info';
-  import SignoutButton from '../../components/buttons/signout-button.svelte';
   import Identicon from 'identicon.js';
   import type { LayoutServerData } from './$types';
   import cybr53 from '../../components/scripts/cybr53';
@@ -40,14 +38,11 @@
   <svelte:fragment slot="header">
     <AppBar>
       <svelte:fragment slot="lead">
-        <ol class="h1">{info.mobileTitle}</ol>
-        <div class="m-2" />
+        <ol class="h1 mr-2">{info.mobileTitle}</ol>
         <BreadCrumbs />
       </svelte:fragment>
       <svelte:fragment slot="trail">
-        <LightSwitch />
-        <SignoutButton />
-        <a href="/dashboard/profile"> <ProfilePic hash={data.member.id} /></a>
+        <a href="/dashboard/profile"><ProfilePic hash={data.member.id} /></a>
       </svelte:fragment>
     </AppBar>
   </svelte:fragment>

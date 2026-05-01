@@ -117,7 +117,7 @@
 
 <!-- Scroller section -->
 <div>
-  <div class="h1 text-[5rem] leading-[5rem] text-center p-[3%]">
+  <div class="h1 text-[2rem] sm:text-[3.5rem] md:text-[5rem] leading-tight sm:leading-[5rem] text-center p-[3%]">
     <EditableText
       contentKey="sponsors.scroller.title"
       value={data.siteContent.scrollerTitle}
@@ -141,14 +141,14 @@
 
 <!-- Sponsorship Tiers -->
 <div bind:this={mainEle} class="absolute top-0 left-0 right-0 bottom-0 pointer-events-auto -z-20" />
-<div class="h-screen grid place-items-center w-screen top-0 pointer-events-none mt-[50px] pb-[130px]">
+<div class="w-full flex justify-center py-8 px-2 sm:px-4 mt-[50px] pb-[80px]">
   <div class={$modeCurrent
-    ? 'block card p-8 pointer-events-auto shadow-xl shadow-surface-300'
-    : 'block card p-8 pointer-events-auto shadow-xl shadow-surface-500'}>
-    <div class="m-4 centered">
+    ? 'block card p-4 sm:p-8 pointer-events-auto shadow-xl shadow-surface-300 w-full max-w-3xl'
+    : 'block card p-4 sm:p-8 pointer-events-auto shadow-xl shadow-surface-500 w-full max-w-3xl'}>
+    <div class="m-2 sm:m-4 centered">
       <div class="sponsorContainer sponsor-wrapper">
         <div class="centered">
-          <div class="h1 text-[5rem] leading-[5rem]">
+          <div class="h1 text-[2rem] sm:text-[3.5rem] md:text-[5rem] leading-tight sm:leading-[5rem]">
             <EditableText
               contentKey="sponsors.tiers.title"
               value={data.siteContent.tiersTitle}
