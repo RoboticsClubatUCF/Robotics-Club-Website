@@ -18,6 +18,7 @@
   import BreadCrumbs from '../../components/breadCrumbs.svelte';
   import RightSideBar from '../../components/dashboard/rightSidebar/rightSideBar.svelte';
   import ProfilePic from '../../components/profilePic.svelte';
+  import DotsBackground from '../../components/DotsBackground.svelte';
   export let data: LayoutServerData;
 
   const drawerStore = getDrawerStore();
@@ -47,5 +48,6 @@
     </AppBar>
   </svelte:fragment>
 
+  <DotsBackground />
   <slot />
 </AppShell>

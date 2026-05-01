@@ -8,6 +8,7 @@
   import SigninButton from '../../components/buttons/signin-button.svelte';
   import type { LayoutServerData } from './$types';
   import DashboardButton from '../../components/buttons/dashboard-button.svelte';
+  import DotsBackground from '../../components/DotsBackground.svelte';
   export let data: LayoutServerData;
 
   $: currentPath = $page.url.pathname;
@@ -55,7 +56,7 @@
         <div class="hidden sm:flex items-center gap-2">
           {#if data.user}
             <DashboardButton />
-          {:else}
+          {:else if $page.url.pathname !== '/login' && $page.url.pathname !== '/register'}
             <SigninButton />
           {/if}
         </div>
@@ -101,7 +102,7 @@
               <hr class="opacity-20" />
               {#if data.user}
                 <a href="/dashboard" on:click={closeMenu} class="btn w-full variant-ghost-primary hover:variant-filled-primary justify-start">Dashboard</a>
-              {:else}
+              {:else if $page.url.pathname !== '/login' && $page.url.pathname !== '/register'}
                 <a href="/login" on:click={closeMenu} class="btn w-full variant-ghost-primary hover:variant-filled-primary justify-start">Sign In</a>
               {/if}
             </nav>
@@ -110,5 +111,6 @@
       </svelte:fragment>
     </AppBar>
   </svelte:fragment>
+  <DotsBackground />
   <slot />
 </AppShell>

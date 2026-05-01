@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { injectDots } from '../../../components/pixijs/dotsAnimation';
   import { modeCurrent } from '@skeletonlabs/skeleton';
   import EditableText from '../../../components/EditableText.svelte';
   import type { PageData } from './$types';
@@ -19,19 +18,6 @@
     8,
     topSponsors.reduce((sum, s) => sum + s.name.length, 0) * 0.4 + topSponsors.length * 2
   );
-
-  // ----- dot animation -----
-  let mainEle: HTMLElement;
-  let dotsInjected = false;
-  function updateDots() {
-    if (!mainEle) return;
-    if (!$modeCurrent && !dotsInjected) { injectDots(mainEle, 200); dotsInjected = true; }
-    else if (dotsInjected) {
-      const canvas = mainEle.querySelector('canvas');
-      if (canvas) { canvas.remove(); dotsInjected = false; }
-    }
-  }
-  $: $modeCurrent, mainEle && updateDots();
 
   // ----- tier benefit CRUD -----
   type BenefitEdit = { tierKey: TierKey; index: number } | null;
@@ -140,7 +126,6 @@
 </div>
 
 <!-- Sponsorship Tiers -->
-<div bind:this={mainEle} class="absolute top-0 left-0 right-0 bottom-0 pointer-events-auto -z-20" />
 <div class="w-full flex justify-center py-8 px-2 sm:px-4 mt-[50px] pb-[80px]">
   <div class={$modeCurrent
     ? 'block card p-4 sm:p-8 pointer-events-auto shadow-xl shadow-surface-300 w-full max-w-3xl'
