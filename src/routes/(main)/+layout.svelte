@@ -10,6 +10,7 @@
   import DashboardButton from '../../components/buttons/dashboard-button.svelte';
   import DotsBackground from '../../components/DotsBackground.svelte';
   export let data: LayoutServerData;
+  export let params: Record<string, string>;
 
   $: currentPath = $page.url.pathname;
 

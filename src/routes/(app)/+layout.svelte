@@ -20,6 +20,7 @@
   import ProfilePic from '../../components/profilePic.svelte';
   import DotsBackground from '../../components/DotsBackground.svelte';
   export let data: LayoutServerData;
+  export let params: Record<string, string>;
 
   const drawerStore = getDrawerStore();
   let currentTile = 0;

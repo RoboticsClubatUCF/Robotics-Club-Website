@@ -7,6 +7,7 @@
   import { getMonth } from 'date-fns';
 
   export let data: PageData;
+  export let params: Record<string, string>;
   const { form, errors, constraints, enhance } = superForm(data.form, {
     clearOnSubmit: 'errors-and-message'
   });

@@ -6,6 +6,7 @@
   import semesterYear from '../../../components/scripts/semesterYear';
 
   export let data: PageData;
+  export let params: Record<string, string>;
   const isYearThisYear = (year: number) => {
     if (year - new Date().getFullYear() == 0) {
       return true;

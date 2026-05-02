@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { PageData } from './$types';
   export let data: PageData;
+  export let params: Record<string, string>;
 </script>
 
 <div class="card m-4 p-4">

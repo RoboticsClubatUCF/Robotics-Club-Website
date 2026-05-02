@@ -2,6 +2,7 @@
   import { modeCurrent } from '@skeletonlabs/skeleton';
   import type { PageData } from './$types';
   export let data: PageData;
+  export let params: { slug: string };
 </script>
 
 <div class="grid place-items-center min-h-[80vh] p-6">

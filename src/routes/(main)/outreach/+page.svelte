@@ -3,6 +3,7 @@
   import EditableText from '../../../components/EditableText.svelte';
   import EditableImage from '../../../components/EditableImage.svelte';
   export let data: PageData;
+  export let params: Record<string, string>;
 </script>
 
 <div class="p-4 m-4">

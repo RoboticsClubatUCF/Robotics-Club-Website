@@ -3,6 +3,7 @@
   import EditableText from '../../../components/EditableText.svelte';
   import Admins from '../../../components/cards/admins.svelte';
   export let data: PageData;
+  export let params: Record<string, string>;
 </script>
 
 <div class="w-screen flex">

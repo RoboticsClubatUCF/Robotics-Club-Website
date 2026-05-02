@@ -3,6 +3,7 @@
   import EditableText from '../../../components/EditableText.svelte';
   import type { PageData } from './$types';
   export let data: PageData;
+  export let params: Record<string, string>;
 
   type TierKey = 'processor' | 'circuit' | 'bolt' | 'aluminum';
 

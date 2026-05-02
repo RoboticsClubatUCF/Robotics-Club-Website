@@ -6,6 +6,7 @@
 
   export let data: PageData;
   export let form: ActionData;
+  export let params: { slug: string };
 </script>
 
 <svelte:head>

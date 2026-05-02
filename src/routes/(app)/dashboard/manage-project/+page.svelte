@@ -5,6 +5,7 @@
 
   export let data: PageData;
   export let form: ActionData;
+  export let params: Record<string, string>;
 
   type Project = typeof data.projects[number];
 
