@@ -3,7 +3,6 @@
   import { modeCurrent } from '@skeletonlabs/skeleton';
   import type { PageData } from './$types';
   import { onMount } from "svelte";
-  import { injectDots } from "../../../../components/pixijs/dotsAnimation";
   import { getMonth } from 'date-fns';
 
   export let data: PageData;
@@ -12,11 +11,9 @@
     clearOnSubmit: 'errors-and-message'
   });
 
-  let mainEle: HTMLElement;
   let Display = "";
 
   onMount(() => {
-    injectDots(mainEle, 200);
     const today = new Date();
     const month = getMonth(today) + 1;
     if (month >= 1 && month <= 4) {
@@ -26,11 +23,6 @@
     }
   });
 </script>
-
-<div
-  bind:this={mainEle}
-  class="absolute top-20 left-0 right-0 bottom-0 pointer-events-auto -z-20"
-/>
 
 <div class="flex justify-center w-full mt-[90px] pb-[110px] px-4 py-4">
   <div

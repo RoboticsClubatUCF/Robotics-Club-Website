@@ -1,23 +1,16 @@
 <script lang="ts">
-  import type { Prisma, Team } from '@prisma/client';
+  import type { Prisma } from '@prisma/client';
   import ProjectList from './projectList.svelte';
-  import TeamList from './teamList.svelte';
+  import ProjectJoinList from '../rightSidebar/projectJoinList.svelte';
 
   export let projects: Prisma.ProjectGetPayload<{ include: { logo: true } }>[] | undefined | null;
-  export let teams:
-    | (Team & {
-        _count: {
-          members: number;
-        };
-      })[]
-    | undefined
-    | null;
+  export let joinableProjects: Prisma.ProjectGetPayload<{ include: { logo: true } }>[] | undefined | null;
 </script>
 
-<div class="h-full card m-2 p-4">
+<div class="h-full card mt-4 mx-2 mb-2 p-4">
   <ProjectList data={projects} />
   <br />
   <hr class="!border-t-4" />
   <br />
-  <TeamList data={teams} />
+  <ProjectJoinList data={joinableProjects} />
 </div>

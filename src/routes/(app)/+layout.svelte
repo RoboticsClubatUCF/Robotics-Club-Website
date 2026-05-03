@@ -30,7 +30,7 @@
 
 <Drawer>
   {#if $drawerStore.id == 'dashboard1'}
-    <LeftSideBar projects={$drawerStore.meta.projects} teams={$drawerStore.meta.teams} />
+    <LeftSideBar projects={$drawerStore.meta.projects} joinableProjects={$drawerStore.meta.joinableProjects} />
   {:else if $drawerStore.id == 'dashboard2'}
     <RightSideBar projects={$drawerStore.meta.projects} />
   {/if}

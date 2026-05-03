@@ -4,32 +4,28 @@
   import { getToastStore, type ToastSettings } from '@skeletonlabs/skeleton';
 
   export let data: Prisma.ProjectGetPayload<{ include: { logo: true } }>;
+
   const t: ToastSettings = {
-    message: 'You Joined ' + data.title,
-    // Provide any utility or variant background style:
+    message: 'You joined ' + data.title,
     background: 'variant-filled-success'
   };
-  let toastStore = getToastStore();
+  const toastStore = getToastStore();
 </script>
 
-<div class="card grid grid-cols-3 gap-4 mt-2">
-  <div>
-    <!-- icon -->
-    {#if data.logo?.isLocal}
-      <!-- load the image using the b64 method -->
-    {:else if data.logo}
-      <img class="h-10 rounded-lg object-cover overflow-hidden m-2" src={data.logo.data} alt="" />
+<div class="card grid grid-cols-3 gap-4 mt-2 items-center">
+  <a href="/projects/{data.id}" class="col-span-2 flex items-center gap-2 p-2 hover:opacity-75">
+    {#if data.logo}
+      <img class="h-10 rounded-lg object-cover overflow-hidden shrink-0" src={data.logo.data} alt="" />
     {/if}
-  </div>
-  <span class="h4 mt-3">{data.title}</span>
-  <form action="?/joinProject" method="post" use:enhance>
-    <input type="hidden" readonly name="projectID" id="projectID" bind:value={data.id} />
-    <button
-      class="btn variant-ghost-secondary hover:variant-filled-secondary float-right m-2"
-      type="submit"
-      on:click={() => {
-        toastStore.trigger(t);
-      }}>Join</button
-    >
+    <span class="h4">{data.title}</span>
+  </a>
+  <form action="?/joinProject" method="post" use:enhance={() => async ({ update }) => {
+      toastStore.trigger(t);
+      await update();
+    }}>
+    <input type="hidden" name="projectID" value={data.id} />
+    <button class="btn variant-ghost-secondary hover:variant-filled-secondary float-right m-2" type="submit">
+      Join
+    </button>
   </form>
 </div>

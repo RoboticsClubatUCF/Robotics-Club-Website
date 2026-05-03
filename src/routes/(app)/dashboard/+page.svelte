@@ -18,14 +18,15 @@
   import FaStar from 'svelte-icons/fa/FaStar.svelte';
   import FaShieldAlt from 'svelte-icons/fa/FaShieldAlt.svelte';
 
-  export let data: { user: DashboardUser | null; surveyDateUpdated: Date | undefined; member?: { id: string } };
+  import type { Prisma } from '@prisma/client';
+  export let data: { user: DashboardUser | null; surveyDateUpdated: Date | undefined; joinableProjects: Prisma.ProjectGetPayload<{ include: { logo: true } }>[]; member?: { id: string } };
   export let params: Record<string, string>;
   const drawerStore = getDrawerStore();
   const drawerSettingsLeft: DrawerSettings = {
     id: 'dashboard1',
     meta: {
       projects: data.user?.Projects,
-      teams: data.user?.Teams
+      joinableProjects: data.joinableProjects
     }
   };
 
@@ -71,7 +72,7 @@
         <button
           class="block lg:hidden btn variant-ghost-tertiary hover:variant-filled-tertiary"
           on:click={() => drawerStore.open(drawerSettingsLeft)}>
-          Projects &amp; Teams
+          Projects
         </button>
       </svelte:fragment>
     </AppBar>
@@ -80,7 +81,7 @@
   <svelte:fragment slot="sidebarLeft">
     {#if !memberExpired}
       <div id="sidebar-left" class="hidden lg:block">
-        <LeftSideBar projects={data.user?.Projects} teams={data.user?.Teams} />
+        <LeftSideBar projects={data.user?.Projects} joinableProjects={data.joinableProjects} />
       </div>
     {/if}
   </svelte:fragment>
