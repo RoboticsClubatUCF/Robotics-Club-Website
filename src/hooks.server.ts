@@ -1,5 +1,6 @@
 import { db } from '$lib/db';
 import { syncMemberRoles, removeProjectRole } from '$lib/discord';
+import { initCalendarService } from '$lib/ucfCalendar';
 import type { Handle } from '@sveltejs/kit';
 
 async function sweepExpiredMemberships() {
@@ -79,6 +80,7 @@ async function sweepExpiredMemberships() {
 if (!globalThis.__membershipSweepStarted) {
   // @ts-ignore
   globalThis.__membershipSweepStarted = true;
+  initCalendarService().catch((e) => console.error('[UCF Calendar]', e));
   sweepExpiredMemberships().catch((e) => console.error('[Expiration sweep]', e));
   setInterval(
     () => sweepExpiredMemberships().catch((e) => console.error('[Expiration sweep]', e)),

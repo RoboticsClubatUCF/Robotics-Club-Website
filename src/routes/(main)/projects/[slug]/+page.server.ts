@@ -1,11 +1,11 @@
 import { db } from '$lib/db';
 import { error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
-import semesterYear from '../../../../components/scripts/semesterYear';
+import { getCurrentSemester } from '$lib/currentSemester';
 import { assignProjectRole, removeProjectRole } from '$lib/discord';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
-  const dateInfo = semesterYear();
+  const dateInfo = await getCurrentSemester();
 
   const project = await db.project.findFirst({
     where: { id: Number(params.slug) },
@@ -65,7 +65,7 @@ export const actions: Actions = {
       return fail(403, { error: 'Active membership required to join a project' });
     }
 
-    const dateInfo = semesterYear();
+    const dateInfo = await getCurrentSemester();
     const project = await db.project.findFirst({
       where: { id: Number(params.slug) },
       select: { id: true, year: true, season: true, discordRoleId: true }

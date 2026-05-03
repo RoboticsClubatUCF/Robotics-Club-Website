@@ -4,7 +4,7 @@ import { calculateValidSemester } from '../../../../components/scripts/dates';
 import type { PageServerLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
 
-export const load = (async ({ params, locals, fetch }) => {
+export const load = (async ({ params, locals, fetch, url }) => {
   if (!locals.member?.email) {
     throw redirect(302, '/');
   }
@@ -28,8 +28,10 @@ export const load = (async ({ params, locals, fetch }) => {
   // Build update: always extend expiry and add "member" to the roles set.
   // Promote the primary role to "member" only when the current level is below it,
   // so officers/admins who pay dues keep their higher primary role.
+  const duesType = url.searchParams.get('duesType') ?? '';
+  const newExpDate = await calculateValidSemester(self.membershipExpDate, duesType);
   const updateData: Parameters<typeof db.member.update>[0]['data'] = {
-    membershipExpDate: calculateValidSemester(self.membershipExpDate),
+    membershipExpDate: newExpDate,
     roles: { connect: { name: 'member' } }
   };
   if (self.role.permissionLevel < 4) {

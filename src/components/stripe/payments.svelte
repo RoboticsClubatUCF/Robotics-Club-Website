@@ -59,7 +59,7 @@
         processing = false;
       } else {
         // payment succeeded, redirect to "thank you" page
-        goto('/thankyou/' + userID);
+        goto('/thankyou/' + userID + '?duesType=' + duesSelection);
       }
     }
   }

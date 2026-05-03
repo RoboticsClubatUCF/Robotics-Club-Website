@@ -7,7 +7,7 @@ import { zod } from '$lib/zodAdapter';
 export const load = (async ({ locals }) => {
   const form = await superValidate(zod(blogpostSchema));
   if (locals.member.permissions.level < 8) {
-    throw redirect(302, '/');
+    throw redirect(302, '/dashboard');
   }
   return { form };
 }) satisfies PageServerLoad;

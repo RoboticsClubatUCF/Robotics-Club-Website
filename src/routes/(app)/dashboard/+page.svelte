@@ -17,9 +17,10 @@
   import FaBriefcase from 'svelte-icons/fa/FaBriefcase.svelte';
   import FaStar from 'svelte-icons/fa/FaStar.svelte';
   import FaShieldAlt from 'svelte-icons/fa/FaShieldAlt.svelte';
+  import FaTerminal from 'svelte-icons/fa/FaTerminal.svelte';
 
   import type { Prisma } from '@prisma/client';
-  export let data: { user: DashboardUser | null; surveyDateUpdated: Date | undefined; joinableProjects: Prisma.ProjectGetPayload<{ include: { logo: true } }>[]; member?: { id: string } };
+  export let data: { user: DashboardUser | null; surveyDateUpdated: Date | undefined; joinableProjects: Prisma.ProjectGetPayload<{ include: { logo: true } }>[]; member?: { id: string }; isSummerPeriod: boolean; currentYear: number; currentSemester: import('@prisma/client').Season };
   export let params: Record<string, string>;
   const drawerStore = getDrawerStore();
   const drawerSettingsLeft: DrawerSettings = {
@@ -49,20 +50,32 @@
     }
   }
 
-  function isSummerPeriod() {
-    const d = new Date();
-    const yr = d.getFullYear();
-    const aug = new Date(yr, 7, 1);
-    const firstDayOfFourthWeek = 22 + (7 - aug.getDay()) % 7;
-    return d >= new Date(yr, 5, 1) && d <= new Date(yr, 7, firstDayOfFourthWeek);
-  }
-
   function titleCase(s: string): string {
     return s.split(' ').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
   }
 
   $: userRole = data.user?.role ?? { name: 'guest', permissionLevel: 0 };
   $: memberExpired = (data.user?.membershipExpDate.getTime() ?? 0) < new Date().getTime();
+
+  let calendarOutput: string[] | null = null;
+  let calendarLoading = false;
+  let calendarError: string | null = null;
+
+  async function runCalendarDiagnostic() {
+    calendarLoading = true;
+    calendarError = null;
+    calendarOutput = null;
+    try {
+      const res = await fetch('/api/ucf-calendar-status');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      calendarOutput = data.lines;
+    } catch (e) {
+      calendarError = String(e);
+    } finally {
+      calendarLoading = false;
+    }
+  }
 </script>
 
 <AppShell>
@@ -81,7 +94,7 @@
   <svelte:fragment slot="sidebarLeft">
     {#if !memberExpired}
       <div id="sidebar-left" class="hidden lg:block">
-        <LeftSideBar projects={data.user?.Projects} joinableProjects={data.joinableProjects} />
+        <LeftSideBar projects={data.user?.Projects} joinableProjects={data.joinableProjects} currentYear={data.currentYear} currentSemester={data.currentSemester} />
       </div>
     {/if}
   </svelte:fragment>
@@ -106,7 +119,7 @@
             Hello, {data.user?.firstName}{data.user?.lastName ? ` ${data.user.lastName}` : ''}
           </h2>
           <div class="mt-4">
-            {#if memberExpired && isSummerPeriod()}
+            {#if memberExpired && data.isSummerPeriod}
               {#if data.user?.id}
                 <form action="?/summerRole" method="post" use:enhance>
                   <input type="hidden" name="id" bind:value={data.user.id} />
@@ -237,11 +250,44 @@
                         </div>
                       </div>
                     </a>
+                    <button
+                      class="card p-4 hover:card-hover text-left"
+                      disabled={calendarLoading}
+                      on:click={runCalendarDiagnostic}
+                    >
+                      <div class="flex items-center gap-3">
+                        <div class="w-5 h-5 shrink-0 opacity-50"><FaTerminal /></div>
+                        <div>
+                          <p class="font-semibold text-sm">UCF Calendar Diagnostic</p>
+                          <p class="text-xs opacity-50">{calendarLoading ? 'Running...' : 'Test semester date integration'}</p>
+                        </div>
+                      </div>
+                    </button>
                   </div>
                 </div>
                 {/if}
 
               {/if}
+            </div>
+          {/if}
+
+          {#if calendarOutput !== null || calendarLoading || calendarError}
+            <div class="card p-6">
+              <div class="flex items-center gap-3 mb-4">
+                <div class="w-5 h-5 shrink-0 opacity-60"><FaTerminal /></div>
+                <h3 class="h3">UCF Calendar Output</h3>
+              </div>
+              <div class="rounded-lg p-4 font-mono text-xs overflow-y-auto max-h-80 space-y-0.5" style="background:#0d1117; color:#c9d1d9;">
+                {#if calendarLoading}
+                  <p class="opacity-50">Running diagnostic...</p>
+                {:else if calendarError}
+                  <p style="color:#f85149;">{calendarError}</p>
+                {:else if calendarOutput}
+                  {#each calendarOutput as line}
+                    <p class="leading-relaxed whitespace-pre">{line}</p>
+                  {/each}
+                {/if}
+              </div>
             </div>
           {/if}
 

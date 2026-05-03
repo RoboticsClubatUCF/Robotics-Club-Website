@@ -2,9 +2,10 @@ import { db } from '$lib/db';
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import type { Prisma } from '@prisma/client';
-import semesterYear from '../../../components/scripts/semesterYear';
+import { getCurrentSemester } from '$lib/currentSemester';
 import config from '../../../config';
 import { assignProjectRole } from '$lib/discord';
+import { getSemesterEndDate, getSemesterStartDate } from '$lib/ucfCalendar';
 
 export type DashboardUser = Prisma.MemberGetPayload<{
   include: {
@@ -16,21 +17,23 @@ export type DashboardUser = Prisma.MemberGetPayload<{
 }>;
 
 export const load: PageServerLoad = async ({ locals }) => {
-  const dateInfo = semesterYear();
+  const today = new Date();
+  const year = today.getFullYear();
+
+  const [dateInfo, springEnd, fallStart] = await Promise.all([
+    getCurrentSemester(),
+    getSemesterEndDate(year, 'spring'),
+    getSemesterStartDate(year, 'fall')
+  ]);
+
+  const isSummerPeriod = today >= springEnd && today < fallStart;
 
   const user = await db.member.findFirst({
-    where: {
-      email: locals.member.email
-    },
+    where: { email: locals.member.email },
     include: {
       Projects: {
-        where: {
-          year: dateInfo.year,
-          season: dateInfo.semester
-        },
-        include: {
-          logo: true
-        }
+        where: { year: dateInfo.year, season: dateInfo.semester },
+        include: { logo: true }
       },
       Survey: true,
       role: true,
@@ -39,8 +42,8 @@ export const load: PageServerLoad = async ({ locals }) => {
   }) as DashboardUser | null;
 
   const surveyDateUpdated = user?.Survey?.DateUpdated;
-
   const userProjectIds = user?.Projects.map((p) => p.id) ?? [];
+
   const joinableProjects = await db.project.findMany({
     where: {
       year: dateInfo.year,
@@ -50,7 +53,14 @@ export const load: PageServerLoad = async ({ locals }) => {
     include: { logo: true }
   });
 
-  return { user, surveyDateUpdated, joinableProjects };
+  return {
+    user,
+    surveyDateUpdated,
+    joinableProjects,
+    isSummerPeriod,
+    currentYear: dateInfo.year,
+    currentSemester: dateInfo.semester
+  };
 };
 
 export const actions: Actions = {
@@ -70,7 +80,7 @@ export const actions: Actions = {
       return fail(403, { error: 'Active membership required to join a project' });
     }
 
-    const dateInfo = semesterYear();
+    const dateInfo = await getCurrentSemester();
     const project = await db.project.findFirst({
       where: { id: projectId },
       select: { id: true, year: true, season: true, discordRoleId: true }
@@ -101,14 +111,11 @@ export const actions: Actions = {
       const self = await db.member.findFirst({ where: { email: locals.member.email }, select: { id: true } });
       if (self?.id !== id) return;
       const currentYear = new Date().getFullYear();
-      const august = new Date(currentYear, 7, 1);
-      const dayOfWeek = august.getDay();
-      const firstDayOfFourthWeek = 22 + (7 - dayOfWeek) % 7;
 
       await db.member.update({
         where: { id: id },
         data: {
-          membershipExpDate: new Date(currentYear, 7, firstDayOfFourthWeek),
+          membershipExpDate: await getSemesterEndDate(currentYear, 'summer'),
           role: {
             connectOrCreate: {
               create: {
