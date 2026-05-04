@@ -1,7 +1,8 @@
 import { db } from '$lib/db';
 import { error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
-import { getCurrentSemester } from '$lib/currentSemester';
+import { Season } from '@prisma/client';
+import { getCurrentSemester, isInGracePeriod } from '$lib/currentSemester';
 import { assignProjectRole, removeProjectRole } from '$lib/discord';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -40,12 +41,16 @@ export const load: PageServerLoad = async ({ params, locals }) => {
       select: {
         id: true,
         membershipExpDate: true,
+        surveyId: true,
         Projects: { select: { id: true } }
       }
     });
     if (self) {
       isJoined = self.Projects.some((p) => p.id === project.id);
-      canJoin = self.membershipExpDate > new Date();
+      const inGracePeriod = await isInGracePeriod(dateInfo.semester, dateInfo.year);
+      const duesActive = self.membershipExpDate > new Date();
+      const isSummer = dateInfo.semester === Season.Summer;
+      canJoin = !!self.surveyId && (isSummer || inGracePeriod || duesActive);
     }
   }
 
@@ -58,14 +63,22 @@ export const actions: Actions = {
 
     const self = await db.member.findFirst({
       where: { email: locals.member.email },
-      select: { id: true, membershipExpDate: true, discordProfileName: true }
+      select: { id: true, membershipExpDate: true, surveyId: true, discordProfileName: true }
     });
 
-    if (!self || self.membershipExpDate <= new Date()) {
-      return fail(403, { error: 'Active membership required to join a project' });
+    if (!self) return fail(404, { error: 'Member not found' });
+
+    if (!self.surveyId) {
+      return fail(403, { error: 'A completed member survey is required before joining a project' });
     }
 
     const dateInfo = await getCurrentSemester();
+    const inGracePeriod = await isInGracePeriod(dateInfo.semester, dateInfo.year);
+    const duesActive = self.membershipExpDate > new Date();
+
+    if (dateInfo.semester !== Season.Summer && !inGracePeriod && !duesActive) {
+      return fail(403, { error: 'Active membership required to join a project' });
+    }
     const project = await db.project.findFirst({
       where: { id: Number(params.slug) },
       select: { id: true, year: true, season: true, discordRoleId: true }
