@@ -11,6 +11,12 @@
 
   export let data: PageData;
   export let params: Record<string, string>;
+
+  $: fullName = `${data.user?.firstName ?? ''}${data.user?.lastName ? ' ' + data.user.lastName : ''}`;
+  let deleteConfirm1 = '';
+  let deleteConfirm2 = '';
+  $: deleteReady = deleteConfirm1 === fullName && deleteConfirm2 === fullName && fullName.length > 0;
+
   const originalDiscordName = data.form.data.discordProfileName;
   const { form, constraints, enhance, errors, message } = superForm(data.form, {
     resetForm: false,
@@ -80,7 +86,7 @@
     <!-- Edit profile form -->
     <div class="card p-6 space-y-4">
       <h3 class="h3">Personal Info</h3>
-      <form method="post" use:enhance class="space-y-4">
+      <form method="post" action="?/updateProfile" use:enhance class="space-y-4">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <label class="label">
             <span>First Name</span>
@@ -197,6 +203,48 @@
       </div>
       <hr class="opacity-20" />
       <SignoutButton />
+    </div>
+
+    <!-- Danger Zone -->
+    <div class="card p-6 space-y-4 border border-error-500">
+      <h3 class="h3 text-error-500">Danger Zone</h3>
+      <p class="text-sm opacity-70">
+        Permanently deletes your account and all associated data. This cannot be undone.
+      </p>
+      <form method="post" action="?/deleteAccount" class="space-y-3">
+        <label class="label">
+          <span class="text-sm">Enter your full name: <strong>{fullName}</strong></span>
+          <input
+            class="input"
+            type="text"
+            name="confirmName1"
+            placeholder="Full name"
+            bind:value={deleteConfirm1}
+            autocomplete="off"
+          />
+        </label>
+        <label class="label">
+          <span class="text-sm">Confirm your full name again</span>
+          <input
+            class="input"
+            type="text"
+            name="confirmName2"
+            placeholder="Full name"
+            bind:value={deleteConfirm2}
+            autocomplete="off"
+          />
+        </label>
+        {#if data.deleteError}
+          <p class="text-error-500 text-sm">{data.deleteError}</p>
+        {/if}
+        <button
+          type="submit"
+          class="btn variant-filled-error"
+          disabled={!deleteReady}
+        >
+          Delete My Account
+        </button>
+      </form>
     </div>
 
   </div>

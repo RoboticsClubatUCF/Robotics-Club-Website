@@ -2,7 +2,7 @@ import { z } from 'zod/v3';
 import type { Actions, PageServerLoad } from './$types';
 import { superValidate } from 'sveltekit-superforms';
 import { zod } from '$lib/zodAdapter';
-import { fail } from '@sveltejs/kit';
+import { fail, redirect } from '@sveltejs/kit';
 import { db } from '$lib/db';
 import { assignMemberRole } from '$lib/discord';
 
@@ -32,7 +32,7 @@ const editProfileSchema = z.object({
 });
 
 export const actions: Actions = {
-  default: async ({ request, fetch }) => {
+  updateProfile: async ({ request, fetch }) => {
     const form = await superValidate(request, zod(editProfileSchema));
 
     if (!form.valid) {
@@ -70,5 +70,33 @@ export const actions: Actions = {
     }
 
     return { form };
+  },
+
+  deleteAccount: async ({ request, cookies }) => {
+    const data = await request.formData();
+    const confirm1 = data.get('confirmName1') as string;
+    const confirm2 = data.get('confirmName2') as string;
+
+    const member = await db.member.findUnique({
+      where: { id: userID },
+      select: { firstName: true, lastName: true }
+    });
+
+    if (!member) return fail(404, { deleteError: 'Account not found.' });
+
+    const fullName = [member.firstName, member.lastName].filter(Boolean).join(' ');
+
+    if (confirm1 !== fullName || confirm2 !== fullName) {
+      return fail(400, { deleteError: 'Names do not match. Please enter your full name exactly.' });
+    }
+
+    await db.$transaction([
+      db.article.deleteMany({ where: { authorId: userID } }),
+      db.blogPost.deleteMany({ where: { memberId: userID } }),
+      db.member.delete({ where: { id: userID } })
+    ]);
+
+    cookies.set('session', '', { path: '/', expires: new Date(0) });
+    throw redirect(302, '/');
   }
 };
