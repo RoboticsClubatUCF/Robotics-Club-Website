@@ -44,7 +44,7 @@
         <BreadCrumbs />
       </svelte:fragment>
       <svelte:fragment slot="trail">
-        <a href="/dashboard/profile"><ProfilePic hash={data.member.id} /></a>
+        <a href="/dashboard/profile"><ProfilePic hash={data.member.id} url={data.member.profilePictureUrl} /></a>
       </svelte:fragment>
     </AppBar>
   </svelte:fragment>

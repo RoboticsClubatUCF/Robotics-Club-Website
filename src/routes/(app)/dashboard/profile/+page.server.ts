@@ -21,10 +21,14 @@ export const load = (async ({ parent }) => {
 }) satisfies PageServerLoad;
 
 const editProfileSchema = z.object({
-  firstName: z.string(),
+  firstName: z.string().min(1, 'First name is required'),
   lastName: z.string().optional(),
-  discordProfileName: z.string(),
-  email: z.string().email()
+  discordProfileName: z.string().min(1, 'Discord username is required'),
+  email: z.string().email('A valid email is required'),
+  profilePictureUrl: z.string().optional().refine(
+    (val) => !val || /^https?:\/\/.+/.test(val),
+    { message: 'Must be a valid URL starting with http:// or https://' }
+  )
 });
 
 export const actions: Actions = {
@@ -36,20 +40,31 @@ export const actions: Actions = {
       return fail(400, { form });
     }
 
+    const current = await db.member.findUnique({
+      where: { id: userID },
+      select: { discordProfileName: true }
+    });
+
     await db.member.update({
       where: { id: userID },
       data: {
         email: form.data.email,
         firstName: form.data.firstName,
         lastName: form.data.lastName ?? '',
-        discordProfileName: form.data.discordProfileName
+        discordProfileName: form.data.discordProfileName,
+        profilePictureUrl: form.data.profilePictureUrl || null
       }
     });
 
-    const discord = await assignMemberRole(form.data.discordProfileName, fetch);
-    if (!discord.success) {
-      console.error('[Discord sync]', discord.error);
-      form.message = 'OK_DISCORD_FAIL';
+    const discordChanged = current?.discordProfileName !== form.data.discordProfileName;
+    if (discordChanged) {
+      const discord = await assignMemberRole(form.data.discordProfileName, fetch);
+      if (!discord.success) {
+        console.error('[Discord sync]', discord.error);
+        form.message = 'OK_DISCORD_FAIL';
+      } else {
+        form.message = 'OK';
+      }
     } else {
       form.message = 'OK';
     }

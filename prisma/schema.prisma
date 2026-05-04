@@ -218,6 +218,7 @@ model Member {
   position           String?
   bio                String?
   profileLink        String?
+  profilePictureUrl  String?
   role               Role                @relation("PrimaryRole", fields: [roleId], references: [id])
   roleId             Int
   roles              Role[]              @relation("MemberRoles")

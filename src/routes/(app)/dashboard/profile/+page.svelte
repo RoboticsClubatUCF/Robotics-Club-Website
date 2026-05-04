@@ -11,10 +11,13 @@
 
   export let data: PageData;
   export let params: Record<string, string>;
+  const originalDiscordName = data.form.data.discordProfileName;
   const { form, constraints, enhance, errors, message } = superForm(data.form, {
     resetForm: false,
     onSubmit: () => {
-      startCooldown();
+      if ($form.discordProfileName !== originalDiscordName) {
+        startCooldown();
+      }
     }
   });
 
@@ -65,7 +68,7 @@
 
     <!-- Profile header -->
     <div class="card p-6 flex items-center gap-4">
-      <ProfilePic hash={data.user.id} />
+      <ProfilePic hash={data.user.id} url={$form.profilePictureUrl} />
       <div>
         <h2 class="h2">
           {data.user.firstName}{data.user.lastName ? ` ${data.user.lastName}` : ''}
@@ -139,6 +142,21 @@
           />
           {#if $errors.email}
             <span class="badge variant-filled-error">{$errors.email}</span>
+          {/if}
+        </label>
+
+        <label class="label">
+          <span>Profile Picture URL <span class="opacity-50 text-xs">(optional)</span></span>
+          <input
+            class="input"
+            type="url"
+            name="profilePictureUrl"
+            id="profilePictureUrl"
+            placeholder="https://example.com/photo.jpg"
+            bind:value={$form.profilePictureUrl}
+          />
+          {#if $errors.profilePictureUrl}
+            <span class="badge variant-filled-error">{$errors.profilePictureUrl}</span>
           {/if}
         </label>
 
