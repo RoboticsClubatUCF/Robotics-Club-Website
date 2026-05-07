@@ -1,3 +1,7 @@
+﻿<svelte:head>
+  <title>Forgot Password @ RCCF</title>
+</svelte:head>
+
 <script lang="ts">
   import { modeCurrent } from '@skeletonlabs/skeleton';
   import type { PageData } from './$types';
@@ -5,7 +9,6 @@
   import { onMount } from 'svelte';
 
   export let data: PageData;
-  export let params: Record<string, string>;
 
   const { form, errors, constraints } = superForm(data.form, {
     clearOnSubmit: 'errors-and-message'

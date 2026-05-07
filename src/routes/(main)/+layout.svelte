@@ -1,4 +1,4 @@
-<script lang="ts" src="../../../node_modules/flowbite/dist/flowbite.min.js">
+﻿<script lang="ts" src="../../../node_modules/flowbite/dist/flowbite.min.js">
   import '../../app.postcss';
   import { AppBar, AppShell } from '@skeletonlabs/skeleton';
   import { page } from '$app/stores';
@@ -10,7 +10,6 @@
   import DashboardButton from '../../components/buttons/dashboard-button.svelte';
   import DotsBackground from '../../components/DotsBackground.svelte';
   export let data: LayoutServerData;
-  export let params: Record<string, string>;
 
   $: currentPath = $page.url.pathname;
 

@@ -1,3 +1,7 @@
+﻿<svelte:head>
+  <title>Robotics Club of Central Florida</title>
+</svelte:head>
+
 <script lang="ts">
   import FaDiscord from 'svelte-icons/fa/FaDiscord.svelte';
   import FaInstagram from 'svelte-icons/fa/FaInstagram.svelte';
@@ -15,7 +19,6 @@
   import EditableLink from '../../components/EditableLink.svelte';
   import type { PageData } from './$types';
   export let data: PageData;
-  export let params: Record<string, string>;
 </script>
 
 <div class="w-full">

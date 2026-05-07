@@ -1,11 +1,10 @@
-<script lang="ts">
+﻿<script lang="ts">
   import type { PageData } from './$types';
   import ProjectCard from '../../../components/projectCard.svelte';
   import { Accordion, AccordionItem } from '@skeletonlabs/skeleton';
   import type { Season } from '@prisma/client';
 
   export let data: PageData;
-  export let params: Record<string, string>;
   const isYearThisYear = (year: number) => year === data.currentYear;
   const isThisSemester = (semester: Season) => semester === data.currentSemester;
 </script>

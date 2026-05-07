@@ -1,12 +1,10 @@
 <script lang="ts">
   import type { PageData, ActionData } from './$types';
-  import { enhance } from '$app/forms';
   //@ts-ignore
   import FaBook from 'svelte-icons/fa/FaBook.svelte';
 
   export let data: PageData;
   export let form: ActionData;
-  export let params: { slug: string };
 </script>
 
 <svelte:head>
