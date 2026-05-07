@@ -70,9 +70,9 @@ export const load = (async () => {
     // now since everything is sorted, we can combine to the last datatype
   }
 
-  const seasonOrder = { Fall: 0, Summer: 1, Spring: 2 };
+  const seasonOrder = { Summer: 0, Spring: 1, Fall: 2 };
 
-  // sort by year descending, then within each year: Fall → Summer → Spring (top to bottom)
+  // sort by year descending, then within each year: Summer → Spring → Fall (top to bottom)
   categories.sort((a, b) => b.year - a.year);
   for (const cat of categories) {
     cat.semester.sort((a, b) => seasonOrder[a.season] - seasonOrder[b.season]);
