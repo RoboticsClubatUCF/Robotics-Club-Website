@@ -50,6 +50,8 @@ export const actions: Actions = {
     const tier = form.get('tier') as string;
 
     if (!name || !tier) return { error: 'Name and tier are required.' };
+    if (imageUrl && !imageUrl.startsWith('https://')) return { error: 'Image URL must start with https://' };
+    if (link && !link.startsWith('https://')) return { error: 'Website link must start with https://' };
 
     await db.webSponsor.create({ data: { name, imageUrl, link, tier } });
   },
@@ -64,6 +66,8 @@ export const actions: Actions = {
     const tier = form.get('tier') as string;
 
     if (!name || !tier || isNaN(id)) return { error: 'Name and tier are required.' };
+    if (imageUrl && !imageUrl.startsWith('https://')) return { error: 'Image URL must start with https://' };
+    if (link && !link.startsWith('https://')) return { error: 'Website link must start with https://' };
 
     await db.webSponsor.update({ where: { id }, data: { name, imageUrl, link, tier } });
   },

@@ -159,6 +159,8 @@
             name="profilePictureUrl"
             id="profilePictureUrl"
             placeholder="https://example.com/photo.jpg"
+            pattern="https://.+"
+            title="Must be a full URL starting with https://"
             bind:value={$form.profilePictureUrl}
           />
           {#if $errors.profilePictureUrl}

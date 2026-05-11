@@ -77,6 +77,26 @@
       calendarLoading = false;
     }
   }
+
+  let sweepOutput: string[] | null = null;
+  let sweepLoading = false;
+  let sweepError: string | null = null;
+
+  async function runMembershipSweep() {
+    sweepLoading = true;
+    sweepError = null;
+    sweepOutput = null;
+    try {
+      const res = await fetch('/api/sweep-memberships', { method: 'POST' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      sweepOutput = data.lines;
+    } catch (e) {
+      sweepError = String(e);
+    } finally {
+      sweepLoading = false;
+    }
+  }
 </script>
 
 <AppShell>
@@ -264,6 +284,19 @@
                         </div>
                       </div>
                     </button>
+                    <button
+                      class="card p-4 hover:card-hover text-left"
+                      disabled={sweepLoading}
+                      on:click={runMembershipSweep}
+                    >
+                      <div class="flex items-center gap-3">
+                        <div class="w-5 h-5 shrink-0 opacity-50"><FaTerminal /></div>
+                        <div>
+                          <p class="font-semibold text-sm">Run Expiration Sweep</p>
+                          <p class="text-xs opacity-50">{sweepLoading ? 'Running...' : 'Expire overdue memberships now'}</p>
+                        </div>
+                      </div>
+                    </button>
                   </div>
                 </div>
                 {/if}
@@ -285,6 +318,26 @@
                   <p style="color:#f85149;">{calendarError}</p>
                 {:else if calendarOutput}
                   {#each calendarOutput as line}
+                    <p class="leading-relaxed whitespace-pre">{line}</p>
+                  {/each}
+                {/if}
+              </div>
+            </div>
+          {/if}
+
+          {#if sweepOutput !== null || sweepLoading || sweepError}
+            <div class="card p-6">
+              <div class="flex items-center gap-3 mb-4">
+                <div class="w-5 h-5 shrink-0 opacity-60"><FaTerminal /></div>
+                <h3 class="h3">Expiration Sweep Output</h3>
+              </div>
+              <div class="rounded-lg p-4 font-mono text-xs overflow-y-auto max-h-80 space-y-0.5" style="background:#0d1117; color:#c9d1d9;">
+                {#if sweepLoading}
+                  <p class="opacity-50">Running sweep...</p>
+                {:else if sweepError}
+                  <p style="color:#f85149;">{sweepError}</p>
+                {:else if sweepOutput}
+                  {#each sweepOutput as line}
                     <p class="leading-relaxed whitespace-pre">{line}</p>
                   {/each}
                 {/if}

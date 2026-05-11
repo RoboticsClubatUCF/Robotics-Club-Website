@@ -11,6 +11,10 @@
   let saveError = '';
 
   async function save() {
+    if (editValue && !editValue.startsWith('/') && !editValue.startsWith('https://')) {
+      saveError = 'Must be a relative path (e.g. /photos/img.png) or a full URL starting with https://';
+      return;
+    }
     saving = true;
     saveError = '';
     try {

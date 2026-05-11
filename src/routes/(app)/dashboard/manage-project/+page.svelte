@@ -120,11 +120,11 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label class="label">
             <span class="text-xs font-bold">Logo Image URL *</span>
-            <input type="url" name="logo" class="input" placeholder="https://…" required />
+            <input type="url" name="logo" class="input" placeholder="https://…" pattern="https://.+" title="Must be a full URL starting with https://" required />
           </label>
           <label class="label">
             <span class="text-xs font-bold">Documentation URL *</span>
-            <input type="url" name="docsLink" class="input" placeholder="https://…" required />
+            <input type="url" name="docsLink" class="input" placeholder="https://…" pattern="https://.+" title="Must be a full URL starting with https://" required />
           </label>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -196,11 +196,11 @@
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label class="label">
                   <span class="text-xs font-bold">Logo Image URL</span>
-                  <input type="url" name="logo" class="input" bind:value={editLogo} placeholder="https://…" />
+                  <input type="url" name="logo" class="input" bind:value={editLogo} placeholder="https://…" pattern="https://.+" title="Must be a full URL starting with https://" />
                 </label>
                 <label class="label">
                   <span class="text-xs font-bold">Documentation URL</span>
-                  <input type="url" name="docsLink" class="input" bind:value={editDocsLink} placeholder="https://…" />
+                  <input type="url" name="docsLink" class="input" bind:value={editDocsLink} placeholder="https://…" pattern="https://.+" title="Must be a full URL starting with https://" />
                 </label>
               </div>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">

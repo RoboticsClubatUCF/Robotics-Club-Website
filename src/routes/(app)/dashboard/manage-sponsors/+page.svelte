@@ -88,11 +88,11 @@
         </div>
         <label class="label">
           <span class="text-xs font-bold">Logo Image URL</span>
-          <input type="url" name="imageUrl" class="input" placeholder="https://…" />
+          <input type="url" name="imageUrl" class="input" placeholder="https://…" pattern="https://.+" title="Must be a full URL starting with https://" />
         </label>
         <label class="label">
           <span class="text-xs font-bold">Website Link</span>
-          <input type="url" name="link" class="input" placeholder="https://…" />
+          <input type="url" name="link" class="input" placeholder="https://…" pattern="https://.+" title="Must be a full URL starting with https://" />
         </label>
         <div class="flex gap-2">
           <button type="submit" disabled={creating} class="btn variant-filled-success">
@@ -145,11 +145,11 @@
               </div>
               <label class="label">
                 <span class="text-xs font-bold">Logo Image URL</span>
-                <input type="url" name="imageUrl" class="input" bind:value={editImageUrl} placeholder="https://…" />
+                <input type="url" name="imageUrl" class="input" bind:value={editImageUrl} placeholder="https://…" pattern="https://.+" title="Must be a full URL starting with https://" />
               </label>
               <label class="label">
                 <span class="text-xs font-bold">Website Link</span>
-                <input type="url" name="link" class="input" bind:value={editLink} placeholder="https://…" />
+                <input type="url" name="link" class="input" bind:value={editLink} placeholder="https://…" pattern="https://.+" title="Must be a full URL starting with https://" />
               </label>
               {#if editImageUrl}
                 <img src={editImageUrl} alt="Preview" class="h-12 object-contain rounded" />

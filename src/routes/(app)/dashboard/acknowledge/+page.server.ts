@@ -15,8 +15,12 @@ export const load: PageServerLoad = async ({ locals }) => {
 
   if (!member) throw error(404);
 
-  const isOfficer = locals.member.permissions.level >= 10;
   const membershipExpired = member.membershipExpDate < new Date();
+  const isAdmin = locals.member.permissions.level >= 999;
+  // Expired officers lose officer privileges here — they see the payment prompt
+  // like any other expired member. Only active officers (and admins) can edit
+  // the message.
+  const isOfficer = isAdmin || (locals.member.permissions.level >= 10 && !membershipExpired);
 
   // Non-officers with active dues have nothing to do here
   if (!membershipExpired && !isOfficer) {
@@ -42,6 +46,15 @@ export const actions: Actions = {
 
   update: async ({ request, locals }) => {
     if (locals.member.permissions.level < 10) throw error(403, 'Forbidden');
+
+    // Non-admin officers must have active dues to edit the message.
+    if (locals.member.permissions.level < 999) {
+      const self = await db.member.findFirst({
+        where: { email: locals.member.email },
+        select: { membershipExpDate: true }
+      });
+      if (!self || self.membershipExpDate < new Date()) throw error(403, 'Active membership required');
+    }
 
     const form = await request.formData();
     const message = (form.get('message') as string)?.trim();

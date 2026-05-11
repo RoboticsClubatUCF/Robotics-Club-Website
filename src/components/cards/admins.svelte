@@ -88,6 +88,16 @@
   async function saveOfficer(officer: Officer) {
     saving = true;
     saveError = '';
+    if (editFields.profileLink && !editFields.profileLink.startsWith('https://')) {
+      saveError = 'Profile link must start with https://';
+      saving = false;
+      return;
+    }
+    if (editFields.profilePictureUrl && !editFields.profilePictureUrl.startsWith('https://')) {
+      saveError = 'Photo URL must start with https://';
+      saving = false;
+      return;
+    }
     try {
       const res = await fetch(`/api/members/${officer.id}`, {
         method: 'PATCH',
@@ -135,11 +145,11 @@
           </label>
           <label class="label">
             <span class="text-xs">Profile Link (LinkedIn, etc.)</span>
-            <input type="text" bind:value={editFields.profileLink} class="input input-sm" placeholder="https://…" />
+            <input type="url" bind:value={editFields.profileLink} class="input input-sm" placeholder="https://…" pattern="https://.+" title="Must be a full URL starting with https://" />
           </label>
           <label class="label">
             <span class="text-xs">Photo URL</span>
-            <input type="text" bind:value={editFields.profilePictureUrl} class="input input-sm" placeholder="https://…/photo.jpg" />
+            <input type="url" bind:value={editFields.profilePictureUrl} class="input input-sm" placeholder="https://…/photo.jpg" pattern="https://.+" title="Must be a full URL starting with https://" />
           </label>
           {#if editFields.profilePictureUrl}
             <img src={editFields.profilePictureUrl} alt="Preview" class="w-16 h-16 rounded-full object-cover" />

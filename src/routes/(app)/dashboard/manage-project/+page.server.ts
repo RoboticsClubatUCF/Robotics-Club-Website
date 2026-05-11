@@ -35,6 +35,12 @@ export const actions: Actions = {
     if (!title || !logoUrl || !docsLink || !season || !year) {
       return { error: 'Please fill in all required fields.' };
     }
+    if (!logoUrl.startsWith('https://')) {
+      return { error: 'Logo URL must start with https://' };
+    }
+    if (!docsLink.startsWith('https://')) {
+      return { error: 'Documentation URL must start with https://' };
+    }
 
     await db.project.create({
       data: {
@@ -68,6 +74,12 @@ export const actions: Actions = {
 
     if (!title || !season || !year) {
       return { error: 'Missing required fields.' };
+    }
+    if (logoUrl && !logoUrl.startsWith('https://')) {
+      return { error: 'Logo URL must start with https://' };
+    }
+    if (docsLink && !docsLink.startsWith('https://')) {
+      return { error: 'Documentation URL must start with https://' };
     }
 
     const existing = await db.project.findUnique({ where: { id }, select: { pictureId: true } });

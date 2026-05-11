@@ -2,6 +2,7 @@ import { db } from '$lib/db';
 import { error, redirect } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
 import { getCurrentSemester, isInGracePeriod } from '$lib/currentSemester';
+import config from '../../config';
 
 export const load: LayoutServerLoad = async ({ locals, url }) => {
   if (!locals.member) {
@@ -32,6 +33,33 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
     const dateInfo = await getCurrentSemester();
     const inGracePeriod = await isInGracePeriod(dateInfo.semester, dateInfo.year);
     if (!inGracePeriod) {
+      // Immediately strip member-and-below roles so the DB stays consistent with
+      // the expiration. Officers keep their officer role; the hourly sweep does
+      // the same but this closes the timing gap.
+      const memberRolesToRemove = member.roles.filter(
+        (r) => r.permissionLevel <= config.roles.member.level
+      );
+      if (memberRolesToRemove.length > 0) {
+        await db.member.update({
+          where: { id: member.id },
+          data: {
+            roles: { disconnect: memberRolesToRemove.map((r) => ({ id: r.id })) },
+            // Non-officer users also get their primary role reset to guest.
+            ...(member.role.permissionLevel <= config.roles.member.level &&
+              member.role.name !== config.roles.guest.name && {
+                role: {
+                  connectOrCreate: {
+                    where: { name: config.roles.guest.name },
+                    create: {
+                      permissionLevel: config.roles.guest.level,
+                      name: config.roles.guest.name
+                    }
+                  }
+                }
+              })
+          }
+        });
+      }
       if (!url.pathname.startsWith('/dashboard/acknowledge')) {
         throw redirect(302, '/dashboard/acknowledge');
       }

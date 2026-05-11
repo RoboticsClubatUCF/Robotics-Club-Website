@@ -20,8 +20,8 @@ const editProfileSchema = z.object({
   discordProfileName: z.string().min(1, 'Discord username is required'),
   email: z.string().email('A valid email is required'),
   profilePictureUrl: z.string().optional().refine(
-    (val) => !val || /^https?:\/\/.+/.test(val),
-    { message: 'Must be a valid URL starting with http:// or https://' }
+    (val) => !val || /^https:\/\/.+/.test(val),
+    { message: 'Must be a full URL starting with https://' }
   )
 });
 

@@ -11,6 +11,10 @@
   let saveError = '';
 
   async function save() {
+    if (editValue && !editValue.startsWith('https://')) {
+      saveError = 'Must be a full URL starting with https://';
+      return;
+    }
     saving = true;
     saveError = '';
     try {
@@ -44,10 +48,12 @@
     <p class="text-xs opacity-60">Link URL for: <code>{contentKey}</code></p>
     <!-- svelte-ignore a11y_autofocus -->
     <input
-      type="text"
+      type="url"
       bind:value={editValue}
       class="w-full p-2 border-2 border-warning-500 rounded bg-surface-100-800-token text-sm"
       placeholder="https://…"
+      pattern="https://.+"
+      title="Must be a full URL starting with https://"
       autofocus
     />
     {#if saveError}<p class="text-error-500 text-xs">{saveError}</p>{/if}

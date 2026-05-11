@@ -77,7 +77,9 @@
               type="url"
               name="logo"
               id="logo"
-              placeholder="Enter Image Address"
+              placeholder="https://example.com/image.png"
+              pattern="https://.+"
+              title="Must be a full URL starting with https://"
               bind:value={$form.logo}
             />
         </label>
@@ -90,7 +92,9 @@
               type="url"
               name="docsLink"
               id="docsLink"
-              placeholder="Enter link to project documentation"
+              placeholder="https://docs.example.com"
+              pattern="https://.+"
+              title="Must be a full URL starting with https://"
               bind:value={$form.docsLink}
             />
         </label>

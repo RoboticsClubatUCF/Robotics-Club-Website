@@ -62,8 +62,14 @@ export const actions: Actions = {
         if (vaildLogo === ''){
             return setError(form, 'logo', 'Please Enter a Logo-Link');
         }
+        if (!vaildLogo.startsWith('https://')) {
+            return setError(form, 'logo', 'Logo URL must start with https://');
+        }
         if (vaildDocsLink === ''){
             return setError(form, 'docsLink', 'Please Enter a Docs-Link');
+        }
+        if (!vaildDocsLink.startsWith('https://')) {
+            return setError(form, 'docsLink', 'Documentation URL must start with https://');
         }
         if (vaildSeason === ''){
             return setError(form, 'season', 'Please Enter a Season');
