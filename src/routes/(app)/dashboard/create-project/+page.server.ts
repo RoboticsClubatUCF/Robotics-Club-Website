@@ -17,7 +17,7 @@ const createProSchema = z.object({
 });
 
 export const load: PageServerLoad = async ({ locals }) => {
-    if (locals.member.permissions.level < 10) {
+    if (locals.member.permissions.level < 8) {
         throw redirect(302, '/dashboard');
     }
 
@@ -39,7 +39,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 export const actions: Actions = {
     default: async({ request, locals }) => {
-        if (locals.member.permissions.level < 10) {
+        if (locals.member.permissions.level < 8) {
             throw error(403, 'Forbidden');
         }
         const form = await superValidate(request, zod(createProSchema));

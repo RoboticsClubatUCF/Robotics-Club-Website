@@ -1,9 +1,9 @@
 import { db } from '$lib/db';
 
-export default async (amount: number = 10, skip: number = 0) => {
+export default async (amount?: number, skip: number = 0) => {
   const projects = await db.project.findMany({
     skip: skip,
-    take: amount,
+    ...(amount !== undefined ? { take: amount } : {}),
     include: {
       logo: true,
       _count: {

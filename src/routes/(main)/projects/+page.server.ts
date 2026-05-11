@@ -10,7 +10,7 @@ export const load = (async () => {
    */
 
   const [projects, dateInfo] = await Promise.all([
-    getprojects(20),
+    getprojects(),
     getCurrentSemester()
   ]);
 
