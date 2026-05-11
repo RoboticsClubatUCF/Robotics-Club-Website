@@ -374,3 +374,165 @@ function map(x: number, in_min: number, in_max: number, out_min: number, out_max
 function distance(x1: number, x2: number, y1: number, y2: number) {
   return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
 }
+
+// Optimized background version: transparent canvas, window mouse tracking, no glow/menu, visibility pause
+export function injectDotsBackground(ele: Element, n: number = 80): () => void {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const app = new PIXI.Application({
+    width: window.innerWidth,
+    height: window.innerHeight,
+    antialias: true,
+    backgroundAlpha: 0,
+    resolution: dpr,
+    autoDensity: true
+  });
+
+  const num_balls = n;
+  const r = 3;
+  let width = window.innerWidth;
+  let height = window.innerHeight;
+  let max_x = width - r;
+  let max_y = height - r;
+  const min_y = r;
+
+  const mousePos = new Mouse(0, 0, false, true);
+
+  const onMouseMove = (e: MouseEvent) => {
+    mousePos.x = e.clientX;
+    mousePos.y = e.clientY;
+  };
+  const onMouseDown = () => { mousePos.down = true; mousePos.up = false; };
+  const onMouseUp = () => { mousePos.down = false; mousePos.up = true; };
+  const onVisChange = () => {
+    if (document.hidden) app.ticker.stop();
+    else app.ticker.start();
+  };
+
+  window.addEventListener('mousemove', onMouseMove);
+  window.addEventListener('mousedown', onMouseDown);
+  window.addEventListener('mouseup', onMouseUp);
+  document.addEventListener('visibilitychange', onVisChange);
+
+  const balls = new Array(num_balls);
+
+  function resize_handler() {
+    app.renderer.resize(window.innerWidth, window.innerHeight);
+    width = window.innerWidth;
+    height = window.innerHeight;
+    max_y = height - r;
+    max_x = width - r;
+    GenerateBallData();
+  }
+  const onResize = () => resize_handler();
+  window.addEventListener('resize', onResize);
+
+  function GenerateBallData() {
+    for (let i = 0; i < balls.length; i++) {
+      const _r = 0.5 + Math.random() * 1.5;
+      const tmp_vect = new Vector(rad(Math.random() * 360), (Math.random() * 8) / 50);
+      balls[i] = new ballInfo(
+        _r,
+        Math.floor(Math.random() * max_x),
+        Math.floor(Math.max(Math.random() * max_y, min_y)),
+        tmp_vect,
+        0xf2f2f2,
+        Math.random() * num_balls
+      );
+    }
+  }
+  GenerateBallData();
+
+  const graphics = new PIXI.Graphics();
+  const line = new PIXI.Graphics();
+  let k = 0;
+  const cursorRadius = 70;
+  let linecolor = 0xf2f2f2;
+
+  function distancetocursor(x: number, y: number) {
+    return Math.sqrt(Math.pow(mousePos.x - x, 2) + Math.pow(mousePos.y - y, 2));
+  }
+
+  function CursorHandler() {
+    graphics.lineStyle(1.5, 0xafaf36);
+    graphics.drawCircle(mousePos.x, mousePos.y, 20);
+    graphics.endFill();
+    balls.forEach((ball) => {
+      const dist = distancetocursor(ball.x, ball.y);
+      if (dist < cursorRadius) {
+        ball.color = 0xafaf36;
+        line.position = new PIXI.Point(0, 0);
+        line.lineStyle(1 / map(dist, 0, 70, 0.2, 3), linecolor);
+        line.moveTo(ball.x, ball.y);
+        line.lineTo(mousePos.x, mousePos.y);
+        if (mousePos.down) {
+          linecolor = 0xafaf36;
+          ball.x = lerp(ball.x, mousePos.x, 0.015);
+          ball.y = lerp(ball.y, mousePos.y, 0.015);
+        } else {
+          linecolor = 0xf2f2f2;
+        }
+      } else {
+        ball.color = 0xf2f2f2;
+      }
+    });
+  }
+
+  function BallPhysics(delta: number) {
+    for (let i = 0; i < num_balls; i++) {
+      if (deg(balls[i].vector.angle) < 0) {
+        balls[i].vector = new Vector(rad(deg(balls[i].vector.angle) + 360), balls[i].vector.magnitude);
+      }
+      if (balls[i].x > max_x + 2 * r) {
+        if (deg(balls[i].vector.angle) > 0 && deg(balls[i].vector.angle) < 90) {
+          balls[i].vector = new Vector(rad(180 - Math.abs(deg(balls[i].vector.angle) + 360)), balls[i].vector.magnitude);
+        } else if (deg(balls[i].vector.angle) > 270 && deg(balls[i].vector.angle) < 360) {
+          balls[i].vector = new Vector(rad(180 + Math.abs(deg(balls[i].vector.angle) - 360)), balls[i].vector.magnitude);
+        }
+      } else if (balls[i].x < r * -2) {
+        if (deg(balls[i].vector.angle) > 90 && deg(balls[i].vector.angle) < 180) {
+          balls[i].vector = new Vector(rad(180 - Math.abs(deg(balls[i].vector.angle) + 360)), balls[i].vector.magnitude);
+        } else if (deg(balls[i].vector.angle) > 180 && deg(balls[i].vector.angle) < 270) {
+          balls[i].vector = new Vector(rad(180 + Math.abs(deg(balls[i].vector.angle) - 360)), balls[i].vector.magnitude);
+        }
+      } else if (balls[i].y > max_y + 4 * r) {
+        if (deg(balls[i].vector.angle) > 270 && deg(balls[i].vector.angle) < 360) {
+          balls[i].vector = new Vector(rad(Math.abs(deg(balls[i].vector.angle) - 360)), balls[i].vector.magnitude);
+        } else if (deg(balls[i].vector.angle) > 180 && deg(balls[i].vector.angle) < 270) {
+          balls[i].vector = new Vector(rad(Math.abs(deg(balls[i].vector.angle) - 360)), balls[i].vector.magnitude);
+        }
+      } else if (balls[i].y < min_y) {
+        if (deg(balls[i].vector.angle) > 0 && deg(balls[i].vector.angle) < 90) {
+          balls[i].vector = new Vector(rad(Math.abs(deg(balls[i].vector.angle) - 360)), balls[i].vector.magnitude);
+        } else if (deg(balls[i].vector.angle) > 90 && deg(balls[i].vector.angle) < 180) {
+          balls[i].vector = new Vector(rad(Math.abs(deg(balls[i].vector.angle) - 360)), balls[i].vector.magnitude);
+        }
+      }
+      balls[i].x += balls[i].vector.xMagnitude;
+      balls[i].y += balls[i].vector.yMagnitude;
+      k += delta / 30000;
+      graphics.lineStyle(0);
+      graphics.beginFill(balls[i].color, (1 / 3) * Math.cos(k + balls[i].seed) + 2 / 3);
+      graphics.drawCircle(balls[i].x, balls[i].y, balls[i].r);
+      graphics.endFill();
+    }
+  }
+
+  (ele as HTMLElement).appendChild(app.view as HTMLCanvasElement);
+
+  app.ticker.add((delta) => {
+    graphics.clear();
+    line.clear();
+    BallPhysics(delta);
+    CursorHandler();
+    app.stage.addChild(graphics, line);
+  });
+
+  return () => {
+    window.removeEventListener('mousemove', onMouseMove);
+    window.removeEventListener('mousedown', onMouseDown);
+    window.removeEventListener('mouseup', onMouseUp);
+    document.removeEventListener('visibilitychange', onVisChange);
+    window.removeEventListener('resize', onResize);
+    app.destroy(true);
+  };
+}

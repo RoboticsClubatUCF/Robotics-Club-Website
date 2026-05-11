@@ -2,8 +2,11 @@
   import { Avatar } from '@skeletonlabs/skeleton';
   //@ts-ignore
   import { BackgroundSets, CharacterSets, generateAvatar } from 'robohash-avatars';
+
   export let hash: string;
-  const pfp = generateAvatar({
+  export let url: string | null | undefined = undefined;
+
+  $: src = url || generateAvatar({
     username: hash,
     background: BackgroundSets.RandomBackground2,
     characters: CharacterSets.Robots,
@@ -12,4 +15,4 @@
   });
 </script>
 
-<Avatar src={pfp} class="w-full" />
+<Avatar {src} class="w-full" />

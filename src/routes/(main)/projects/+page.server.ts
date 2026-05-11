@@ -2,17 +2,21 @@ import type { Project } from '@prisma/client';
 import getprojects from '../../../components/querytools/projects/getprojects';
 import type projectCategory from '../../../types/projectCategory';
 import type { PageServerLoad } from './$types';
+import { getCurrentSemester } from '$lib/currentSemester';
 
 export const load = (async () => {
   /**
    * This should load all projects from the backend, and sort them based on year and season, such that people can sort through
    */
 
-  // load all recent projects
-  const projects = await getprojects(20);
+  const [projects, dateInfo] = await Promise.all([
+    getprojects(20),
+    getCurrentSemester()
+  ]);
+
   if (projects.length == 0) {
     let categories: projectCategory[] = [];
-    return { categories };
+    return { categories, currentYear: dateInfo.year, currentSemester: dateInfo.semester };
   }
 
   let categories: projectCategory[] = [];
@@ -25,7 +29,7 @@ export const load = (async () => {
     }
   }
   for (let i = 0; i < years.length; i++) {
-    let projectsOfYear: Project[] = []; // the projects that happened in a certain year
+    let projectsOfYear: typeof projects[number][] = []; // the projects that happened in a certain year
     for (let j = 0; j < projects.length; j++) {
       if (projects[j].year == years[i]) {
         // if this project is on this year
@@ -66,9 +70,12 @@ export const load = (async () => {
     // now since everything is sorted, we can combine to the last datatype
   }
 
-  // sort by year
-  categories.sort((a, b) => {
-    return b.year - a.year;
-  });
-  return { categories };
+  const seasonOrder = { Summer: 0, Spring: 1, Fall: 2 };
+
+  // sort by year descending, then within each year: Summer → Spring → Fall (top to bottom)
+  categories.sort((a, b) => b.year - a.year);
+  for (const cat of categories) {
+    cat.semester.sort((a, b) => seasonOrder[a.season] - seasonOrder[b.season]);
+  }
+  return { categories, currentYear: dateInfo.year, currentSemester: dateInfo.semester };
 }) satisfies PageServerLoad;

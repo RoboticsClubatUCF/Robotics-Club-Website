@@ -192,6 +192,7 @@ model Project {
   remainingFunds     Float
   season             Season               @default(value: Fall)
   year               Int
+  discordRoleId      String               @default("1111111")
   articles           Article[]
   members            Member[]
   pictureId          Int?
@@ -214,8 +215,13 @@ model Member {
   membershipExpDate  DateTime            @default(now())
   joinedAt           DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
-  role               Role                @relation(fields: [roleId], references: [id])
+  position           String?
+  bio                String?
+  profileLink        String?
+  profilePictureUrl  String?
+  role               Role                @relation("PrimaryRole", fields: [roleId], references: [id])
   roleId             Int
+  roles              Role[]              @relation("MemberRoles")
   Articles           Article[]
   Projects           Project[]
   BlogPost           BlogPost[]
@@ -224,7 +230,17 @@ model Member {
   Teams              Team[]
   Survey             Survey?             @relation(fields: [surveyId], references: [id])
   surveyId           Int?
+  acknowledgedAt     DateTime?
   PasswordResetToken PasswordResetToken?
+}
+
+model SiteContent {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  value     String
+  type      String   @default("text")
+  updatedAt DateTime @updatedAt
+  updatedBy String?
 }
 
 model Sponsor {
@@ -243,11 +259,20 @@ model Receipt {
   // finish formatting with receipt template
 }
 
+model WebSponsor {
+  id       Int    @id @default(autoincrement())
+  name     String
+  imageUrl String @default("")
+  link     String @default("")
+  tier     String @default("aluminum")
+}
+
 model Role {
   id              Int      @id @default(autoincrement())
   name            String   @unique
   permissionLevel Int      @default(value: 0)
-  Member          Member[]
+  Member          Member[] @relation("PrimaryRole")
+  roleMembers     Member[] @relation("MemberRoles")
 }
 
 model Survey {

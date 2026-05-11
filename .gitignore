@@ -10,4 +10,4 @@ metricsLogs
 **/g
 **/rccf-postgres
 src/paypal.ts
-.envExample
+.envEXAMPLE

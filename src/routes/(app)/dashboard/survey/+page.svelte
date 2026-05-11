@@ -1,21 +1,19 @@
 <script lang="ts">
-  import { superForm } from "sveltekit-superforms/client";
+  import { superForm } from 'sveltekit-superforms';
   import { modeCurrent } from '@skeletonlabs/skeleton';
   import type { PageData } from './$types';
   import { onMount } from "svelte";
-  import { injectDots } from "../../../../components/pixijs/dotsAnimation";
   import { getMonth } from 'date-fns';
 
   export let data: PageData;
+  export let params: Record<string, string>;
   const { form, errors, constraints, enhance } = superForm(data.form, {
     clearOnSubmit: 'errors-and-message'
   });
 
-  let mainEle: HTMLElement;
   let Display = "";
 
   onMount(() => {
-    injectDots(mainEle, 200);
     const today = new Date();
     const month = getMonth(today) + 1;
     if (month >= 1 && month <= 4) {
@@ -26,16 +24,11 @@
   });
 </script>
 
-<div
-  bind:this={mainEle}
-  class="absolute top-20 left-0 right-0 bottom-0 pointer-events-auto -z-20"
-/>
-
-<div class="h-screen grid place-items-center absolute w-screen top-0 pointer-events-none overflow-auto" style="margin-top: 90px; padding-bottom: 110px;">
+<div class="flex justify-center w-full mt-[90px] pb-[110px] px-4 py-4">
   <div
     class={$modeCurrent
-      ? 'block card p-8 pointer-events-auto shadow-xl shadow-surface-300'
-      : 'block card p-8 pointer-events-auto shadow-xl shadow-surface-500'}
+      ? 'block card p-6 sm:p-8 pointer-events-auto shadow-xl shadow-surface-300 w-full max-w-lg'
+      : 'block card p-6 sm:p-8 pointer-events-auto shadow-xl shadow-surface-500 w-full max-w-lg'}
   >
     <form method="POST" class="p-2 rounded-md" use:enhance>
       <h2 class="h2">Creating Members Survey</h2>
@@ -345,13 +338,12 @@
       <label class="label">
         <span>Concerns (Optional)</span>
         <textarea
-          class="textarea"
+          class="textarea min-h-[6em]"
           name="otherConcerns"
           id="otherConcerns"
           bind:value={$form.otherConcerns}
           placeholder="Enter any concerns you may have about being a member."
           rows="4"
-          style="min-height: 6em;"
         ></textarea>
       </label>
       <br />

@@ -1,33 +1,65 @@
 import { duesStoreType } from '../../stores';
-export function calculateValidSemester(currentEndDate: Date | undefined) {
-	// slowly increment until the valid next due date is calculated
-	let isValidSemester = false;
-	let startingDate: Date = new Date();
-	if ((currentEndDate?.getTime() ?? 0 > new Date().getTime()) && currentEndDate != undefined) {
-		startingDate = currentEndDate;
-	}
-	let currentYear = new Date().getFullYear();
+import { getSemesterStartDate, getSemesterEndDate } from '$lib/ucfCalendar';
 
-	// reconfigure writable as string
-	let duesType: string = '';
-		duesStoreType.subscribe(value => {
-		duesType = value;
-	});
-
-	if (duesType === '1'){
-		// This is to calculate when their dues should end, should they pay for the semester option
-		// This is the first time the user is paying, so we simply look for the next bracket, and put them in there!
-		if (new Date().getMonth() < 4) {
-			return new Date(currentYear, 4, 31);
-		} else {
-			return new Date(currentYear, 12, 31);
-		}
-	}else if(duesType === '2') {
-		if (new Date().getMonth() < 4) {
-			return new Date(currentYear, 12, 31);
-		} else {
-			return new Date(currentYear + 1, 4, 31);
-		}
+export async function calculateValidSemester(
+	currentEndDate: Date | undefined,
+	duesTypeParam?: string
+): Promise<Date | undefined> {
+	let duesType = duesTypeParam ?? '';
+	if (!duesType) {
+		duesStoreType.subscribe((value) => { duesType = value; });
 	}
 
+	const now = new Date();
+	const month = now.getMonth();
+	const year = now.getFullYear();
+	const inSpring = month < 4; // Jan–Apr pay into spring, May+ pay into fall
+
+	if (duesType === '1') {
+		if (inSpring) {
+			const [start, end] = await Promise.all([
+				getSemesterStartDate(year, 'spring'),
+				getSemesterEndDate(year, 'spring')
+			]);
+			const midpoint = new Date((start.getTime() + end.getTime()) / 2);
+			// Past halfway through spring → roll forward to next semester (fall)
+			return now > midpoint
+				? getSemesterEndDate(year, 'fall')
+				: end;
+		} else {
+			const [start, end] = await Promise.all([
+				getSemesterStartDate(year, 'fall'),
+				getSemesterEndDate(year, 'fall')
+			]);
+			const midpoint = new Date((start.getTime() + end.getTime()) / 2);
+			// Past halfway through fall → roll forward to next semester (spring)
+			return now > midpoint
+				? getSemesterEndDate(year + 1, 'spring')
+				: end;
+		}
+	}
+
+	if (duesType === '2') {
+		if (inSpring) {
+			const [start, end] = await Promise.all([
+				getSemesterStartDate(year, 'spring'),
+				getSemesterEndDate(year, 'spring')
+			]);
+			const midpoint = new Date((start.getTime() + end.getTime()) / 2);
+			// Early spring → spring + fall; late spring → fall + next spring
+			return now > midpoint
+				? getSemesterEndDate(year + 1, 'spring')
+				: getSemesterEndDate(year, 'fall');
+		} else {
+			const [start, end] = await Promise.all([
+				getSemesterStartDate(year, 'fall'),
+				getSemesterEndDate(year, 'fall')
+			]);
+			const midpoint = new Date((start.getTime() + end.getTime()) / 2);
+			// Early fall → fall + next spring; late fall → next spring + next fall
+			return now > midpoint
+				? getSemesterEndDate(year + 1, 'fall')
+				: getSemesterEndDate(year + 1, 'spring');
+		}
+	}
 }

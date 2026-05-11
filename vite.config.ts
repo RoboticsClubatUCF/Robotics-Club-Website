@@ -3,5 +3,8 @@ import { defineConfig } from 'vite';
 import { purgeCss } from 'vite-plugin-tailwind-purgecss';
 
 export default defineConfig({
-  plugins: [sveltekit(), purgeCss()]
+  plugins: [sveltekit(), purgeCss()],
+  preview: {
+    allowedHosts: ['rccf.club']
+  }
 });

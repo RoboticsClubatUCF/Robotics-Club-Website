@@ -1,10 +1,14 @@
+﻿<svelte:head>
+  <title>Reset Password @ RCCF</title>
+</svelte:head>
+
 <script lang="ts">
-  import { superForm } from 'sveltekit-superforms/client';
+  import { superForm } from 'sveltekit-superforms';
   import type { PageData } from './$types';
 
   export let data: PageData;
 
-  const { form, errors, constraints } = superForm(data.form, {
+  const { form, errors, constraints } = superForm(data.form!, {
     clearOnSubmit: 'errors-and-message'
   });
 </script>

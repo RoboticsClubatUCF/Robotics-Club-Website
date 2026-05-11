@@ -7,12 +7,10 @@
     AppShell,
     Avatar,
     Drawer,
-    LightSwitch,
     getDrawerStore,
     type DrawerSettings
   } from '@skeletonlabs/skeleton';
   import { info } from '../../data/info';
-  import SignoutButton from '../../components/buttons/signout-button.svelte';
   import Identicon from 'identicon.js';
   import type { LayoutServerData } from './$types';
   import cybr53 from '../../components/scripts/cybr53';
@@ -20,7 +18,9 @@
   import BreadCrumbs from '../../components/breadCrumbs.svelte';
   import RightSideBar from '../../components/dashboard/rightSidebar/rightSideBar.svelte';
   import ProfilePic from '../../components/profilePic.svelte';
+  import DotsBackground from '../../components/DotsBackground.svelte';
   export let data: LayoutServerData;
+  export let params: Record<string, string>;
 
   const drawerStore = getDrawerStore();
   let currentTile = 0;
@@ -30,7 +30,7 @@
 
 <Drawer>
   {#if $drawerStore.id == 'dashboard1'}
-    <LeftSideBar projects={$drawerStore.meta.projects} teams={$drawerStore.meta.teams} />
+    <LeftSideBar projects={$drawerStore.meta.projects} joinableProjects={$drawerStore.meta.joinableProjects} />
   {:else if $drawerStore.id == 'dashboard2'}
     <RightSideBar projects={$drawerStore.meta.projects} />
   {/if}
@@ -40,17 +40,15 @@
   <svelte:fragment slot="header">
     <AppBar>
       <svelte:fragment slot="lead">
-        <ol class="h1">{info.mobileTitle}</ol>
-        <div class="m-2" />
+        <ol class="h1 mr-2">{info.mobileTitle}</ol>
         <BreadCrumbs />
       </svelte:fragment>
       <svelte:fragment slot="trail">
-        <LightSwitch />
-        <SignoutButton />
-        <a href="/dashboard/profile"> <ProfilePic hash={data.member.id} /></a>
+        <a href="/dashboard/profile"><ProfilePic hash={data.member.id} url={data.member.profilePictureUrl} /></a>
       </svelte:fragment>
     </AppBar>
   </svelte:fragment>
 
+  <DotsBackground />
   <slot />
 </AppShell>

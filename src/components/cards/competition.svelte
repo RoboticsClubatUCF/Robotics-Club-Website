@@ -1,19 +1,24 @@
 <script lang="ts">
-  import config from '../../config';
-  import Image from 'svimg';
+  import EditableText from '../EditableText.svelte';
+  import EditableImage from '../EditableImage.svelte';
+  export let text: string;
+  export let image: string;
+  export let editMode: boolean = false;
 </script>
 
 <div class="card overflow-hidden">
-  <Image
-    src="/photos/competition.png"
-    class="bg-black/50 w-full aspect-[21/9] object-cover object-bottom"
-    alt="Post"
+  <EditableImage
+    contentKey="home.card.competition.image"
+    value={image}
+    alt="Competition"
+    imgClass="bg-black/50 w-full aspect-[21/9] object-cover object-bottom"
+    {editMode}
   />
   <div class="p-4 space-y-4">
     <h6 class="h4">Competition</h6>
     <article>
       <p>
-        {config.information.competitionStatement}
+        <EditableText contentKey="home.competitionStatement" value={text} {editMode} />
       </p>
     </article>
   </div>

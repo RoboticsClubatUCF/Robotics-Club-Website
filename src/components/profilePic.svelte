@@ -3,7 +3,9 @@
   import { BackgroundSets, CharacterSets, generateAvatar } from 'robohash-avatars';
 
   export let hash: string;
-  const pfp = generateAvatar({
+  export let url: string | null | undefined = undefined;
+
+  $: src = url || generateAvatar({
     username: hash,
     background: BackgroundSets.RandomBackground2,
     characters: CharacterSets.Robots,
@@ -12,4 +14,4 @@
   });
 </script>
 
-<Avatar src={pfp} width="w-12" />
+<Avatar {src} width="w-12" />

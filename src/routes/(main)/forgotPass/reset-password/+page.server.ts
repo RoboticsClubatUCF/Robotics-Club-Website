@@ -1,7 +1,8 @@
 import { db } from '$lib/db';
 import { fail, redirect } from '@sveltejs/kit';
-import { superValidate, setError } from 'sveltekit-superforms/server';
-import { z } from 'zod';
+import { superValidate, setError } from 'sveltekit-superforms';
+import { zod } from '$lib/zodAdapter';
+import { z } from 'zod/v3';
 import generatePassword from '../../../../components/scripts/generatePass';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -9,9 +10,6 @@ const resetPasswordSchema = z.object({
   token: z.string(),
   newPassword: z.string().min(8, 'Password must be at least 8 characters long!'),
   confirmPass: z.string()
-}).refine(data => data.newPassword === data.confirmPass, {
-  message: "Passwords don't match!",
-  path: ['confirmPass']
 });
 
 export const load = (async ({ url }) => {
@@ -38,17 +36,21 @@ export const load = (async ({ url }) => {
     return fail(400, { form: null, error: 'Invalid or expired token.' });
   }
 
-  const form = await superValidate({ token }, resetPasswordSchema);
+  const form = await superValidate({ token }, zod(resetPasswordSchema));
   return { form };
 }) satisfies PageServerLoad;
 
 export const actions: Actions = {
   default: async ({ request }) => {
-    const form = await superValidate(request, resetPasswordSchema);
+    const form = await superValidate(request, zod(resetPasswordSchema));
     
     if (!form.valid) {
       // console.log('Form validation failed:', form.errors);
       return fail(400, { form });
+    }
+
+    if (form.data.newPassword !== form.data.confirmPass) {
+      return setError(form, 'confirmPass', "Passwords don't match!");
     }
 
     // console.log('Token submitted with form:', form.data.token);

@@ -33,6 +33,10 @@ export default {
    * when roles in the future etc. Treasurser, come in to play, they can have a permission level to themselves, or even
    */
   roles: {
+    admin: {
+      level: 999,
+      name: 'admin'
+    },
     officer: {
       level: 10,
       name: 'officer'
@@ -40,6 +44,10 @@ export default {
     lead: {
       level: 8,
       name: 'lead'
+    },
+    teamLead: {
+      level: 7,
+      name: 'team lead'
     },
     committee: {
       level: 6,

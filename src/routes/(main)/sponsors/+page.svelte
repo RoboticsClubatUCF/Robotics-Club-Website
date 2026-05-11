@@ -1,476 +1,260 @@
+﻿<svelte:head>
+  <title>Sponsors @ RCCF</title>
+</svelte:head>
+
 <script lang="ts">
-  import { injectDots } from '../../../components/pixijs/dotsAnimation';
-  import { onMount } from 'svelte';
   import { modeCurrent } from '@skeletonlabs/skeleton';
+  import EditableText from '../../../components/EditableText.svelte';
+  import type { PageData } from './$types';
+  export let data: PageData;
 
-  let mainEle: HTMLElement;
-  let dotsInjected = false;
+  type TierKey = 'processor' | 'circuit' | 'bolt' | 'aluminum';
 
-  function updateDots() {
-    if (!mainEle) return;
+  const TIER_PRIORITY: Record<TierKey, number> = { processor: 0, circuit: 1, bolt: 2, aluminum: 3 };
 
-    if (!$modeCurrent && !dotsInjected) {
-      injectDots(mainEle, 200);
-      dotsInjected = true;
-    }
-    else if (dotsInjected) {
-      const canvas = mainEle.querySelector('canvas');
-      if (canvas) {
-        canvas.remove();
-        dotsInjected = false;
-      }
-    }
+  // Top 5 sponsors sorted by tier priority (highest tier first)
+  $: topSponsors = [...data.sponsors]
+    .sort((a, b) => TIER_PRIORITY[a.tier as TierKey] - TIER_PRIORITY[b.tier as TierKey])
+    .slice(0, 5);
+
+  // Duration scales with total character count so long names don't race past
+  $: scrollDuration = Math.max(
+    8,
+    topSponsors.reduce((sum, s) => sum + s.name.length, 0) * 0.4 + topSponsors.length * 2
+  );
+
+  // ----- tier benefit CRUD -----
+  type BenefitEdit = { tierKey: TierKey; index: number } | null;
+  let editingBenefit: BenefitEdit = null;
+  let editBenefitText = '';
+  let saving = false;
+  let saveError = '';
+
+  let tierBenefits: Record<TierKey, string[]> = {
+    processor: [...data.siteContent.tiers.processor.benefits],
+    circuit: [...data.siteContent.tiers.circuit.benefits],
+    bolt: [...data.siteContent.tiers.bolt.benefits],
+    aluminum: [...data.siteContent.tiers.aluminum.benefits]
+  };
+
+  async function saveBenefits(tierKey: TierKey) {
+    saving = true; saveError = '';
+    try {
+      const res = await fetch('/api/site-content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          key: `sponsors.tier.${tierKey}.benefits`,
+          value: JSON.stringify(tierBenefits[tierKey]),
+          type: 'text'
+        })
+      });
+      if (!res.ok) saveError = 'Save failed.';
+    } catch { saveError = 'Network error.'; }
+    finally { saving = false; }
   }
 
-  $: $modeCurrent, mainEle && updateDots();
+  function startEditBenefit(tierKey: TierKey, i: number) {
+    editingBenefit = { tierKey, index: i };
+    editBenefitText = tierBenefits[tierKey][i];
+  }
 
-    // Image link to load
-    let imageUrl = "https://lh3.googleusercontent.com/pw/AP1GczPgwQIAh4n8CAPbGOEQod39G73J6kmg1OxO5RKxnOEdcULy52h5DdDLxmE9vTKLfO7tYJGCQIV-E7TramY7eH_VvlgA1nX4MdcN5zJanqqBzauTUsY=w2400";
+  async function saveBenefit() {
+    if (!editingBenefit) return;
+    const { tierKey, index } = editingBenefit;
+    tierBenefits[tierKey][index] = editBenefitText;
+    tierBenefits = { ...tierBenefits };
+    await saveBenefits(tierKey);
+    if (!saveError) editingBenefit = null;
+  }
+
+  async function deleteBenefit(tierKey: TierKey, i: number) {
+    tierBenefits[tierKey] = tierBenefits[tierKey].filter((_, idx) => idx !== i);
+    tierBenefits = { ...tierBenefits };
+    await saveBenefits(tierKey);
+  }
+
+  async function addBenefit(tierKey: TierKey) {
+    tierBenefits[tierKey] = [...tierBenefits[tierKey], 'New benefit'];
+    tierBenefits = { ...tierBenefits };
+    await saveBenefits(tierKey);
+    startEditBenefit(tierKey, tierBenefits[tierKey].length - 1);
+  }
+
+  const TIER_ORDER: TierKey[] = ['processor', 'circuit', 'bolt', 'aluminum'];
+  const TIER_CLASSES: Record<TierKey, string> = {
+    processor: 'processorPatron',
+    circuit: 'circuitSupporter',
+    bolt: 'boltBacker',
+    aluminum: 'aluminumAlly'
+  };
 </script>
 
-<!-- Brandons Scroller -->
+<div class="sponsors-page">
 
+<!-- Edit-mode quick-access bar -->
+{#if data.editMode}
+  <div class="w-full bg-surface-200-700-token flex items-center justify-between px-4 py-2 border-b border-surface-300-600-token">
+    <span class="text-xs opacity-60 font-semibold uppercase tracking-wide">Editing sponsors page</span>
+    <a
+      href="/dashboard/manage-sponsors"
+      class="btn btn-sm variant-filled-primary"
+    >
+      Manage Sponsors (add / remove) →
+    </a>
+  </div>
+{/if}
+
+<!-- Scroller section -->
 <div>
-  <div class="h1" style="font-size: 5rem; line-height: 5rem; text-align: center; padding: 3%;">
-    <!-- scroller title -->
-    <b>TOP SPONSORS</b>
+  <div class="h1 text-[2rem] sm:text-[3.5rem] md:text-[5rem] leading-tight sm:leading-[5rem] text-center p-[3%]">
+    <EditableText
+      contentKey="sponsors.scroller.title"
+      value={data.siteContent.scrollerTitle}
+      editMode={data.editMode}
+      multiline={false}
+    />
   </div>
-<!--  -->
-  <div class="scroller-container">
-    <div class="scroller-inner">
-      <img src="https://lh3.googleusercontent.com/pw/AP1GczOGcEn1Ztbwkhrfkyb6yuhgUvByGfARYW5qJo1iBRDfefpX-fUJWo4DDATe0fBL_UhrGpDTHt72Hg9rUZntqHPWG44bAaOkBBQLNuGnUw-VEtkC0IrizoG_3QHCTrrIcsaR8RJ53w3UoW7PsYvZwO16=w192-h192-s-no-gm?authuser=0" alt="Retengax" width="70px" />
-      <div class="content-item">Retengax <br /></div>
-      <img src = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQcI8iitb1xCWitrAjcMgtqmkQrGi0aAY9xpf48RKL-O_1GzCPqo5zEkzoOz6CB-GI3wA4&usqp=CAU" alt = "Go Engineer"  width = "70px">
-      <div class="content-item">Go Engineer <br /></div>
-      <img src = "https://static.wixstatic.com/media/7cdbae_45341b034ab7454fa06333ed8df1fbf8~mv2.png" alt = "Orlando Recycles"  width = "70px">
-      <div class="content-item">Orlando Recycles <br /></div>
-      <img src = "https://lh3.googleusercontent.com/pw/AP1GczP4LH7ppxLX_QYV_ciUL4052712OmUTUlrC83gwEWenPesQSV5QxB9g94t-4i4wKz9dY7vLJD6zQ9EZ3cW_am3cF70UWLEWWtzOnBSzmksyW8a_m8y8JQaxXR9BTmNUEOLb9LkdnPouzm12eDbQpK-h=w131-h133-s-no-gm?authuser=0" alt = "Protocase"  width = "70px">
-      <div class="content-item">Protocase <br /></div>
-      <img src = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRwvvA5u034vT8SJmEZwe6QS17C5qTCZqmYqA&s" alt = "UCF CECS"  width = "70px">
-      <div class="content-item">UCF CECS <br /></div>
-      <img src="https://lh3.googleusercontent.com/pw/AP1GczOGcEn1Ztbwkhrfkyb6yuhgUvByGfARYW5qJo1iBRDfefpX-fUJWo4DDATe0fBL_UhrGpDTHt72Hg9rUZntqHPWG44bAaOkBBQLNuGnUw-VEtkC0IrizoG_3QHCTrrIcsaR8RJ53w3UoW7PsYvZwO16=w192-h192-s-no-gm?authuser=0" alt="Retengax" width="70px" />
-      <div class="content-item">Retengax <br /></div>
-      <img src = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQcI8iitb1xCWitrAjcMgtqmkQrGi0aAY9xpf48RKL-O_1GzCPqo5zEkzoOz6CB-GI3wA4&usqp=CAU" alt = "Go Engineer"  width = "70px">
-      <div class="content-item">Go Engineer <br /></div>
-      <img src = "https://static.wixstatic.com/media/7cdbae_45341b034ab7454fa06333ed8df1fbf8~mv2.png" alt = "Orlando Recycles"  width = "70px">
-      <div class="content-item">Orlando Recycles <br /></div>
-      <img src = "https://lh3.googleusercontent.com/pw/AP1GczP4LH7ppxLX_QYV_ciUL4052712OmUTUlrC83gwEWenPesQSV5QxB9g94t-4i4wKz9dY7vLJD6zQ9EZ3cW_am3cF70UWLEWWtzOnBSzmksyW8a_m8y8JQaxXR9BTmNUEOLb9LkdnPouzm12eDbQpK-h=w131-h133-s-no-gm?authuser=0" alt = "Protocase"  width = "70px">
-      <div class="content-item">Protocase <br /></div>
-      <img src = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRwvvA5u034vT8SJmEZwe6QS17C5qTCZqmYqA&s" alt = "UCF CECS"  width = "70px">
-      <div class="content-item">UCF CECS <br /></div>
-      <img src="https://lh3.googleusercontent.com/pw/AP1GczOGcEn1Ztbwkhrfkyb6yuhgUvByGfARYW5qJo1iBRDfefpX-fUJWo4DDATe0fBL_UhrGpDTHt72Hg9rUZntqHPWG44bAaOkBBQLNuGnUw-VEtkC0IrizoG_3QHCTrrIcsaR8RJ53w3UoW7PsYvZwO16=w192-h192-s-no-gm?authuser=0" alt="Retengax" width="70px" />
-      <div class="content-item">Retengax <br /></div>
-      <img src = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQcI8iitb1xCWitrAjcMgtqmkQrGi0aAY9xpf48RKL-O_1GzCPqo5zEkzoOz6CB-GI3wA4&usqp=CAU" alt = "Go Engineer"  width = "70px">
-      <div class="content-item">Go Engineer <br /></div>
-      <img src = "https://static.wixstatic.com/media/7cdbae_45341b034ab7454fa06333ed8df1fbf8~mv2.png" alt = "Orlando Recycles"  width = "70px">
-      <div class="content-item">Orlando Recycles <br /></div>
-      <img src = "https://lh3.googleusercontent.com/pw/AP1GczP4LH7ppxLX_QYV_ciUL4052712OmUTUlrC83gwEWenPesQSV5QxB9g94t-4i4wKz9dY7vLJD6zQ9EZ3cW_am3cF70UWLEWWtzOnBSzmksyW8a_m8y8JQaxXR9BTmNUEOLb9LkdnPouzm12eDbQpK-h=w131-h133-s-no-gm?authuser=0" alt = "Protocase"  width = "70px">
-      <div class="content-item">Protocase <br /></div>
-      <img src = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRwvvA5u034vT8SJmEZwe6QS17C5qTCZqmYqA&s" alt = "UCF CECS"  width = "70px">
-      <div class="content-item">UCF CECS <br /></div>
-      <img src="https://lh3.googleusercontent.com/pw/AP1GczOGcEn1Ztbwkhrfkyb6yuhgUvByGfARYW5qJo1iBRDfefpX-fUJWo4DDATe0fBL_UhrGpDTHt72Hg9rUZntqHPWG44bAaOkBBQLNuGnUw-VEtkC0IrizoG_3QHCTrrIcsaR8RJ53w3UoW7PsYvZwO16=w192-h192-s-no-gm?authuser=0" alt="Retengax" width="70px" />
-      <div class="content-item">Retengax <br /></div>
-      <img src = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQcI8iitb1xCWitrAjcMgtqmkQrGi0aAY9xpf48RKL-O_1GzCPqo5zEkzoOz6CB-GI3wA4&usqp=CAU" alt = "Go Engineer"  width = "70px">
-      <div class="content-item">Go Engineer <br /></div>
-      <img src = "https://static.wixstatic.com/media/7cdbae_45341b034ab7454fa06333ed8df1fbf8~mv2.png" alt = "Orlando Recycles"  width = "70px">
-      <div class="content-item">Orlando Recycles <br /></div>
-      <img src = "https://lh3.googleusercontent.com/pw/AP1GczP4LH7ppxLX_QYV_ciUL4052712OmUTUlrC83gwEWenPesQSV5QxB9g94t-4i4wKz9dY7vLJD6zQ9EZ3cW_am3cF70UWLEWWtzOnBSzmksyW8a_m8y8JQaxXR9BTmNUEOLb9LkdnPouzm12eDbQpK-h=w131-h133-s-no-gm?authuser=0" alt = "Protocase"  width = "70px">
-      <div class="content-item">Protocase <br /></div>
-      <img src = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRwvvA5u034vT8SJmEZwe6QS17C5qTCZqmYqA&s" alt = "UCF CECS"  width = "70px">
-      <div class="content-item">UCF CECS <br /></div>
 
+  <!-- Animated scroller — 2 identical copies so animation translates exactly -50% -->
+  {#if topSponsors.length > 0}
+    <div class="scroller-container">
+      <div class="scroller-inner" style="--scroll-duration: {scrollDuration}s">
+        {#each [...topSponsors, ...topSponsors] as sponsor, i (i)}
+          <img src={sponsor.imageUrl} alt={sponsor.name} width="70px" />
+          <div class="content-item">{sponsor.name}<br /></div>
+        {/each}
+      </div>
     </div>
-  </div>
+  {/if}
 </div>
 
-<!-- Kits Sponsorship Tiers -->
-<div bind:this={mainEle} class="absolute top-0 left-0 right-0 bottom-0 pointer-events-auto -z-20" />
-<div
-  class="h-screen grid place-items-center w-screen top-0 pointer-events-none"
-  style="margin-top:50px; padding-bottom: 130px;"
->
-  <div
-    class={$modeCurrent
-      ? 'block card p-8 pointer-events-auto shadow-xl shadow-surface-300'
-      : 'block card p-8 pointer-events-auto shadow-xl shadow-surface-500'}
-  >
-    <div class="m-4 centered" style="margin-top: rem">
+<!-- Sponsorship Tiers -->
+<div class="w-full flex justify-center py-8 px-2 sm:px-4 mt-[50px] pb-[80px]">
+  <div class={$modeCurrent
+    ? 'block card p-4 sm:p-8 pointer-events-auto shadow-xl shadow-surface-300 w-full max-w-3xl'
+    : 'block card p-4 sm:p-8 pointer-events-auto shadow-xl shadow-surface-500 w-full max-w-3xl'}>
+    <div class="m-2 sm:m-4 centered">
       <div class="sponsorContainer sponsor-wrapper">
         <div class="centered">
-          <div class="h1" style="font-size: 5rem; line-height: 5rem;">
-            <b>SPONSORSHIP TIERS</b>
+          <div class="h1 text-[2rem] sm:text-[3.5rem] md:text-[5rem] leading-tight sm:leading-[5rem]">
+            <EditableText
+              contentKey="sponsors.tiers.title"
+              value={data.siteContent.tiersTitle}
+              editMode={data.editMode}
+              multiline={false}
+            />
           </div>
           <br />
           <div class="sponsorshipTiers">
-            <div class="processorPatron">
-              <div>PROCESSOR PATRON</div>
-              <div>$5,000+</div>
-            </div>
-            <ul class="tierInfo">
-              <li>Acknowledgments in social media posts</li>
-              <li>Logo on club promotional materials for community events</li>
-              <li>+ Circuit Supporter</li>
-              <p>Current Supporters:</p>
-              <div class="currentSupporters">
-                <div class="sponsor-logo">
-                  <a href="https://www.goengineer.com/">
-                    <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQcI8iitb1xCWitrAjcMgtqmkQrGi0aAY9xpf48RKL-O_1GzCPqo5zEkzoOz6CB-GI3wA4&usqp=CAU" alt="Go Engineer" />
-                  </a>
-                </div>
-                <div class="sponsor-logo">
-                  <a href="https://www.retengax.com.br/">
-                    <img src="https://lh3.googleusercontent.com/pw/AP1GczOGcEn1Ztbwkhrfkyb6yuhgUvByGfARYW5qJo1iBRDfefpX-fUJWo4DDATe0fBL_UhrGpDTHt72Hg9rUZntqHPWG44bAaOkBBQLNuGnUw-VEtkC0IrizoG_3QHCTrrIcsaR8RJ53w3UoW7PsYvZwO16=w192-h192-s-no-gm?authuser=0" alt="Retengax" />
-                  </a>
-                </div>
-              </div>
-            </ul>
-            <div class="circuitSupporter">
-              <div>CIRCUIT SUPPORTER</div>
-              <div>UP TO $3,000</div>
-            </div>
-            <ul class="tierInfo">
-              <li>Logo on club T-shirts *</li>
-              <li>Logo on multiple robots/projects of choice</li>
-              <li>+ Bolt Backer</li>
-              <p>Current Supporters:</p>
-              <div class="currentSupporters">
-                <div class="sponsor-logo">
-                  <a href="https://www.orlandorecycles.com/">
-                    <img src="https://static.wixstatic.com/media/7cdbae_45341b034ab7454fa06333ed8df1fbf8~mv2.png" alt = "Orlando Recycles" />
-                  </a>
-                </div>
-                <div class="sponsor-logo">
-                  <a href="https://www.protocase.com/">
-                    <img src="https://lh3.googleusercontent.com/pw/AP1GczP4LH7ppxLX_QYV_ciUL4052712OmUTUlrC83gwEWenPesQSV5QxB9g94t-4i4wKz9dY7vLJD6zQ9EZ3cW_am3cF70UWLEWWtzOnBSzmksyW8a_m8y8JQaxXR9BTmNUEOLb9LkdnPouzm12eDbQpK-h=w131-h133-s-no-gm?authuser=0" alt = "Protocase" />
-                  </a>
-                </div>
-                <div class="sponsor-logo">
-                  <a href="https://www.cecs.ucf.edu/">
-                    <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRwvvA5u034vT8SJmEZwe6QS17C5qTCZqmYqA&s" alt = "UCF CECS" />
-                  </a>
-                </div>
-              </div>
-            </ul>
-            <div class="boltBacker">
-              <div>BOLT BACKER</div>
-              <div>UP TO $1,000</div>
-            </div>
-            <ul class="tierInfo">
-              <li>Logo on single robot/project of choice **</li>
-              <li>+ Aluminum Ally</li>
-              <p>Current Supporters:</p>
-              <div class="currentSupporters">
-                <div class = "sponsor-logo">
-                  <a href="https://www.redbull.com/us-en">
-                  <img src = "https://cdn.brandfetch.io/iddByYpFsc/w/400/h/400/theme/dark/icon.png?c=1bxid64Mup7aczewSAYMX&t=1667560742112" alt = "RedBull">
-                </a>
-                </div>
-                <div class="sponsor-logo">
-                  <a href="https://sendcutsend.com/">
-                    <img src="https://www.svgrepo.com/show/331572/sendcutsend.svg" alt = "SendCutSend" />
-                  </a>
-                </div>
+            {#each TIER_ORDER as tierKey}
+              {@const tier = data.siteContent.tiers[tierKey]}
+              {@const tierClass = TIER_CLASSES[tierKey]}
+              {@const tieredSponsors = data.sponsors.filter((s) => s.tier === tierKey)}
 
-              </div>
-            </ul>
-            <div class="aluminumAlly">
-              <div>ALUMINUM ALLY</div>
-              <div>$250</div>
-            </div>
-            <ul class="tierInfo">
-              <li>Appearance on club website sponsors page</li>
-              <li>Logo/Infographic in club workspace *</li>
-              <li>Member made sponsorship gift</li>
-              <p>Current Supporters:</p>
-              <div class="currentSupporters">
-                
-                <div class="sponsor-logo">
-                  <a href="https://www.gobilda.com/">
-                    <img src="https://lh3.googleusercontent.com/pw/AP1GczMtxPR3SMWXkulENPr2NDN-K328CRuYgLIb7PJDBw748kpAIAUPfwd3VlaDKhde5UaRD9WdvFxhzPHl2fxaOewwHXYchMc_4qpkjx7rvVWrGy6FjoPCs5upzqlS-13memuceAnk-JU75v_43NDJssYH=w900-h900-s-no-gm?authuser=0" alt="GoBilda" />
-                  </a>
+              <div class={tierClass}>
+                <div>
+                  <EditableText
+                    contentKey="sponsors.tier.{tierKey}.name"
+                    value={tier.name}
+                    editMode={data.editMode}
+                    multiline={false}
+                  />
+                </div>
+                <div>
+                  <EditableText
+                    contentKey="sponsors.tier.{tierKey}.amount"
+                    value={tier.amount}
+                    editMode={data.editMode}
+                    multiline={false}
+                  />
                 </div>
               </div>
-            </ul>
+
+              <ul class="tierInfo">
+                {#each tierBenefits[tierKey] as benefit, bi (bi)}
+                  {#if data.editMode && editingBenefit?.tierKey === tierKey && editingBenefit?.index === bi}
+                    <li class="flex gap-1 items-center">
+                      <input
+                        type="text"
+                        bind:value={editBenefitText}
+                        class="input input-sm flex-1"
+                      />
+                      <button on:click={saveBenefit} disabled={saving} class="btn btn-sm variant-filled-success">✓</button>
+                      <button on:click={() => (editingBenefit = null)} class="btn btn-sm variant-ghost">✕</button>
+                    </li>
+                  {:else}
+                    <li class="flex items-center gap-1 group/benefit">
+                      {benefit}
+                      {#if data.editMode}
+                        <button
+                          on:click={() => startEditBenefit(tierKey, bi)}
+                          class="btn btn-sm variant-filled-warning px-1 py-0 opacity-0 group-hover/benefit:opacity-100 transition-opacity text-xs"
+                        >✎</button>
+                        <button
+                          on:click={() => deleteBenefit(tierKey, bi)}
+                          class="btn btn-sm variant-filled-error px-1 py-0 opacity-0 group-hover/benefit:opacity-100 transition-opacity text-xs"
+                        >×</button>
+                      {/if}
+                    </li>
+                  {/if}
+                {/each}
+                {#if data.editMode}
+                  <li>
+                    <button
+                      on:click={() => addBenefit(tierKey)}
+                      disabled={saving}
+                      class="btn btn-sm variant-ghost-success text-xs mt-1"
+                    >+ Add benefit</button>
+                  </li>
+                {/if}
+
+                <p>Current Supporters:</p>
+                <div class="currentSupporters">
+                  {#each tieredSponsors as sponsor}
+                    <div class="sponsor-logo">
+                      <a href={sponsor.link} target="_blank" rel="noopener noreferrer">
+                        <img src={sponsor.imageUrl} alt={sponsor.name} />
+                      </a>
+                    </div>
+                  {/each}
+                  {#if tieredSponsors.length === 0}
+                    <p class="text-xs opacity-40 italic">No sponsors at this tier yet.</p>
+                  {/if}
+                </div>
+              </ul>
+            {/each}
           </div>
         </div>
       </div>
 
-      <hr style="border: 1px solid" />
+      <hr class="border" />
       <div class="sponsorInfo">
-        <br />* Logo size determined by donation ammount
+        <EditableText
+          contentKey="sponsors.notes"
+          value={data.siteContent.notes}
+          editMode={data.editMode}
+        />
         <br />
-        <br />** Robot(s)/project(s) must be selected at the time of donation
-        <br />
-        <br />NOTE: Your sponsorship is tax-deductible and we'll provide a recipt for your records.
-        <br />
-        <br /> Become a sponsor by reaching out to
-        <a href="mailto:outreach@rccf.club" class="text-blue-500 underline">outreach@rccf.club</a>
+        Become a sponsor by reaching out to
+        {#if data.editMode}
+          <div class="mt-1">
+            <span class="text-xs opacity-60">Contact email:</span>
+            <EditableText
+              contentKey="sponsors.contact.email"
+              value={data.siteContent.contactEmail}
+              editMode={data.editMode}
+              multiline={false}
+            />
+          </div>
+        {:else}
+          <a href="mailto:{data.siteContent.contactEmail}" class="text-blue-500 underline">
+            {data.siteContent.contactEmail}
+          </a>
+        {/if}
       </div>
     </div>
   </div>
 </div>
 
-<style>
-  .centered {
-    max-width: none;
-    width: auto;
-    height: auto;
-    margin-top: 3rem;
-
-    margin-bottom: 2rem;
-    margin: 0 auto;
-    position: relative;
-    text-align: center;
-    animation: fadeIn 3s;
-  }
-
-  .sponsor-wrapper {
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    display: flex;
-  }
-
-  .sponsorContainer {
-    display: flex;
-    flex-direction: row;
-    position: relative;
-    justify-content: center;
-    align-items: stretch;
-    flex-wrap: nowrap;
-    min-width: 0;
-    width: 80vw;
-    height: 100%;
-  }
-
-
-  .sponsorshipTiers {
-    font-size: 200%;
-    line-height: 5rem;
-    font-family: var(--theme-font-family-heading);
-  }
-
-  .tierInfo {
-    line-height: 4rem;
-    font-family: var(--theme-font-family-heading);
-    text-align: left;
-    list-style-type: disc;
-    margin-left: 10px;
-    gap: 50px;
-    padding-left: 50px;
-    padding-top: 20px;
-    padding-bottom: 20px;
-    font-size: 85%;
-  }
-
-  .processorPatron {
-    background-color: #d1a504;
-    border-radius: 10px;
-    width: 100%;
-    text-align: left;
-    padding-left: 25px;
-    padding-right: 25px;
-    margin-left: 10px;
-    color: white;
-    display: flex;
-    justify-content: space-between;
-    max-width: 96%;
-    flex-wrap: wrap;
-    word-wrap: break-word;
-  }
-
-  .circuitSupporter {
-    background-color: #9f7e08;
-    border-radius: 10px;
-    width: 100%;
-    text-align: left;
-    padding-left: 25px;
-    padding-right: 25px;
-    margin-left: 10px;
-    color: white;
-    display: flex;
-    justify-content: space-between;
-    max-width: 85%;
-    flex-wrap: wrap;
-    word-wrap: break-word;
-  }
-
-  .content-item {
-    font-family: var(--theme-font-family-heading);
-  }
-
-  .boltBacker {
-    background-color: #6f590a;
-    border-radius: 10px;
-    width: 100%;
-    text-align: left;
-    padding-left: 25px;
-    padding-right: 25px;
-    margin-left: 10px;
-    color: white;
-    display: flex;
-    justify-content: space-between;
-    max-width: 70%;
-    flex-wrap: wrap;
-    word-wrap: break-word;
-  }
-
-  .aluminumAlly {
-    background-color: #3f340c;
-    border-radius: 10px;
-    width: 100%;
-    text-align: left;
-    padding-left: 25px;
-    padding-right: 25px;
-    margin-left: 10px;
-    color: white;
-    display: flex;
-    justify-content: space-between;
-    max-width: 55%;
-    flex-wrap: wrap;
-    word-wrap: break-word;
-  }
-
-  .sponsorInfo {
-    font-size: 150%;
-    line-height: 3rem;
-    font-family: var(--theme-font-family-heading);
-  }
-
-  .currentSupporters {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 10px;
-  }
-
-  .sponsor-logo {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    margin-bottom: 15px;
-    object-fit: contain;
-  }
-
-  .sponsor-logo img {
-    width: 100px;
-    height: 100px;
-    object-fit: contain;
-    border-radius: 0 !important;
-  }
-
-  .scroller-container {
-    width: 100%;
-    overflow: hidden;
-    font-size: 30pt;
-    height: 90px;
-    border-top: solid;
-    border-bottom: solid;
-  }
-
-  .scroller-inner {
-    padding-top: 25px;
-    display: flex;
-    white-space: pre-wrap;
-    width: max-content;
-    animation: scrollLeft 15s linear infinite;
-    font-family: var(--theme-font-family-heading);
-    gap: 10px;
-  }
-
-  .scroller-inner img {
-    margin-top: -18px;
-  }
-
-  @keyframes scrollLeft {
-    from {
-      transform: translateX(0%);
-    }
-    to {
-      transform: translateX(-25%);
-    }
-  }
-
-  @keyframes enterScreen {
-    from {
-      opacity: 0%;
-    }
-    to {
-      opacity: 100%;
-    }
-  } 
-   /*   
-    .sponsorContainer > div {
-        display: flex;
-    }
-
-  .sideBox{
-        background-color: #ffc904;
-        width: 75px;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        align-self: stretch;
-    }
-
-  .sideBox img {
-    padding-bottom: 10px;
-    margin-top: auto;
-    scale: 0.75;
-  } */
-
-    img {
-        max-width: 100%;
-        height: auto;
-        display: block;
-        margin: 0 auto;
-    }
-
-    /* For mobile or low width screens */
-    @media (max-width: 800px) {
-    .h1 {
-      font-size: 2.5rem !important;
-      line-height: 2.5rem !important;
-      padding: 5% !important;
-    }
-
-    .sponsorContainer {
-      max-width: 100vw;
-      padding: 0 10px;
-    }
-
-    .sponsorshipTiers {
-      font-size: 120%;
-      line-height: 2rem;
-    }
-
-    .tierInfo {
-      line-height: 1.5rem;
-      padding-left: 20px;
-      padding-top: 10px;
-      padding-bottom: 10px;
-      font-size: 75%;
-    }
-
-    .processorPatron,
-    .circuitSupporter,
-    .boltBacker,
-    .aluminumAlly {
-      max-width: 95% !important;
-      padding-left: 15px;
-      padding-right: 15px;
-      font-size: 80%;
-    }
-
-    .sponsor-logo img {
-      width: 60px;
-      height: 60px;
-    }
-
-    .sponsorInfo {
-      font-size: 100%;
-      line-height: 1.5rem;
-    }
-  }
-</style>
-  
+</div>
