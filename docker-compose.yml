@@ -10,6 +10,10 @@ services:
     restart: unless-stopped
     depends_on:
       - postgres_rccf
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@postgres_rccf:5432/RCCF
     ports:
       - 4173:4173
     networks:

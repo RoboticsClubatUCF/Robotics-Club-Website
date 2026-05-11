@@ -4,3 +4,4 @@
 **/.git
 **/.vscode
 **/rccf-postgres
+.env
