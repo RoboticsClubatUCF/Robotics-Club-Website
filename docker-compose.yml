@@ -7,6 +7,16 @@ services:
     build:
       context: .
       dockerfile: ./dockerfile
+      args:
+        - DATABASE_URL=postgresql://postgres:password@postgres_rccf:5432/RCCF
+        - SECRET_STRIPE_KEY=${SECRET_STRIPE_KEY}
+        - PUBLIC_STRIPE_KEY=${PUBLIC_STRIPE_KEY}
+        - POSTMARK_API_TOKEN=${POSTMARK_API_TOKEN}
+        - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+        - DISCORD_GUILD_ID=${DISCORD_GUILD_ID}
+        - DISCORD_MEMBER_ROLE_ID=${DISCORD_MEMBER_ROLE_ID}
+        - DISCORD_PROJECT_LEAD_ROLE_ID=${DISCORD_PROJECT_LEAD_ROLE_ID}
+        - DISCORD_TEAM_LEAD_ROLE_ID=${DISCORD_TEAM_LEAD_ROLE_ID}
     restart: unless-stopped
     depends_on:
       - postgres_rccf
