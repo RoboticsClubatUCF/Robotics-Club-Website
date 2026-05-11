@@ -21,13 +21,14 @@
 
   import type { Prisma } from '@prisma/client';
   export let data: { user: DashboardUser | null; surveyDateUpdated: Date | undefined; joinableProjects: Prisma.ProjectGetPayload<{ include: { logo: true } }>[]; member?: { id: string }; isSummerPeriod: boolean; currentYear: number; currentSemester: import('@prisma/client').Season };
-  export let params: Record<string, string>;
   const drawerStore = getDrawerStore();
   const drawerSettingsLeft: DrawerSettings = {
     id: 'dashboard1',
     meta: {
       projects: data.user?.Projects,
-      joinableProjects: data.joinableProjects
+      joinableProjects: data.joinableProjects,
+      currentYear: data.currentYear,
+      currentSemester: data.currentSemester
     }
   };
 

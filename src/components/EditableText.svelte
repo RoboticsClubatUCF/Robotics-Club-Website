@@ -46,13 +46,15 @@
 {#if editMode && editing}
   <div class="relative w-full">
     {#if multiline}
+      <!-- svelte-ignore a11y_autofocus -->
       <textarea
         bind:value={editValue}
         class="w-full p-2 border-2 border-warning-500 rounded bg-surface-100-800-token resize-y text-sm font-inherit"
         rows="4"
         autofocus
-      />
+      ></textarea>
     {:else}
+      <!-- svelte-ignore a11y_autofocus -->
       <input
         type="text"
         bind:value={editValue}

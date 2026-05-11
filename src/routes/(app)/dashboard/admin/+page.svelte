@@ -13,7 +13,6 @@
   };
 
   export let form: { memberId?: string; error?: string; success?: boolean; discordSynced?: boolean } | null = null;
-  export let params: Record<string, string>;
 
   const MANAGEABLE_ORDER = ['officer', 'lead', 'team lead', 'member'];
 

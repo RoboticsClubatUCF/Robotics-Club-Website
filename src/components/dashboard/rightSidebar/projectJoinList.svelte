@@ -1,10 +1,8 @@
 <script lang="ts">
-  import type { Prisma, Season } from '@prisma/client';
+  import type { Prisma } from '@prisma/client';
   import MiniJoinProjectCard from './miniJoinProjectCard.svelte';
 
   export let data: Prisma.ProjectGetPayload<{ include: { logo: true } }>[] | null | undefined;
-  export let currentYear: number;
-  export let currentSemester: Season;
 </script>
 
 <div>

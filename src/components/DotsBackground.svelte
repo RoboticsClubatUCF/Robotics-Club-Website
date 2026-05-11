@@ -23,4 +23,4 @@
   onDestroy(() => cleanup?.());
 </script>
 
-<div bind:this={el} class="absolute inset-0 overflow-hidden pointer-events-none" style="z-index: -10;" />
+<div bind:this={el} class="absolute inset-0 overflow-hidden pointer-events-none" style="z-index: -10;"></div>

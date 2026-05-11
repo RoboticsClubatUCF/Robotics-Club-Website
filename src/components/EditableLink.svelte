@@ -42,6 +42,7 @@
 {#if editMode && editing}
   <div class="relative w-full flex flex-col gap-1 my-1">
     <p class="text-xs opacity-60">Link URL for: <code>{contentKey}</code></p>
+    <!-- svelte-ignore a11y_autofocus -->
     <input
       type="text"
       bind:value={editValue}

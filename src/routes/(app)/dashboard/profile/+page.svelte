@@ -1,5 +1,6 @@
 <script lang="ts">
   import { browser } from '$app/environment';
+  import { page } from '$app/stores';
   import { onMount } from 'svelte';
   import { modeCurrent, LightSwitch } from '@skeletonlabs/skeleton';
   import { superForm } from 'sveltekit-superforms';
@@ -10,7 +11,6 @@
   import DiscordUsernameInfo from '../../../../components/DiscordUsernameInfo.svelte';
 
   export let data: PageData;
-  export let params: Record<string, string>;
 
   $: fullName = `${data.user?.firstName ?? ''}${data.user?.lastName ? ' ' + data.user.lastName : ''}`;
   let deleteConfirm1 = '';
@@ -234,8 +234,8 @@
             autocomplete="off"
           />
         </label>
-        {#if data.deleteError}
-          <p class="text-error-500 text-sm">{data.deleteError}</p>
+        {#if $page.form?.deleteError}
+          <p class="text-error-500 text-sm">{$page.form.deleteError}</p>
         {/if}
         <button
           type="submit"

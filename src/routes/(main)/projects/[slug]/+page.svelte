@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { goto } from '$app/navigation';
+  import { enhance } from '$app/forms';
   import type { PageData, ActionData } from './$types';
   //@ts-ignore
   import FaBook from 'svelte-icons/fa/FaBook.svelte';
@@ -107,9 +109,13 @@
             <hr />
             <br />
             <p>
-              Written By : <a class="h5 hover:animate-pulse" href={'/member/' + a.author.id}>
+              Written By :
+              <button
+                class="h5 hover:animate-pulse underline"
+                on:click|stopPropagation={() => goto('/member/' + a.author.id)}
+              >
                 {a.author.firstName}
-              </a>
+              </button>
             </p>
           </div>
         </a>

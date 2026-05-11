@@ -20,7 +20,6 @@
   import ProfilePic from '../../components/profilePic.svelte';
   import DotsBackground from '../../components/DotsBackground.svelte';
   export let data: LayoutServerData;
-  export let params: Record<string, string>;
 
   const drawerStore = getDrawerStore();
   let currentTile = 0;
@@ -30,7 +29,7 @@
 
 <Drawer>
   {#if $drawerStore.id == 'dashboard1'}
-    <LeftSideBar projects={$drawerStore.meta.projects} joinableProjects={$drawerStore.meta.joinableProjects} />
+    <LeftSideBar projects={$drawerStore.meta.projects} joinableProjects={$drawerStore.meta.joinableProjects} currentYear={$drawerStore.meta.currentYear} currentSemester={$drawerStore.meta.currentSemester} />
   {:else if $drawerStore.id == 'dashboard2'}
     <RightSideBar projects={$drawerStore.meta.projects} />
   {/if}

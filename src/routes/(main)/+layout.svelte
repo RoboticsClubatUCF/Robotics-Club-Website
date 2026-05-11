@@ -1,5 +1,6 @@
-﻿<script lang="ts" src="../../../node_modules/flowbite/dist/flowbite.min.js">
+﻿<script lang="ts">
   import '../../app.postcss';
+  import 'flowbite';
   import { AppBar, AppShell } from '@skeletonlabs/skeleton';
   import { page } from '$app/stores';
   import { info } from '../../data/info';
@@ -86,7 +87,7 @@
               on:click={closeMenu}
               tabindex="-1"
               aria-label="Close menu"
-            />
+            ></button>
             <nav class="absolute right-0 top-full mt-1 z-50 card shadow-xl p-2 min-w-[160px] space-y-1">
               <a href="/" on:click={closeMenu} class="btn w-full variant-ghost hover:variant-filled-primary justify-start">Home</a>
               <a href="/projects" on:click={closeMenu} class="btn w-full variant-ghost hover:variant-filled-primary justify-start">Projects</a>

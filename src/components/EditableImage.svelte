@@ -46,6 +46,7 @@
     {#if editing}
       <div class="absolute inset-0 bg-black/70 flex flex-col items-center justify-center p-4 gap-2 z-10">
         <p class="text-white text-xs font-bold">Image URL or path:</p>
+        <!-- svelte-ignore a11y_autofocus -->
         <input
           type="text"
           bind:value={editValue}

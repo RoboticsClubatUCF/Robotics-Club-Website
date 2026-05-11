@@ -5,7 +5,6 @@
 
   export let data: PageData;
   export let form: ActionData;
-  export let params: Record<string, string>;
 
   type Project = typeof data.projects[number];
 
@@ -94,7 +93,7 @@
         </div>
         <label class="label">
           <span class="text-xs font-bold">Description</span>
-          <textarea name="description" class="textarea" rows="2" placeholder="Optional description" />
+          <textarea name="description" class="textarea" rows="2" placeholder="Optional description"></textarea>
         </label>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label class="label">
@@ -170,7 +169,7 @@
               </div>
               <label class="label">
                 <span class="text-xs font-bold">Description</span>
-                <textarea name="description" class="textarea" rows="2" bind:value={editDescription} />
+                <textarea name="description" class="textarea" rows="2" bind:value={editDescription}></textarea>
               </label>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label class="label">
@@ -215,7 +214,7 @@
             {#if project.logo?.data}
               <img src={project.logo.data} alt={project.title} class="h-12 w-12 object-contain shrink-0 rounded" />
             {:else}
-              <div class="h-12 w-12 bg-surface-300-600-token rounded shrink-0" />
+              <div class="h-12 w-12 bg-surface-300-600-token rounded shrink-0"></div>
             {/if}
             <div class="flex-1 min-w-0">
               <p class="font-semibold">{project.title}</p>

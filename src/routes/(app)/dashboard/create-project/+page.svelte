@@ -8,7 +8,6 @@
     import type { AutocompleteOption, PopupSettings } from '@skeletonlabs/skeleton';
   
     export let data: PageData;
-    export let params: Record<string, string>;
     const { form, errors, constraints, enhance, message } = superForm(data.form, {
       clearOnSubmit: 'errors-and-message'
     });
@@ -33,7 +32,7 @@
   <div
     bind:this={mainEle}
     class="absolute top-20 left-0 right-0 bottom-0 pointer-events-auto -z-20"
-  />
+  ></div>
   
   <div class="h-screen grid place-items-center absolute w-screen top-0 pointer-events-none overflow-auto mt-[90px] pb-[110px]">
     <div

@@ -6,7 +6,6 @@
   import DiscordUsernameInfo from '../../../../components/DiscordUsernameInfo.svelte';
 
   export let data: PageData;
-  export let params: Record<string, string>;
   export let form: ActionData;
 
   let agreed = false;

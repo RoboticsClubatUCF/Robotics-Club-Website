@@ -141,7 +141,7 @@
             <div
               class="shrink-0 rounded-sm"
               style="width:12px;height:12px;background:{slice.color}"
-            />
+            ></div>
             <span class="text-sm truncate flex-1">{slice.label}</span>
             <span class="text-sm font-semibold shrink-0">{slice.count}</span>
             <span class="text-xs opacity-50 shrink-0 w-12 text-right">

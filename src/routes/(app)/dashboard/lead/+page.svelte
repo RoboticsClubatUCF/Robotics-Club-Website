@@ -3,7 +3,6 @@
   import type { PageData } from './$types';
 
   export let data: PageData;
-  export let params: Record<string, string>;
 
   const { form, errors, constraints } = superForm(data.form, {
     clearOnSubmit: 'errors-and-message'
@@ -40,10 +39,10 @@
         bind:value={$form.blogpost}
         {...$constraints.blogpost}
         required
-      />
+      ></textarea>
     </label>
     <hr />
-    <button class="btn" />
+    <button class="btn variant-filled-primary" type="submit">Submit</button>
   </form>
 </div>
 

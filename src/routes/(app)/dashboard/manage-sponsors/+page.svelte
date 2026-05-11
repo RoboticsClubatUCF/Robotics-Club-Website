@@ -5,7 +5,6 @@
 
   export let data: PageData;
   export let form: ActionData;
-  export let params: Record<string, string>;
 
   type Sponsor = typeof data.sponsors[number];
   type TierKey = 'processor' | 'circuit' | 'bolt' | 'aluminum';
@@ -170,7 +169,7 @@
             {#if sponsor.imageUrl}
               <img src={sponsor.imageUrl} alt={sponsor.name} class="h-12 w-12 object-contain shrink-0 rounded" />
             {:else}
-              <div class="h-12 w-12 bg-surface-300-600-token rounded shrink-0" />
+              <div class="h-12 w-12 bg-surface-300-600-token rounded shrink-0"></div>
             {/if}
             <div class="flex-1 min-w-0">
               <p class="font-semibold">{sponsor.name}</p>

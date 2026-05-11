@@ -14,5 +14,5 @@
   <br />
   <hr class="!border-t-4" />
   <br />
-  <ProjectJoinList data={joinableProjects} {currentYear} {currentSemester} />
+  <ProjectJoinList data={joinableProjects} />
 </div>

@@ -76,7 +76,7 @@
         </label>
         <label class="label">
           <span class="text-xs">Bio</span>
-          <textarea bind:value={editFields.bio} class="textarea text-sm" rows="3" placeholder="Short description…" />
+          <textarea bind:value={editFields.bio} class="textarea text-sm" rows="3" placeholder="Short description…"></textarea>
         </label>
         <label class="label">
           <span class="text-xs">Profile Link (LinkedIn, etc.)</span>

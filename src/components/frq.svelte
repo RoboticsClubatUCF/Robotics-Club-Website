@@ -135,7 +135,7 @@
           </label>
           <label class="label">
             <span class="text-xs font-bold">Answer</span>
-            <textarea bind:value={editAnswer} class="textarea text-sm" rows="4" />
+            <textarea bind:value={editAnswer} class="textarea text-sm" rows="4"></textarea>
           </label>
           {#if saveError}<p class="text-error-500 text-xs">{saveError}</p>{/if}
           <div class="flex gap-2">

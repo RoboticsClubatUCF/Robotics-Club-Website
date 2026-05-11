@@ -11,7 +11,6 @@
   import successToast from '../../../../../components/toasts/successToast';
 
   export let data: PageData;
-  export let params: Record<string, string>;
   const { form, constraints, enhance, errors, message } = superForm(data.form);
   $: if ($message == 'OK') {
     successToast('Survey Updated!');
