@@ -5,26 +5,6 @@
 	$: path = $page.route.id?.slice(7).split('/');
 </script>
 
-<style>
-	.bread {
-		font-size: 1rem /* 16px */;
-		line-height: 1.5rem /* 24px */;
-		padding-left: 1.25rem /* 20px */;
-		padding-right: 0.8rem /* 20px */;
-		padding-top: 9px;
-		padding-bottom: 9px;
-		white-space: nowrap;
-		text-align: center;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		transition-property: all;
-		transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-		transition-duration: 150ms;
-		border-radius: var(--theme-rounded-base);
-	}
-</style>
-
 <!-- Breadcrumb -->
 <nav class="bread variant-ghost-primary hover:variant-filled-primary" aria-label="Breadcrumb">
 	<ol class="inline-flex items-center space-x-1 md:space-x-2 rtl:space-x-reverse">

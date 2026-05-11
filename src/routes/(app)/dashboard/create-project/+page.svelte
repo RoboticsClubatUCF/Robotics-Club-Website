@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { superForm } from "sveltekit-superforms/client";
+    import { superForm } from 'sveltekit-superforms';
     import { InputChip, modeCurrent } from '@skeletonlabs/skeleton';
     import type { PageData } from './$types';
     import { onMount } from "svelte";
@@ -8,6 +8,7 @@
     import type { AutocompleteOption, PopupSettings } from '@skeletonlabs/skeleton';
   
     export let data: PageData;
+    export let params: Record<string, string>;
     const { form, errors, constraints, enhance, message } = superForm(data.form, {
       clearOnSubmit: 'errors-and-message'
     });
@@ -34,7 +35,7 @@
     class="absolute top-20 left-0 right-0 bottom-0 pointer-events-auto -z-20"
   />
   
-  <div class="h-screen grid place-items-center absolute w-screen top-0 pointer-events-none overflow-auto" style="margin-top: 90px; padding-bottom: 110px;">
+  <div class="h-screen grid place-items-center absolute w-screen top-0 pointer-events-none overflow-auto mt-[90px] pb-[110px]">
     <div
       class={$modeCurrent
         ? 'block card p-8 pointer-events-auto shadow-xl shadow-surface-300'
@@ -60,13 +61,12 @@
         <label class="label">
             <span>Description (Optional)</span>
             <textarea
-              class="textarea"
+              class="textarea min-h-[6em]"
               name="description"
               id="description"
               bind:value={$form.description}
               placeholder="Enter a Description"
               rows="4"
-              style="min-height: 6em;"
             ></textarea>
         </label>
 

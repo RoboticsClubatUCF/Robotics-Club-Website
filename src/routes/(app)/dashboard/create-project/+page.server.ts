@@ -1,26 +1,23 @@
-import { z } from "zod";
+import { z } from 'zod/v3';
 import type { Actions, PageServerLoad } from "./$types";
-import { setError, superValidate } from "sveltekit-superforms/server";
-import { fail, redirect } from "@sveltejs/kit";
+import { setError, superValidate } from 'sveltekit-superforms';
+import { zod } from '$lib/zodAdapter';
+import { fail, redirect, error } from "@sveltejs/kit";
 import { db } from "$lib/db";
-
-let pLevel = 0;
+import { Season } from '@prisma/client';
 
 const createProSchema = z.object({
     title: z.string(),
     description: z.string(),
     docsLink: z.string(),
-    season: z.custom(),
+    season: z.string(),
     year: z.string(),
     logo: z.string(),
     Skills: z.string().array(),
 });
 
-export const load: PageServerLoad = async ({ parent, locals }) => {
-    const data = await parent();
-    pLevel = data.member!.role.permissionLevel;
-    // check user permission level
-    if (!(pLevel >= 10)) {
+export const load: PageServerLoad = async ({ locals }) => {
+    if (locals.member.permissions.level < 10) {
         throw redirect(302, '/dashboard');
     }
 
@@ -36,13 +33,16 @@ export const load: PageServerLoad = async ({ parent, locals }) => {
         }
     });
 
-    const form = await superValidate(createProSchema);
+    const form = await superValidate(zod(createProSchema));
     return { form, members };
 };
 
 export const actions: Actions = {
-    default: async({ request }) => {
-        const form = await superValidate(request, createProSchema);
+    default: async({ request, locals }) => {
+        if (locals.member.permissions.level < 10) {
+            throw error(403, 'Forbidden');
+        }
+        const form = await superValidate(request, zod(createProSchema));
         // Validating forms
         if (!form.valid) {
             return fail(400, { form });
@@ -87,7 +87,7 @@ export const actions: Actions = {
                     }
                 },
                 docsLink: form.data.docsLink,
-                season: form.data.season,
+                season: form.data.season as Season,
                 year: yearNum,
                 Skills: skillsArray,
                 budget: 0, 

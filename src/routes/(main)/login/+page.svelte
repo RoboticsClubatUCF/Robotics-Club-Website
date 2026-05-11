@@ -1,63 +1,77 @@
+﻿<svelte:head>
+  <title>Sign In @ RCCF</title>
+</svelte:head>
+
 <script lang="ts">
   import { modeCurrent } from '@skeletonlabs/skeleton';
-  import SignupButton from '../../../components/buttons/signup-button.svelte';
   import type { PageData } from './$types';
-  import { superForm } from 'sveltekit-superforms/client';
+  import { superForm } from 'sveltekit-superforms';
   export let data: PageData;
 
-  const { form, errors, constraints } = superForm(data.form, {
+  const { form, errors, constraints, enhance } = superForm(data.form, {
     clearOnSubmit: 'errors-and-message'
   });
 </script>
 
-<!-- Form that provides a login screen, followed by the option to create your own account -->
-<div class="h-screen grid place-items-center absolute w-screen top-0 pointer-events-none">
+<div class="min-h-screen flex items-center justify-center absolute w-full top-0 pointer-events-none px-4 py-12">
   <div
     class={$modeCurrent
-      ? 'block card p-8 pointer-events-auto shadow-xl shadow-surface-300'
-      : 'block card p-8 pointer-events-auto shadow-xl shadow-surface-500'}
+      ? 'block card p-8 sm:p-10 pointer-events-auto shadow-xl shadow-surface-300 w-full max-w-sm'
+      : 'block card p-8 sm:p-10 pointer-events-auto shadow-xl shadow-surface-500 w-full max-w-sm'}
   >
-    <form method="POST" class="p-2 rounded-md">
-      <h2 class="h2">Sign In</h2>
-      <label class="label m-4">
-        <span>Email</span>
-        <input
-          type="email"
-          name="email"
-          id="email"
-          class="input"
-          bind:value={$form.email}
-          {...$constraints.email}
-          required
-          autocomplete="email"
-        />
-        {#if $errors.email}
-          <span class="variant-filled-error badge">{$errors.email}</span>
-        {/if}
-      </label>
-      <label class="label m-4">
-        <span>Password</span>
-        <input
-          type="password"
-          name="password"
-          id="password"
-          class="input"
-          bind:value={$form.password}
-          {...$constraints.password}
-          required
-          autocomplete="password"
-        />
-        {#if $errors.password}
-          <span class="variant-filled-error badge">{$errors.password}</span>
-        {/if}
-      </label>
-      <button class="btn variant-ghost-primary m-4 hover:variant-filled-primary">Log In</button>
-      <br />
-      <div class="m-4">
-        <span class="h3 mr-2">Dont have an account?</span>
-        <SignupButton />
+    <form method="POST" use:enhance class="flex flex-col gap-6">
+      <div>
+        <h2 class="h2 mb-1">Sign In</h2>
+        <p class="text-sm opacity-60">Welcome back. Enter your credentials to continue.</p>
       </div>
-      <a href="/forgotPass" class="btn btn-sm variant-filled float-right m-4">forgot password?</a>
+
+      <div class="flex flex-col gap-4">
+        <label class="label">
+          <span class="text-sm font-medium">Email</span>
+          <input
+            type="email"
+            name="email"
+            id="email"
+            class="input mt-1"
+            bind:value={$form.email}
+            {...$constraints.email}
+            autocomplete="email"
+            placeholder="you@example.com"
+          />
+          {#if $errors.email}
+            <p class="text-sm text-error-500 mt-1">{$errors.email}</p>
+          {/if}
+        </label>
+
+        <label class="label">
+          <div class="flex justify-between items-center mb-1">
+            <span class="text-sm font-medium">Password</span>
+            <a href="/forgotPass" class="text-xs opacity-60 hover:opacity-100 transition-opacity">
+              Forgot password?
+            </a>
+          </div>
+          <input
+            type="password"
+            name="password"
+            id="password"
+            class="input"
+            bind:value={$form.password}
+            {...$constraints.password}
+            autocomplete="current-password"
+            placeholder="••••••••"
+          />
+          {#if $errors.password}
+            <p class="text-sm text-error-500 mt-1">{$errors.password}</p>
+          {/if}
+        </label>
+      </div>
+
+      <button type="submit" class="btn variant-ghost-primary hover:variant-filled-primary w-full">Sign In</button>
+
+      <p class="text-sm text-center opacity-60">
+        Don't have an account?
+        <a href="/register" class="opacity-100 font-medium underline underline-offset-2">Sign up</a>
+      </p>
     </form>
   </div>
 </div>

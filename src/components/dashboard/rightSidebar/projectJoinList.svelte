@@ -1,15 +1,17 @@
 <script lang="ts">
-  import type { Picture, Project } from '@prisma/client';
+  import type { Prisma, Season } from '@prisma/client';
   import MiniJoinProjectCard from './miniJoinProjectCard.svelte';
 
-  export let data: (Project & { logo: Picture })[] | null | undefined;
+  export let data: Prisma.ProjectGetPayload<{ include: { logo: true } }>[] | null | undefined;
+  export let currentYear: number;
+  export let currentSemester: Season;
 </script>
 
-<div class="">
+<div>
   <h2 class="h2">Join</h2>
-  {#if data != null}
-    {#each data as project}
-      <MiniJoinProjectCard data={project} />
-    {/each}
-  {/if}
+  {#each (data ?? []) as project}
+    <MiniJoinProjectCard data={project} />
+  {:else}
+    <p class="text-sm opacity-50 mt-2">No projects available to join this semester.</p>
+  {/each}
 </div>

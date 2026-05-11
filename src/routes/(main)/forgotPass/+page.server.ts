@@ -1,7 +1,8 @@
 import { db } from '$lib/db';
 import { fail } from '@sveltejs/kit';
-import { setError, superValidate } from 'sveltekit-superforms/server';
-import { z } from 'zod';
+import { setError, superValidate } from 'sveltekit-superforms';
+import { zod } from '$lib/zodAdapter';
+import { z } from 'zod/v3';
 import crypto from 'crypto';
 import postmark from 'postmark';
 import type { Actions, PageServerLoad } from './$types';
@@ -12,7 +13,7 @@ const forgotPasswordSchema = z.object({
 });
 
 export const load = (async ({ locals }) => {
-  const form = await superValidate(forgotPasswordSchema);
+  const form = await superValidate(zod(forgotPasswordSchema));
 
   const userInQuestion = await db.member.findUnique({
     where: {
@@ -47,7 +48,7 @@ export const load = (async ({ locals }) => {
 
 export const actions: Actions = {
   default: async ({ request, locals }) => {
-    const form = await superValidate(request, forgotPasswordSchema);
+    const form = await superValidate(request, zod(forgotPasswordSchema));
     if (!form.valid) {
       return fail(400, { form });
     }

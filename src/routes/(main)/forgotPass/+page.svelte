@@ -1,7 +1,11 @@
+﻿<svelte:head>
+  <title>Forgot Password @ RCCF</title>
+</svelte:head>
+
 <script lang="ts">
   import { modeCurrent } from '@skeletonlabs/skeleton';
   import type { PageData } from './$types';
-  import { superForm } from 'sveltekit-superforms/client';
+  import { superForm } from 'sveltekit-superforms';
   import { onMount } from 'svelte';
 
   export let data: PageData;
@@ -11,7 +15,7 @@
   });
 
   let remainingTime = data.remainingTime || 0;
-  let timer: string | number | NodeJS.Timer | undefined;
+  let timer: ReturnType<typeof setInterval> | undefined;
 
   onMount(() => {
     if (remainingTime > 0) {

@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { superForm } from 'sveltekit-superforms/client';
+  import { superForm } from 'sveltekit-superforms';
   import type { PageData } from './$types';
 
   export let data: PageData;
+  export let params: Record<string, string>;
 
   const { form, errors, constraints } = superForm(data.form, {
     clearOnSubmit: 'errors-and-message'

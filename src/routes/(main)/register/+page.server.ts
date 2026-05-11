@@ -1,8 +1,9 @@
 import { db } from '$lib/db';
 import { fail, redirect } from '@sveltejs/kit';
 import { randomUUID } from 'crypto';
-import { setError, superValidate } from 'sveltekit-superforms/server';
-import { z } from 'zod';
+import { setError, superValidate } from 'sveltekit-superforms';
+import { zod } from '$lib/zodAdapter';
+import { z } from 'zod/v3';
 import generatePassword from '../../../components/scripts/generatePass';
 import config from '../../../config';
 import type { Actions, PageServerLoad } from './$types';
@@ -17,13 +18,13 @@ const registerSchema = z.object({
 });
 
 export const load: PageServerLoad = async () => {
-  const form = await superValidate(registerSchema);
+  const form = await superValidate(zod(registerSchema));
 
   return { form };
 };
 export const actions: Actions = {
   default: async ({ request }) => {
-    const form = await superValidate(request, registerSchema);
+    const form = await superValidate(request, zod(registerSchema));
     if (!form.valid) {
       return fail(400, { form });
     }
@@ -59,6 +60,17 @@ export const actions: Actions = {
         AuthToken: randomUUID(),
         discordProfileName: form.data.discord,
         role: {
+          connectOrCreate: {
+            where: {
+              name: config.roles.guest.name
+            },
+            create: {
+              name: config.roles.guest.name,
+              permissionLevel: config.roles.guest.level
+            }
+          }
+        },
+        roles: {
           connectOrCreate: {
             where: {
               name: config.roles.guest.name

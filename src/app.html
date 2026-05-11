@@ -4,6 +4,13 @@
     <meta charset="utf-8" />
     <link rel="icon" href="%sveltekit.assets%/favicon.png" />
     <meta name="viewport" content="width=device-width" />
+    <script>
+      (function(){
+        var s=localStorage.getItem('modeCurrent');
+        if(s!==null){document.documentElement.classList.toggle('dark',s==='false');}
+        else{document.documentElement.classList.add('dark');}
+      })();
+    </script>
     %sveltekit.head%
   </head>
 

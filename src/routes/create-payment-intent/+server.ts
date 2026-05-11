@@ -1,16 +1,14 @@
 import Stripe from 'stripe';
 import { SECRET_STRIPE_KEY } from '$env/static/private';
 import config from '../../config';
-import { duesStoreType } from '../../stores';
+import { error } from '@sveltejs/kit';
 
 const stripe = new Stripe(SECRET_STRIPE_KEY);
 
-export async function POST({ request }) {
-  const { duesType } = await request.json();
+export async function POST({ request, locals }) {
+  if (!locals.member) throw error(401, 'Unauthorized');
 
-  // Update the store with the retrieved duesType
-  duesStoreType.set(duesType);
-  // console.log(duesStoreType);
+  const { duesType } = await request.json();
 
   const amount = duesType === '1' ? config.paypal.semester_cost : config.paypal.year_cost;
 

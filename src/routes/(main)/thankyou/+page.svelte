@@ -1,5 +1,4 @@
-<script lang="ts">
-	import type { PageData } from './$types';
+﻿<svelte:head>
+  <title>Thank You @ RCCF</title>
+</svelte:head>
 
-	export let data: PageData;
-</script>
