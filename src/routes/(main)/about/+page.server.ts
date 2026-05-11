@@ -20,6 +20,7 @@ export const load: PageServerLoad = async () => {
         position: true,
         bio: true,
         profileLink: true,
+        profilePictureUrl: true,
         role: { select: { name: true, permissionLevel: true } }
       },
       orderBy: { role: { permissionLevel: 'desc' } }

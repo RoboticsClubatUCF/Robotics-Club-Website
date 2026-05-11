@@ -9,16 +9,17 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 
   const { id } = params;
   const body = await request.json();
-  const { position, bio, profileLink } = body;
+  const { position, bio, profileLink, profilePictureUrl } = body;
 
   const updated = await db.member.update({
     where: { id },
     data: {
       position: position || null,
       bio: bio || null,
-      profileLink: profileLink || null
+      profileLink: profileLink || null,
+      profilePictureUrl: profilePictureUrl || null
     },
-    select: { id: true, position: true, bio: true, profileLink: true }
+    select: { id: true, position: true, bio: true, profileLink: true, profilePictureUrl: true }
   });
 
   return json(updated);

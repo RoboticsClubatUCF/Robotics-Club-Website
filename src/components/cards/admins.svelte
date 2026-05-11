@@ -6,6 +6,7 @@
     position: string | null;
     bio: string | null;
     profileLink: string | null;
+    profilePictureUrl: string | null;
     role: { name: string; permissionLevel: number };
   };
 
@@ -13,10 +14,11 @@
   export let editMode: boolean = false;
 
   let editingId: string | null = null;
-  let editFields: { position: string; bio: string; profileLink: string } = {
+  let editFields: { position: string; bio: string; profileLink: string; profilePictureUrl: string } = {
     position: '',
     bio: '',
-    profileLink: ''
+    profileLink: '',
+    profilePictureUrl: ''
   };
   let saving = false;
   let saveError = '';
@@ -26,7 +28,8 @@
     editFields = {
       position: officer.position ?? '',
       bio: officer.bio ?? '',
-      profileLink: officer.profileLink ?? ''
+      profileLink: officer.profileLink ?? '',
+      profilePictureUrl: officer.profilePictureUrl ?? ''
     };
   }
 
@@ -48,6 +51,7 @@
         officer.position = editFields.position || null;
         officer.bio = editFields.bio || null;
         officer.profileLink = editFields.profileLink || null;
+        officer.profilePictureUrl = editFields.profilePictureUrl || null;
         officers = [...officers];
         editingId = null;
       } else {
@@ -78,6 +82,13 @@
           <span class="text-xs">Profile Link (LinkedIn, etc.)</span>
           <input type="text" bind:value={editFields.profileLink} class="input input-sm" placeholder="https://…" />
         </label>
+        <label class="label">
+          <span class="text-xs">Photo URL</span>
+          <input type="text" bind:value={editFields.profilePictureUrl} class="input input-sm" placeholder="https://…/photo.jpg" />
+        </label>
+        {#if editFields.profilePictureUrl}
+          <img src={editFields.profilePictureUrl} alt="Preview" class="w-16 h-16 rounded-full object-cover" />
+        {/if}
         {#if saveError}<p class="text-error-500 text-xs">{saveError}</p>{/if}
         <div class="flex gap-2">
           <button on:click={() => saveOfficer(officer)} disabled={saving} class="btn btn-sm variant-filled-success">
@@ -94,10 +105,18 @@
           target={officer.profileLink ? '_blank' : undefined}
           rel="noopener noreferrer"
         >
-          <div class="bg-surface-200-700-token w-full aspect-[10/8] flex items-center justify-center">
-            <span class="text-4xl font-bold opacity-30">
-              {officer.firstName[0]}{officer.lastName?.[0] ?? ''}
-            </span>
+          <div class="bg-surface-200-700-token w-full aspect-[10/8] flex items-center justify-center overflow-hidden">
+            {#if officer.profilePictureUrl}
+              <img
+                src={officer.profilePictureUrl}
+                alt="{officer.firstName} {officer.lastName ?? ''}"
+                class="w-full h-full object-cover"
+              />
+            {:else}
+              <span class="text-4xl font-bold opacity-30">
+                {officer.firstName[0]}{officer.lastName?.[0] ?? ''}
+              </span>
+            {/if}
           </div>
           <div class="p-4 space-y-1">
             <h6 class="h3">{officer.firstName} {officer.lastName ?? ''}</h6>
