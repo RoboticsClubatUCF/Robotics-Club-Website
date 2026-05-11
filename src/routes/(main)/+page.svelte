@@ -25,11 +25,13 @@
   let dragOver: string | null = null;
 
   function handleDragStart(e: DragEvent, cardName: string) {
+    if (!data.editMode) { e.preventDefault(); return; }
     dragging = cardName;
     e.dataTransfer!.effectAllowed = 'move';
   }
 
   function handleDragOver(e: DragEvent, cardName: string) {
+    if (!data.editMode || !dragging) return;
     e.preventDefault();
     e.dataTransfer!.dropEffect = 'move';
     dragOver = cardName;
@@ -37,7 +39,7 @@
 
   function handleDrop(e: DragEvent, targetCard: string) {
     e.preventDefault();
-    if (!dragging || dragging === targetCard) {
+    if (!data.editMode || !dragging || dragging === targetCard) {
       dragging = null;
       dragOver = null;
       return;

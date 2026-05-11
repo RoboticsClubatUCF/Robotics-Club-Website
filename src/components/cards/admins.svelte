@@ -27,11 +27,13 @@
   let dragOver: string | null = null;
 
   function handleDragStart(e: DragEvent, id: string) {
+    if (!editMode) { e.preventDefault(); return; }
     dragging = id;
     e.dataTransfer!.effectAllowed = 'move';
   }
 
   function handleDragOver(e: DragEvent, id: string) {
+    if (!editMode || !dragging) return;
     e.preventDefault();
     e.dataTransfer!.dropEffect = 'move';
     dragOver = id;
@@ -39,7 +41,7 @@
 
   function handleDrop(e: DragEvent, targetId: string) {
     e.preventDefault();
-    if (!dragging || dragging === targetId) {
+    if (!editMode || !dragging || dragging === targetId) {
       dragging = null;
       dragOver = null;
       return;

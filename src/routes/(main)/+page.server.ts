@@ -99,10 +99,7 @@ export const load: PageServerLoad = async () => {
 
   const officers = await db.member.findMany({
     where: {
-      OR: [
-        { role: { permissionLevel: { gte: 10, lt: 999 } } },
-        { role: { permissionLevel: 999 }, position: { not: null } }
-      ]
+      role: { permissionLevel: { gte: 10, lt: 999 } }
     },
     select: {
       id: true,

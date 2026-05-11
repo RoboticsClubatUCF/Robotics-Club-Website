@@ -12,12 +12,7 @@ export const load: PageServerLoad = async () => {
   const [dbContent, officers] = await Promise.all([
     db.siteContent.findMany({ where: { key: { in: CONTENT_KEYS } } }),
     db.member.findMany({
-      where: {
-        OR: [
-          { role: { permissionLevel: { gte: 10, lt: 999 } } },
-          { role: { permissionLevel: 999 }, position: { not: null } }
-        ]
-      },
+      where: { role: { permissionLevel: { gte: 10, lt: 999 } } },
       select: {
         id: true,
         firstName: true,
