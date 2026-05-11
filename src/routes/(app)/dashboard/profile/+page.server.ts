@@ -6,14 +6,8 @@ import { fail, redirect } from '@sveltejs/kit';
 import { db } from '$lib/db';
 import { assignMemberRole } from '$lib/discord';
 
-let userID = '';
-
 export const load = (async ({ parent }) => {
   const data = await parent();
-  if (data.member && data.member?.lastName == undefined) {
-    data.member.lastName == '';
-  }
-  userID = data.member!.id;
   // @ts-ignore — data.member has extra Prisma fields not in editProfileSchema
   const form = await superValidate(data.member, zod(editProfileSchema));
   form.message = 'IDLE';
@@ -32,7 +26,7 @@ const editProfileSchema = z.object({
 });
 
 export const actions: Actions = {
-  updateProfile: async ({ request, fetch }) => {
+  updateProfile: async ({ request, fetch, locals }) => {
     const form = await superValidate(request, zod(editProfileSchema));
 
     if (!form.valid) {
@@ -40,13 +34,17 @@ export const actions: Actions = {
       return fail(400, { form });
     }
 
-    const current = await db.member.findUnique({
-      where: { id: userID },
-      select: { discordProfileName: true }
+    if (!locals.member) return fail(401, { form });
+
+    const current = await db.member.findFirst({
+      where: { email: locals.member.email },
+      select: { id: true, discordProfileName: true }
     });
 
+    if (!current) return fail(404, { form });
+
     await db.member.update({
-      where: { id: userID },
+      where: { id: current.id },
       data: {
         email: form.data.email,
         firstName: form.data.firstName,
@@ -72,14 +70,16 @@ export const actions: Actions = {
     return { form };
   },
 
-  deleteAccount: async ({ request, cookies }) => {
+  deleteAccount: async ({ request, cookies, locals }) => {
+    if (!locals.member) return fail(401, { deleteError: 'Not logged in.' });
+
     const data = await request.formData();
     const confirm1 = data.get('confirmName1') as string;
     const confirm2 = data.get('confirmName2') as string;
 
-    const member = await db.member.findUnique({
-      where: { id: userID },
-      select: { firstName: true, lastName: true }
+    const member = await db.member.findFirst({
+      where: { email: locals.member.email },
+      select: { id: true, firstName: true, lastName: true }
     });
 
     if (!member) return fail(404, { deleteError: 'Account not found.' });
@@ -91,9 +91,9 @@ export const actions: Actions = {
     }
 
     await db.$transaction([
-      db.article.deleteMany({ where: { authorId: userID } }),
-      db.blogPost.deleteMany({ where: { memberId: userID } }),
-      db.member.delete({ where: { id: userID } })
+      db.article.deleteMany({ where: { authorId: member.id } }),
+      db.blogPost.deleteMany({ where: { memberId: member.id } }),
+      db.member.delete({ where: { id: member.id } })
     ]);
 
     cookies.set('session', '', { path: '/', expires: new Date(0) });

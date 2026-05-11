@@ -5,8 +5,6 @@ import { zod } from '$lib/zodAdapter';
 import { fail, redirect } from '@sveltejs/kit';
 import { db } from '$lib/db';
 
-let userEmail = '';
-console.log('On Inital: ' + userEmail);
 const surSchema = z.object({
   // answers to questions here
   gitName: z.string(),
@@ -29,23 +27,14 @@ const surSchema = z.object({
 });
 
 export const load: PageServerLoad = async ({ locals, parent }) => {
-  userEmail = locals.member?.email ?? (await parent()).member.email;
+  const userEmail = locals.member?.email ?? (await parent()).member.email;
 
-  // Check if user already has a survey
   const existingSurvey = await db.survey.findFirst({
-    where: {
-      Member: {
-        some: {
-          email: userEmail
-        }
-      }
-    }
+    where: { Member: { some: { email: userEmail } } }
   });
 
   if (existingSurvey) {
     throw redirect(302, '/dashboard');
-  } else {
-    console.log('On load userEmail: ' + userEmail);
   }
 
   const form = await superValidate(zod(surSchema));
@@ -53,7 +42,7 @@ export const load: PageServerLoad = async ({ locals, parent }) => {
 };
 
 export const actions: Actions = {
-  default: async ({ request }) => {
+  default: async ({ request, locals }) => {
     const form = await superValidate(request, zod(surSchema));
 
     // Validating forms
@@ -82,9 +71,9 @@ export const actions: Actions = {
       return setError(form, 'semester', 'Really?');
     }
 
-    console.log('On create userEmail: ' + userEmail);
+    const memberEmail = locals.member?.email;
+    if (!memberEmail) return fail(401, { form });
 
-    // Creating survey entry in the database
     await db.survey.create({
       data: {
         GitName: form.data.gitName,
@@ -101,7 +90,7 @@ export const actions: Actions = {
         Concerns: form.data.otherConcerns,
         Member: {
           connect: {
-            email: userEmail
+            email: memberEmail
           }
         }
       }

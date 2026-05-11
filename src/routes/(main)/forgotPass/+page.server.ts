@@ -12,37 +12,9 @@ const forgotPasswordSchema = z.object({
   email: z.string().email()
 });
 
-export const load = (async ({ locals }) => {
+export const load = (async () => {
   const form = await superValidate(zod(forgotPasswordSchema));
-
-  const userInQuestion = await db.member.findUnique({
-    where: {
-      email: form.data.email
-    }
-  });
-
-  // Here, you should also check if the user has an existing token
-  const existingToken = await db.passwordResetToken.findFirst({
-    where: {
-      // Assuming `userId` can be retrieved from `locals` or some context
-      userId: userInQuestion?.id, 
-      expiresAt: {
-        gt: new Date(),
-      },
-    },
-  });
-
-  let remainingTime = 0;
-
-  if (existingToken) {
-    remainingTime = Math.floor((existingToken.expiresAt.getTime() - new Date().getTime()) / 1000);
-  }
-
-  return {
-    form,
-    existingToken: !!existingToken,
-    remainingTime,
-  };
+  return { form, existingToken: false, remainingTime: 0 };
 }) satisfies PageServerLoad;
 
 
@@ -105,7 +77,7 @@ export const actions: Actions = {
 
     // Send an email with the reset link
     const client = new postmark.ServerClient(POSTMARK_API_TOKEN);
-    const resetLink = `http://rccf.club/forgotPass/reset-password?token=${token}`;
+    const resetLink = `https://rccf.club/forgotPass/reset-password?token=${token}`;
 
     try {
       await client.sendEmailWithTemplate({
