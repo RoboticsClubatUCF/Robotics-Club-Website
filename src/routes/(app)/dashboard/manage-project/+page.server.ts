@@ -103,6 +103,7 @@ export const actions: Actions = {
 
     // Clear child records before deleting
     await db.article.deleteMany({ where: { projectId: id } });
+    await db.tag.updateMany({ where: { projectId: id }, data: { projectId: null } });
     await db.record.updateMany({ where: { projectId: id }, data: { projectId: null } });
     await db.expendatureRequest.updateMany({ where: { projectId: id }, data: { projectId: null } });
     await db.team.updateMany({ where: { projectId: id }, data: { projectId: null } });

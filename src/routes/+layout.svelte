@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { Toast, initializeStores } from '@skeletonlabs/skeleton';
+  import { Toast, Modal, initializeStores } from '@skeletonlabs/skeleton';
   initializeStores();
 </script>
 
+<Modal buttonPositive="variant-filled-error" />
 <Toast />
 <slot />

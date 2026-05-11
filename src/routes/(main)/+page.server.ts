@@ -24,8 +24,12 @@ const CONTENT_KEYS = [
   'home.social.github',
   'home.social.instagram.club',
   'home.social.instagram.tapemeasure',
-  'home.faq.items'
+  'home.faq.items',
+  'home.card.order',
+  'home.officers.order'
 ];
+
+const DEFAULT_CARD_ORDER = ['mission', 'projects', 'teaching', 'outreach', 'competition', 'research'];
 
 export const load: PageServerLoad = async () => {
   const projectCount = await numProjects();
@@ -82,9 +86,20 @@ export const load: PageServerLoad = async () => {
     faqItems
   };
 
+  let cardOrder: string[];
+  try {
+    const parsed = contentMap['home.card.order'] ? JSON.parse(contentMap['home.card.order']) : null;
+    cardOrder =
+      Array.isArray(parsed) && parsed.length === DEFAULT_CARD_ORDER.length
+        ? parsed
+        : DEFAULT_CARD_ORDER;
+  } catch {
+    cardOrder = DEFAULT_CARD_ORDER;
+  }
+
   const officers = await db.member.findMany({
     where: {
-      role: { permissionLevel: { gte: 10 } }
+      role: { permissionLevel: { gte: 10, lt: 999 } }
     },
     select: {
       id: true,
@@ -99,5 +114,23 @@ export const load: PageServerLoad = async () => {
     orderBy: { role: { permissionLevel: 'desc' } }
   });
 
-  return { projectCount, siteContent, officers };
+  let officerOrderIds: string[] = [];
+  try {
+    const parsed = contentMap['home.officers.order']
+      ? JSON.parse(contentMap['home.officers.order'])
+      : null;
+    if (Array.isArray(parsed)) officerOrderIds = parsed;
+  } catch {
+    officerOrderIds = [];
+  }
+
+  if (officerOrderIds.length > 0) {
+    officers.sort((a, b) => {
+      const ai = officerOrderIds.indexOf(a.id);
+      const bi = officerOrderIds.indexOf(b.id);
+      return (ai === -1 ? 9999 : ai) - (bi === -1 ? 9999 : bi);
+    });
+  }
+
+  return { projectCount, siteContent, officers, cardOrder };
 };

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
-  import { modeCurrent } from '@skeletonlabs/skeleton';
+  import { modeCurrent, getModalStore } from '@skeletonlabs/skeleton';
+  import { tick } from 'svelte';
   import type { PageData, ActionData } from './$types';
 
   export let data: PageData;
@@ -43,6 +44,27 @@
   let saving = false;
 
   const SEASONS = ['Fall', 'Spring', 'Summer'];
+
+  // ---- Delete confirmation ----
+  let pendingDeleteId: number | null = null;
+  let deleteFormEl: HTMLFormElement;
+  const modalStore = getModalStore();
+
+  function confirmDelete(project: Project) {
+    modalStore.trigger({
+      type: 'confirm',
+      title: 'Delete Project',
+      body: `Are you sure you want to delete "${project.title}"? This will also remove its articles.`,
+      buttonTextConfirm: 'Delete',
+      response: async (confirmed: boolean) => {
+        if (confirmed) {
+          pendingDeleteId = project.id;
+          await tick();
+          deleteFormEl.requestSubmit();
+        }
+      }
+    });
+  }
 </script>
 
 <div class="p-6 max-w-4xl mx-auto space-y-6">
@@ -249,31 +271,15 @@
                   {duplicating === project.id ? '…' : 'Duplicate'}
                 </button>
               </form>
-              <form
-                method="POST"
-                action="?/delete"
-                use:enhance={({ cancel }) => {
-                  if (!confirm(`Delete "${project.title}"? This will also remove its articles.`)) {
-                    cancel();
-                    return;
-                  }
-                  deleting = project.id;
-                  return async ({ update }) => {
-                    await update();
-                    deleting = null;
-                  };
-                }}
+              <button
+                type="button"
+                disabled={deleting === project.id}
+                class="btn btn-sm variant-filled-error"
+                title="Delete project"
+                on:click={() => confirmDelete(project)}
               >
-                <input type="hidden" name="id" value={project.id} />
-                <button
-                  type="submit"
-                  disabled={deleting === project.id}
-                  class="btn btn-sm variant-filled-error"
-                  title="Delete project"
-                >
-                  {deleting === project.id ? '…' : '×'}
-                </button>
-              </form>
+                {deleting === project.id ? '…' : '×'}
+              </button>
             </div>
           </div>
         {/if}
@@ -281,3 +287,20 @@
     </div>
   {/if}
 </div>
+
+<form
+  bind:this={deleteFormEl}
+  method="POST"
+  action="?/delete"
+  class="hidden"
+  use:enhance={() => {
+    deleting = pendingDeleteId;
+    return async ({ update }) => {
+      await update();
+      deleting = null;
+      pendingDeleteId = null;
+    };
+  }}
+>
+  <input type="hidden" name="id" value={pendingDeleteId ?? ''} />
+</form>
