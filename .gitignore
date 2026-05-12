@@ -11,3 +11,5 @@ metricsLogs
 **/rccf-postgres
 src/paypal.ts
 .envEXAMPLE
+haproxy/errors/*.http
+haproxy/errors/preview/

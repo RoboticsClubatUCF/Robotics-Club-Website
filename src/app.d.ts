@@ -2,6 +2,9 @@
 
 import type { PrismaClient } from '@prisma/client';
 
+declare module '*.postcss';
+declare module '*.css';
+
 
 declare global {
   namespace App {
