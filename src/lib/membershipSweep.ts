@@ -15,15 +15,11 @@ export async function sweepExpiredMemberships(): Promise<string[]> {
 	]);
 
 	if (semester === Season.Summer) {
-		lines.push('Summer period — skipping sweep (membership is free).');
-		lines.push('Done.');
-		return lines;
+		lines.push('Summer period — sweeping expired memberships.');
 	}
 
 	if (inGrace) {
-		lines.push('Grace period active — skipping sweep.');
-		lines.push('Done.');
-		return lines;
+		lines.push('Grace period — sweeping expired memberships.');
 	}
 
 	const expired = await db.member.findMany({
@@ -47,8 +43,7 @@ export async function sweepExpiredMemberships(): Promise<string[]> {
 	lines.push(`Found ${expired.length} expired membership(s).`);
 
 	const guestRole = await db.role.findFirst({
-		where: { permissionLevel: 0 },
-		orderBy: { permissionLevel: 'desc' }
+		where: { name: config.roles.guest.name }
 	});
 
 	if (!guestRole) {
@@ -57,13 +52,7 @@ export async function sweepExpiredMemberships(): Promise<string[]> {
 	}
 
 	for (const member of expired) {
-		const effectiveRoles = member.roles.length > 0 ? member.roles : [member.role];
-		const keepRoles = effectiveRoles.filter((r) => r.permissionLevel >= config.roles.officer.level);
-		const newRoles = [...keepRoles, guestRole];
-		const newPrimaryRole = newRoles.reduce(
-			(max, r) => (r.permissionLevel > max.permissionLevel ? r : max),
-			guestRole
-		);
+		const isOfficer = member.role.permissionLevel >= config.roles.officer.level;
 
 		lines.push(`Processing: ${member.discordProfileName}`);
 
@@ -81,23 +70,44 @@ export async function sweepExpiredMemberships(): Promise<string[]> {
 			}
 		}
 
-		await db.member.update({
-			where: { id: member.id },
-			data: {
-				role: { connect: { id: newPrimaryRole.id } },
-				roles: { set: newRoles.map((r) => ({ id: r.id })) },
-				Projects: { set: [] }
-			}
-		});
-
-		const syncResult = await syncMemberRoles(
-			member.discordProfileName,
-			keepRoles.map((r) => r.name)
-		);
-		if (!syncResult.success) {
-			lines.push(`  [Discord] Role sync failed: ${syncResult.error}`);
+		if (isOfficer) {
+			const keepRoles = member.roles.filter((r) => r.permissionLevel >= config.roles.officer.level);
+			if (!keepRoles.some((r) => r.id === member.role.id)) keepRoles.push(member.role);
+			await db.member.update({
+				where: { id: member.id },
+				data: {
+					roles: { set: keepRoles.map((r) => ({ id: r.id })) },
+					Projects: { set: [] }
+				}
+			});
+			lines.push(`  Officer — membership roles cleared, officer/admin roles preserved.`);
 		} else {
-			lines.push(`  Role -> ${newPrimaryRole.name} (level ${newPrimaryRole.permissionLevel})`);
+			const effectiveRoles = member.roles.length > 0 ? member.roles : [member.role];
+			const keepRoles = effectiveRoles.filter((r) => r.permissionLevel >= config.roles.officer.level);
+			const newRoles = [...keepRoles, guestRole];
+			const newPrimaryRole = newRoles.reduce(
+				(max, r) => (r.permissionLevel > max.permissionLevel ? r : max),
+				guestRole
+			);
+
+			await db.member.update({
+				where: { id: member.id },
+				data: {
+					role: { connect: { id: newPrimaryRole.id } },
+					roles: { set: newRoles.map((r) => ({ id: r.id })) },
+					Projects: { set: [] }
+				}
+			});
+
+			const syncResult = await syncMemberRoles(
+				member.discordProfileName,
+				keepRoles.map((r) => r.name)
+			);
+			if (!syncResult.success) {
+				lines.push(`  [Discord] Role sync failed: ${syncResult.error}`);
+			} else {
+				lines.push(`  Role -> ${newPrimaryRole.name} (level ${newPrimaryRole.permissionLevel})`);
+			}
 		}
 
 		await new Promise((r) => setTimeout(r, 500));

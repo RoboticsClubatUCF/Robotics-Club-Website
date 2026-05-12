@@ -3,6 +3,7 @@ import { assignMemberRole } from '$lib/discord';
 import { calculateValidSemester } from '../../../../components/scripts/dates';
 import type { PageServerLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
+import config from '../../../../config';
 
 export const load = (async ({ params, locals, fetch, url }) => {
   if (!locals.member?.email) {
@@ -34,7 +35,7 @@ export const load = (async ({ params, locals, fetch, url }) => {
     membershipExpDate: newExpDate,
     roles: { connect: { name: 'member' } }
   };
-  if (self.role.permissionLevel < 4) {
+  if (self.role.permissionLevel < config.roles.member.level) {
     updateData.role = { connect: { name: 'member' } };
   }
 
