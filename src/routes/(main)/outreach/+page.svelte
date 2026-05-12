@@ -24,7 +24,7 @@
   <br />
 
   <div class="content-section">
-    <div class="text-container">
+    <div class="text-container card p-6">
       <p class="text-lg">
         <EditableText
           contentKey="outreach.intro.text"
@@ -69,7 +69,7 @@
           imgClass="w-full rounded"
         />
       </div>
-      <div class="text-container">
+      <div class="text-container card p-6">
         <p class="text-lg">
           <EditableText
             contentKey="outreach.commitment.text"
@@ -94,7 +94,7 @@
       </h1>
     </div>
     <br />
-    <div class="flex-1 text-center">
+    <div class="flex-1 text-center card p-6">
       <p class="text-lg">
         <EditableText
           contentKey="outreach.hostUs.text"

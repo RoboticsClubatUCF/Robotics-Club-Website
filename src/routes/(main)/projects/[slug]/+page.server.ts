@@ -2,7 +2,7 @@ import { db } from '$lib/db';
 import { error, fail } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import { Season } from '@prisma/client';
-import { getCurrentSemester, isInGracePeriod } from '$lib/currentSemester';
+import { getCurrentSemester } from '$lib/currentSemester';
 import { assignProjectRole, removeProjectRole } from '$lib/discord';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -47,10 +47,9 @@ export const load: PageServerLoad = async ({ params, locals }) => {
     });
     if (self) {
       isJoined = self.Projects.some((p) => p.id === project.id);
-      const inGracePeriod = await isInGracePeriod(dateInfo.semester, dateInfo.year);
       const duesActive = self.membershipExpDate > new Date();
       const isSummer = dateInfo.semester === Season.Summer;
-      canJoin = !!self.surveyId && (isSummer || inGracePeriod || duesActive);
+      canJoin = !!self.surveyId && (isSummer || duesActive);
     }
   }
 
@@ -73,10 +72,9 @@ export const actions: Actions = {
     }
 
     const dateInfo = await getCurrentSemester();
-    const inGracePeriod = await isInGracePeriod(dateInfo.semester, dateInfo.year);
     const duesActive = self.membershipExpDate > new Date();
 
-    if (dateInfo.semester !== Season.Summer && !inGracePeriod && !duesActive) {
+    if (dateInfo.semester !== Season.Summer && !duesActive) {
       return fail(403, { error: 'Active membership required to join a project' });
     }
     const project = await db.project.findFirst({

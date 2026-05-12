@@ -7,33 +7,40 @@ export async function getCurrentSemester(): Promise<{ year: number; semester: Se
   const year = today.getFullYear();
 
   try {
-    const [springEnd, fallStart] = await Promise.all([
+    const [springEnd, summerEnd, fallEnd] = await Promise.all([
       getSemesterEndDate(year, 'spring'),
-      getSemesterStartDate(year, 'fall')
+      getSemesterEndDate(year, 'summer'),
+      getSemesterEndDate(year, 'fall')
     ]);
 
     if (today < springEnd) return { year, semester: Season.Spring };
-    if (today < fallStart) return { year, semester: Season.Summer };
-    return { year, semester: Season.Fall };
+    if (today <= summerEnd) return { year, semester: Season.Summer };
+    if (today <= fallEnd) return { year, semester: Season.Fall };
+    return { year: year + 1, semester: Season.Spring };
   } catch {
     return semesterYear();
   }
 }
 
 /**
- * Returns true if today is within the 14-day grace period at the start of the given
- * fall or spring semester. Always returns false for Summer — summer uses a separate
- * free-entry path (the summerRole action) and does not have a grace period.
+ * Returns whether today is within the 14-day grace period at the start of the
+ * current fall or spring semester, along with the grace period expiry date.
+ * Summer never has a grace period.
  */
-export async function isInGracePeriod(semester: Season, year: number): Promise<boolean> {
-  if (semester === Season.Summer) return false;
+export async function getGracePeriodInfo(): Promise<{ inGrace: boolean; expiry: Date | null }> {
+  const today = new Date();
+  const { year, semester } = await getCurrentSemester();
+
+  if (semester === Season.Summer) return { inGrace: false, expiry: null };
+
   const seasonStr = semester === Season.Fall ? 'fall' : 'spring';
   try {
     const semesterStart = await getSemesterStartDate(year, seasonStr);
-    const gracePeriodEnd = new Date(semesterStart);
-    gracePeriodEnd.setDate(gracePeriodEnd.getDate() + 14);
-    return new Date() <= gracePeriodEnd;
+    const expiry = new Date(semesterStart);
+    expiry.setDate(expiry.getDate() + 14);
+    const inGrace = today >= semesterStart && today <= expiry;
+    return inGrace ? { inGrace: true, expiry } : { inGrace: false, expiry: null };
   } catch {
-    return false;
+    return { inGrace: false, expiry: null };
   }
 }

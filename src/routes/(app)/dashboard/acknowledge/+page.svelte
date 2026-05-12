@@ -1,5 +1,6 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
+  import { goto } from '$app/navigation';
   import { modeCurrent } from '@skeletonlabs/skeleton';
   import type { PageData, ActionData } from './$types';
   import Payments from '../../../../components/stripe/payments.svelte';
@@ -112,18 +113,33 @@
         </span>
       </label>
 
-      <form
-        method="post"
-        action="?/confirm"
-        use:enhance={() => async ({ result, update }) => {
-          await update({ reset: false });
-          if (result.type === 'success') showPayment = true;
-        }}
-      >
-        <button type="submit" class="btn variant-filled-primary" disabled={!agreed}>
-          Continue to Payment
-        </button>
-      </form>
+      {#if data.isSummer}
+        <form
+          method="post"
+          action="?/confirm"
+          use:enhance={() => async ({ result, update }) => {
+            await update({ reset: false });
+            if (result.type === 'success') goto('/dashboard');
+          }}
+        >
+          <button type="submit" class="btn variant-filled-primary" disabled={!agreed}>
+            Proceed
+          </button>
+        </form>
+      {:else}
+        <form
+          method="post"
+          action="?/confirm"
+          use:enhance={() => async ({ result, update }) => {
+            await update({ reset: false });
+            if (result.type === 'success') showPayment = true;
+          }}
+        >
+          <button type="submit" class="btn variant-filled-primary" disabled={!agreed}>
+            Proceed
+          </button>
+        </form>
+      {/if}
 
     {:else}
       <!-- Payment section -->

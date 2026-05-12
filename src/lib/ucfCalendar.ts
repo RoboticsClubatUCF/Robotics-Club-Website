@@ -40,6 +40,34 @@ function termKey(year: number, season: UcfSeason) {
 	return `${year}-${season}`;
 }
 
+function getActiveTerms(): Array<{ year: number; season: UcfSeason }> {
+	const today = new Date();
+	const year = today.getFullYear();
+	const candidates: Array<{ year: number; season: UcfSeason }> = [
+		{ year,           season: 'spring' },
+		{ year,           season: 'summer' },
+		{ year,           season: 'fall'   },
+		{ year: year + 1, season: 'spring' },
+		{ year: year + 1, season: 'summer' },
+		{ year: year + 1, season: 'fall'   },
+	];
+	return candidates.filter(({ year: y, season }) => {
+		const [endMonth, endDay] = FALLBACK_END[season];
+		return new Date(y, endMonth, endDay) >= today;
+	});
+}
+
+function pruneExpiredTerms(): void {
+	const today = new Date();
+	for (const key of eventCache.keys()) {
+		const dashIdx = key.indexOf('-');
+		const y = parseInt(key.slice(0, dashIdx));
+		const season = key.slice(dashIdx + 1) as UcfSeason;
+		const [endMonth, endDay] = FALLBACK_END[season];
+		if (new Date(y, endMonth, endDay) < today) eventCache.delete(key);
+	}
+}
+
 async function fetchTerm(year: number, season: UcfSeason): Promise<void> {
 	const url = `https://calendar.ucf.edu/json/${year}/${season}`;
 	try {
@@ -59,7 +87,7 @@ async function fetchTerm(year: number, season: UcfSeason): Promise<void> {
 async function getEvents(year: number, season: UcfSeason): Promise<UcfEvent[]> {
 	const key = termKey(year, season);
 	const cached = eventCache.get(key);
-	if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) return cached.events;
+	if (cached && cached.events.length > 0 && Date.now() - cached.fetchedAt < CACHE_TTL_MS) return cached.events;
 	await fetchTerm(year, season);
 	return eventCache.get(key)?.events ?? [];
 }
@@ -96,26 +124,14 @@ export async function getSemesterStartDate(year: number, season: UcfSeason): Pro
 }
 
 export async function initCalendarService(): Promise<void> {
-	const year = new Date().getFullYear();
-	const terms: Array<{ year: number; season: UcfSeason }> = [
-		{ year, season: 'spring' },
-		{ year, season: 'summer' },
-		{ year, season: 'fall' },
-		{ year: year + 1, season: 'spring' }
-	];
+	pruneExpiredTerms();
+	const terms = getActiveTerms();
 	await Promise.allSettled(terms.map((t) => fetchTerm(t.year, t.season)));
 	console.log('[UCF Calendar] Initial fetch complete');
 }
 export async function runCalendarDiagnostics(): Promise<string[]> {
-	const year = new Date().getFullYear();
 	const lines: string[] = [];
-	const terms: Array<{ year: number; season: UcfSeason }> = [
-		{ year,         season: 'spring' },
-		{ year,         season: 'summer' },
-		{ year,         season: 'fall'   },
-		{ year: year + 1, season: 'spring' },
-		{ year: year + 1, season: 'fall'   }
-	];
+	const terms = getActiveTerms();
 
 	lines.push(`Diagnostic run at ${new Date().toISOString()}`);
 	lines.push(`Checking ${terms.length} terms...`);
@@ -132,9 +148,12 @@ export async function runCalendarDiagnostics(): Promise<string[]> {
 			lines.push(`[${y} ${season}] cache miss — fetching from UCF API...`);
 			await fetchTerm(y, season);
 			const after = eventCache.get(key);
-			lines.push(after
-				? `[${y} ${season}] fetched ${after.events.length} events OK`
-				: `[${y} ${season}] fetch failed — fallback dates will be used`
+			lines.push(
+				!after
+					? `[${y} ${season}] fetch failed — fallback dates will be used`
+					: after.events.length > 0
+						? `[${y} ${season}] fetched ${after.events.length} events OK`
+						: `[${y} ${season}] fetched 0 events — using default dates`
 			);
 		}
 

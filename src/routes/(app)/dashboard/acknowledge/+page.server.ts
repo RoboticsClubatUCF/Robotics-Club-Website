@@ -1,16 +1,21 @@
 import { db } from '$lib/db';
 import { error, redirect } from '@sveltejs/kit';
+import { Season } from '@prisma/client';
+import { getCurrentSemester } from '$lib/currentSemester';
+import { getSemesterEndDate } from '$lib/ucfCalendar';
+import config from '../../../../config';
 import type { Actions, PageServerLoad } from './$types';
 
 const MSG_KEY = 'acknowledgementMessage';
 
 export const load: PageServerLoad = async ({ locals }) => {
-  const [member, content] = await Promise.all([
+  const [member, content, dateInfo] = await Promise.all([
     db.member.findFirst({
       where: { email: locals.member.email },
       select: { id: true, membershipExpDate: true }
     }),
-    db.siteContent.findUnique({ where: { key: MSG_KEY } })
+    db.siteContent.findUnique({ where: { key: MSG_KEY } }),
+    getCurrentSemester()
   ]);
 
   if (!member) throw error(404);
@@ -31,16 +36,47 @@ export const load: PageServerLoad = async ({ locals }) => {
     message: content?.value ?? '<Insert acknowledgement message>',
     memberId: member.id,
     membershipExpired,
-    isOfficer
+    isOfficer,
+    isSummer: dateInfo.semester === Season.Summer
   };
 };
 
 export const actions: Actions = {
   confirm: async ({ locals }) => {
-    await db.member.update({
-      where: { email: locals.member.email },
-      data: { acknowledgedAt: new Date() }
-    });
+    const { semester } = await getCurrentSemester();
+    const isSummer = semester === Season.Summer;
+
+    const data: Record<string, unknown> = { acknowledgedAt: new Date() };
+
+    if (isSummer) {
+      const year = new Date().getFullYear();
+      data.membershipExpDate = await getSemesterEndDate(year, 'summer');
+
+      const [currentMember, memberRole] = await Promise.all([
+        db.member.findFirst({ where: { email: locals.member.email }, select: { roles: true } }),
+        db.role.findFirst({ where: { name: config.roles.member.name } })
+      ]);
+
+      if (memberRole) {
+        const existingRoles = currentMember?.roles ?? [];
+        const newRoleSet = existingRoles.some((r) => r.id === memberRole.id)
+          ? existingRoles
+          : [...existingRoles, memberRole];
+        const primaryRole = newRoleSet.reduce(
+          (max, r) => (r.permissionLevel > max.permissionLevel ? r : max),
+          memberRole
+        );
+        data.role = { connect: { id: primaryRole.id } };
+        data.roles = {
+          connectOrCreate: {
+            create: { permissionLevel: config.roles.member.level, name: config.roles.member.name },
+            where: { name: config.roles.member.name }
+          }
+        };
+      }
+    }
+
+    await db.member.update({ where: { email: locals.member.email }, data });
     return { confirmed: true };
   },
 

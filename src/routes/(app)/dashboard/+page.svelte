@@ -20,7 +20,7 @@
   import FaTerminal from 'svelte-icons/fa/FaTerminal.svelte';
 
   import type { Prisma } from '@prisma/client';
-  export let data: { user: DashboardUser | null; surveyDateUpdated: Date | undefined; joinableProjects: Prisma.ProjectGetPayload<{ include: { logo: true } }>[]; member?: { id: string }; isSummerPeriod: boolean; currentYear: number; currentSemester: import('@prisma/client').Season };
+  export let data: { user: DashboardUser | null; surveyDateUpdated: Date | undefined; joinableProjects: Prisma.ProjectGetPayload<{ include: { logo: true } }>[]; member?: { id: string }; isSummerPeriod: boolean; isGracePeriod: boolean; gracePeriodExpiry: Date | null; currentYear: number; currentSemester: import('@prisma/client').Season };
   const drawerStore = getDrawerStore();
   const drawerSettingsLeft: DrawerSettings = {
     id: 'dashboard1',
@@ -148,6 +148,18 @@
                     Join as a Summer Member
                   </button>
                 </form>
+              {/if}
+            {:else if memberExpired && data.isGracePeriod}
+              {#if data.user?.id}
+                <form action="?/graceRole" method="post" use:enhance>
+                  <input type="hidden" name="id" bind:value={data.user.id} />
+                  <button type="submit" class="btn variant-ghost-tertiary hover:variant-filled-tertiary">
+                    Join as a Trial Member
+                  </button>
+                </form>
+                <p class="text-xs opacity-50 mt-2">
+                  Free 2-week trial · expires {data.gracePeriodExpiry ? new Date(data.gracePeriodExpiry).toDateString() : ''}
+                </p>
               {/if}
             {:else if memberExpired}
               <span class="badge variant-filled-error">Dues Expired</span>

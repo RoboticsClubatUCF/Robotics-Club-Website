@@ -1,7 +1,8 @@
 import { db } from '$lib/db';
 import { error, redirect } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
-import { getCurrentSemester, isInGracePeriod } from '$lib/currentSemester';
+import { syncMemberRoles } from '$lib/discord';
+import { getGracePeriodInfo } from '$lib/currentSemester';
 import config from '../../config';
 
 export const load: LayoutServerLoad = async ({ locals, url }) => {
@@ -27,25 +28,19 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
   const isAdmin = member.role.permissionLevel >= 999;
 
   // Block expired members from all dashboard routes except the payment page.
-  // Admins are exempt. During the 14-day grace period at the start of fall/spring,
-  // expired members are allowed through so they can re-enroll in projects before paying.
+  // Admins and members in the 14-day grace period at the start of fall/spring are exempt.
   if (!isAdmin && member.membershipExpDate < new Date()) {
-    const dateInfo = await getCurrentSemester();
-    const inGracePeriod = await isInGracePeriod(dateInfo.semester, dateInfo.year);
-    if (!inGracePeriod) {
-      // Immediately strip member-and-below roles so the DB stays consistent with
-      // the expiration. Officers keep their officer role; the hourly sweep does
-      // the same but this closes the timing gap.
+    const { inGrace } = await getGracePeriodInfo();
+    if (!inGrace) {
       const memberRolesToRemove = member.roles.filter(
-        (r) => r.permissionLevel <= config.roles.member.level
+        (r) => r.permissionLevel < config.roles.officer.level
       );
       if (memberRolesToRemove.length > 0) {
         await db.member.update({
           where: { id: member.id },
           data: {
             roles: { disconnect: memberRolesToRemove.map((r) => ({ id: r.id })) },
-            // Non-officer users also get their primary role reset to guest.
-            ...(member.role.permissionLevel <= config.roles.member.level &&
+            ...(member.role.permissionLevel < config.roles.officer.level &&
               member.role.name !== config.roles.guest.name && {
                 role: {
                   connectOrCreate: {
@@ -59,6 +54,10 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
               })
           }
         });
+        const keepRoles = member.roles.filter((r) => r.permissionLevel >= config.roles.officer.level);
+        syncMemberRoles(member.discordProfileName, keepRoles.map((r) => r.name)).catch(
+          (e) => console.error('[Discord sync on expiry]', e)
+        );
       }
       if (!url.pathname.startsWith('/dashboard/acknowledge')) {
         throw redirect(302, '/dashboard/acknowledge');

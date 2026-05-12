@@ -1,10 +1,30 @@
 import { db } from '$lib/db';
 import { syncMemberRoles, removeProjectRole } from '$lib/discord';
+import { getCurrentSemester, getGracePeriodInfo } from '$lib/currentSemester';
+import config from '../config';
+import { Season } from '@prisma/client';
 
 export async function sweepExpiredMemberships(): Promise<string[]> {
 	const lines: string[] = [];
 	const now = new Date();
 	lines.push(`Sweep started at ${now.toISOString()}`);
+
+	const [{ semester }, { inGrace }] = await Promise.all([
+		getCurrentSemester(),
+		getGracePeriodInfo()
+	]);
+
+	if (semester === Season.Summer) {
+		lines.push('Summer period — skipping sweep (membership is free).');
+		lines.push('Done.');
+		return lines;
+	}
+
+	if (inGrace) {
+		lines.push('Grace period active — skipping sweep.');
+		lines.push('Done.');
+		return lines;
+	}
 
 	const expired = await db.member.findMany({
 		where: {
@@ -38,7 +58,7 @@ export async function sweepExpiredMemberships(): Promise<string[]> {
 
 	for (const member of expired) {
 		const effectiveRoles = member.roles.length > 0 ? member.roles : [member.role];
-		const keepRoles = effectiveRoles.filter((r) => r.permissionLevel >= 10);
+		const keepRoles = effectiveRoles.filter((r) => r.permissionLevel >= config.roles.officer.level);
 		const newRoles = [...keepRoles, guestRole];
 		const newPrimaryRole = newRoles.reduce(
 			(max, r) => (r.permissionLevel > max.permissionLevel ? r : max),

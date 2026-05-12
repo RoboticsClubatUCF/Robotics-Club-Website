@@ -2,10 +2,11 @@ import Stripe from 'stripe';
 import { SECRET_STRIPE_KEY } from '$env/static/private';
 import config from '../../config';
 import { error } from '@sveltejs/kit';
+import type { RequestHandler } from './$types';
 
 const stripe = new Stripe(SECRET_STRIPE_KEY);
 
-export async function POST({ request, locals }) {
+export const POST: RequestHandler = async ({ request, locals }) => {
   if (!locals.member) throw error(401, 'Unauthorized');
 
   const { duesType } = await request.json();
