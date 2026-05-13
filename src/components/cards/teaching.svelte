@@ -17,9 +17,9 @@
   <div class="p-4 space-y-4">
     <h6 class="h4">Workshops</h6>
     <article>
-      <p>
+      <div>
         <EditableText contentKey="home.teachingStatement" value={text} {editMode} />
-      </p>
+      </div>
     </article>
   </div>
   <hr class="opacity-50" />
