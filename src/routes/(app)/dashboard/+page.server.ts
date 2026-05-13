@@ -65,10 +65,10 @@ export const load: PageServerLoad = async ({ locals, fetch }) => {
       didCleanup = true;
     }
 
-    if (user.role.permissionLevel < config.roles.officer.level && user.role.name !== config.roles.guest.name) {
+    if (user.role.permissionLevel < config.roles.teamLead.level && user.role.name !== config.roles.guest.name) {
       const guestRole = await db.role.findFirst({ where: { name: config.roles.guest.name } });
       if (guestRole) {
-        const keepRoles = user.roles.filter((r) => r.permissionLevel >= config.roles.officer.level);
+        const keepRoles = user.roles.filter((r) => r.permissionLevel >= config.roles.teamLead.level);
         const newRoles = [...keepRoles, guestRole];
         const primaryRole = newRoles.reduce(
           (max, r) => (r.permissionLevel > max.permissionLevel ? r : max),

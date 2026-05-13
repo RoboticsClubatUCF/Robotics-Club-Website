@@ -43,7 +43,7 @@ export default {
     },
     lead: {
       level: 8,
-      name: 'lead'
+      name: 'project lead'
     },
     teamLead: {
       level: 7,

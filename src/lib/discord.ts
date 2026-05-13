@@ -46,7 +46,7 @@ async function findGuildMember(
 // Officer assignment is DB-only; the role is managed manually on the Discord server.
 const DISCORD_ROLE_MAP: Array<{ name: string; id: string }> = [
   { name: 'member', id: DISCORD_MEMBER_ROLE_ID },
-  { name: 'lead', id: DISCORD_PROJECT_LEAD_ROLE_ID },
+  { name: 'project lead', id: DISCORD_PROJECT_LEAD_ROLE_ID },
   { name: 'team lead', id: DISCORD_TEAM_LEAD_ROLE_ID }
 ].filter((entry) => entry.id.length > 0);
 

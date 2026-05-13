@@ -25,7 +25,11 @@ export async function sweepExpiredMemberships(): Promise<string[]> {
 	const expired = await db.member.findMany({
 		where: {
 			membershipExpDate: { lt: now },
-			role: { permissionLevel: { gte: 4, lt: 999 } }
+			role: {
+				// All non-guest, non-admin roles: member (4), committee (6), team lead (7),
+				// project lead (8), and officer (10). Admins (999) are never touched automatically.
+				permissionLevel: { gte: 4, lt: 999 }
+			}
 		},
 		include: {
 			role: true,
@@ -52,7 +56,9 @@ export async function sweepExpiredMemberships(): Promise<string[]> {
 	}
 
 	for (const member of expired) {
-		const isOfficer = member.role.permissionLevel >= config.roles.officer.level;
+		// Leads, team leads, and officers keep their organizational roles when expired;
+		// only project assignments are removed. Members and committee get demoted to guest.
+		const isPrivilegedRole = member.role.permissionLevel >= config.roles.teamLead.level;
 
 		lines.push(`Processing: ${member.discordProfileName}`);
 
@@ -70,8 +76,8 @@ export async function sweepExpiredMemberships(): Promise<string[]> {
 			}
 		}
 
-		if (isOfficer) {
-			const keepRoles = member.roles.filter((r) => r.permissionLevel >= config.roles.officer.level);
+		if (isPrivilegedRole) {
+			const keepRoles = member.roles.filter((r) => r.permissionLevel >= config.roles.teamLead.level);
 			if (!keepRoles.some((r) => r.id === member.role.id)) keepRoles.push(member.role);
 			await db.member.update({
 				where: { id: member.id },
@@ -80,7 +86,7 @@ export async function sweepExpiredMemberships(): Promise<string[]> {
 					Projects: { set: [] }
 				}
 			});
-			lines.push(`  Officer — membership roles cleared, officer/admin roles preserved.`);
+			lines.push(`  Privileged role — project roles cleared, organizational roles preserved.`);
 		} else {
 			const effectiveRoles = member.roles.length > 0 ? member.roles : [member.role];
 			const keepRoles = effectiveRoles.filter((r) => r.permissionLevel >= config.roles.officer.level);

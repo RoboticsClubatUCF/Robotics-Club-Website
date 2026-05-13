@@ -12,9 +12,9 @@
     viewerLevel: number;
   };
 
-  export let form: { memberId?: string; error?: string; success?: boolean; discordSynced?: boolean } | null = null;
+  export let form: { memberId?: string; error?: string; success?: boolean; discordSynced?: boolean; grantSuccess?: boolean } | null = null;
 
-  const MANAGEABLE_ORDER = ['officer', 'lead', 'team lead', 'member'];
+  const MANAGEABLE_ORDER = ['officer', 'project lead', 'team lead', 'member'];
 
   function assignableRoles(roles: Role[]): Role[] {
     const managed = MANAGEABLE_ORDER
@@ -25,6 +25,8 @@
     if (data.viewerLevel >= 8)   return managed.filter((r) => r.name === 'team lead');
     return [];
   }
+
+  const canGrantMembership = data.viewerLevel >= 10;
 
   const ROLE_LABELS: Record<string, string> = {
     admin: 'Admin',
@@ -53,17 +55,28 @@
     return member.roles.length > 0 ? member.roles : [member.role];
   }
 
-  function handleMutualExclusion(event: Event) {
-    const cb = event.target as HTMLInputElement;
-    if (!cb.checked) return;
-    const formEl = cb.closest('form')!;
-    if (cb.value === 'lead') {
-      const other = formEl.querySelector<HTMLInputElement>('input[value="team lead"]');
-      if (other) other.checked = false;
-    } else if (cb.value === 'team lead') {
-      const other = formEl.querySelector<HTMLInputElement>('input[value="lead"]');
-      if (other) other.checked = false;
+  // Controlled checkbox state — reset from server data after every load/submit so the
+  // DOM always reflects actual DB state rather than drifting from Svelte's last known value.
+  let roleState = new Map<string, Set<string>>();
+  $: {
+    const next = new Map<string, Set<string>>();
+    for (const m of data.members) {
+      next.set(m.id, new Set(displayRoles(m).map((r) => r.name)));
     }
+    roleState = next;
+  }
+
+  function toggleRole(memberId: string, roleName: string, checked: boolean) {
+    const current = new Set(roleState.get(memberId) ?? []);
+    if (checked) {
+      if (roleName === 'project lead') current.delete('team lead');
+      if (roleName === 'team lead') current.delete('project lead');
+      current.add(roleName);
+    } else {
+      current.delete(roleName);
+    }
+    roleState.set(memberId, current);
+    roleState = roleState;
   }
 
   let search = '';
@@ -124,7 +137,7 @@
           <th class="hidden sm:table-cell">Email</th>
           <th class="hidden md:table-cell">Discord</th>
           <th>Current Roles</th>
-          {#if assignable.length > 0}<th>Assign Roles</th>{/if}
+          {#if assignable.length > 0 || canGrantMembership}<th>Actions</th>{/if}
         </tr>
       </thead>
       <tbody>
@@ -141,42 +154,59 @@
                 {/each}
               </div>
             </td>
-            {#if assignable.length > 0}
+            {#if assignable.length > 0 || canGrantMembership}
               <td>
-                <form
-                  method="POST"
-                  action="?/updateRoles"
-                  use:enhance
-                  on:change={handleMutualExclusion}
-                  class="space-y-2"
-                >
-                  <input type="hidden" name="memberId" value={member.id} />
-                  <div class="flex flex-wrap gap-x-4 gap-y-1">
-                    {#each assignable as role}
-                      <label class="flex items-center gap-1.5 text-sm cursor-pointer">
-                        <input
-                          type="checkbox"
-                          name="role"
-                          value={role.name}
-                          checked={effective.some((r) => r.name === role.name)}
-                          class="checkbox"
-                        />
-                        {roleLabel(role.name)}
-                      </label>
-                    {/each}
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <button type="submit" class="btn btn-sm variant-filled-warning">Apply</button>
-                    {#if form?.memberId === member.id && form?.success}
+                {#if assignable.length > 0}
+                  <form
+                    method="POST"
+                    action="?/updateRoles"
+                    use:enhance={() => ({ update }) => update({ reset: false })}
+                    class="space-y-2"
+                  >
+                    <input type="hidden" name="memberId" value={member.id} />
+                    <div class="flex flex-wrap gap-x-4 gap-y-1">
+                      {#each assignable as role}
+                        <label class="flex items-center gap-1.5 text-sm cursor-pointer">
+                          <input
+                            type="checkbox"
+                            name="role"
+                            value={role.name}
+                            checked={roleState.get(member.id)?.has(role.name) ?? false}
+                            on:change={(e) => toggleRole(member.id, role.name, e.currentTarget.checked)}
+                            class="checkbox"
+                          />
+                          {roleLabel(role.name)}
+                        </label>
+                      {/each}
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <button type="submit" class="btn btn-sm variant-filled-warning">Apply</button>
+                      {#if form?.memberId === member.id && form?.success}
+                        <span class="text-xs text-success-500">
+                          Saved{form.discordSynced ? ' & synced' : ''}
+                        </span>
+                      {/if}
+                    </div>
+                    {#if form?.memberId === member.id && form?.error}
+                      <p class="text-xs text-error-500">{form.error}</p>
+                    {/if}
+                  </form>
+                {/if}
+                {#if canGrantMembership}
+                  <form method="POST" action="?/grantMembership" use:enhance={() => ({ update }) => update({ reset: false })} class="mt-2 flex items-center gap-2">
+                    <input type="hidden" name="memberId" value={member.id} />
+                    <select name="duration" class="select select-sm text-sm">
+                      <option value="semester">Semester</option>
+                      <option value="year">Year</option>
+                    </select>
+                    <button type="submit" class="btn btn-sm variant-filled-secondary">Grant Dues</button>
+                    {#if form?.memberId === member.id && form?.grantSuccess}
                       <span class="text-xs text-success-500">
-                        Saved{form.discordSynced ? ' & synced' : ''}
+                        Granted{form.discordSynced ? ' & synced' : ''}
                       </span>
                     {/if}
-                  </div>
-                  {#if form?.memberId === member.id && form?.error}
-                    <p class="text-xs text-error-500">{form.error}</p>
-                  {/if}
-                </form>
+                  </form>
+                {/if}
               </td>
             {/if}
           </tr>

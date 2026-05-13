@@ -26,21 +26,24 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
   }
 
   const isAdmin = member.role.permissionLevel >= 999;
+  // Leads (8), team leads (7), and officers (10) keep their roles when expired and
+  // retain full dashboard access — they just need to renew dues.
+  const isPrivilegedRole = member.role.permissionLevel >= config.roles.teamLead.level;
 
-  // Block expired members from all dashboard routes except the payment page.
-  // Admins and members in the 14-day grace period at the start of fall/spring are exempt.
-  if (!isAdmin && member.membershipExpDate < new Date()) {
+  // Block expired members/committee from all dashboard routes except the payment page.
+  // Admins, privileged role holders, and members in the grace period are exempt.
+  if (!isAdmin && !isPrivilegedRole && member.membershipExpDate < new Date()) {
     const { inGrace } = await getGracePeriodInfo();
     if (!inGrace) {
       const memberRolesToRemove = member.roles.filter(
-        (r) => r.permissionLevel < config.roles.officer.level
+        (r) => r.permissionLevel < config.roles.teamLead.level
       );
       if (memberRolesToRemove.length > 0) {
         await db.member.update({
           where: { id: member.id },
           data: {
             roles: { disconnect: memberRolesToRemove.map((r) => ({ id: r.id })) },
-            ...(member.role.permissionLevel < config.roles.officer.level &&
+            ...(member.role.permissionLevel < config.roles.teamLead.level &&
               member.role.name !== config.roles.guest.name && {
                 role: {
                   connectOrCreate: {
@@ -54,7 +57,7 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
               })
           }
         });
-        const keepRoles = member.roles.filter((r) => r.permissionLevel >= config.roles.officer.level);
+        const keepRoles = member.roles.filter((r) => r.permissionLevel >= config.roles.teamLead.level);
         syncMemberRoles(member.discordProfileName, keepRoles.map((r) => r.name)).catch(
           (e) => console.error('[Discord sync on expiry]', e)
         );
