@@ -1,24 +1,13 @@
-// app.d.ts
-
-import type { PrismaClient } from '@prisma/client';
-
-declare module '*.postcss';
-declare module '*.css';
-
-
+// See https://svelte.dev/docs/kit/types#app.d.ts
+// for information about these interfaces
 declare global {
-  namespace App {
-    const prisma: PrismaClient;
-    interface Locals {
-      member: {
-        fname: string;
-        lname: string | null;
-        permissions: {
-          name: string;
-          level: number;
-        };
-        email: string;
-      };
-    }
-  }
+	namespace App {
+		// interface Error {}
+		// interface Locals {}
+		// interface PageData {}
+		// interface PageState {}
+		// interface Platform {}
+	}
 }
+
+export {};

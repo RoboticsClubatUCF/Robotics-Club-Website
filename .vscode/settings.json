@@ -1,3 +1,6 @@
 {
-    "prisma.pinToPrisma6": true
+    "prisma.pinToPrisma6": true,
+    "files.associations": {
+        "*.css": "tailwindcss"
+    }
 }

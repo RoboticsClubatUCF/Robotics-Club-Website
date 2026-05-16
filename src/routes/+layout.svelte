@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { Toast, Modal, initializeStores } from '@skeletonlabs/skeleton';
-  initializeStores();
+	import './layout.css';
+
+	let { children } = $props();
 </script>
 
-<Modal buttonPositive="variant-filled-error" />
-<Toast />
-<slot />
+<svelte:head><link rel="icon" href="/favicon.png" /></svelte:head>
+{@render children()}

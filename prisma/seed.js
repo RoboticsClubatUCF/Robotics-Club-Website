@@ -1,36 +1,40 @@
-import { PrismaClient } from '@prisma/client';
+import 'dotenv/config';
+import pkg from '@prisma/client';
+const { PrismaClient } = pkg;
+import { PrismaPg } from '@prisma/adapter-pg';
 import { hash } from 'bcrypt';
-const db = new PrismaClient();
+
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+const db = new PrismaClient({ adapter });
 
 const roles = [
-  { name: 'admin',     level: 999 },
-  { name: 'officer',   level: 10  },
-  { name: 'lead',      level: 8   },
-  { name: 'committee', level: 6   },
-  { name: 'member',    level: 4   },
-  { name: 'guest',     level: 0   }
+  { name: 'admin',        permissionLevel: 999 },
+  { name: 'officer',      permissionLevel: 10  },
+  { name: 'project lead', permissionLevel: 8   },
+  { name: 'team lead',    permissionLevel: 6   },
+  { name: 'member',       permissionLevel: 4   },
+  { name: 'guest',        permissionLevel: 0   }
 ];
 
 async function main() {
-  // Ensure all roles exist
   for (const role of roles) {
     await db.role.upsert({
-      where: { name: role.name },
-      create: { name: role.name, permissionLevel: role.level },
-      update: { permissionLevel: role.level }
+      where:  { name: role.name },
+      create: role,
+      update: { permissionLevel: role.permissionLevel }
     });
   }
 
-  if (!(await db.member.findFirst({}))) {
-    console.log('No members found — creating default admin account.');
-    await db.member.create({
+  if (!(await db.user.findFirst({}))) {
+    console.log('No users found — creating default admin account.');
+    await db.user.create({
       data: {
-        email: 'admin@admin.com',
-        discordProfileName: 'admin',
-        firstName: 'admin',
-        lastName: 'admin',
-        passwordHash: await hash('admin', 12),
-        role: { connect: { name: 'admin' } }
+        ucfEmail:        'admin@admin.com',
+        discordUserName: 'admin',
+        firstName:       'admin',
+        lastName:        'admin',
+        passwordHash:    await hash('admin', 12),
+        roleName:        'admin'
       }
     });
   }
