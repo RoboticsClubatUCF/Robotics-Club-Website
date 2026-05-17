@@ -1,7 +1,8 @@
-FROM node:18-alpine3.18
+FROM node:22-alpine
 WORKDIR /RCCF-WEB
+COPY package*.json ./
+RUN npm ci
 COPY . .
-RUN npm i
 
 ARG DATABASE_URL
 ARG SECRET_STRIPE_KEY
@@ -23,8 +24,7 @@ ENV DISCORD_MEMBER_ROLE_ID=$DISCORD_MEMBER_ROLE_ID
 ENV DISCORD_PROJECT_LEAD_ROLE_ID=$DISCORD_PROJECT_LEAD_ROLE_ID
 ENV DISCORD_TEAM_LEAD_ROLE_ID=$DISCORD_TEAM_LEAD_ROLE_ID
 
-RUN npx prisma generate
+RUN npm run prisma:generate
 RUN npm run build
 EXPOSE 4173
-# This is Temporary as we dont have a proper build system yet
-ENTRYPOINT [ "npm","run","preview" ]
+ENTRYPOINT [ "node", "build" ]

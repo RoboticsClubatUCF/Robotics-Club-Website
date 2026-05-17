@@ -1,0 +1,38 @@
+@import 'tailwindcss';
+@plugin "daisyui";
+
+@font-face {
+	font-family: 'Norwester';
+	src: url('/fonts/norwester.otf') format('opentype');
+	font-weight: normal;
+	font-style: normal;
+	font-display: swap;
+}
+
+@theme {
+	--font-oswald: 'Oswald', 'Impact', 'Arial Black', sans-serif;
+	--font-norwester: 'Norwester', 'Oswald', sans-serif;
+	--color-brand-gold: #f6c610;
+	--color-brand-cyan: #43c5d7;
+}
+
+@keyframes marquee {
+	from {
+		transform: translateX(0);
+	}
+	to {
+		transform: translateX(-50%);
+	}
+}
+
+.marquee-track {
+	animation: marquee 35s linear infinite;
+}
+
+.marquee-track:hover {
+	animation-play-state: paused;
+}
+
+html {
+	scroll-behavior: smooth;
+}

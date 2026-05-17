@@ -8,7 +8,7 @@ services:
       context: .
       dockerfile: ./dockerfile
       args:
-        - DATABASE_URL=postgresql://postgres:password@postgres_rccf:5432/RCCF
+        - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres_rccf:5432/${POSTGRES_DB:-RCCF}
         - SECRET_STRIPE_KEY=${SECRET_STRIPE_KEY}
         - PUBLIC_STRIPE_KEY=${PUBLIC_STRIPE_KEY}
         - POSTMARK_API_TOKEN=${POSTMARK_API_TOKEN}
@@ -23,7 +23,7 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgresql://postgres:password@postgres_rccf:5432/RCCF
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres_rccf:5432/${POSTGRES_DB:-RCCF}
     ports:
       - 4173:4173
     networks:
@@ -32,14 +32,13 @@ services:
   postgres_rccf:
     image: postgres
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=password
-      - PGDATA /data/postgres
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      - POSTGRES_DB=${POSTGRES_DB:-RCCF}
+      - PGDATA=/data/postgres
     volumes:
       - data:/var/lib/postgresql/data
     restart: unless-stopped
-    ports:
-      - 5432:5432
     networks:
       - services
   # pgadmin:
@@ -61,7 +60,6 @@ services:
 volumes:
   data:
   pgadmin:
-
 
 networks:
   services:

@@ -1,12 +1,17 @@
-// See https://svelte.dev/docs/kit/types#app.d.ts
-// for information about these interfaces
 declare global {
 	namespace App {
-		// interface Error {}
-		// interface Locals {}
-		// interface PageData {}
-		// interface PageState {}
-		// interface Platform {}
+		interface Locals {
+			user: {
+				id: number;
+				firstName: string;
+				lastName: string | null;
+				ucfEmail: string;
+				discordUserName: string;
+				role: { name: string; permissionLevel: number; discordRoleId: string | null };
+				membershipExpDate: Date;
+				hasSurvey: boolean;
+			} | null;
+		}
 	}
 }
 
