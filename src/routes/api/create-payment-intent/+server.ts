@@ -1,5 +1,5 @@
 import Stripe from 'stripe';
-import { SECRET_STRIPE_KEY } from '$env/static/private';
+import { env } from '$env/dynamic/private';
 import { error, json } from '@sveltejs/kit';
 import { assertSameOrigin } from '$lib/server/security';
 import type { RequestHandler } from './$types';
@@ -21,7 +21,7 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 		throw error(400, { message: 'Invalid dues type: ' + parsed.error.issues[0].message });
 	}
 
-	if (!SECRET_STRIPE_KEY) {
+	if (!env.SECRET_STRIPE_KEY) {
 		console.error('[Stripe] SECRET_STRIPE_KEY is missing');
 		throw error(500, 'Payment service is not configured');
 	}
@@ -29,7 +29,7 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 	const { duesType } = parsed.data;
 	const amount = ['semester', '1'].includes(duesType) ? DUES.semester : DUES.year;
 
-	const stripe = new Stripe(SECRET_STRIPE_KEY);
+	const stripe = new Stripe(env.SECRET_STRIPE_KEY);
 
 	try {
 		const paymentIntent = await stripe.paymentIntents.create({

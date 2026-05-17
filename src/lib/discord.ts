@@ -1,10 +1,4 @@
-import {
-	DISCORD_BOT_TOKEN,
-	DISCORD_GUILD_ID,
-	DISCORD_MEMBER_ROLE_ID,
-	DISCORD_PROJECT_LEAD_ROLE_ID,
-	DISCORD_TEAM_LEAD_ROLE_ID
-} from '$env/static/private';
+import { env } from '$env/dynamic/private';
 
 const API = 'https://discord.com/api/v10';
 
@@ -31,11 +25,12 @@ async function discordFetch(
 
 async function findGuildMember(
 	discordUserName: string,
+	guildId: string,
 	headers: Record<string, string>,
 	fetchFn: typeof fetch
 ): Promise<{ id: string } | null> {
 	const res = await discordFetch(
-		`${API}/guilds/${DISCORD_GUILD_ID}/members/search?query=${encodeURIComponent(discordUserName)}&limit=10`,
+		`${API}/guilds/${guildId}/members/search?query=${encodeURIComponent(discordUserName)}&limit=10`,
 		{ headers },
 		fetchFn
 	);
@@ -47,33 +42,35 @@ async function findGuildMember(
 	);
 }
 
-const DISCORD_ROLE_MAP: Array<{ name: string; id: string }> = [
-	{ name: 'member',       id: DISCORD_MEMBER_ROLE_ID       },
-	{ name: 'project lead', id: DISCORD_PROJECT_LEAD_ROLE_ID },
-	{ name: 'team lead',    id: DISCORD_TEAM_LEAD_ROLE_ID    }
-].filter((entry) => entry.id.length > 0);
+function getDiscordRoleMap(): Array<{ name: string; id: string }> {
+	return [
+		{ name: 'member', id: env.DISCORD_MEMBER_ROLE_ID },
+		{ name: 'project lead', id: env.DISCORD_PROJECT_LEAD_ROLE_ID },
+		{ name: 'team lead', id: env.DISCORD_TEAM_LEAD_ROLE_ID }
+	].filter((entry): entry is { name: string; id: string } => !!entry.id);
+}
 
 export async function syncMemberRoles(
 	discordUserName: string,
 	activeRoleNames: string[],
 	fetchFn: typeof fetch = globalThis.fetch
 ): Promise<Result> {
-	if (!DISCORD_BOT_TOKEN || !DISCORD_GUILD_ID) {
+	if (!env.DISCORD_BOT_TOKEN || !env.DISCORD_GUILD_ID) {
 		return { success: false, error: 'Discord bot not configured' };
 	}
 
 	const headers = {
-		Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+		Authorization: `Bot ${env.DISCORD_BOT_TOKEN}`,
 		'Content-Type': 'application/json'
 	};
 
-	const user = await findGuildMember(discordUserName, headers, fetchFn);
+	const user = await findGuildMember(discordUserName, env.DISCORD_GUILD_ID, headers, fetchFn);
 	if (!user) return { success: true };
 
-	for (const { name, id } of DISCORD_ROLE_MAP) {
+	for (const { name, id } of getDiscordRoleMap()) {
 		const shouldHave = activeRoleNames.includes(name);
 		const res = await discordFetch(
-			`${API}/guilds/${DISCORD_GUILD_ID}/members/${user.id}/roles/${id}`,
+			`${API}/guilds/${env.DISCORD_GUILD_ID}/members/${user.id}/roles/${id}`,
 			{
 				method: shouldHave ? 'PUT' : 'DELETE',
 				headers: {
@@ -100,22 +97,22 @@ export async function assignMemberRole(
 	discordUserName: string,
 	fetchFn: typeof fetch = globalThis.fetch
 ): Promise<Result> {
-	if (!DISCORD_BOT_TOKEN || !DISCORD_GUILD_ID || !DISCORD_MEMBER_ROLE_ID) {
+	if (!env.DISCORD_BOT_TOKEN || !env.DISCORD_GUILD_ID || !env.DISCORD_MEMBER_ROLE_ID) {
 		return { success: false, error: 'Discord bot not configured' };
 	}
 
 	const headers = {
-		Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+		Authorization: `Bot ${env.DISCORD_BOT_TOKEN}`,
 		'Content-Type': 'application/json'
 	};
 
-	const user = await findGuildMember(discordUserName, headers, fetchFn);
+	const user = await findGuildMember(discordUserName, env.DISCORD_GUILD_ID, headers, fetchFn);
 	if (!user) {
 		return { success: false, error: `"${discordUserName}" not found in Discord server` };
 	}
 
 	const roleRes = await discordFetch(
-		`${API}/guilds/${DISCORD_GUILD_ID}/members/${user.id}/roles/${DISCORD_MEMBER_ROLE_ID}`,
+		`${API}/guilds/${env.DISCORD_GUILD_ID}/members/${user.id}/roles/${env.DISCORD_MEMBER_ROLE_ID}`,
 		{
 			method: 'PUT',
 			headers: { ...headers, 'X-Audit-Log-Reason': 'Membership activated via RCCF website' }
@@ -135,20 +132,20 @@ export async function assignProjectRole(
 	discordRoleId: string,
 	fetchFn: typeof fetch = globalThis.fetch
 ): Promise<Result> {
-	if (!DISCORD_BOT_TOKEN || !DISCORD_GUILD_ID) {
+	if (!env.DISCORD_BOT_TOKEN || !env.DISCORD_GUILD_ID) {
 		return { success: false, error: 'Discord bot not configured' };
 	}
 
 	const headers = {
-		Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+		Authorization: `Bot ${env.DISCORD_BOT_TOKEN}`,
 		'Content-Type': 'application/json'
 	};
 
-	const user = await findGuildMember(discordUserName, headers, fetchFn);
+	const user = await findGuildMember(discordUserName, env.DISCORD_GUILD_ID, headers, fetchFn);
 	if (!user) return { success: true };
 
 	const res = await discordFetch(
-		`${API}/guilds/${DISCORD_GUILD_ID}/members/${user.id}/roles/${discordRoleId}`,
+		`${API}/guilds/${env.DISCORD_GUILD_ID}/members/${user.id}/roles/${discordRoleId}`,
 		{
 			method: 'PUT',
 			headers: { ...headers, 'X-Audit-Log-Reason': 'Project joined via RCCF website' }
@@ -167,20 +164,20 @@ export async function removeProjectRole(
 	discordRoleId: string,
 	fetchFn: typeof fetch = globalThis.fetch
 ): Promise<Result> {
-	if (!DISCORD_BOT_TOKEN || !DISCORD_GUILD_ID) {
+	if (!env.DISCORD_BOT_TOKEN || !env.DISCORD_GUILD_ID) {
 		return { success: false, error: 'Discord bot not configured' };
 	}
 
 	const headers = {
-		Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+		Authorization: `Bot ${env.DISCORD_BOT_TOKEN}`,
 		'Content-Type': 'application/json'
 	};
 
-	const user = await findGuildMember(discordUserName, headers, fetchFn);
+	const user = await findGuildMember(discordUserName, env.DISCORD_GUILD_ID, headers, fetchFn);
 	if (!user) return { success: true };
 
 	const res = await discordFetch(
-		`${API}/guilds/${DISCORD_GUILD_ID}/members/${user.id}/roles/${discordRoleId}`,
+		`${API}/guilds/${env.DISCORD_GUILD_ID}/members/${user.id}/roles/${discordRoleId}`,
 		{
 			method: 'DELETE',
 			headers: { ...headers, 'X-Audit-Log-Reason': 'Project left via RCCF website' }
@@ -198,20 +195,20 @@ export async function removeMemberRole(
 	discordUserName: string,
 	fetchFn: typeof fetch = globalThis.fetch
 ): Promise<Result> {
-	if (!DISCORD_BOT_TOKEN || !DISCORD_GUILD_ID || !DISCORD_MEMBER_ROLE_ID) {
+	if (!env.DISCORD_BOT_TOKEN || !env.DISCORD_GUILD_ID || !env.DISCORD_MEMBER_ROLE_ID) {
 		return { success: false, error: 'Discord bot not configured' };
 	}
 
 	const headers = {
-		Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+		Authorization: `Bot ${env.DISCORD_BOT_TOKEN}`,
 		'Content-Type': 'application/json'
 	};
 
-	const user = await findGuildMember(discordUserName, headers, fetchFn);
+	const user = await findGuildMember(discordUserName, env.DISCORD_GUILD_ID, headers, fetchFn);
 	if (!user) return { success: true };
 
 	const roleRes = await discordFetch(
-		`${API}/guilds/${DISCORD_GUILD_ID}/members/${user.id}/roles/${DISCORD_MEMBER_ROLE_ID}`,
+		`${API}/guilds/${env.DISCORD_GUILD_ID}/members/${user.id}/roles/${env.DISCORD_MEMBER_ROLE_ID}`,
 		{
 			method: 'DELETE',
 			headers: { ...headers, 'X-Audit-Log-Reason': 'Membership expired via RCCF website' }

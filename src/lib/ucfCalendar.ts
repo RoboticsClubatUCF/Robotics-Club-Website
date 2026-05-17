@@ -26,13 +26,13 @@ const eventCache = new Map<string, CachedTerm>();
 const FALLBACK_END: Record<UcfSeason, [number, number]> = {
 	spring: [4, 6],
 	summer: [7, 7],
-	fall:   [11, 31]
+	fall: [11, 31]
 };
 
 const FALLBACK_START: Record<UcfSeason, [number, number]> = {
 	spring: [0, 12],
 	summer: [4, 18],
-	fall:   [7, 24]
+	fall: [7, 24]
 };
 
 function termKey(year: number, season: UcfSeason) {
@@ -43,12 +43,12 @@ function getActiveTerms(): Array<{ year: number; season: UcfSeason }> {
 	const today = new Date();
 	const year = today.getFullYear();
 	const candidates: Array<{ year: number; season: UcfSeason }> = [
-		{ year,           season: 'spring' },
-		{ year,           season: 'summer' },
-		{ year,           season: 'fall'   },
+		{ year, season: 'spring' },
+		{ year, season: 'summer' },
+		{ year, season: 'fall' },
 		{ year: year + 1, season: 'spring' },
 		{ year: year + 1, season: 'summer' },
-		{ year: year + 1, season: 'fall'   }
+		{ year: year + 1, season: 'fall' }
 	];
 	return candidates.filter(({ year: y, season }) => {
 		const [endMonth, endDay] = FALLBACK_END[season];

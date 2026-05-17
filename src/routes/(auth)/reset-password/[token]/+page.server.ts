@@ -55,6 +55,6 @@ export const actions: Actions = {
 			prisma.passwordResetToken.delete({ where: { id: record.id } })
 		]);
 
-		throw redirect(302, '/login');
+		throw redirect(302, '/signin');
 	}
 };

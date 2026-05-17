@@ -1,17 +1,41 @@
 @import 'tailwindcss';
-@plugin "daisyui";
+@plugin 'daisyui';
 
 @font-face {
-	font-family: 'Norwester';
-	src: url('/fonts/norwester.otf') format('opentype');
-	font-weight: normal;
+	font-family: 'Montserrat';
+	src: url('/fonts/static/Montserrat-Regular.ttf') format('truetype');
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: 'Montserrat';
+	src: url('/fonts/static/Montserrat-Medium.ttf') format('truetype');
+	font-weight: 500;
+	font-style: normal;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: 'Montserrat';
+	src: url('/fonts/static/Montserrat-SemiBold.ttf') format('truetype');
+	font-weight: 600;
+	font-style: normal;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: 'Montserrat';
+	src: url('/fonts/static/Montserrat-Bold.ttf') format('truetype');
+	font-weight: 700;
 	font-style: normal;
 	font-display: swap;
 }
 
 @theme {
-	--font-oswald: 'Oswald', 'Impact', 'Arial Black', sans-serif;
-	--font-norwester: 'Norwester', 'Oswald', sans-serif;
+	--font-sans: 'Montserrat', 'Segoe UI', Arial, sans-serif;
+	--font-display: 'Montserrat', 'Segoe UI', Arial, sans-serif;
 	--color-brand-gold: #f6c610;
 	--color-brand-cyan: #43c5d7;
 }

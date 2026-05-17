@@ -8,7 +8,7 @@
 </script>
 
 <svelte:head>
-	<title>Reset Password | RCCF</title>
+	<title>Sign In | RCCF</title>
 </svelte:head>
 
 <div class="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center px-4 py-12">
@@ -34,8 +34,8 @@
 	<div class="card w-full max-w-md border border-brand-gold/20 bg-base-100/50 shadow-xl backdrop-blur-sm">
 		<div class="card-body">
 			<div class="mb-6 text-center">
-				<h1 class="text-3xl font-bold tracking-tight text-brand-gold">New Password</h1>
-				<p class="mt-2 text-sm text-base-content/60">Choose a strong password for your account</p>
+				<h1 class="text-3xl font-bold tracking-tight text-brand-gold">Welcome Back</h1>
+				<p class="mt-2 text-sm text-base-content/60">Enter your credentials to access your dashboard</p>
 			</div>
 
 			<form
@@ -69,8 +69,26 @@
 				{/if}
 
 				<div class="form-control">
+					<label class="label" for="discordUserName">
+						<span class="label-text font-medium">Discord Username</span>
+					</label>
+					<input
+						type="text"
+						id="discordUserName"
+						name="discordUserName"
+						placeholder="phibiscool"
+						class="input input-bordered w-full focus:border-brand-gold focus:outline-none"
+						required
+						autocomplete="username"
+					/>
+				</div>
+
+				<div class="form-control">
 					<label class="label" for="password">
-						<span class="label-text font-medium">New Password</span>
+						<span class="label-text font-medium">Password</span>
+						<a href="/forgot-password" class="label-text-alt link link-hover text-brand-gold">
+							Forgot?
+						</a>
 					</label>
 					<input
 						type="password"
@@ -79,21 +97,7 @@
 						placeholder="••••••••"
 						class="input input-bordered w-full focus:border-brand-gold focus:outline-none"
 						required
-						minlength="8"
-					/>
-				</div>
-
-				<div class="form-control">
-					<label class="label" for="confirmPassword">
-						<span class="label-text font-medium">Confirm New Password</span>
-					</label>
-					<input
-						type="password"
-						id="confirmPassword"
-						name="confirmPassword"
-						placeholder="••••••••"
-						class="input input-bordered w-full focus:border-brand-gold focus:outline-none"
-						required
+						autocomplete="current-password"
 					/>
 				</div>
 
@@ -102,14 +106,15 @@
 						{#if loading}
 							<span class="loading loading-spinner loading-sm"></span>
 						{/if}
-						Update Password
+						Sign In
 					</button>
 				</div>
 			</form>
 
 			<div class="mt-8 text-center text-sm">
-				<a href="/signin" class="font-semibold text-brand-gold hover:underline">
-					Cancel and return to Sign In
+				<span class="text-base-content/60">Don't have an account?</span>
+				<a href="/signup" class="ml-1 font-semibold text-brand-gold hover:underline">
+					Join Us
 				</a>
 			</div>
 		</div>

@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { DATABASE_URL } from '$env/static/private';
+import { env } from '$env/dynamic/private';
 import { dev } from '$app/environment';
 import pg from 'pg';
 
@@ -9,19 +9,34 @@ declare global {
 }
 
 function createClient() {
-	if (!DATABASE_URL) {
+	if (!env.DATABASE_URL) {
 		throw new Error('DATABASE_URL is required to initialize Prisma');
 	}
 
-	const pool = new pg.Pool({ connectionString: DATABASE_URL });
+	const pool = new pg.Pool({ connectionString: env.DATABASE_URL });
 	const adapter = new PrismaPg(pool);
 	return new PrismaClient({ adapter });
 }
 
-const prisma = globalThis.__prisma ?? createClient();
+let prismaClient = globalThis.__prisma;
 
-if (dev) {
-	globalThis.__prisma = prisma;
+function getClient() {
+	if (!prismaClient) {
+		prismaClient = createClient();
+		if (dev) {
+			globalThis.__prisma = prismaClient;
+		}
+	}
+
+	return prismaClient;
 }
+
+const prisma = new Proxy({} as PrismaClient, {
+	get(_target, prop) {
+		const client = getClient();
+		const value = client[prop as keyof PrismaClient];
+		return typeof value === 'function' ? value.bind(client) : value;
+	}
+});
 
 export { prisma };
