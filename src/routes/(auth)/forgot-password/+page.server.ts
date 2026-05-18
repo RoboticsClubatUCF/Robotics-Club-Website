@@ -19,11 +19,16 @@ export const load: PageServerLoad = async () => {
 
 export const actions: Actions = {
 	default: async ({ request, url }) => {
-		const data = await request.formData();
-		const parsed = schema.safeParse({ ucfEmail: data.get('ucfEmail') });
+		const formData = await request.formData();
+		const data = Object.fromEntries(formData);
+		const parsed = schema.safeParse(data);
 
 		if (!parsed.success) {
-			return fail(400, { error: parsed.error.issues[0].message });
+			return fail(400, {
+				field: 'ucfEmail',
+				error: parsed.error.issues[0].message,
+				data
+			});
 		}
 
 		const user = await prisma.user.findUnique({
@@ -68,7 +73,7 @@ export const actions: Actions = {
 			});
 		} catch (e) {
 			console.error('[Email] Failed to send reset email:', e);
-			return fail(500, { error: 'Failed to send reset email. Try again later.' });
+			return fail(500, { field: null, error: 'Failed to send reset email. Try again later.', data });
 		}
 
 		return { success: true };

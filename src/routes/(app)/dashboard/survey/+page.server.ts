@@ -17,8 +17,10 @@ const surveySchema = z.object({
 });
 
 export const load: PageServerLoad = async ({ locals }) => {
-	if (locals.user!.hasSurvey) throw redirect(302, '/dashboard');
-	return {};
+	const survey = await prisma.survey.findUnique({
+		where: { userId: locals.user!.id }
+	});
+	return { survey };
 };
 
 export const actions: Actions = {

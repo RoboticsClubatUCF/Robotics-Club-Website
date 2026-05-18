@@ -18,14 +18,16 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 export const actions: Actions = {
 	default: async ({ request, cookies }) => {
-		const data = await request.formData();
-		const parsed = schema.safeParse({
-			discordUserName: data.get('discordUserName'),
-			password: data.get('password')
-		});
+		const formData = await request.formData();
+		const data = Object.fromEntries(formData);
+		const parsed = schema.safeParse(data);
 
 		if (!parsed.success) {
-			return fail(400, { error: parsed.error.issues[0].message });
+			return fail(400, {
+				field: parsed.error.issues[0].path[0] as string,
+				error: parsed.error.issues[0].message,
+				data
+			});
 		}
 
 		const user = await prisma.user.findFirst({
@@ -33,12 +35,16 @@ export const actions: Actions = {
 		});
 
 		if (!user) {
-			return fail(400, { error: 'No account found with that Discord username.' });
+			return fail(400, {
+				field: 'discordUserName',
+				error: 'No account found with that Discord username.',
+				data
+			});
 		}
 
 		const validPass = await compare(parsed.data.password, user.passwordHash);
 		if (!validPass) {
-			return fail(400, { error: 'Incorrect password.' });
+			return fail(400, { field: 'password', error: 'Incorrect password.', data });
 		}
 
 		const authToken = randomUUID();

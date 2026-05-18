@@ -302,7 +302,7 @@
 						<img
 							src={sponsor.logo.url}
 							alt={sponsor.logo.alt ?? sponsor.name}
-							class="h-10 w-auto max-w-[120px] object-contain opacity-70 grayscale transition-all hover:opacity-100 hover:grayscale-0"
+							class="h-10 w-auto max-w-30 object-contain opacity-70 grayscale transition-all hover:opacity-100 hover:grayscale-0"
 						/>
 					{:else}
 						<span class="text-sm font-semibold text-base-content/50">{sponsor.name}</span>

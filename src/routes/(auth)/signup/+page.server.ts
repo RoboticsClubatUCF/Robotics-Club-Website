@@ -1,3 +1,4 @@
+import { isGuildMember } from '$lib/discord';
 import { prisma } from '$lib/server/prisma';
 import { fail, redirect } from '@sveltejs/kit';
 import { hash } from 'bcrypt';
@@ -19,19 +20,24 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 export const actions: Actions = {
-	default: async ({ request }) => {
-		const data = await request.formData();
-		const parsed = schema.safeParse(Object.fromEntries(data));
+	default: async ({ request, fetch }) => {
+		const formData = await request.formData();
+		const data = Object.fromEntries(formData);
+		const parsed = schema.safeParse(data);
 
 		if (!parsed.success) {
-			return fail(400, { error: parsed.error.issues[0].message });
+			return fail(400, {
+				field: parsed.error.issues[0].path[0] as string,
+				error: parsed.error.issues[0].message,
+				data
+			});
 		}
 
 		const { firstName, lastName, ucfEmail, discordUserName, password, confirmPassword } =
 			parsed.data;
 
 		if (password !== confirmPassword) {
-			return fail(400, { error: 'Passwords do not match.' });
+			return fail(400, { field: 'confirmPassword', error: 'Passwords do not match.', data });
 		}
 
 		const [emailTaken, discordTaken] = await Promise.all([
@@ -39,9 +45,24 @@ export const actions: Actions = {
 			prisma.user.findUnique({ where: { discordUserName } })
 		]);
 
-		if (emailTaken) return fail(400, { field: 'ucfEmail', error: 'Email is already in use.' });
+		if (emailTaken)
+			return fail(400, { field: 'ucfEmail', error: 'Email is already in use.', data });
 		if (discordTaken)
-			return fail(400, { field: 'discordUserName', error: 'Discord username is already in use.' });
+			return fail(400, {
+				field: 'discordUserName',
+				error: 'Discord username is already in use.',
+				data
+			});
+
+		const discord = await isGuildMember(discordUserName, fetch);
+		if (discord.configured && !discord.found) {
+			return fail(400, {
+				field: 'discordUserName',
+				error:
+					'Discord username not found in the RCCF server. Join the server first, then register.',
+				data
+			});
+		}
 
 		await prisma.user.create({
 			data: {

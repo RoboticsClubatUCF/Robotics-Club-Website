@@ -50,6 +50,18 @@ function getDiscordRoleMap(): Array<{ name: string; id: string }> {
 	].filter((entry): entry is { name: string; id: string } => !!entry.id);
 }
 
+export async function isGuildMember(
+	discordUserName: string,
+	fetchFn: typeof fetch = globalThis.fetch
+): Promise<{ found: boolean; configured: boolean }> {
+	if (!env.DISCORD_BOT_TOKEN || !env.DISCORD_GUILD_ID) {
+		return { found: false, configured: false };
+	}
+	const headers = { Authorization: `Bot ${env.DISCORD_BOT_TOKEN}` };
+	const user = await findGuildMember(discordUserName, env.DISCORD_GUILD_ID, headers, fetchFn);
+	return { found: user !== null, configured: true };
+}
+
 export async function syncMemberRoles(
 	discordUserName: string,
 	activeRoleNames: string[],

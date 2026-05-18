@@ -102,7 +102,7 @@
 						<img
 							src={sponsor.logo.url}
 							alt={sponsor.logo.alt ?? sponsor.name}
-							class="h-10 w-auto max-w-[140px] object-contain opacity-60 grayscale transition-all hover:opacity-100 hover:grayscale-0"
+							class="h-10 w-auto max-w-35 object-contain opacity-60 grayscale transition-all hover:opacity-100 hover:grayscale-0"
 						/>
 					{:else}
 						<span class="text-sm font-bold text-base-content/40">{sponsor.name}</span>
@@ -158,7 +158,7 @@
 									<img
 										src={sponsor.logo.url}
 										alt={sponsor.logo.alt ?? sponsor.name}
-										class="h-14 w-full max-w-[120px] object-contain"
+										class="h-14 w-full max-w-30 object-contain"
 									/>
 								{/if}
 								<p class="text-center text-xs leading-snug font-semibold text-base-content/70">
