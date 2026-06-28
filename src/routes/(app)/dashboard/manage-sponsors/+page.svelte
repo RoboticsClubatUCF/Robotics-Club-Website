@@ -1,10 +1,14 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
   import { modeCurrent } from '@skeletonlabs/skeleton';
+  import ImageInput from '../../../../components/ImageInput.svelte';
+  import AdjustableImage from '../../../../components/AdjustableImage.svelte';
   import type { PageData, ActionData } from './$types';
 
   export let data: PageData;
   export let form: ActionData;
+
+  let createImageUrl = '';
 
   type Sponsor = typeof data.sponsors[number];
   type TierKey = 'processor' | 'circuit' | 'bolt' | 'aluminum';
@@ -68,6 +72,7 @@
             await update();
             creating = false;
             showCreate = false;
+            createImageUrl = '';
           };
         }}
         class="space-y-3"
@@ -86,10 +91,8 @@
             </select>
           </label>
         </div>
-        <label class="label">
-          <span class="text-xs font-bold">Logo Image URL</span>
-          <input type="url" name="imageUrl" class="input" placeholder="https://…" pattern="https://.+" title="Must be a full URL starting with https://" />
-        </label>
+        <input type="hidden" name="imageUrl" value={createImageUrl} />
+        <ImageInput bind:value={createImageUrl} shape="logo" defaultFit="contain" label="Logo" />
         <label class="label">
           <span class="text-xs font-bold">Website Link</span>
           <input type="url" name="link" class="input" placeholder="https://…" pattern="https://.+" title="Must be a full URL starting with https://" />
@@ -143,17 +146,14 @@
                   </select>
                 </label>
               </div>
-              <label class="label">
-                <span class="text-xs font-bold">Logo Image URL</span>
-                <input type="url" name="imageUrl" class="input" bind:value={editImageUrl} placeholder="https://…" pattern="https://.+" title="Must be a full URL starting with https://" />
-              </label>
+              <input type="hidden" name="imageUrl" value={editImageUrl} />
+              {#key editingId}
+                <ImageInput bind:value={editImageUrl} shape="logo" defaultFit="contain" label="Logo" />
+              {/key}
               <label class="label">
                 <span class="text-xs font-bold">Website Link</span>
                 <input type="url" name="link" class="input" bind:value={editLink} placeholder="https://…" pattern="https://.+" title="Must be a full URL starting with https://" />
               </label>
-              {#if editImageUrl}
-                <img src={editImageUrl} alt="Preview" class="h-12 object-contain rounded" />
-              {/if}
               <div class="flex gap-2">
                 <button type="submit" disabled={saving} class="btn variant-filled-warning">
                   {saving ? 'Saving…' : 'Save'}
@@ -167,7 +167,7 @@
             ? 'card p-4 flex items-center gap-4 shadow-surface-300'
             : 'card p-4 flex items-center gap-4 shadow-surface-500'}>
             {#if sponsor.imageUrl}
-              <img src={sponsor.imageUrl} alt={sponsor.name} class="h-12 w-12 object-contain shrink-0 rounded" />
+              <AdjustableImage value={sponsor.imageUrl} alt={sponsor.name} frameClass="h-12 w-12 shrink-0 rounded" defaultFit="contain" />
             {:else}
               <div class="h-12 w-12 bg-surface-300-600-token rounded shrink-0"></div>
             {/if}

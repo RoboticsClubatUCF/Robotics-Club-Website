@@ -6,6 +6,7 @@
   import { superForm } from 'sveltekit-superforms';
   import SignoutButton from '../../../../components/buttons/signout-button.svelte';
   import ProfilePic from '../../../../components/profilePic.svelte';
+  import ImageInput from '../../../../components/ImageInput.svelte';
   import type { PageData } from './$types';
   import successToast from '../../../../components/toasts/successToast';
   import DiscordUsernameInfo from '../../../../components/DiscordUsernameInfo.svelte';
@@ -151,22 +152,14 @@
           {/if}
         </label>
 
-        <label class="label">
-          <span>Profile Picture URL <span class="opacity-50 text-xs">(optional)</span></span>
-          <input
-            class="input"
-            type="url"
-            name="profilePictureUrl"
-            id="profilePictureUrl"
-            placeholder="https://example.com/photo.jpg"
-            pattern="https://.+"
-            title="Must be a full URL starting with https://"
-            bind:value={$form.profilePictureUrl}
-          />
+        <div class="label">
+          <span>Profile Picture <span class="opacity-50 text-xs">(optional)</span></span>
+          <input type="hidden" name="profilePictureUrl" value={$form.profilePictureUrl ?? ''} />
+          <ImageInput bind:value={$form.profilePictureUrl} shape="avatar" defaultFit="cover" label="Photo" />
           {#if $errors.profilePictureUrl}
             <span class="badge variant-filled-error">{$errors.profilePictureUrl}</span>
           {/if}
-        </label>
+        </div>
 
         {#if $message === 'OK_DISCORD_FAIL'}
           <p class="text-warning-500 text-sm">

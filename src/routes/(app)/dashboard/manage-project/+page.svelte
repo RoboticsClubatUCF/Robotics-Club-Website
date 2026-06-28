@@ -2,12 +2,17 @@
   import { enhance } from '$app/forms';
   import { modeCurrent, getModalStore } from '@skeletonlabs/skeleton';
   import { tick } from 'svelte';
+  import ImageInput from '../../../../components/ImageInput.svelte';
+  import AdjustableImage from '../../../../components/AdjustableImage.svelte';
+  import { pictureToValue } from '$lib/imageRef';
   import type { PageData, ActionData } from './$types';
 
   export let data: PageData;
   export let form: ActionData;
 
   type Project = typeof data.projects[number];
+
+  let createLogo = '';
 
   // ---- Edit state ----
   let editingId: number | null = null;
@@ -24,7 +29,7 @@
     editingId = p.id;
     editTitle = p.title;
     editDescription = p.description;
-    editLogo = p.logo?.data ?? '';
+    editLogo = pictureToValue(p.logo);
     editDocsLink = p.docsLink;
     editSeason = p.season;
     editYear = String(p.year);
@@ -97,6 +102,7 @@
             await update();
             creating = false;
             showCreate = false;
+            createLogo = '';
           };
         }}
         class="space-y-3"
@@ -117,16 +123,12 @@
           <span class="text-xs font-bold">Description</span>
           <textarea name="description" class="textarea" rows="2" placeholder="Optional description"></textarea>
         </label>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <label class="label">
-            <span class="text-xs font-bold">Logo Image URL *</span>
-            <input type="url" name="logo" class="input" placeholder="https://…" pattern="https://.+" title="Must be a full URL starting with https://" required />
-          </label>
-          <label class="label">
-            <span class="text-xs font-bold">Documentation URL *</span>
-            <input type="url" name="docsLink" class="input" placeholder="https://…" pattern="https://.+" title="Must be a full URL starting with https://" required />
-          </label>
-        </div>
+        <input type="hidden" name="logo" value={createLogo} />
+        <ImageInput bind:value={createLogo} shape="banner" defaultFit="contain" label="Project Image *" />
+        <label class="label">
+          <span class="text-xs font-bold">Documentation URL *</span>
+          <input type="url" name="docsLink" class="input" placeholder="https://…" pattern="https://.+" title="Must be a full URL starting with https://" required />
+        </label>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label class="label">
             <span class="text-xs font-bold">Year *</span>
@@ -193,16 +195,14 @@
                 <span class="text-xs font-bold">Description</span>
                 <textarea name="description" class="textarea" rows="2" bind:value={editDescription}></textarea>
               </label>
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <label class="label">
-                  <span class="text-xs font-bold">Logo Image URL</span>
-                  <input type="url" name="logo" class="input" bind:value={editLogo} placeholder="https://…" pattern="https://.+" title="Must be a full URL starting with https://" />
-                </label>
-                <label class="label">
-                  <span class="text-xs font-bold">Documentation URL</span>
-                  <input type="url" name="docsLink" class="input" bind:value={editDocsLink} placeholder="https://…" pattern="https://.+" title="Must be a full URL starting with https://" />
-                </label>
-              </div>
+              <input type="hidden" name="logo" value={editLogo} />
+              {#key editingId}
+                <ImageInput bind:value={editLogo} shape="banner" defaultFit="contain" label="Project Image" />
+              {/key}
+              <label class="label">
+                <span class="text-xs font-bold">Documentation URL</span>
+                <input type="url" name="docsLink" class="input" bind:value={editDocsLink} placeholder="https://…" pattern="https://.+" title="Must be a full URL starting with https://" />
+              </label>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label class="label">
                   <span class="text-xs font-bold">Year *</span>
@@ -217,9 +217,6 @@
                 <span class="text-xs font-bold">Discord Role ID</span>
                 <input type="text" name="discordRoleId" class="input" bind:value={editDiscordRoleId} placeholder="Leave blank for no Discord role" />
               </label>
-              {#if editLogo}
-                <img src={editLogo} alt="Preview" class="h-12 object-contain rounded" />
-              {/if}
               <div class="flex gap-2">
                 <button type="submit" disabled={saving} class="btn variant-filled-warning">
                   {saving ? 'Saving…' : 'Save'}
@@ -234,7 +231,7 @@
             ? 'card p-4 flex items-center gap-4 shadow-surface-300'
             : 'card p-4 flex items-center gap-4 shadow-surface-500'}>
             {#if project.logo?.data}
-              <img src={project.logo.data} alt={project.title} class="h-12 w-12 object-contain shrink-0 rounded" />
+              <AdjustableImage value={pictureToValue(project.logo)} alt={project.title} frameClass="h-12 w-12 shrink-0 rounded" defaultFit="contain" />
             {:else}
               <div class="h-12 w-12 bg-surface-300-600-token rounded shrink-0"></div>
             {/if}

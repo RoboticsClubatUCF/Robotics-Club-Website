@@ -14,12 +14,23 @@ export async function sweepExpiredMemberships(): Promise<string[]> {
 		getGracePeriodInfo()
 	]);
 
+	// Removal is driven by each member's actual membershipExpDate, but is paused
+	// during the windows the rest of the app also exempts (see dashboard load and
+	// the (app) layout, which apply the same guards):
+	//   • Summer — membership is free, so expired members aren't demoted.
+	//   • Grace period — returning members get 14 days to renew before losing roles.
+	// These are anchored to the semester-change dates; without these guards the
+	// hourly sweep would strip roles the website otherwise protects.
 	if (semester === Season.Summer) {
-		lines.push('Summer period — sweeping expired memberships.');
+		lines.push('Summer period — membership enforcement paused; no roles removed.');
+		lines.push('Done.');
+		return lines;
 	}
 
 	if (inGrace) {
-		lines.push('Grace period — sweeping expired memberships.');
+		lines.push('Grace period — membership enforcement paused; no roles removed.');
+		lines.push('Done.');
+		return lines;
 	}
 
 	const expired = await db.member.findMany({

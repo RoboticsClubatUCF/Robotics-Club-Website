@@ -23,6 +23,11 @@ ENV DISCORD_MEMBER_ROLE_ID=$DISCORD_MEMBER_ROLE_ID
 ENV DISCORD_PROJECT_LEAD_ROLE_ID=$DISCORD_PROJECT_LEAD_ROLE_ID
 ENV DISCORD_TEAM_LEAD_ROLE_ID=$DISCORD_TEAM_LEAD_ROLE_ID
 
+# Where runtime image uploads are stored (mount a volume here to persist them) and the
+# adapter-node request body cap (default 512KB is too small for image uploads).
+ENV UPLOAD_DIR=/RCCF-WEB/uploads
+ENV BODY_SIZE_LIMIT=6000000
+
 RUN npx prisma generate
 RUN npm run build
 EXPOSE 4173

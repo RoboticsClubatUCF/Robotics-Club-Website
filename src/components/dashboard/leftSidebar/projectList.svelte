@@ -13,6 +13,6 @@
   {#each (data ?? []) as project}
     <MiniProjectCard data={project} />
   {:else}
-    <p class="text-sm opacity-50 mt-2">No projects this semester.</p>
+    <p class="text-sm opacity-50 mt-2">You haven't joined any projects yet.</p>
   {/each}
 </div>

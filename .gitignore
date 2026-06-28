@@ -7,6 +7,7 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 prisma/migrations
 metricsLogs
+/uploads
 **/g
 **/rccf-postgres
 src/paypal.ts

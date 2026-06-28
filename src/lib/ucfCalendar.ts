@@ -92,12 +92,21 @@ async function getEvents(year: number, season: UcfSeason): Promise<UcfEvent[]> {
 	return eventCache.get(key)?.events ?? [];
 }
 
-// Searches for an event by summary fragment, preferring the main session ("1").
-function findDate(events: UcfEvent[], ...fragments: string[]): Date | null {
+// UCF tags each term's primary session differently: spring and fall use "1",
+// while summer's full-term session is "c". Without this, summer's 6-week A/B and
+// 10-week D sub-sessions win and end summer in June instead of early August.
+const MAIN_SESSION: Record<UcfSeason, string> = {
+	spring: '1',
+	summer: 'c',
+	fall:   '1'
+};
+
+// Searches for an event by summary fragment, preferring the season's main session.
+function findDate(events: UcfEvent[], season: UcfSeason, ...fragments: string[]): Date | null {
 	for (const fragment of fragments) {
-		// Prefer main-session events so winter/flex sub-sessions don't win.
+		// Prefer main-session events so winter/flex/short sub-sessions don't win.
 		const match =
-			events.find((e) => e.eventSession === '1' && e.summary?.includes(fragment)) ??
+			events.find((e) => e.eventSession === MAIN_SESSION[season] && e.summary?.includes(fragment)) ??
 			events.find((e) => e.summary?.includes(fragment));
 		if (match?.dtstart) {
 			const d = new Date(match.dtstart);
@@ -109,7 +118,7 @@ function findDate(events: UcfEvent[], ...fragments: string[]): Date | null {
 
 export async function getSemesterEndDate(year: number, season: UcfSeason): Promise<Date> {
 	const events = await getEvents(year, season);
-	const found = findDate(events, 'On-Campus Housing Closes', 'Classes End', 'Commencement');
+	const found = findDate(events, season, 'On-Campus Housing Closes', 'Classes End', 'Commencement');
 	if (found) return found;
 	const [month, day] = FALLBACK_END[season];
 	return new Date(year, month, day);
@@ -117,7 +126,7 @@ export async function getSemesterEndDate(year: number, season: UcfSeason): Promi
 
 export async function getSemesterStartDate(year: number, season: UcfSeason): Promise<Date> {
 	const events = await getEvents(year, season);
-	const found = findDate(events, 'Classes Begin');
+	const found = findDate(events, season, 'Classes Begin');
 	if (found) return found;
 	const [month, day] = FALLBACK_START[season];
 	return new Date(year, month, day);

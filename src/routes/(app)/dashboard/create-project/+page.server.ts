@@ -5,6 +5,7 @@ import { zod } from '$lib/zodAdapter';
 import { fail, redirect, error } from "@sveltejs/kit";
 import { db } from "$lib/db";
 import { Season } from '@prisma/client';
+import { isDisplayableImageValue, pictureFieldsFromValue } from '$lib/imageRef';
 
 const createProSchema = z.object({
     title: z.string(),
@@ -60,10 +61,10 @@ export const actions: Actions = {
             return setError(form, 'title', 'Please Enter a Title');
         }
         if (vaildLogo === ''){
-            return setError(form, 'logo', 'Please Enter a Logo-Link');
+            return setError(form, 'logo', 'Please add a project image (link or upload).');
         }
-        if (!vaildLogo.startsWith('https://')) {
-            return setError(form, 'logo', 'Logo URL must start with https://');
+        if (!isDisplayableImageValue(vaildLogo)) {
+            return setError(form, 'logo', 'Image must be an https:// link or an uploaded file.');
         }
         if (vaildDocsLink === ''){
             return setError(form, 'docsLink', 'Please Enter a Docs-Link');
@@ -87,10 +88,7 @@ export const actions: Actions = {
                 title: form.data.title,
                 description: form.data.description,
                 logo: {
-                    create: {
-                        data: form.data.logo,
-                        isLocal: false,
-                    }
+                    create: pictureFieldsFromValue(form.data.logo)
                 },
                 docsLink: form.data.docsLink,
                 season: form.data.season as Season,

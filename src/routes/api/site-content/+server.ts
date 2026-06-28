@@ -1,5 +1,7 @@
 import { db } from '$lib/db';
 import { json, error } from '@sveltejs/kit';
+import { keyFromSrc } from '$lib/imageRef';
+import { safeDeletePhysical } from '$lib/server/assets';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ url }) => {
@@ -26,11 +28,19 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     throw error(400, 'Missing key or value');
   }
 
+  const prev = await db.siteContent.findUnique({ where: { key }, select: { value: true } });
+
   const record = await db.siteContent.upsert({
     where: { key },
     create: { key, value, type: type ?? 'text', updatedBy: locals.member.email },
     update: { value, type: type ?? 'text', updatedBy: locals.member.email }
   });
+
+  // If this key previously pointed at an uploaded file and no longer does, reclaim it.
+  const oldKey = keyFromSrc(prev?.value);
+  if (oldKey && oldKey !== keyFromSrc(typeof value === 'string' ? value : '')) {
+    await safeDeletePhysical(oldKey);
+  }
 
   return json({ success: true, record });
 };

@@ -1,9 +1,17 @@
 <script lang="ts">
+  import ImageInput from './ImageInput.svelte';
+  import AdjustableImage from './AdjustableImage.svelte';
+  import { isDisplayableImageValue } from '$lib/imageRef';
+
   export let contentKey: string;
   export let value: string;
   export let alt: string = '';
   export let editMode: boolean = false;
+  // Sizing/shape for the frame, e.g. 'w-full aspect-[21/9]'. (object-fit here is ignored —
+  // fit is controlled per-image via the adjustment menu.)
   export let imgClass: string = '';
+  export let shape: 'avatar' | 'banner' | 'logo' = 'banner';
+  export let defaultFit: 'cover' | 'contain' | 'fill' = 'cover';
 
   let editing = false;
   let editValue = value;
@@ -11,8 +19,8 @@
   let saveError = '';
 
   async function save() {
-    if (editValue && !editValue.startsWith('/') && !editValue.startsWith('https://')) {
-      saveError = 'Must be a relative path (e.g. /photos/img.png) or a full URL starting with https://';
+    if (!isDisplayableImageValue(editValue)) {
+      saveError = 'Provide an image link (https://…), a /path, or upload a file.';
       return;
     }
     saving = true;
@@ -44,20 +52,14 @@
 </script>
 
 <div class="relative group">
-  <img src={value} {alt} class={imgClass} />
+  <AdjustableImage {value} {alt} frameClass={imgClass} {defaultFit} />
 
   {#if editMode}
     {#if editing}
-      <div class="absolute inset-0 bg-black/70 flex flex-col items-center justify-center p-4 gap-2 z-10">
-        <p class="text-white text-xs font-bold">Image URL or path:</p>
-        <!-- svelte-ignore a11y_autofocus -->
-        <input
-          type="text"
-          bind:value={editValue}
-          class="w-full p-2 border-2 border-warning-500 rounded text-sm bg-surface-100-800-token"
-          placeholder="/photos/example.png or https://..."
-          autofocus
-        />
+      <div class="absolute inset-0 bg-black/80 flex flex-col items-stretch justify-start p-4 gap-2 z-10 overflow-auto">
+        {#key contentKey}
+          <ImageInput bind:value={editValue} {shape} {defaultFit} label="Image" />
+        {/key}
         {#if saveError}
           <p class="text-error-400 text-xs">{saveError}</p>
         {/if}

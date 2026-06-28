@@ -1,5 +1,7 @@
 <script lang="ts">
   import type { Prisma } from '@prisma/client';
+  import AdjustableImage from './AdjustableImage.svelte';
+  import { pictureToValue } from '$lib/imageRef';
 
   export let project: Prisma.ProjectGetPayload<{ include: { logo: true } }>;
   let hover = false;
@@ -16,10 +18,11 @@
   <!-- Mobile layout: always shows title + description -->
   <div class="card md:hidden p-3 space-y-1">
     {#if project.logo}
-      <img
-        class="w-full h-32 rounded object-contain mb-2"
-        src={project.logo.data}
+      <AdjustableImage
+        value={pictureToValue(project.logo)}
         alt={project.title}
+        frameClass="w-full h-32 rounded mb-2"
+        defaultFit="contain"
       />
     {/if}
     <h3 class="h5 font-bold">{project.title}</h3>
@@ -39,14 +42,13 @@
     on:mouseleave={() => { hover = false; }}
   >
     {#if !hover}
-      {#if project.logo?.isLocal}
-        <!-- local image placeholder -->
-      {:else if project.logo}
-        <div class="absolute m-5 p-2 h3 rounded-lg variant-filled-surface">{project.title}</div>
-        <img
-          class="h-72 w-full rounded-lg object-contain overflow-hidden"
-          src={project.logo.data}
-          alt=""
+      {#if project.logo}
+        <div class="absolute m-5 p-2 h3 rounded-lg variant-filled-surface z-10">{project.title}</div>
+        <AdjustableImage
+          value={pictureToValue(project.logo)}
+          alt={project.title}
+          frameClass="h-72 w-full rounded-lg"
+          defaultFit="contain"
         />
       {/if}
     {:else}

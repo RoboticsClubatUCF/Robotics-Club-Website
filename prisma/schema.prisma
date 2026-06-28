@@ -118,18 +118,24 @@ model ExpendatureRequest {
 }
 
 model Picture {
-  id        Int        @id @default(autoincrement())
-  title     String?
-  caption   String?
-  data      String?
-  isLocal   Boolean    @default(value: true)
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  Article   Article[]
-  BlogPost  BlogPost[]
-  Project   Project[]
-  Item      Item[]
-  Tags      Tag[]
+  id         Int        @id @default(autoincrement())
+  title      String?
+  caption    String?
+  data       String?    // external URL, /uploads/<key>, or /photos/... path
+  storageKey String?    // uploaded filename in UPLOAD_DIR; null => external/link
+  mimeType   String?
+  fit        String     @default("cover") // 'cover' | 'contain' | 'fill'
+  focalX     Int        @default(50) // object-position X, 0..100
+  focalY     Int        @default(50) // object-position Y, 0..100
+  scale      Float      @default(1) // transform scale multiplier
+  isLocal    Boolean    @default(value: true)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  Article    Article[]
+  BlogPost   BlogPost[]
+  Project    Project[]
+  Item       Item[]
+  Tags       Tag[]
 }
 
 model BlogPost {

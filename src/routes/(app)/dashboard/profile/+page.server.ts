@@ -5,6 +5,8 @@ import { zod } from '$lib/zodAdapter';
 import { fail, redirect } from '@sveltejs/kit';
 import { db } from '$lib/db';
 import { assignMemberRole } from '$lib/discord';
+import { isDisplayableImageValue, keyFromSrc } from '$lib/imageRef';
+import { safeDeletePhysical } from '$lib/server/assets';
 
 export const load = (async ({ parent }) => {
   const data = await parent();
@@ -20,8 +22,8 @@ const editProfileSchema = z.object({
   discordProfileName: z.string().min(1, 'Discord username is required'),
   email: z.string().email('A valid email is required'),
   profilePictureUrl: z.string().optional().refine(
-    (val) => !val || /^https:\/\/.+/.test(val),
-    { message: 'Must be a full URL starting with https://' }
+    (val) => !val || isDisplayableImageValue(val),
+    { message: 'Must be an https:// link or an uploaded file' }
   )
 });
 
@@ -38,11 +40,12 @@ export const actions: Actions = {
 
     const current = await db.member.findFirst({
       where: { email: locals.member.email },
-      select: { id: true, discordProfileName: true }
+      select: { id: true, discordProfileName: true, profilePictureUrl: true }
     });
 
     if (!current) return fail(404, { form });
 
+    const newPicture = form.data.profilePictureUrl || null;
     await db.member.update({
       where: { id: current.id },
       data: {
@@ -50,9 +53,12 @@ export const actions: Actions = {
         firstName: form.data.firstName,
         lastName: form.data.lastName ?? '',
         discordProfileName: form.data.discordProfileName,
-        profilePictureUrl: form.data.profilePictureUrl || null
+        profilePictureUrl: newPicture
       }
     });
+
+    const oldKey = keyFromSrc(current.profilePictureUrl);
+    if (oldKey && oldKey !== keyFromSrc(newPicture)) await safeDeletePhysical(oldKey);
 
     const discordChanged = current?.discordProfileName !== form.data.discordProfileName;
     if (discordChanged) {
@@ -79,7 +85,7 @@ export const actions: Actions = {
 
     const member = await db.member.findFirst({
       where: { email: locals.member.email },
-      select: { id: true, firstName: true, lastName: true }
+      select: { id: true, firstName: true, lastName: true, profilePictureUrl: true }
     });
 
     if (!member) return fail(404, { deleteError: 'Account not found.' });
@@ -95,6 +101,8 @@ export const actions: Actions = {
       db.blogPost.deleteMany({ where: { memberId: member.id } }),
       db.member.delete({ where: { id: member.id } })
     ]);
+
+    await safeDeletePhysical(keyFromSrc(member.profilePictureUrl));
 
     cookies.set('session', '', { path: '/', expires: new Date(0) });
     throw redirect(302, '/');

@@ -4,6 +4,8 @@
   import type { PageData, ActionData } from './$types';
   //@ts-ignore
   import FaBook from 'svelte-icons/fa/FaBook.svelte';
+  import AdjustableImage from '../../../../components/AdjustableImage.svelte';
+  import { pictureToValue } from '$lib/imageRef';
 
   export let data: PageData;
   export let form: ActionData;
@@ -16,7 +18,12 @@
   <div class="card p-4">
     <h2 class="h2 capitalize">{data.project.title}</h2>
     <br />
-    <img class="rounded-md w-full" src={data.project.logo?.data} alt="" />
+    <AdjustableImage
+      value={pictureToValue(data.project.logo)}
+      alt={data.project.title}
+      frameClass="rounded-md w-full aspect-video bg-surface-200-700-token"
+      defaultFit="contain"
+    />
 
     {#if data.isCurrent && data.canJoin}
       <div class="mt-4">

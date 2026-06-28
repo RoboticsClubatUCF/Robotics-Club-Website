@@ -5,8 +5,17 @@
 <script lang="ts">
   import { modeCurrent } from '@skeletonlabs/skeleton';
   import EditableText from '../../../components/EditableText.svelte';
+  import { parseImageRef, imageRefStyle } from '$lib/imageRef';
   import type { PageData } from './$types';
   export let data: PageData;
+
+  // Parse a stored logo value (plain URL or adjustment envelope) for inline rendering,
+  // defaulting legacy values to 'contain' so existing logos aren't cropped.
+  function logoRef(v: string) {
+    const r = parseImageRef(v);
+    if (!(v && v.startsWith('{'))) r.fit = 'contain';
+    return { src: r.src, style: imageRefStyle(r) };
+  }
 
   type TierKey = 'processor' | 'circuit' | 'bolt' | 'aluminum';
 
@@ -121,7 +130,8 @@
     <div class="scroller-container">
       <div class="scroller-inner" style="--scroll-duration: {scrollDuration}s">
         {#each [...topSponsors, ...topSponsors] as sponsor, i (i)}
-          <img src={sponsor.imageUrl} alt={sponsor.name} width="70px" />
+          {@const lr = logoRef(sponsor.imageUrl)}
+          <img src={lr.src} alt={sponsor.name} width="70" height="70" style={lr.style} />
           <div class="content-item">{sponsor.name}<br /></div>
         {/each}
       </div>
@@ -212,9 +222,10 @@
                 <p>Current Supporters:</p>
                 <div class="currentSupporters">
                   {#each tieredSponsors as sponsor}
+                    {@const lr = logoRef(sponsor.imageUrl)}
                     <div class="sponsor-logo">
                       <a href={sponsor.link} target="_blank" rel="noopener noreferrer">
-                        <img src={sponsor.imageUrl} alt={sponsor.name} />
+                        <img src={lr.src} alt={sponsor.name} style={lr.style} />
                       </a>
                     </div>
                   {/each}

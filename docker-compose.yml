@@ -24,6 +24,10 @@ services:
       - .env
     environment:
       - DATABASE_URL=postgresql://postgres:password@postgres_rccf:5432/RCCF
+      - UPLOAD_DIR=/RCCF-WEB/uploads
+      - BODY_SIZE_LIMIT=6000000
+    volumes:
+      - uploads:/RCCF-WEB/uploads
     ports:
       - 4173:4173
     networks:
@@ -61,6 +65,7 @@ services:
 volumes:
   data:
   pgadmin:
+  uploads:
 
 
 networks:

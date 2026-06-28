@@ -173,7 +173,7 @@
                 Active — expires {data.user?.membershipExpDate.toDateString()}
               </span>
               <p class="text-xs opacity-40 mt-2">
-                Discord roles update every 15 minutes after payment.
+                Your Discord member role is assigned automatically when you pay — just make sure you've joined the server.
               </p>
             {/if}
           </div>

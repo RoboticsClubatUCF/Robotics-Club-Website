@@ -1,6 +1,8 @@
 import type { Actions, PageServerLoad } from './$types';
 import { redirect, error } from '@sveltejs/kit';
 import { db } from '$lib/db';
+import { isDisplayableImageValue, keyFromSrc } from '$lib/imageRef';
+import { safeDeletePhysical } from '$lib/server/assets';
 
 const TIER_KEYS = ['processor', 'circuit', 'bolt', 'aluminum'] as const;
 type TierKey = (typeof TIER_KEYS)[number];
@@ -50,7 +52,7 @@ export const actions: Actions = {
     const tier = form.get('tier') as string;
 
     if (!name || !tier) return { error: 'Name and tier are required.' };
-    if (imageUrl && !imageUrl.startsWith('https://')) return { error: 'Image URL must start with https://' };
+    if (imageUrl && !isDisplayableImageValue(imageUrl)) return { error: 'Logo must be an https:// link or an uploaded file.' };
     if (link && !link.startsWith('https://')) return { error: 'Website link must start with https://' };
 
     await db.webSponsor.create({ data: { name, imageUrl, link, tier } });
@@ -66,10 +68,14 @@ export const actions: Actions = {
     const tier = form.get('tier') as string;
 
     if (!name || !tier || isNaN(id)) return { error: 'Name and tier are required.' };
-    if (imageUrl && !imageUrl.startsWith('https://')) return { error: 'Image URL must start with https://' };
+    if (imageUrl && !isDisplayableImageValue(imageUrl)) return { error: 'Logo must be an https:// link or an uploaded file.' };
     if (link && !link.startsWith('https://')) return { error: 'Website link must start with https://' };
 
+    const prev = await db.webSponsor.findUnique({ where: { id }, select: { imageUrl: true } });
     await db.webSponsor.update({ where: { id }, data: { name, imageUrl, link, tier } });
+
+    const oldKey = keyFromSrc(prev?.imageUrl);
+    if (oldKey && oldKey !== keyFromSrc(imageUrl)) await safeDeletePhysical(oldKey);
   },
 
   delete: async ({ request, locals }) => {
@@ -78,6 +84,8 @@ export const actions: Actions = {
     const id = parseInt(form.get('id') as string);
 
     if (isNaN(id)) return { error: 'Invalid sponsor.' };
+    const prev = await db.webSponsor.findUnique({ where: { id }, select: { imageUrl: true } });
     await db.webSponsor.delete({ where: { id } });
+    await safeDeletePhysical(keyFromSrc(prev?.imageUrl));
   }
 };

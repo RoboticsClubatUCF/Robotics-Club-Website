@@ -1,4 +1,8 @@
 <script lang="ts">
+  import ImageInput from '../ImageInput.svelte';
+  import AdjustableImage from '../AdjustableImage.svelte';
+  import { isDisplayableImageValue } from '$lib/imageRef';
+
   type Officer = {
     id: string;
     firstName: string;
@@ -93,8 +97,8 @@
       saving = false;
       return;
     }
-    if (editFields.profilePictureUrl && !editFields.profilePictureUrl.startsWith('https://')) {
-      saveError = 'Photo URL must start with https://';
+    if (editFields.profilePictureUrl && !isDisplayableImageValue(editFields.profilePictureUrl)) {
+      saveError = 'Provide a photo link (https://…) or upload a file.';
       saving = false;
       return;
     }
@@ -147,13 +151,9 @@
             <span class="text-xs">Profile Link (LinkedIn, etc.)</span>
             <input type="url" bind:value={editFields.profileLink} class="input input-sm" placeholder="https://…" pattern="https://.+" title="Must be a full URL starting with https://" />
           </label>
-          <label class="label">
-            <span class="text-xs">Photo URL</span>
-            <input type="url" bind:value={editFields.profilePictureUrl} class="input input-sm" placeholder="https://…/photo.jpg" pattern="https://.+" title="Must be a full URL starting with https://" />
-          </label>
-          {#if editFields.profilePictureUrl}
-            <img src={editFields.profilePictureUrl} alt="Preview" class="w-16 h-16 rounded-full object-cover" />
-          {/if}
+          {#key editingId}
+            <ImageInput bind:value={editFields.profilePictureUrl} shape="avatar" defaultFit="cover" label="Photo" />
+          {/key}
           {#if saveError}<p class="text-error-500 text-xs">{saveError}</p>{/if}
           <div class="flex gap-2">
             <button on:click={() => saveOfficer(officer)} disabled={saving} class="btn btn-sm variant-filled-success">
@@ -179,10 +179,11 @@
           >
             <div class="bg-surface-200-700-token w-full aspect-[10/8] flex items-center justify-center overflow-hidden">
               {#if officer.profilePictureUrl}
-                <img
-                  src={officer.profilePictureUrl}
+                <AdjustableImage
+                  value={officer.profilePictureUrl}
                   alt="{officer.firstName} {officer.lastName ?? ''}"
-                  class="w-full h-full object-cover"
+                  frameClass="w-full h-full"
+                  defaultFit="cover"
                 />
               {:else}
                 <span class="text-4xl font-bold opacity-30">
