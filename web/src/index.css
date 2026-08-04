@@ -1,0 +1,193 @@
+/* Fonts are self-hosted rather than pulled from the Google Fonts CDN: the design
+   is two typefaces doing all the work, and a fallback flash of system-ui wrecks
+   the hero. Space Grotesk ships as one variable file covering 300–700, so the
+   whole weight range costs a single request; IBM Plex Mono has no variable
+   build, so only the three weights actually used are imported.
+
+   Plex is pinned to the Latin subsets because its package otherwise declares
+   Cyrillic, Greek and Vietnamese too — never downloaded, since `unicode-range`
+   gates that, but every one of those `@font-face` blocks still ships inside the
+   stylesheet on every page load. Space Grotesk's variable package carries only
+   Latin, Latin Extended and Vietnamese, so its index imports whole. */
+@import '@fontsource-variable/space-grotesk';
+@import '@fontsource/ibm-plex-mono/latin-400.css';
+@import '@fontsource/ibm-plex-mono/latin-500.css';
+@import '@fontsource/ibm-plex-mono/latin-600.css';
+@import '@fontsource/ibm-plex-mono/latin-ext-400.css';
+@import '@fontsource/ibm-plex-mono/latin-ext-500.css';
+@import '@fontsource/ibm-plex-mono/latin-ext-600.css';
+
+@import 'tailwindcss';
+
+/* The club palette, replacing the stock light/dark placeholder. The site is
+   committed to one dark theme — there is no second surface colour anywhere in
+   the design — so there is nothing to toggle between and no `--prefersdark`
+   counterpart. `themes: false` keeps DaisyUI's twenty-odd built-ins out of the
+   bundle entirely. If a light theme is ever wanted, add a second
+   `@plugin 'daisyui/theme'` block rather than reaching for the built-ins. */
+@plugin 'daisyui' {
+  themes: false;
+}
+
+@plugin 'daisyui/theme' {
+  name: 'rccf';
+  default: true;
+  color-scheme: dark;
+
+  /* Near-black, not black. The page sits a step above true black so the footer
+     can drop to #000 and still read as a separate plane. */
+  --color-base-100: #0b0b0b;
+  --color-base-200: #101010;
+  --color-base-300: #151515;
+  --color-base-content: #ffffff;
+
+  /* UCF gold — the only accent the site has. */
+  --color-primary: #ffc904;
+  --color-primary-content: #111111;
+
+  /* The design uses exactly one accent, so these exist only so a stray
+     `btn-secondary` or `badge-accent` lands somewhere in palette instead of
+     DaisyUI's stock purple. They are not an invitation to a second brand
+     colour. */
+  --color-secondary: #ffffff;
+  --color-secondary-content: #0b0b0b;
+  --color-accent: #b8931a;
+  --color-accent-content: #0b0b0b;
+  --color-neutral: #151515;
+  --color-neutral-content: #ffffff;
+
+  /* Status colours, for the forms and admin screens that don't exist yet. All
+     picked to clear 4.5:1 against `--color-base-100`. */
+  --color-info: #4aa8f0;
+  --color-info-content: #04121f;
+  --color-success: #3ec27a;
+  --color-success-content: #04140b;
+  --color-warning: #f0a83b;
+  --color-warning-content: #1f1204;
+  --color-error: #f2604a;
+  --color-error-content: #1f0703;
+
+  /* Hard edges everywhere. 2px reads as "cut", not "rounded" — the whole
+     layout is built from straight rules and right angles, and a 0.5rem radius
+     on a button is enough to break that. */
+  --radius-selector: 2px;
+  --radius-field: 2px;
+  --radius-box: 2px;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  /* Flat fills. DaisyUI's default depth adds a gradient and inset highlight to
+     buttons, which turns the gold into a plastic pill. */
+  --depth: 0;
+  --noise: 0;
+}
+
+@theme {
+  /* Space Grotesk carries anything read as language; IBM Plex Mono carries
+     labels, project codes and metadata — the small, uppercase, wide-tracked
+     text that gives the page its instrument-panel feel. Overriding `--font-sans`
+     (rather than adding a `--font-display`) is what makes body copy inherit it
+     without every element opting in. */
+  --font-sans: 'Space Grotesk Variable', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  /* Two text tiers below full-strength white, and only two: `dim` for anything
+     still meant to be read as prose, `faint` for labels and metadata. The
+     source design drifted across nine different alphas between .35 and .65 —
+     that was noise, not intent. Resist adding a third. */
+  --color-dim: rgb(255 255 255 / 0.6);
+  --color-faint: rgb(255 255 255 / 0.42);
+  /* Every hairline on the page: section rules, table rows, borders. */
+  --color-rule: rgb(255 255 255 / 0.1);
+
+  /* The hover state for the full-bleed rows and cells. Opaque on purpose,
+     rather than a translucent gold: the stat cells sit on top of the strip's
+     rule-coloured background, so a see-through tint would let that grey bleed
+     up and the cell would flash *lighter* on hover instead of warmer.
+     Flattening the mix against the page colour makes the tint identical
+     wherever it lands. */
+  --color-wash: color-mix(in oklab, var(--color-primary) 5%, var(--color-base-100));
+
+  /* Page side gutter, registered under the spacing namespace so `px-page`,
+     `pl-page` and friends all track one value. It widens at `wide` — see the
+     `:root` override below. */
+  --spacing-page: 1.25rem;
+
+  /* The layout has exactly one breakpoint. Above it the page is a wide
+     multi-column grid; below it, a single column. Everything responsive on the
+     site keys off this, so there is no scale of half-states to reason about. */
+  --breakpoint-wide: 56.25rem;
+
+  /* Long, slow, and non-decorative in that order. The orbit ring takes 90s
+     precisely so it never reads as a spinner. */
+  --animate-orbit: orbit 90s linear infinite;
+  --animate-rise: rise 700ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+
+  @keyframes orbit {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(0.875rem);
+    }
+  }
+}
+
+@layer base {
+  :root {
+    /* Written as a variant rather than a hand-rolled media query so the
+       breakpoint stays defined in exactly one place, above. */
+    @variant wide {
+      --spacing-page: 2.75rem;
+    }
+  }
+
+  html {
+    /* The type is light-on-dark at small sizes throughout; without this the
+       weights render a step heavier than they were drawn. */
+    -webkit-font-smoothing: antialiased;
+    /* The nav links are in-page anchors. */
+    scroll-behavior: smooth;
+  }
+}
+
+/* The gold call to action. DaisyUI's `btn` already supplies the box model, the
+   focus ring and the disabled state — this changes only the two things the
+   design does differently: the fill stays flat gold on hover instead of
+   darkening, and the button lifts rather than shifting colour. Size is left to
+   utilities at the call site, since the nav and hero use different ones. */
+@utility btn-cta {
+  height: auto;
+  min-height: 0;
+  letter-spacing: 0.04em;
+  transition-property: transform, box-shadow;
+  transition-duration: 200ms;
+
+  &:hover {
+    background-color: var(--color-primary);
+    transform: translateY(-2px);
+    /* This compiles to `color-mix`, which Lightning CSS then emits twice: an
+       opaque fallback rule first, the real translucent one second. Both are
+       supposed to be there — the doubled `.btn-cta:hover` in the built CSS is
+       not a bug worth chasing. */
+    box-shadow: 0 10px 26px --alpha(var(--color-primary) / 32%);
+  }
+}
+
+/* Motion is a preference, not a given. Anything animated has to stay usable
+   when this kicks in, so movement can never be the only thing carrying
+   meaning — colour and layout have to say it too. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

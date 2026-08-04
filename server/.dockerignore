@@ -1,0 +1,9 @@
+node_modules
+src/generated
+.env
+.env.*
+!.env.example
+Dockerfile
+.dockerignore
+README.md
+*.log

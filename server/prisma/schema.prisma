@@ -1,0 +1,259 @@
+// RCCF website database schema.
+// Docs: https://pris.ly/d/prisma-schema
+// The datasource URL lives in prisma.config.ts (read from DATABASE_URL).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ----------------------------------------------------------------- people
+
+/// One ladder, most permission to least. Declaration order is load-bearing
+/// twice over: Postgres sorts an enum by the order its values were declared, so
+/// this is both the permission ranking and the roster display order that
+/// `orderBy: { role: 'asc' }` relies on. Adding a value mid-list changes both.
+enum UserRole {
+  ADMIN
+  OFFICER
+  PROJECT_LEAD
+  TEAM_LEAD
+  MEMBER
+  MENTOR
+  ALUMNUS
+  GUEST
+}
+
+/// Everyone the site knows about: the roster, the people who can sign in, and
+/// anyone who has only signed up.
+///
+/// `email` and `passwordHash` are optional because most people on the roster
+/// never sign in, and `slug` is optional because an account with no public
+/// profile page has nothing to put in a URL. A null slug is what keeps someone
+/// off the roster — see the members route in `src/routes/content.ts`.
+model User {
+  id           String    @id @default(uuid(7))
+  slug         String?   @unique
+  fullName     String    @map("full_name")
+  email        String?   @unique
+  /// Discord handle, not the numeric snowflake id. Unique because it points at
+  /// one external account — two people can't both be `@someone`.
+  discordUsername String? @unique @map("discord_username")
+  passwordHash String?   @map("password_hash")
+  role         UserRole  @default(GUEST)
+  title        String? // free-text, e.g. "Software Lead"
+  gradYear     Int?      @map("grad_year")
+  bio          String?
+  photoUrl     String?   @map("photo_url")
+  active       Boolean   @default(true)
+  joinedAt     DateTime? @map("joined_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  subteamId String?  @map("subteam_id")
+  subteam   Subteam? @relation(fields: [subteamId], references: [id], onDelete: SetNull)
+
+  posts    Post[]
+  projects ProjectMember[]
+
+  @@index([subteamId])
+  @@index([active])
+  // Matches the default roster query: filter on active, sort by role then name.
+  @@index([active, role, fullName])
+  @@map("users")
+}
+
+// ------------------------------------------------------------ club structure
+
+/// A division of the club: software, mechanical, electrical, outreach, ...
+model Subteam {
+  id          String  @id @default(uuid(7))
+  slug        String  @unique
+  name        String
+  description String?
+  color       String? // hex accent used on the site
+  sortOrder   Int     @default(0) @map("sort_order")
+
+  members User[]
+
+  @@map("subteams")
+}
+
+// ------------------------------------------------------------------ projects
+
+enum ProjectStatus {
+  CONCEPT
+  IN_PROGRESS
+  COMPLETED
+  ARCHIVED
+}
+
+model Project {
+  id          String        @id @default(uuid(7))
+  slug        String        @unique
+  title       String
+  summary     String? // one-liner for cards
+  description String? // long form, markdown
+  season      String? // e.g. "2025-2026"
+  // The competition or partner org a project is built for, e.g. "UNIVERSITY
+  // ROVER CHALLENGE". Free text rather than a relation: it is a label the site
+  // prints, nothing joins on it, and a club project may have no competition.
+  competition String?
+  status      ProjectStatus @default(IN_PROGRESS)
+  coverUrl    String?       @map("cover_url")
+  repoUrl     String?       @map("repo_url")
+  featured    Boolean       @default(false)
+  startedAt   DateTime?     @map("started_at")
+  completedAt DateTime?     @map("completed_at")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  members ProjectMember[]
+
+  @@index([status])
+  @@index([featured])
+  // Matches the default project listing order.
+  @@index([featured, startedAt])
+  @@map("projects")
+}
+
+/// Explicit join table so a person's role on a project can be recorded. That
+/// role is free text and unrelated to `UserRole` — it describes one project.
+model ProjectMember {
+  projectId String  @map("project_id")
+  userId    String  @map("user_id")
+  role      String?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, userId])
+  @@index([userId])
+  @@map("project_members")
+}
+
+// -------------------------------------------------------------------- events
+
+enum EventType {
+  MEETING
+  COMPETITION
+  OUTREACH
+  WORKSHOP
+  FUNDRAISER
+  SOCIAL
+}
+
+model Event {
+  id              String    @id @default(uuid(7))
+  slug            String    @unique
+  title           String
+  description     String?
+  type            EventType @default(MEETING)
+  location        String?
+  startsAt        DateTime  @map("starts_at")
+  endsAt          DateTime? @map("ends_at")
+  registrationUrl String?   @map("registration_url")
+  published       Boolean   @default(false)
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([startsAt])
+  @@index([published, startsAt])
+  // upcoming/past splits on endsAt, falling back to startsAt for one-day events.
+  @@index([published, endsAt])
+  @@map("events")
+}
+
+// ---------------------------------------------------------------------- news
+
+model Post {
+  id          String    @id @default(uuid(7))
+  slug        String    @unique
+  title       String
+  excerpt     String?
+  body        String
+  coverUrl    String?   @map("cover_url")
+  publishedAt DateTime? @map("published_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  authorId String? @map("author_id")
+  author   User?   @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([publishedAt])
+  @@index([authorId])
+  @@map("posts")
+}
+
+// ------------------------------------------------------------------ sponsors
+
+enum SponsorTier {
+  PLATINUM
+  GOLD
+  SILVER
+  BRONZE
+  PARTNER
+}
+
+model Sponsor {
+  id         String      @id @default(uuid(7))
+  name       String      @unique
+  tier       SponsorTier @default(BRONZE)
+  logoUrl    String?     @map("logo_url")
+  websiteUrl String?     @map("website_url")
+  blurb      String?
+  active     Boolean     @default(true)
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  @@index([tier])
+  @@index([active, tier])
+  @@map("sponsors")
+}
+
+// --------------------------------------------------------------- contact form
+
+enum InquiryStatus {
+  NEW
+  READ
+  ARCHIVED
+}
+
+/// Submissions from the public contact form.
+model ContactMessage {
+  id        String        @id @default(uuid(7))
+  name      String
+  email     String
+  subject   String?
+  message   String
+  status    InquiryStatus @default(NEW)
+  createdAt DateTime      @default(now()) @map("created_at")
+
+  @@index([status, createdAt])
+  @@map("contact_messages")
+}
+
+// Joining the club is account signup, not a form submission: a new User lands
+// at the default GUEST role and is promoted from there. There is deliberately
+// no JoinApplication model.
+
+// ------------------------------------------------------------- infrastructure
+
+/// Fixed-window counters for the public write endpoints.
+///
+/// This lives in Postgres rather than in process memory so the limit holds
+/// across every API instance — an in-memory counter would let an abuser get
+/// N times the allowance by spreading requests over N replicas, and would
+/// reset on every deploy. Rows are swept periodically; see `sweepRateLimits`.
+model RateLimit {
+  /// Scope plus client identity, e.g. "forms:203.0.113.4".
+  key       String   @id
+  count     Int      @default(0)
+  expiresAt DateTime @map("expires_at")
+
+  @@index([expiresAt])
+  @@map("rate_limits")
+}

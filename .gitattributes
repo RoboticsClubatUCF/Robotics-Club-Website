@@ -1,0 +1,16 @@
+# Normalise line endings in the repository to LF regardless of who commits.
+# Without this, a Windows checkout stores CRLF and every file a Windows and a
+# macOS contributor both touch shows up as wholly rewritten in the diff.
+* text=auto eol=lf
+
+# Binary — never touch these.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+
+# Generated. Collapse them in diffs and don't count them in language stats.
+package-lock.json linguist-generated=true -diff

@@ -1,0 +1,104 @@
+# Compose project name is distinct from the older `rccf` stack in
+# Documents/RCCF-V13 so the two never share containers, volumes, or ports.
+name: rccf-v13
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: rccf-v13-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-rccf}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-rccf}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      # Postgres 18+ images store data in a version-named subdirectory, so the
+      # mount goes at /var/lib/postgresql — mounting .../data makes them refuse
+      # to start. Do not add a PGDATA override; that writes to the container's
+      # own layer instead of the volume and the data dies with the container.
+      - data:/var/lib/postgresql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $${POSTGRES_USER:-rccf} -d $${POSTGRES_DB:-rccf}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Applies migrations once, before any API instance comes up. If each replica
+  # ran them itself, a scaled deploy would have N processes racing on the same
+  # migration table.
+  migrate:
+    build: .
+    image: rccf-v13-api
+    profiles: [app]
+    restart: "no"
+    command: ["npx", "prisma", "migrate", "deploy"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-rccf}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-rccf}?schema=public
+
+  # Stateless — every instance keeps its rate-limit windows in Postgres, so you
+  # can run as many as you like:
+  #   docker compose --profile app up -d --scale api=3
+  api:
+    build: .
+    image: rccf-v13-api
+    profiles: [app]
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-rccf}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-rccf}?schema=public
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+      # Compose publishes these directly, with no proxy rewriting the header.
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+      DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-5}
+      RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-600}
+    ports:
+      # A range rather than one port, so --scale can bind each replica. Put a
+      # real proxy in front of these before this is exposed to the internet.
+      - "${API_PORT_RANGE:-4000-4004}:4000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # Optional web UI. Off by default; start with:
+  #   docker compose --profile tools up -d
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: rccf-v13-pgadmin
+    profiles: [tools]
+    restart: unless-stopped
+    environment:
+      # Not a .local address — pgAdmin validates this and refuses to boot on a
+      # reserved TLD, crash-looping with "does not appear to be a valid email".
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    volumes:
+      - pgadmin:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  data:
+  pgadmin:
