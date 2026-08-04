@@ -1,8 +1,7 @@
 # Robotics Club of Central Florida — Website
 
-Version 13. A complete rewrite: **Vite + React + Tailwind** on the front,
-**Postgres + Prisma + Hono** on the back. It replaces the SvelteKit site that
-lived here before, and shares no code with it.
+**Vite + React + Tailwind** on the front, **Postgres + Prisma + Hono** on the
+back.
 
 ```
 .
@@ -113,6 +112,28 @@ renders correctly while loading, on success, and when the API is unreachable.
 **`server`** tests drive the real Hono app in-process against the real database,
 so **Postgres must be up**. They assert invariants rather than fixed numbers,
 since the data is whatever the last seed left behind. The two that matter:
+
+- every count from `/api/stats` equals the length of the listing it links to, so
+  a filter added to one side and not the other fails the build;
+- no public route ever returns an `email` or a `passwordHash` — logins and
+  roster entries share one table, so that is one careless spread away.
+
+---
+
+## Gotchas
+
+- **Postgres listens on 5433, not the default 5432.** Set in `server/.env`, so a
+  Postgres already installed on the machine won't collide with it.
+- **Run `npm --prefix server run generate` after any schema change** — and after
+  pulling one. The Prisma client is generated TypeScript in
+  `server/src/generated`, which is gitignored, so a fresh clone has none until
+  you generate it. `npm run setup` does this for you.
+- **`docker compose down` stops the whole project**, not just the profile you
+  named. Use `docker compose stop <service>` to stop one thing.
+- **`TRUST_PROXY` must stay `false`** unless there is a proxy in front of the
+  API. Otherwise anyone can forge `X-Forwarded-For` and walk past the rate limit.
+- **Never commit a `.env`.** Only the `.env.example` files belong in the
+  repository; real credentials stay on the machine that uses them.
 
 ---
 

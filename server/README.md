@@ -225,8 +225,9 @@ reaches tens of thousands of rows.
 
 ## Notes
 
-- **Port 5433, not 5432.** The older stack in `Documents/RCCF-V13` holds 5432. The
-  compose project is named `rccf-v13` so the two never share containers or volumes.
+- **Port 5433, not 5432**, so a Postgres already installed on the machine can't
+  collide with it. The compose project is named `rccf-v13`, which is what keeps
+  its containers and volumes to itself.
 - **Postgres 18 volume mount.** The volume mounts at `/var/lib/postgresql`, not
   `/var/lib/postgresql/data` — 18+ images refuse to start otherwise. Don't add a
   `PGDATA` override to work around it; that writes to the container layer and the

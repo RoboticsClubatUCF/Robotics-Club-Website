@@ -160,18 +160,6 @@ const projects = [
   },
 ]
 
-/**
- * Projects an earlier seed created that are no longer in the list above. The
- * seed only upserts, so without this they would linger in every database that
- * ever ran the old version — and show up on the landing page, which now reads
- * its list straight from here.
- */
-const retiredProjectSlugs = [
-  'competition-robot-2026',
-  'autonomous-vision-stack',
-  'outreach-demo-bot',
-]
-
 const day = 24 * 60 * 60 * 1000
 const now = Date.now()
 
@@ -253,9 +241,8 @@ async function main() {
     })
   }
 
-  // Cascades to project_members, so no need to clear those first.
-  await prisma.project.deleteMany({ where: { slug: { in: retiredProjectSlugs } } })
-
+  // Upsert only: deleting a project from the array above will not remove it
+  // from a database that already has it. Delete those by hand, or in Studio.
   for (const { leads, ...project } of projects) {
     await prisma.project.upsert({
       where: { slug: project.slug },
