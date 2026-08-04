@@ -114,45 +114,9 @@ renders correctly while loading, on success, and when the API is unreachable.
 so **Postgres must be up**. They assert invariants rather than fixed numbers,
 since the data is whatever the last seed left behind. The two that matter:
 
-- every count from `/api/stats` equals the length of the listing it links to, so
-  a filter added to one side and not the other fails the build;
-- no public route ever returns an `email` or a `passwordHash` — logins and
-  roster entries share one table, so that is one careless spread away.
-
 ---
-
-## Gotchas
-
-- **Postgres is on 5433, not 5432.** An older copy of this project holds 5432.
-  The Docker project here is named `rccf-v13` so the two never share containers
-  or volumes.
-- **Run `npm --prefix server run generate` after any schema change** — and after
-  pulling one. The Prisma client is generated TypeScript in
-  `server/src/generated`, which is gitignored, so a fresh clone has none until
-  you generate it. `npm run setup` does this for you.
-- **`docker compose down` stops the whole project**, not just the profile you
-  named. Use `docker compose stop <service>` to stop one thing.
-- **`TRUST_PROXY` must stay `false`** unless there is a proxy in front of the
-  API. Otherwise anyone can forge `X-Forwarded-For` and walk past the rate limit.
 
 Each package's own README carries the rest: [`web/README.md`](web/README.md) for
 the styling system and the frontend's conventions,
 [`server/README.md`](server/README.md) for the API route table, pgAdmin, psql
 and the scaling notes.
-
----
-
-## A note on the old history
-
-Everything before this rewrite is the SvelteKit site. That history is kept, but
-none of it is live code any more.
-
-**It contains a committed `.env` with real credentials** — a production database
-URL, a Stripe secret key, a Postmark token and a Discord bot token — tracked
-across 16 commits between March 2023 and April 2026. Deleting the file in this
-rewrite removes it from the current tree but **not from history**; anyone who
-can read the repository can still recover those values from an old commit.
-
-Treat every one of those credentials as compromised and rotate them. Purging
-them from history as well needs a force-push and coordination with everyone
-holding a clone.
