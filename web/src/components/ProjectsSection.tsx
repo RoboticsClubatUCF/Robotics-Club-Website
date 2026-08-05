@@ -11,6 +11,12 @@ const rowClass =
  * The projects list, as rules-and-columns rather than cards — the point is that
  * you can read down the season column and the competition column separately.
  *
+ * Nothing renders this at the moment. It came off the landing page when the
+ * projects moved to a page of their own, and it is kept — tested, and already
+ * fetching — for `src/pages/ProjectsPage.tsx` to use once the router lands. If
+ * that page ends up wanting something other than five rows, `LIMIT` becomes a
+ * prop; the rest of the component is the full list already.
+ *
  * Rows are not links yet. The source design had them as `cursor: pointer` divs
  * pointing at nothing; rather than ship a click target that goes nowhere, each
  * row stays a plain article until project routes exist, at which point the

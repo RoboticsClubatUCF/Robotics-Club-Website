@@ -19,7 +19,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "lint": "oxlint"
   },
   "dependencies": {
     "@hono/node-server": "^2.0.12",
@@ -27,11 +28,13 @@
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
     "hono": "^4.12.34",
+    "postmark": "^5.1.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
     "dotenv": "^17.4.2",
+    "oxlint": "^1.77.0",
     "prettier": "^3.9.6",
     "prisma": "^7.9.1",
     "tsx": "^4.23.5",

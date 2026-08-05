@@ -138,17 +138,30 @@ is rate limited to 5 submissions per IP per 10 minutes.
 | `GET /api/health`        | Also pings the database                             |
 | `GET /api/subteams`      | Includes an active-member count                     |
 | `GET /api/members`       | The roster. `?subteam= &role= &status=active\|alumni\|all` |
+| `GET /api/officers`      | The board, in seat order — see below                |
 | `GET /api/members/:slug` | Adds the member's projects                          |
 | `GET /api/projects`      | `?status= &season= &featured=true`                  |
 | `GET /api/projects/:slug`| Adds description and the credited members           |
-| `GET /api/events`        | `?when=upcoming\|past\|all &type=` — published only |
+| `GET /api/events`        | `?when=upcoming\|past\|all &type= &from= &to=` — published only |
 | `GET /api/events/:slug`  | Published only                                      |
 | `GET /api/posts`         | Published and not future-dated; no body             |
 | `GET /api/posts/:slug`   | Adds the body                                       |
-| `GET /api/sponsors`      | `?tier=` — active only                              |
+| `GET /api/sponsors`      | `?tier=` — active only, ordered by tier             |
 | `POST /api/contact`      | `{ name, email, subject?, message }` → 201          |
 
 List routes take `?limit=` (max 100) and `?offset=`.
+
+`/events` accepts an ISO `from`/`to` window, which is what the landing page's
+calendar asks for one month at a time. The window is half-open and matches on
+*overlap*, not on start: an event that begins in July and ends in August comes
+back for both months, so a multi-day competition never falls off a grid. Pair it
+with `when=all` — a calendar has to draw the days that have already gone.
+
+`/officers` is separate from `/members?role=OFFICER` because a seat on the board
+and a permission level are different things: the faculty advisor holds a seat and
+is a `MENTOR`, so a role filter would both miss them and sweep up officers who
+hold no named seat. Unfilled seats are simply absent from the response — the site
+draws a card per seat and labels the empty ones itself.
 
 Email addresses and password hashes are never returned by the public API, and
 neither are users who aren't on the roster. Post authors expose only a name.

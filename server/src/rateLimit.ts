@@ -23,7 +23,17 @@ function clientAddress(c: Context): string {
     if (forwarded) return forwarded
   }
 
-  return getConnInfo(c).remote.address ?? 'unknown'
+  try {
+    return getConnInfo(c).remote.address ?? 'unknown'
+  } catch {
+    // `getConnInfo` reaches for the Node socket behind the request and throws
+    // outright when there isn't one — an in-process `app.request()`, or any
+    // adapter that isn't @hono/node-server. That is the same situation as an
+    // address it cannot read, so it lands in the same place rather than
+    // turning every guarded write into a 500. Callers that can't be told apart
+    // share one bucket, which errs toward limiting too much, not too little.
+    return 'unknown'
+  }
 }
 
 /**

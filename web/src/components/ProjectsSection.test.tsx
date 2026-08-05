@@ -2,7 +2,12 @@ import { render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ProjectsSection } from './ProjectsSection'
 import type { ApiProject } from '../lib/api'
-import { stubFetch, stubFetchNetworkError, stubFetchPending } from '../test/stubFetch'
+import {
+  stubFetch,
+  stubFetchNetworkError,
+  stubFetchPending,
+  urlOf,
+} from '../test/stubFetch'
 
 const project = (over: Partial<ApiProject> = {}): ApiProject => ({
   id: 'p1',
@@ -113,6 +118,6 @@ describe('ProjectsSection', () => {
     render(<ProjectsSection />)
     await screen.findByText('Project S.T.O.R.M.')
 
-    expect(String(fetchStub.mock.calls[0]?.[0])).toContain('limit=5')
+    expect(urlOf(fetchStub.mock.calls[0]![0])).toContain('limit=5')
   })
 })

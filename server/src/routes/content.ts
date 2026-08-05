@@ -42,6 +42,7 @@ const rosterSelect = {
   slug: true,
   fullName: true,
   role: true,
+  officerPosition: true,
   title: true,
   gradYear: true,
   bio: true,
@@ -74,6 +75,7 @@ const eventSelect = {
   location: true,
   startsAt: true,
   endsAt: true,
+  allDay: true,
   registrationUrl: true,
 } satisfies EventSelect
 
@@ -93,13 +95,24 @@ function notFound(what: string): never {
 }
 
 /**
+ * Hasn't finished by `at`. `endsAt` is optional, so a one-day event falls back
+ * to its start.
+ *
+ * Two callers want this same predicate for different reasons: "upcoming" is
+ * "hasn't finished by now", and the calendar's lower range bound is "hasn't
+ * finished by the 1st of the month" — which is what keeps a competition that
+ * started in July on the August grid.
+ */
+const unfinishedBy = (at: Date) => ({
+  OR: [{ endsAt: { gte: at } }, { endsAt: null, startsAt: { gte: at } }],
+})
+
+/**
  * An event counts as past only once it has finished, so a multi-day competition
  * keeps showing as upcoming while it runs. Shared by the event listing and the
  * stats count so the two can never disagree about what "upcoming" means.
  */
-const upcoming = (now: Date) => ({
-  OR: [{ endsAt: { gte: now } }, { endsAt: null, startsAt: { gte: now } }],
-})
+const upcoming = unfinishedBy
 
 const past = (now: Date) => ({
   OR: [{ endsAt: { lt: now } }, { endsAt: null, startsAt: { lt: now } }],
@@ -190,6 +203,31 @@ content.get(
   },
 )
 
+/**
+ * The officer board: everyone currently holding one of the seats in
+ * `OfficerPosition`.
+ *
+ * Its own route rather than `/members?role=OFFICER` because the seat and the
+ * permission level are different things — the faculty advisor belongs on this
+ * board and is a `MENTOR`, and a `role=OFFICER` filter would both miss them and
+ * sweep up officers who hold no named seat.
+ *
+ * Unfilled seats are absent, not null: the site draws one card per position and
+ * fills in whoever holds it, so an empty seat is the landing page's business to
+ * label, not something the database can express.
+ */
+content.get('/officers', async (c) => {
+  const officers = await prisma.user.findMany({
+    where: { ...onRoster, officerPosition: { not: null } },
+    // Postgres sorts an enum by declaration order, and OfficerPosition is
+    // declared in board order, so this is president-first without a lookup.
+    orderBy: { officerPosition: 'asc' },
+    select: rosterSelect,
+  })
+
+  return c.json(officers)
+})
+
 content.get('/members/:slug', async (c) => {
   const member = await prisma.user.findFirst({
     where: { ...onRoster, slug: c.req.param('slug') },
@@ -268,17 +306,41 @@ content.get(
     listQuery.extend({
       when: z.enum(['upcoming', 'past', 'all']).default('upcoming'),
       type: z.enum(EventType).optional(),
+      /**
+       * Half-open window `[from, to)`, for the landing page's calendar: it asks
+       * for one month at a time and pairs these with `when=all`, since a grid
+       * has to show the days that have already been and gone.
+       *
+       * An event counts as inside the window if any part of it overlaps —
+       * starts before `to` and hasn't finished by `from` — so a multi-day
+       * competition appears on every month it touches rather than only the one
+       * it began in.
+       */
+      from: z.iso.datetime().optional(),
+      to: z.iso.datetime().optional(),
     }),
   ),
   async (c) => {
-    const { when, type, limit, offset } = c.req.valid('query')
+    const { when, type, from, to, limit, offset } = c.req.valid('query')
     const now = new Date()
 
-    const timing =
-      when === 'upcoming' ? upcoming(now) : when === 'past' ? past(now) : {}
-
+    // `unfinishedBy` and `upcoming` both compile to an `OR`, and an object can
+    // hold only one of those, so the conditions go into an `AND` array instead
+    // of being spread into a single `where`.
     const events = await prisma.event.findMany({
-      where: { published: true, ...timing, ...(type ? { type } : {}) },
+      where: {
+        published: true,
+        AND: [
+          ...(when === 'upcoming'
+            ? [upcoming(now)]
+            : when === 'past'
+              ? [past(now)]
+              : []),
+          ...(from ? [unfinishedBy(new Date(from))] : []),
+        ],
+        ...(to ? { startsAt: { lt: new Date(to) } } : {}),
+        ...(type ? { type } : {}),
+      },
       orderBy: { startsAt: when === 'past' ? 'desc' : 'asc' },
       select: eventSelect,
       take: limit,
@@ -331,12 +393,16 @@ content.get('/posts/:slug', async (c) => {
 
 content.get(
   '/sponsors',
-  zValidator('query', z.object({ tier: z.enum(SponsorTier).optional() })),
+  zValidator('query', listQuery.extend({ tier: z.enum(SponsorTier).optional() })),
   async (c) => {
-    const { tier } = c.req.valid('query')
+    const { tier, limit, offset } = c.req.valid('query')
 
     const sponsors = await prisma.sponsor.findMany({
       where: { active: true, ...(tier ? { tier } : {}) },
+      // Tier descends by declaration order, so "the top N sponsors" is just the
+      // first N rows of this — the landing page takes five and needs no notion
+      // of "top" of its own. Name breaks ties so the order is stable between
+      // requests rather than left to the planner.
       orderBy: [{ tier: 'asc' }, { name: 'asc' }],
       select: {
         id: true,
@@ -346,6 +412,8 @@ content.get(
         websiteUrl: true,
         blurb: true,
       },
+      take: limit,
+      skip: offset,
     })
 
     return c.json(sponsors)

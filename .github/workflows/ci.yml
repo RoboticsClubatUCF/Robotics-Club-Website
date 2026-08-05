@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+# A second push to the same branch cancels the run still in flight — no point
+# spending minutes on a commit that has already been superseded.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    # The server tests run against a real database rather than a mock, so CI
+    # needs one. 5432 here because nothing else is competing for it; only the
+    # local setup moves to 5433.
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: rccf
+          POSTGRES_PASSWORD: rccf
+          POSTGRES_DB: rccf
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U rccf"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://rccf:rccf@localhost:5432/rccf?schema=public
+      # env.ts validates these and refuses to start without them.
+      CORS_ORIGINS: http://localhost:5173
+      TRUST_PROXY: 'false'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            web/package-lock.json
+            server/package-lock.json
+
+      # `npm ci` rather than `install`: it honours the lockfile exactly and
+      # fails if one has drifted from its package.json.
+      - name: Install
+        run: |
+          npm ci
+          npm --prefix server ci
+          npm --prefix web ci
+
+      - name: Generate Prisma client
+        run: npm --prefix server run generate
+
+      - name: Apply migrations
+        run: npm --prefix server exec -- prisma migrate deploy
+
+      # The server tests assert against seeded rows, so the database has to have
+      # them before the suite runs.
+      - name: Seed
+        run: npm --prefix server run seed
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm --prefix server run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build

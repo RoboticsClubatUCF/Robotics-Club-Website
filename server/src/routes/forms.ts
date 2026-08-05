@@ -2,6 +2,7 @@ import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { prisma } from '../db.js'
+import { sendContactNotification } from '../mail.js'
 import { rateLimit } from '../rateLimit.js'
 
 /**
@@ -28,9 +29,24 @@ forms.post(
   limit,
   zValidator('json', contactSchema),
   async (c) => {
+    const contact = c.req.valid('json')
+
     const { id } = await prisma.contactMessage.create({
-      data: c.req.valid('json'),
+      data: contact,
       select: { id: true },
+    })
+
+    // Notify after the write and never instead of it. The row is the record: a
+    // message that was stored and then failed to send must still be there for
+    // someone to find, and the sender must not be told it failed once it is
+    // safely in the table.
+    //
+    // Deliberately not awaited. Postmark is a network call to somebody else's
+    // service, and the sender should not wait on it — or see an error because
+    // of it. An unhandled rejection would take the process down, hence the
+    // explicit catch; the log is the thing to grep when a reply never arrives.
+    void sendContactNotification({ id, ...contact }).catch((error: unknown) => {
+      console.error(`contact ${id}: notification failed`, error)
     })
 
     return c.json({ id, status: 'received' }, 201)

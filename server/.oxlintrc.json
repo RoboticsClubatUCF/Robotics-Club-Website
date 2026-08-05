@@ -1,0 +1,10 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "oxc", "promise", "node"],
+  "rules": {
+    "eqeqeq": ["error", "smart"],
+    "no-var": "error",
+    "prefer-const": "error"
+  },
+  "ignorePatterns": ["node_modules", "src/generated", "prisma/migrations"]
+}

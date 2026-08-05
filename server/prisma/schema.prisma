@@ -28,6 +28,27 @@ enum UserRole {
   GUEST
 }
 
+/// The eight seats on the officer board, in the order the site shows them.
+///
+/// Separate from `UserRole` on purpose: `UserRole` is the permission ladder and
+/// says what someone may *do*, this says which *seat* they hold. Most officers
+/// sit at `OFFICER`, but the faculty advisor is a `MENTOR` — the two axes come
+/// apart, so one enum could not carry both.
+///
+/// Declaration order is the display order, the same way it is for `UserRole`,
+/// which means reordering needs the hand-written `CREATE TYPE` swap described in
+/// the note on that enum rather than a generated migration.
+enum OfficerPosition {
+  PRESIDENT
+  VICE_PRESIDENT
+  TREASURER
+  SECRETARY
+  MARKETING
+  OUTREACH
+  LAB_MANAGER
+  FACULTY_ADVISOR
+}
+
 /// Everyone the site knows about: the roster, the people who can sign in, and
 /// anyone who has only signed up.
 ///
@@ -46,6 +67,12 @@ model User {
   passwordHash String?   @map("password_hash")
   role         UserRole  @default(GUEST)
   title        String? // free-text, e.g. "Software Lead"
+  /// Which officer seat this person currently holds, if any. Unique because
+  /// there is one president at a time and the board is rendered as one card per
+  /// seat — two holders would mean two people in one card. That also makes it
+  /// strictly *current*: a past president keeps the history in `title`
+  /// ("President, 2024-2025") and hands the seat back by going null here.
+  officerPosition OfficerPosition? @unique @map("officer_position")
   gradYear     Int?      @map("grad_year")
   bio          String?
   photoUrl     String?   @map("photo_url")
@@ -156,6 +183,11 @@ model Event {
   location        String?
   startsAt        DateTime  @map("starts_at")
   endsAt          DateTime? @map("ends_at")
+  /// Whether the clock times on `startsAt`/`endsAt` mean anything. A competition
+  /// booked for a whole Saturday still needs a timestamp to sort and range-query
+  /// on, so the flag is what tells the calendar to print "ALL DAY" instead of an
+  /// arbitrary midnight-to-midnight span.
+  allDay          Boolean   @default(false) @map("all_day")
   registrationUrl String?   @map("registration_url")
   published       Boolean   @default(false)
   createdAt       DateTime  @default(now()) @map("created_at")
@@ -191,18 +223,24 @@ model Post {
 
 // ------------------------------------------------------------------ sponsors
 
+/// The club's sponsorship levels, highest first.
+///
+/// Declaration order is the ranking: Postgres sorts an enum by it and
+/// `GET /api/sponsors` orders on `tier`, so "the top five sponsors" is the first
+/// five rows of that query and nothing computes a rank. Prisma diffs only the
+/// *set* of values, so reordering this silently produces an empty migration —
+/// see the gotchas in CLAUDE.md before touching the order.
 enum SponsorTier {
-  PLATINUM
-  GOLD
-  SILVER
-  BRONZE
-  PARTNER
+  PROCESSOR_PATRON
+  CIRCUIT_SUPPORTER
+  BOLT_BACKER
+  ALUMINUM_ALLY
 }
 
 model Sponsor {
   id         String      @id @default(uuid(7))
   name       String      @unique
-  tier       SponsorTier @default(BRONZE)
+  tier       SponsorTier @default(ALUMINUM_ALLY)
   logoUrl    String?     @map("logo_url")
   websiteUrl String?     @map("website_url")
   blurb      String?

@@ -11,20 +11,17 @@
     "dev": "npm run db:up && concurrently -k -n api,web -c yellow,cyan \"npm:dev:api\" \"npm:dev:web\"",
     "dev:api": "npm --prefix server run dev",
     "dev:web": "npm --prefix web run dev",
-
     "setup": "npm install && npm --prefix server install && npm --prefix web install && npm run db:up && npm --prefix server run migrate && npm --prefix server run generate && npm --prefix server run seed",
-
     "db:up": "npm --prefix server run db:up",
     "db:down": "npm --prefix server run db:down",
     "db:reset": "npm --prefix server run db:reset",
     "studio": "npm --prefix server run studio",
-
     "build": "npm --prefix web run build",
     "test": "npm --prefix server run test && npm --prefix web run test",
     "test:web": "npm --prefix web run test",
     "test:api": "npm --prefix server run test",
     "typecheck": "npm --prefix server run typecheck && npm --prefix web run build",
-    "lint": "npm --prefix web run lint",
+    "lint": "npm --prefix server run lint && npm --prefix web run lint",
     "format": "npm --prefix server run format && npm --prefix web run format",
     "format:check": "npm --prefix server run format:check && npm --prefix web run format:check"
   },
