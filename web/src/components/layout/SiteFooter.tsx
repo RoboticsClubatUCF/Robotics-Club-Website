@@ -1,5 +1,5 @@
 import { BrandMark } from './BrandMark'
-import { socialLinks } from '../content/home'
+import { socialLinks } from '../../content/home'
 
 export function SiteFooter() {
   return (

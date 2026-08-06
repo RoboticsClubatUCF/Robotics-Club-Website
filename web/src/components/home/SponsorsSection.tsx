@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
-import type { ApiSponsor, SponsorTier } from '../lib/api'
-import { useApi } from '../lib/useApi'
+import type { ApiSponsor, SponsorTier } from '../../lib/api'
+import { useApi } from '../../lib/useApi'
 
 /**
  * The club's top sponsors, on a strip that scrolls itself.

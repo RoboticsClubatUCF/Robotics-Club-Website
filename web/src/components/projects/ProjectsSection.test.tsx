@@ -1,13 +1,13 @@
 import { render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ProjectsSection } from './ProjectsSection'
-import type { ApiProject } from '../lib/api'
+import type { ApiProject } from '../../lib/api'
 import {
   stubFetch,
   stubFetchNetworkError,
   stubFetchPending,
   urlOf,
-} from '../test/stubFetch'
+} from '../../test/stubFetch'
 
 const project = (over: Partial<ApiProject> = {}): ApiProject => ({
   id: 'p1',

@@ -1,13 +1,13 @@
 import { render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SponsorsSection } from './SponsorsSection'
-import type { ApiSponsor } from '../lib/api'
+import type { ApiSponsor } from '../../lib/api'
 import {
   stubFetch,
   stubFetchNetworkError,
   stubFetchPending,
   urlOf,
-} from '../test/stubFetch'
+} from '../../test/stubFetch'
 
 const sponsor = (over: Partial<ApiSponsor> = {}): ApiSponsor => ({
   id: 's1',

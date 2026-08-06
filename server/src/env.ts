@@ -50,7 +50,43 @@ const envSchema = z.object({
   CONTACT_TO_EMAIL: z.email().optional(),
   /** Postmark stream. Transactional mail belongs on `outbound`. */
   POSTMARK_MESSAGE_STREAM: z.string().min(1).default('outbound'),
+
+  // Signup. The verification link points at the *frontend* — the page there
+  // posts the token back — so this is a web origin, not an API one, and it has
+  // to be reachable from a phone's mail app rather than only from the machine
+  // running the site.
+  SIGNUP_VERIFY_URL: z.url().default('http://localhost:5173/join'),
+  /** How long a verification link stays good. Long enough to survive a lecture,
+      short enough that a forwarded email goes stale. */
+  SIGNUP_TOKEN_TTL_MINUTES: z.coerce.number().int().min(5).max(1440).default(120),
+
+  // Discord. Optional as a set, like Postmark above: the club has to be able to
+  // run the site before someone with server permissions has made a bot. With
+  // these unset the handle is stored as typed and nothing confirms it — the API
+  // says so at startup, because an unconfirmed handle looks exactly like a
+  // confirmed one in the database.
+  //
+  /** A *bot* token. Not the application's client secret, and not a user token. */
+  DISCORD_BOT_TOKEN: z.string().min(1).optional(),
+  /** The club server's id — a snowflake, so digits only. */
+  DISCORD_GUILD_ID: z
+    .string()
+    .regex(/^\d{17,20}$/, 'must be a Discord snowflake (17-20 digits)')
+    .optional(),
 })
+  .refine(
+    (parsed) =>
+      Boolean(parsed.DISCORD_BOT_TOKEN) === Boolean(parsed.DISCORD_GUILD_ID),
+    {
+      // Same reasoning as the Postmark set below. A token with no guild has
+      // nowhere to look and a guild with no token cannot ask, so either one
+      // alone is a check that quietly never runs — and the whole point of the
+      // check is that a wrong handle is caught at signup rather than months
+      // later by whoever tries to message that member.
+      message:
+        'DISCORD_BOT_TOKEN and DISCORD_GUILD_ID must be set together, or left unset together',
+    },
+  )
   .refine(
     (parsed) => {
       const parts = [

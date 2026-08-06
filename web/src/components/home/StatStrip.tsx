@@ -1,6 +1,6 @@
-import { stats } from '../content/home'
-import type { ApiStats } from '../lib/api'
-import { useApi } from '../lib/useApi'
+import { stats } from '../../content/home'
+import type { ApiStats } from '../../lib/api'
+import { useApi } from '../../lib/useApi'
 
 /**
  * Full-bleed strip of headline numbers, each cell a link into the page it

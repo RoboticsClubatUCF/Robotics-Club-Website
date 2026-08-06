@@ -1,9 +1,9 @@
 import { render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { OfficersSection } from './OfficersSection'
-import { officerSeats } from '../content/home'
-import type { ApiMember, OfficerPosition } from '../lib/api'
-import { stubFetch, stubFetchNetworkError, stubFetchPending } from '../test/stubFetch'
+import { officerSeats } from '../../content/home'
+import type { ApiMember, OfficerPosition } from '../../lib/api'
+import { stubFetch, stubFetchNetworkError, stubFetchPending } from '../../test/stubFetch'
 
 const officer = (
   officerPosition: OfficerPosition,

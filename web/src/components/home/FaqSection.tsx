@@ -1,5 +1,5 @@
-import { faqs } from '../content/home'
-import { ContactForm } from './ContactForm'
+import { faqs } from '../../content/home'
+import { ContactForm } from '../shared/ContactForm'
 
 /**
  * The FAQ, as a stack of native `<details>` disclosures, with the contact form

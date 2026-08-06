@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { SiteFooter } from './SiteFooter'
-import { socialLinks } from '../content/home'
+import { socialLinks } from '../../content/home'
 
 /**
  * `target` and `rel` are the kind of attributes that vanish in a refactor and

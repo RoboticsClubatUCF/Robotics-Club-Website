@@ -1,6 +1,6 @@
-import { officerSeats } from '../content/home'
-import type { ApiMember } from '../lib/api'
-import { useApi } from '../lib/useApi'
+import { officerSeats } from '../../content/home'
+import type { ApiMember } from '../../lib/api'
+import { useApi } from '../../lib/useApi'
 
 /**
  * The officer board: one headshot per seat, always eight of them.

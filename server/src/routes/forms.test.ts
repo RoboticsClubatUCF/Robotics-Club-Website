@@ -1,10 +1,10 @@
-import { afterAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { app } from '../app.js'
 import { prisma } from '../db.js'
 import { env } from '../env.js'
 
 /**
- * The one public write path, against the live database.
+ * The contact form, against the live database.
  *
  * Two things make this different from the read tests. It creates rows, so every
  * test cleans up after itself — a suite that leaves messages behind would fill
@@ -12,7 +12,17 @@ import { env } from '../env.js'
  * that lives in Postgres, which means the window survives the process: without
  * clearing it first, running these twice inside ten minutes would fail the
  * second time for reasons that have nothing to do with the code.
+ *
+ * The notification is stubbed for the same reason the rows are cleaned up. With
+ * a real POSTMARK_TOKEN in `.env` an unstubbed run posts to Postmark for every
+ * test here, and each one lands in the officers' actual inbox. The route fires
+ * that call without awaiting it, so nothing would fail — the mail would just
+ * arrive, several times, every time anybody ran the suite.
  */
+vi.mock('../mail.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../mail.js')>()),
+  sendContactNotification: vi.fn(async () => {}),
+}))
 
 const post = (body: unknown) =>
   app.request('/api/contact', {

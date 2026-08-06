@@ -1,5 +1,6 @@
-import { hero } from '../content/home'
-import outlineUrl from '../assets/rccf-logo-outline.png'
+import { Link } from 'react-router'
+import { hero } from '../../content/home'
+import outlineUrl from '../../assets/rccf-logo-outline.png'
 
 export function HeroSection() {
   return (
@@ -59,22 +60,23 @@ export function HeroSection() {
           {hero.lede}
         </p>
 
-        {/* Both of these used to point at in-page sections that no longer
-            exist. `#faq` is where joining is actually explained until there is
-            a signup route to send people to; `/projects` needs the router. */}
+        {/* The primary one is the signup route now. It pointed at the FAQ for
+            as long as there was nowhere to actually sign up — that answered the
+            question and then left people to work out the rest. `/projects` is
+            still a route nobody has written. */}
         <div className="flex flex-wrap items-center gap-3.5">
-          <a
-            href="#faq"
+          <Link
+            to="/join"
             className="btn btn-primary btn-cta px-7 py-[15px] text-[13px] font-semibold"
           >
             GET INVOLVED →
-          </a>
-          <a
-            href="/projects"
+          </Link>
+          <Link
+            to="/projects"
             className="btn btn-outline h-auto min-h-0 border-white/28 px-7 py-[15px] text-[13px] font-semibold tracking-[0.04em] text-white transition-[border-color,background-color] duration-200 hover:border-white hover:bg-white/6 hover:text-white"
           >
             See the projects
-          </a>
+          </Link>
         </div>
       </div>
     </section>

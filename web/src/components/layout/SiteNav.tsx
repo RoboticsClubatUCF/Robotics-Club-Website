@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from 'react'
+import { Link } from 'react-router'
 import { BrandMark } from './BrandMark'
-import { navLinks } from '../content/home'
+import { navLinks } from '../../content/home'
 
 /**
  * Sticky top bar. The blur is what lets the near-black background sit at 90%
@@ -36,9 +37,9 @@ export function SiteNav() {
     <header className="border-rule bg-base-100/90 sticky top-0 z-30 border-b backdrop-blur-sm">
       <nav className="navbar px-page gap-3 py-4 wide:gap-6 wide:py-5">
         {/* The site root, not `#top`. A masthead is the way back to the home
-            page from wherever you are — once there are routes, an anchor would
-            only ever scroll you to the top of the page you were already on. */}
-        <a href="/" className="flex min-w-0 flex-1 items-center gap-2.5 wide:gap-3.5">
+            page from wherever you are, and `#top` would only ever scroll you to
+            the top of the page you were already on. */}
+        <Link to="/" className="flex min-w-0 flex-1 items-center gap-2.5 wide:gap-3.5">
           <BrandMark className="w-8 shrink-0 wide:w-10" />
           <span className="min-w-0">
             <span className="block text-[13px] leading-none font-bold tracking-[0.06em]">
@@ -51,30 +52,29 @@ export function SiteNav() {
               OF CENTRAL FLORIDA
             </span>
           </span>
-        </a>
+        </Link>
 
         <ul className="hidden items-center gap-7 wide:flex">
           {navLinks.map((link) => (
             <li key={link.href}>
-              <a
-                href={link.href}
+              <NavAnchor
+                link={link}
                 className="text-dim text-[13px] font-medium transition-colors duration-200 hover:text-white"
-              >
-                {link.label}
-              </a>
+              />
             </li>
           ))}
         </ul>
 
-        {/* Points at the FAQ, which is where "How do I become a member?" is
-            answered. It becomes the signup route the moment there is one. */}
-        <a
-          href="#faq"
+        {/* The whole reason the bar exists. It used to point at the FAQ, which
+            is where becoming a member was explained while there was nowhere to
+            actually do it. */}
+        <Link
+          to="/join"
           className="btn btn-primary btn-cta shrink-0 px-3.5 py-2.5 text-[11px] font-semibold wide:px-4.5 wide:text-xs"
         >
           <span className="wide:hidden">JOIN</span>
           <span className="hidden wide:inline">JOIN THE CLUB</span>
-        </a>
+        </Link>
 
         <button
           type="button"
@@ -105,22 +105,54 @@ export function SiteNav() {
         <ul className="px-page flex flex-col py-2">
           {navLinks.map((link) => (
             <li key={link.href} className="border-rule border-b last:border-b-0">
-              <a
-                href={link.href}
-                onClick={() => {
+              <NavAnchor
+                link={link}
+                onNavigate={() => {
                   setOpen(false)
                 }}
                 /* Full-width and 48px tall: a nav link on a phone is a thumb
                    target, not a word. */
                 className="hover:text-primary flex min-h-12 items-center text-sm font-medium transition-colors duration-200"
-              >
-                {link.label}
-              </a>
+              />
             </li>
           ))}
         </ul>
       </div>
     </header>
+  )
+}
+
+/**
+ * One nav link, drawn as whichever kind of link it actually is.
+ *
+ * Anything carrying a hash stays a plain `<a>`. Those go to a section of the
+ * front page, and the browser's own handling of them is the thing that works:
+ * from the front page it is an in-page scroll, from anywhere else it is a load
+ * that lands on the right section. React Router would take over the navigation
+ * and then not scroll anywhere, because it has no reason to know the hash meant
+ * something.
+ */
+function NavAnchor({
+  link,
+  className,
+  onNavigate,
+}: {
+  link: { href: string; label: string }
+  className: string
+  onNavigate?: () => void
+}) {
+  if (link.href.includes('#')) {
+    return (
+      <a href={link.href} onClick={onNavigate} className={className}>
+        {link.label}
+      </a>
+    )
+  }
+
+  return (
+    <Link to={link.href} onClick={onNavigate} className={className}>
+      {link.label}
+    </Link>
   )
 }
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ApiEvent } from '../lib/api'
-import { useApi } from '../lib/useApi'
+import type { ApiEvent } from '../../lib/api'
+import { useApi } from '../../lib/useApi'
 
 /**
  * The club calendar: a month grid with the same month's events listed under it.

@@ -1,4 +1,4 @@
-import logoUrl from '../assets/rccf-logo.png'
+import logoUrl from '../../assets/rccf-logo.png'
 
 /**
  * The club mark, straight from the master artwork — white on transparent, no

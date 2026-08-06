@@ -1,13 +1,13 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CalendarSection } from './CalendarSection'
-import type { ApiEvent } from '../lib/api'
+import type { ApiEvent } from '../../lib/api'
 import {
   stubFetch,
   stubFetchNetworkError,
   stubFetchPending,
   urlOf,
-} from '../test/stubFetch'
+} from '../../test/stubFetch'
 
 /**
  * Everything here is pinned to a fixed "now" — Wednesday 12 August 2026 — so the

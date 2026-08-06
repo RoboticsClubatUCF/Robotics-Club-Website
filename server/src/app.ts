@@ -9,6 +9,7 @@ import { prisma } from './db.js'
 import { env } from './env.js'
 import { content } from './routes/content.js'
 import { forms } from './routes/forms.js'
+import { signup } from './routes/signup.js'
 
 export const app = new Hono()
 
@@ -62,6 +63,9 @@ publicApi.route('/', content)
 
 app.route('/api', publicApi)
 app.route('/api', forms)
+// Outside `publicApi` on purpose: none of these are cacheable and none of them
+// are GETs. An etag on "is this Discord handle free" would be actively wrong.
+app.route('/api/signup', signup)
 
 app.notFound((c) => c.json({ error: 'Not found' }, 404))
 

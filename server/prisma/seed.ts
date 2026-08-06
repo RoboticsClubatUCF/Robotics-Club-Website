@@ -1,16 +1,10 @@
-import { randomBytes, scryptSync } from 'node:crypto'
 import { prisma } from '../src/db.js'
+import { hashPassword } from '../src/password.js'
 
 /**
  * Placeholder content so the site has something to render in development.
  * Everything here is upserted on a unique key, so re-running is safe.
  */
-
-/** scrypt from the stdlib, so seeding needs no extra dependency. */
-function hashPassword(password: string): string {
-  const salt = randomBytes(16).toString('hex')
-  return `scrypt$${salt}$${scryptSync(password, salt, 64).toString('hex')}`
-}
 
 const subteams = [
   { slug: 'software', name: 'Software', color: '#4f8cff', sortOrder: 1 },
@@ -492,7 +486,9 @@ async function main() {
     create: {
       email: 'admin@rccf.local',
       fullName: 'Site Admin',
-      passwordHash: hashPassword(process.env.SEED_ADMIN_PASSWORD ?? 'changeme'),
+      passwordHash: await hashPassword(
+        process.env.SEED_ADMIN_PASSWORD ?? 'changeme',
+      ),
       role: 'ADMIN',
     },
   })

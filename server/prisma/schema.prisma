@@ -274,9 +274,47 @@ model ContactMessage {
   @@map("contact_messages")
 }
 
+// ---------------------------------------------------------------- signup
+//
 // Joining the club is account signup, not a form submission: a new User lands
 // at the default GUEST role and is promoted from there. There is deliberately
 // no JoinApplication model.
+
+/// A signup that has been started but not finished: an address someone claims,
+/// waiting on proof they can read it.
+///
+/// Nothing about the account lives here — only the address and the token. The
+/// name, password and Discord handle arrive with the second request, once the
+/// address is proved, so an abandoned signup leaves one throwaway row and never
+/// a half-built User.
+model SignupVerification {
+  id String @id @default(uuid(7))
+
+  /// Unique, so asking for a second link replaces the pending signup instead of
+  /// stacking up rows. The newest link is always the only one that works, which
+  /// is also what makes "I never got it, send it again" safe to press.
+  email String @unique
+
+  /// SHA-256 of the token, never the token itself. The link *is* the
+  /// credential — anyone holding it can finish this signup — so a database dump
+  /// or a stray log of this table must not be enough to use one. Hashing is
+  /// unsalted and uncached on purpose: the input is 256 bits of randomness, so
+  /// there is nothing to guess and nothing a rainbow table could hold.
+  tokenHash String @unique @map("token_hash")
+
+  expiresAt DateTime @map("expires_at")
+
+  /// When the link was followed. Not required to finish — `complete` re-checks
+  /// the token itself — but it is the difference between "they never clicked"
+  /// and "they clicked and stopped" when someone asks why they aren't a member.
+  verifiedAt DateTime? @map("verified_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Swept on the same timer as the rate-limit windows; see `sweepSignups`.
+  @@index([expiresAt])
+  @@map("signup_verifications")
+}
 
 // ------------------------------------------------------------- infrastructure
 

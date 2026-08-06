@@ -1,5 +1,5 @@
 import { useId, useState, type FormEvent } from 'react'
-import { ApiError, postJson } from '../lib/api'
+import { ApiError, postJson } from '../../lib/api'
 
 /**
  * The public contact form — the one thing on the site that writes to the

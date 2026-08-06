@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { StatStrip } from './StatStrip'
-import { stubFetch, stubFetchNetworkError, stubFetchPending } from '../test/stubFetch'
+import { stubFetch, stubFetchNetworkError, stubFetchPending } from '../../test/stubFetch'
 
 const counts = { projects: 5, members: 6, events: 2 }
 

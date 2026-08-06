@@ -1,7 +1,8 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render as renderBare, screen, within } from '@testing-library/react'
+import { MemoryRouter } from 'react-router'
 import { describe, expect, it } from 'vitest'
 import { SiteNav } from './SiteNav'
-import { navLinks } from '../content/home'
+import { navLinks } from '../../content/home'
 
 /**
  * The nav renders its links twice — once in the row that shows above the
@@ -10,6 +11,15 @@ import { navLinks } from '../content/home'
  * it, but jsdom applies no CSS, so every query here has to say which one it
  * means.
  */
+
+/**
+ * The nav is in the layout on every route, so half its links are `<Link>`s and
+ * those throw outside a router. `MemoryRouter` keeps the history in memory,
+ * which is what lets a test assert on where a link points without jsdom trying
+ * to navigate anywhere.
+ */
+const render = () => renderBare(<SiteNav />, { wrapper: MemoryRouter })
+
 const toggle = () => screen.getByRole('button', { name: /menu/i })
 
 const panel = () =>
@@ -17,7 +27,7 @@ const panel = () =>
 
 describe('SiteNav', () => {
   it('takes the masthead to the site root, not to an anchor on this page', () => {
-    render(<SiteNav />)
+    render()
 
     // `#top` would only ever scroll you to the top of the page you are on.
     expect(screen.getByRole('link', { name: /robotics club/i })).toHaveAttribute(
@@ -27,14 +37,14 @@ describe('SiteNav', () => {
   })
 
   it('starts with the menu shut', () => {
-    render(<SiteNav />)
+    render()
 
     expect(toggle()).toHaveAttribute('aria-expanded', 'false')
     expect(panel()).toHaveClass('hidden')
   })
 
   it('opens and shuts on the toggle', () => {
-    render(<SiteNav />)
+    render()
 
     fireEvent.click(toggle())
     expect(toggle()).toHaveAttribute('aria-expanded', 'true')
@@ -47,13 +57,13 @@ describe('SiteNav', () => {
   /**
    * The case that matters is the in-page anchor: it scrolls without unmounting
    * anything, so an open menu would sit over the section it just jumped to. A
-   * link to a route takes the whole page with it either way.
+   * link to a route replaces the page under it either way.
    */
   it('shuts itself when an anchor inside it is followed', () => {
-    const anchor = navLinks.find((link) => link.href.startsWith('#'))
+    const anchor = navLinks.find((link) => link.href.includes('#'))
     expect(anchor).toBeDefined()
 
-    render(<SiteNav />)
+    render()
 
     fireEvent.click(toggle())
     fireEvent.click(within(panel()).getByRole('link', { name: anchor!.label }))
@@ -62,7 +72,7 @@ describe('SiteNav', () => {
   })
 
   it('shuts on Escape, so the trigger is not the only way out', () => {
-    render(<SiteNav />)
+    render()
 
     fireEvent.click(toggle())
     fireEvent.keyDown(document, { key: 'Escape' })
@@ -71,7 +81,7 @@ describe('SiteNav', () => {
   })
 
   it('carries every nav link in the panel, not just the wide row', () => {
-    render(<SiteNav />)
+    render()
 
     const links = within(panel()).getAllByRole('link')
     expect(links.map((link) => link.textContent)).toEqual(
@@ -85,10 +95,11 @@ describe('SiteNav', () => {
    * which is why the short label exists.
    */
   it('keeps the join button at both widths, under two labels', () => {
-    render(<SiteNav />)
+    render()
 
+    // It pointed at `#faq` for as long as there was nowhere to actually sign up.
     const join = screen.getByRole('link', { name: /join/i })
-    expect(join).toHaveAttribute('href', '#faq')
+    expect(join).toHaveAttribute('href', '/join')
     expect(within(join).getByText('JOIN')).toHaveClass('wide:hidden')
     expect(within(join).getByText('JOIN THE CLUB')).toHaveClass('hidden')
   })

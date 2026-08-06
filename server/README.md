@@ -130,8 +130,10 @@ Two things follow from that, and both are easy to get wrong:
 
 ## API
 
-Read routes are public and filter out anything unpublished. The one write route
-is rate limited to 5 submissions per IP per 10 minutes.
+Read routes are public and filter out anything unpublished. The write routes are
+rate limited per IP per 10 minutes: 5 for anything that costs something — an
+email sent, an account created — and 30 for the two a form calls on the
+visitor's behalf while they are still filling it in.
 
 | Route                    | Notes                                              |
 | ------------------------ | -------------------------------------------------- |
@@ -148,6 +150,10 @@ is rate limited to 5 submissions per IP per 10 minutes.
 | `GET /api/posts/:slug`   | Adds the body                                       |
 | `GET /api/sponsors`      | `?tier=` — active only, ordered by tier             |
 | `POST /api/contact`      | `{ name, email, subject?, message }` → 201          |
+| `POST /api/signup/start` | `{ email, acknowledged }` → 202, and emails a link   |
+| `POST /api/signup/verify`| `{ token }` → `{ email }`                           |
+| `POST /api/signup/discord-check` | `{ discordUsername }` → `{ status }`        |
+| `POST /api/signup/complete` | `{ token, firstName, lastName, password, discordUsername }` → 201 |
 
 List routes take `?limit=` (max 100) and `?offset=`.
 
@@ -165,6 +171,38 @@ draws a card per seat and labels the empty ones itself.
 
 Email addresses and password hashes are never returned by the public API, and
 neither are users who aren't on the roster. Post authors expose only a name.
+
+## Signup
+
+Joining the club is creating an account, and it is two requests with an email in
+between. `start` takes an address and mails a link; `complete` arrives with that
+link's token and everything else. Nothing about a person is stored until the
+address is proved, so an abandoned signup leaves one row in
+`signup_verifications` that expires on its own.
+
+- **Only `@ucf.edu`.** Membership is for current UCF students. The retired
+  `@knights.ucf.edu` domain is deliberately not accepted.
+- **The link points at the frontend**, `SIGNUP_VERIFY_URL`, not at this API. The
+  join page there posts the token back, so the token is spent by a POST rather
+  than by the GET that opens the URL — mail scanners follow every link in an
+  incoming message, and against a GET endpoint that uses the verification up
+  before the student ever clicks it.
+- **The token is stored as a SHA-256 hash** and never appears in a response.
+  With no Postmark token configured the API logs the link instead, in
+  development only; in production it refuses to start a signup at all, because
+  an address nobody can confirm is an account nobody can finish.
+- **The Discord username is checked against the club's guild** by a bot, over
+  REST — see `src/discord.ts`. It matches `user.username` and never
+  `global_name`, because typing the display name is the mistake nearly everyone
+  makes. `DISCORD_BOT_TOKEN` and `DISCORD_GUILD_ID` are optional as a set; with
+  them unset the handle is stored exactly as typed and the API says so at
+  startup. The bot must be in the guild and needs the Server Members Intent.
+- **Both the address and the handle are unique**, and the route reports which of
+  the two was taken. The account is created at the default `GUEST` role with no
+  slug, which keeps it off the public roster until an officer promotes it.
+- **Nothing signs in yet.** The password is hashed with scrypt
+  (`src/password.ts`) and stored; there is still no login route to check it
+  against.
 
 ## Scaling
 

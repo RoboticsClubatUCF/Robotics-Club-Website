@@ -1,5 +1,5 @@
-import type { ApiProject } from '../lib/api'
-import { useApi } from '../lib/useApi'
+import type { ApiProject } from '../../lib/api'
+import { useApi } from '../../lib/useApi'
 
 /** How many rows the landing page shows. The full list is its own page. */
 const LIMIT = 5

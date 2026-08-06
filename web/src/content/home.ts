@@ -15,17 +15,22 @@ export type NavLink = {
 }
 
 /**
- * Four of these are in-page anchors and now resolve — the calendar, sponsors,
- * officers and FAQ sections all exist. `Projects` is the odd one out: the
- * on-page project list moved to its own page, so this points at a route that
- * needs the router before it works, the same way the stat strip's cells do.
+ * Four of these are sections of the front page, and they are written `/#events`
+ * rather than `#events` because the nav is in the layout now and shows on every
+ * route. A bare `#events` on the join page scrolls to nothing; `/#events` goes
+ * home and lands on the section from wherever you are, and on the front page
+ * itself the browser still treats it as the in-page jump it always was.
+ *
+ * `Projects` is the odd one out: the on-page project list moved to its own
+ * page, so this points at a route nobody has written yet — see
+ * `src/pages/ProjectsPage.tsx`.
  */
 export const navLinks: NavLink[] = [
   { href: '/projects', label: 'Projects' },
-  { href: '#events', label: 'Events' },
-  { href: '#sponsors', label: 'Sponsors' },
-  { href: '#officers', label: 'Officers' },
-  { href: '#faq', label: 'FAQ' },
+  { href: '/#events', label: 'Events' },
+  { href: '/#sponsors', label: 'Sponsors' },
+  { href: '/#officers', label: 'Officers' },
+  { href: '/#faq', label: 'FAQ' },
 ]
 
 export type Stat = {

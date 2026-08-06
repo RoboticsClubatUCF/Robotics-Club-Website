@@ -82,15 +82,20 @@ export async function consume(
 /**
  * Middleware form. `scope` keeps unrelated endpoints from sharing a counter.
  *
+ * `max` overrides `RATE_LIMIT_MAX` for endpoints where the default is the wrong
+ * shape of limit. Five is right for something that writes a row per call; it is
+ * not right for a field that checks itself as you correct a typo, where the
+ * budget is spent getting the answer the form was asking for.
+ *
  * If the database is unreachable this throws rather than failing open — the
  * routes it guards all write to that same database, so they could not have
  * succeeded anyway.
  */
-export function rateLimit(scope: string): MiddlewareHandler {
+export function rateLimit(scope: string, max?: number): MiddlewareHandler {
   return async (c, next) => {
     const { allowed, retryAfter } = await consume(
       `${scope}:${clientAddress(c)}`,
-      env.RATE_LIMIT_MAX,
+      max ?? env.RATE_LIMIT_MAX,
       env.RATE_LIMIT_WINDOW_SECONDS,
     )
 

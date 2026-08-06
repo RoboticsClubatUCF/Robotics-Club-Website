@@ -19,11 +19,56 @@ const baseUrl = (import.meta.env.VITE_API_URL ?? 'http://localhost:4000').replac
 export class ApiError extends Error {
   readonly status: number
 
-  constructor(status: number, message: string, options?: ErrorOptions) {
+  /**
+   * The sentence the server sent, when it sent one.
+   *
+   * Most failures are better explained by the caller — it knows what the person
+   * was doing and the status is enough to say so. But signup has refusals only
+   * the server can phrase: which of two unique fields was taken, whether a link
+   * expired or was already spent. Those arrive as `{ error }` and are written to
+   * be read, so the form shows them rather than inventing a paraphrase.
+   *
+   * Null when the body was not JSON, carried no `error` string, or was a
+   * validation failure — those come back as a zod report, which is a debugging
+   * aid and not something to put in front of anyone.
+   */
+  readonly detail: string | null
+
+  constructor(
+    status: number,
+    message: string,
+    options?: ErrorOptions & { detail?: string | null },
+  ) {
     super(message, options)
     this.name = 'ApiError'
     this.status = status
+    this.detail = options?.detail ?? null
   }
+}
+
+/**
+ * Turn a failed response into an `ApiError`, reading the server's own sentence
+ * out of it if there is one.
+ *
+ * The body can only be read once and this consumes it, which is fine — a failed
+ * response has no payload any caller wants.
+ */
+async function failure(method: string, path: string, response: Response) {
+  let detail: string | null = null
+
+  try {
+    const body = (await response.json()) as { error?: unknown }
+    if (typeof body.error === 'string') detail = body.error
+  } catch {
+    // Not JSON — a proxy's HTML error page, or an empty body. The status still
+    // says everything the caller needs.
+  }
+
+  return new ApiError(
+    response.status,
+    `${method} ${path} failed: ${response.status} ${response.statusText}`,
+    { detail },
+  )
 }
 
 // `fetch` only rejects on a network-level failure, and in development that is
@@ -49,10 +94,7 @@ export async function getJson<T>(path: string, signal?: AbortSignal): Promise<T>
   }
 
   if (!response.ok) {
-    throw new ApiError(
-      response.status,
-      `GET ${path} failed: ${response.status} ${response.statusText}`,
-    )
+    throw await failure('GET', path, response)
   }
 
   return (await response.json()) as T
@@ -61,10 +103,11 @@ export async function getJson<T>(path: string, signal?: AbortSignal): Promise<T>
 /**
  * Send JSON to one of the public write endpoints.
  *
- * There is exactly one of those — `POST /api/contact` — and it is rate limited,
- * so the status matters to the caller: a 429 is "you did this too often" and
- * wants a different sentence from a 400, which is "the server disagreed with
- * the form".
+ * Those are the contact form and the four signup steps, and all of them are
+ * rate limited, so the status matters to the caller: a 429 is "you did this too
+ * often" and wants a different sentence from a 400, which is "the server
+ * disagreed with the form". Where the server has something specific to say it
+ * comes back on `ApiError.detail`.
  */
 export async function postJson<T>(
   path: string,
@@ -86,10 +129,7 @@ export async function postJson<T>(
   }
 
   if (!response.ok) {
-    throw new ApiError(
-      response.status,
-      `POST ${path} failed: ${response.status} ${response.statusText}`,
-    )
+    throw await failure('POST', path, response)
   }
 
   return (await response.json()) as T
@@ -202,3 +242,39 @@ export type ApiMember = {
   active: boolean
   subteam: { slug: string; name: string; color: string | null } | null
 }
+
+/**
+ * Signup, mirroring `server/src/routes/signup.ts`.
+ *
+ * Nothing about the account comes back from any of these. There is no session
+ * to establish yet, and the two fields worth protecting — the address and the
+ * password hash — are exactly the ones every other route is careful never to
+ * return.
+ */
+
+export type ApiSignupStarted = {
+  status: 'sent'
+  email: string
+  /** So the page can say how long the link is good for without hardcoding a
+      number the server is free to change. */
+  expiresInMinutes: number
+}
+
+/** Which address the link belongs to, for someone with several forwarded into
+    one inbox. */
+export type ApiSignupVerified = { email: string }
+
+export type ApiSignupCreated = { id: string; status: 'created' }
+
+/**
+ * The answer about a Discord handle.
+ *
+ * Five states rather than a boolean, because they call for five different
+ * things from the person filling the form. `not_found` sends them to the QR
+ * code, `taken` does not; `unchecked` means the club has no bot configured and
+ * nothing was asked; `unavailable` means Discord itself did not answer, which
+ * is not evidence about the handle either way.
+ */
+export type ApiDiscordCheck =
+  | { status: 'connected'; username: string }
+  | { status: 'not_found' | 'taken' | 'unchecked' | 'unavailable' }

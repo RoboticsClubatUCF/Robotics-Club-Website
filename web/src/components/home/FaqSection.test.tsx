@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { FaqSection } from './FaqSection'
-import { faqs } from '../content/home'
+import { faqs } from '../../content/home'
 
 /**
  * The FAQ takes no props and makes no request, so there is little here that a

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ContactForm } from './ContactForm'
+import { ContactForm } from '../shared/ContactForm'
 import {
   bodyOf,
   stubFetch,
@@ -8,7 +8,7 @@ import {
   stubFetchPending,
   stubFetchStatus,
   urlOf,
-} from '../test/stubFetch'
+} from '../../test/stubFetch'
 
 /**
  * The only write path on the site, so this is the only component whose failure
