@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SignupFinish } from './SignupFinish'
@@ -37,6 +37,14 @@ const renderFinish = (onCreated = vi.fn()) => {
 }
 
 /**
+ * By role rather than by label text: the dialog is titled "Member
+ * acknowledgement" too, and `getByLabelText` matches an `aria-labelledby` as
+ * readily as a `<label>`.
+ */
+const acknowledgementBox = () =>
+  screen.getByRole('checkbox', { name: /member acknowledgement/i })
+
+/**
  * The defaults are annotated rather than inferred: `confirm` defaults to
  * `password`, and TypeScript will not infer a binding from a sibling in the
  * same pattern.
@@ -61,6 +69,7 @@ async function fill({
   fireEvent.change(screen.getByLabelText(/DISCORD USERNAME/i), {
     target: { value: handle },
   })
+  fireEvent.click(acknowledgementBox())
 
   // Let the handle field's debounced check run, so it is not still in flight
   // when the form is submitted.
@@ -69,8 +78,21 @@ async function fill({
   })
 }
 
-const submit = () =>
+/**
+ * Submit, then let the stubbed fetch settle and React commit the result.
+ *
+ * `findBy*` and `waitFor` are not safe under fake timers: Testing Library polls
+ * by advancing the fake clock, so a one-second budget is spent in a few real
+ * milliseconds — often before a promise chain has flushed. Advancing inside
+ * `act` asserts the same thing without the race.
+ */
+const submit = async () => {
   fireEvent.submit(screen.getByRole('button', { name: /create my account/i }))
+
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(0)
+  })
+}
 
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
@@ -112,11 +134,9 @@ describe('SignupFinish', () => {
 
     const onCreated = renderFinish()
     await fill()
-    submit()
+    await submit()
 
-    await waitFor(() => {
-      expect(onCreated).toHaveBeenCalled()
-    })
+    expect(onCreated).toHaveBeenCalled()
 
     const complete = fetchStub.mock.calls.find(([url]) =>
       urlOf(url).includes('/signup/complete'),
@@ -127,7 +147,41 @@ describe('SignupFinish', () => {
       lastName: 'Knight',
       password: 'a-long-enough-password',
       discordUsername: 'phibiscool',
+      acknowledgementAccepted: true,
     })
+  })
+
+  /**
+   * Two things at once, and the second is the reason this is a test rather
+   * than a glance.
+   *
+   * The rules open in a dialog so that reading them does not unmount a form
+   * somebody has already filled in — that is the whole argument for not making
+   * this a route. And the control that opens them is a sibling of the label
+   * rather than a child of it: nested inside, it would inherit the label's
+   * activation, so opening the acknowledgement would tick the box claiming it
+   * had been read. Which is exactly backwards.
+   */
+  it('opens the acknowledgement without ticking the box that says it was read', () => {
+    vi.stubGlobal('fetch', stubFetch({}))
+    renderFinish()
+
+    fireEvent.change(screen.getByLabelText(/FIRST NAME/i), {
+      target: { value: 'Test' },
+    })
+
+    const dialog = document.querySelector('dialog')
+    expect(dialog?.open).toBe(false)
+
+    fireEvent.click(screen.getByRole('button', { name: /read it/i }))
+
+    expect(dialog?.open).toBe(true)
+    expect(acknowledgementBox()).not.toBeChecked()
+    // Straight out of the text file the agreement lives in, which is the only
+    // proof that it is being read from there rather than retyped.
+    expect(screen.getByText('Safety and Equipment Usage')).toBeInTheDocument()
+    // And the form behind it is untouched.
+    expect(screen.getByLabelText(/FIRST NAME/i)).toHaveValue('Test')
   })
 
   /**
@@ -141,9 +195,9 @@ describe('SignupFinish', () => {
 
     renderFinish()
     await fill({ password: 'a-long-enough-password', confirm: 'something-else' })
-    submit()
+    await submit()
 
-    expect(await screen.findByText(/do not match/i)).toBeInTheDocument()
+    expect(screen.getByText(/do not match/i)).toBeInTheDocument()
     expect(
       fetchStub.mock.calls.filter(([url]) =>
         urlOf(url).includes('/signup/complete'),
@@ -166,9 +220,9 @@ describe('SignupFinish', () => {
 
     renderFinish()
     await fill()
-    submit()
+    await submit()
 
-    expect(await screen.findByText(/has expired/i)).toBeInTheDocument()
+    expect(screen.getByText(/has expired/i)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /start again/i })).toHaveAttribute(
       'href',
       '/join',
@@ -188,10 +242,10 @@ describe('SignupFinish', () => {
 
     renderFinish()
     await fill()
-    submit()
+    await submit()
 
     expect(
-      await screen.findByText(/already connected to another account/i),
+      screen.getByText(/already connected to another account/i),
     ).toBeInTheDocument()
     consoleError.mockRestore()
   })
@@ -205,9 +259,9 @@ describe('SignupFinish', () => {
 
     renderFinish()
     await fill()
-    submit()
+    await submit()
 
-    expect(await screen.findByText(/couldn't reach the server/i)).toBeInTheDocument()
+    expect(screen.getByText(/couldn't reach the server/i)).toBeInTheDocument()
     // The names are still there, so a failure costs nobody the form.
     expect(screen.getByLabelText(/FIRST NAME/i)).toHaveValue('Test')
     consoleError.mockRestore()
@@ -220,12 +274,10 @@ describe('SignupFinish', () => {
 
     renderFinish()
     await fill()
-    submit()
+    await submit()
 
     const button = screen.getByRole('button', { name: /creating/i })
-    await waitFor(() => {
-      expect(button).toBeDisabled()
-    })
+    expect(button).toBeDisabled()
 
     fireEvent.submit(button)
     expect(

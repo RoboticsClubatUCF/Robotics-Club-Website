@@ -113,6 +113,18 @@
      `:root` override below. */
   --spacing-page: 1.25rem;
 
+  /* How tall the sticky header is at `wide`, so the dashboard rail can sit
+     exactly under it — `wide:top-nav`, and a `100dvh` minus this for its
+     height. Add it up rather than trusting the eye: the nav's `wide:py-5` is
+     2 × 1.25rem, the club mark at `wide:w-10` is 2.5rem wide and the artwork is
+     375 × 400, so it is 2.667rem tall and it is the tallest thing in the bar,
+     and there is a 1px rule under all of it. That comes to 5.23rem; 5.25 is the
+     nearest value that cannot leave a gap. Registered here because two files
+     have to agree on it, and a number written down twice is a number that
+     drifts. Anything that changes the bar's padding or the mark's size changes
+     this. */
+  --spacing-nav: 5.25rem;
+
   /* The layout has exactly one breakpoint. Above it the page is a wide
      multi-column grid; below it, a single column. Everything responsive on the
      site keys off this, so there is no scale of half-states to reason about. */
@@ -132,6 +144,14 @@
      took to cover the screen and sets `--marquee-shift` accordingly, so the
      restart lands on an identical frame and the seam never shows. */
   --animate-marquee: marquee 40s linear infinite;
+  /* The one thing on the site that celebrates rather than informs: an account
+     has just been created. One keyframe covers the whole burst because every
+     piece carries its own duration, delay, drift and spin as custom properties
+     — the alternative is sixty generated rules for something that runs once.
+     `forwards`, so a piece that has landed stays landed instead of snapping
+     back to the top for the frame before the component unmounts. */
+  --animate-confetti: confetti-fall var(--confetti-duration, 3s) linear
+    var(--confetti-delay, 0s) forwards;
 
   @keyframes orbit {
     to {
@@ -156,6 +176,25 @@
   @keyframes marquee {
     to {
       transform: translateX(var(--marquee-shift, -50%));
+    }
+  }
+
+  /* Starts above the viewport and ends below it, so nothing appears or vanishes
+     in view. The fade is held off until the last fifth — begun any earlier and
+     the burst reads as dissolving rather than falling. */
+  @keyframes confetti-fall {
+    from {
+      transform: translate3d(0, -12vh, 0) rotate(0deg);
+    }
+
+    80% {
+      opacity: 1;
+    }
+
+    to {
+      transform: translate3d(var(--confetti-drift, 0), 104vh, 0)
+        rotate(var(--confetti-spin, 720deg));
+      opacity: 0;
     }
   }
 }

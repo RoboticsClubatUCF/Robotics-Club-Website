@@ -1,13 +1,13 @@
-import { useId, useState, type FormEvent } from 'react'
+import { useEffect, useId, useState, type FormEvent } from 'react'
 import { ApiError, postJson, type ApiSignupStarted } from '../../lib/api'
 import {
-  JoinEyebrow,
-  JoinHeading,
-  JoinPanel,
+  FormEyebrow,
+  FormHeading,
+  FormPanel,
   fieldClass,
   labelClass,
   submitClass,
-} from './joinChrome'
+} from '../shared/formChrome'
 
 /**
  * Step one: who is allowed to join, and where the confirmation is going.
@@ -23,6 +23,17 @@ import {
  */
 
 const STUDENT_DOMAIN = '@ucf.edu'
+
+/**
+ * How long "start again" stays shut after a link goes out.
+ *
+ * Starting again is one click away from asking for a second email, and the
+ * usual reason somebody reaches for it is that the first one has not arrived in
+ * the four seconds they have been watching for it. Mail takes longer than that,
+ * every extra request pushes the previous link out of date, and enough of them
+ * in a row is how a sender's reputation gets spent.
+ */
+const RESTART_COOLDOWN_MS = 30_000
 
 type SendState =
   | { status: 'idle' }
@@ -64,7 +75,34 @@ function readableExpiry(minutes: number): string {
 
 export function SignupStart() {
   const [state, setState] = useState<SendState>({ status: 'idle' })
+  /** When "start again" opens up. 0 means it is not counting down. */
+  const [restartAt, setRestartAt] = useState(0)
+  const [secondsLeft, setSecondsLeft] = useState(0)
   const id = useId()
+
+  /**
+   * Counted from a deadline rather than by decrementing a number every second.
+   *
+   * The expected thing to do on this screen is switch to a mail app, and a
+   * background tab has its timers throttled to roughly one a minute — a
+   * countdown built from ticks would still be showing twenty-odd seconds after
+   * five minutes away. Reading the clock each time means the wait is over when
+   * it is actually over.
+   */
+  useEffect(() => {
+    if (!restartAt) return
+
+    const update = () => {
+      setSecondsLeft(Math.max(0, Math.ceil((restartAt - Date.now()) / 1000)))
+    }
+
+    update()
+    const timer = setInterval(update, 500)
+
+    return () => {
+      clearInterval(timer)
+    }
+  }, [restartAt])
 
   const send = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -92,6 +130,7 @@ export function SignupStart() {
           email: sent.email,
           expiresInMinutes: sent.expiresInMinutes,
         })
+        setRestartAt(Date.now() + RESTART_COOLDOWN_MS)
       })
       .catch((error: unknown) => {
         console.error(error)
@@ -102,8 +141,8 @@ export function SignupStart() {
   if (state.status === 'sent') {
     return (
       <>
-        <JoinEyebrow>/ CHECK YOUR EMAIL</JoinEyebrow>
-        <JoinHeading>Confirm your address.</JoinHeading>
+        <FormEyebrow>/ CHECK YOUR EMAIL</FormEyebrow>
+        <FormHeading>Confirm your address.</FormHeading>
 
         <p className="text-dim mb-6 text-sm leading-[1.7] text-pretty">
           We sent a link to <strong className="text-white">{state.email}</strong>
@@ -115,7 +154,7 @@ export function SignupStart() {
             it gets the accent panel rather than a line of small print under the
             fold. University filters are aggressive about mail from addresses
             nobody in the domain has written to before. */}
-        <JoinPanel tone="accent">
+        <FormPanel tone="accent">
           <p className="mb-2 text-sm font-semibold">
             Not there? Check your spam folder.
           </p>
@@ -124,16 +163,38 @@ export function SignupStart() {
             it a minute or two, then look there before asking for another link —
             and mark it as not spam so the rest of ours reach you.
           </p>
-        </JoinPanel>
+        </FormPanel>
+
+        {/* Said plainly because the alternative is somebody sitting on this tab
+            waiting for it to advance by itself. It never does: the rest of
+            signup hangs off the token in the link, which is what lets them
+            finish on their phone after starting on a laptop. */}
+        <p className="text-dim mt-6 text-sm leading-[1.7] text-pretty">
+          You can close this tab — nothing more happens here. Carry on from the
+          link in your email to finish setting up your account, on this device
+          or any other.
+        </p>
 
         <button
           type="button"
+          disabled={secondsLeft > 0}
           onClick={() => {
             setState({ status: 'idle' })
+            setRestartAt(0)
           }}
-          className="text-faint hover:text-primary mt-6 cursor-pointer font-mono text-[11px] font-medium tracking-[0.14em] transition-colors duration-200"
+          className="mt-6 block font-mono text-[11px] font-medium tracking-[0.14em] transition-colors duration-200 not-disabled:cursor-pointer disabled:cursor-not-allowed"
         >
-          WRONG ADDRESS? START AGAIN
+          {/* Only the second half is the link. The first half is the question
+              it answers, and painting both gold made the whole line read as one
+              long button. */}
+          <span className="text-faint">WRONG ADDRESS? </span>
+          {secondsLeft > 0 ? (
+            <span className="text-faint">START AGAIN IN {secondsLeft}S</span>
+          ) : (
+            <span className="text-primary underline decoration-transparent underline-offset-4 transition-[text-decoration-color] duration-200 hover:decoration-current">
+              START AGAIN
+            </span>
+          )}
         </button>
       </>
     )
@@ -141,10 +202,10 @@ export function SignupStart() {
 
   return (
     <>
-      <JoinEyebrow>/ JOIN THE CLUB</JoinEyebrow>
-      <JoinHeading>Become a member.</JoinHeading>
+      <FormEyebrow>/ JOIN THE CLUB</FormEyebrow>
+      <FormHeading>Become a member.</FormHeading>
 
-      <JoinPanel tone="accent">
+      <FormPanel tone="accent">
         <p className="mb-2 text-sm font-semibold">
           You need to be a current UCF student.
         </p>
@@ -154,7 +215,7 @@ export function SignupStart() {
           address that you can open right now — we send a link there to confirm
           it is yours, and there is no way past that step.
         </p>
-      </JoinPanel>
+      </FormPanel>
 
       <form onSubmit={send} className="mt-7 flex flex-col gap-5">
         <div>

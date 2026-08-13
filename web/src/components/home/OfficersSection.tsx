@@ -1,5 +1,6 @@
 import { officerSeats } from '../../content/home'
 import type { ApiMember } from '../../lib/api'
+import { imageSrc } from '../../lib/storedFiles'
 import { useApi } from '../../lib/useApi'
 
 /**
@@ -93,7 +94,7 @@ export function OfficersSection() {
                        from the top it lands on the face, which is the one part
                        of the frame that has to survive. */
                     <img
-                      src={holder.photoUrl}
+                      src={imageSrc(holder.photoUrl)}
                       alt=""
                       className="h-full w-full object-cover object-top"
                     />

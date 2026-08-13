@@ -3,9 +3,15 @@ import { app } from './app.js'
 import { prisma } from './db.js'
 import { discordConfigured } from './discord.js'
 import { env } from './env.js'
+import { sweepReturnReminders } from './equipmentReminder.js'
 import { mailConfigured } from './mail.js'
+import { sweepLapsedMembers } from './membershipSweep.js'
 import { sweepRateLimits } from './rateLimit.js'
 import { sweepSignups } from './routes/signup.js'
+import { forgetFinishedTerms, primeCalendar } from './semester.js'
+import { sweepSessions } from './session.js'
+import { stripeConfigured, webhooksConfigured } from './stripe.js'
+import { sweepTrialNotices } from './trialNotice.js'
 
 const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
   console.log(`API listening on http://localhost:${info.port}/api`)
@@ -35,6 +41,26 @@ const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
       ? `Discord username checks → guild ${env.DISCORD_GUILD_ID ?? ''}`
       : 'Discord username checks OFF (no DISCORD_BOT_TOKEN) — handles are stored unconfirmed',
   )
+  // A dues page that cannot take a card looks exactly like one that can, right
+  // up to the moment somebody tries.
+  console.log(
+    stripeConfigured
+      ? `Dues → Stripe (${(env.DUES_SEMESTER_CENTS / 100).toFixed(2)}/semester, ${(env.DUES_YEAR_CENTS / 100).toFixed(2)}/year)${webhooksConfigured ? '' : ', webhooks OFF'}`
+      : 'Dues payments OFF (no STRIPE_SECRET_KEY) — the dues page says so and points at an officer',
+  )
+  // The trial notice is a message to a real person, and the sweep below is the
+  // only thing that sends it.
+  if (!discordConfigured) {
+    console.log(
+      'Trial-end messages and equipment return reminders OFF (no DISCORD_BOT_TOKEN)',
+    )
+  }
+
+  // Which term the server thinks it is, said out loud, because it is the first
+  // thing anyone asks when the dues page quotes a date that looks wrong.
+  void primeCalendar().catch((error: unknown) => {
+    console.error('ucf calendar: initial fetch failed', error)
+  })
 })
 
 // Closed rate-limit windows and expired signup links are dead rows. Every
@@ -49,6 +75,63 @@ const sweep = setInterval(
     void sweepSignups().catch((error: unknown) => {
       console.error('signup verification sweep failed', error)
     })
+    void sweepSessions().catch((error: unknown) => {
+      console.error('session sweep failed', error)
+    })
+    forgetFinishedTerms()
+
+    // Also unlike the others: this one changes what somebody *is*, rather than
+    // deleting a dead row. It is safe to run from every instance — `updateMany`
+    // with the role in the `where` means a second pass matches nothing — and it
+    // stands down entirely outside term time and whenever UCF's calendar could
+    // not be read. See `src/membershipSweep.ts`.
+    void sweepLapsedMembers()
+      .then((report) => {
+        // Quiet unless it did something. Most of the year there is nothing
+        // expired for anybody and this returns on the first query.
+        if (report.demoted > 0) {
+          console.log(
+            `membership sweep: ${report.demoted} lapsed member(s) moved back to GUEST`,
+          )
+        }
+      })
+      .catch((error: unknown) => {
+        console.error('membership sweep failed', error)
+      })
+
+    // Unlike the others this one *sends* something, so it runs on every
+    // instance and is safe to: a notice is claimed by inserting its primary key
+    // before the message goes out, so two instances arriving together means one
+    // insert and one collision. See `src/trialNotice.ts`.
+    void sweepTrialNotices()
+      .then((report) => {
+        // Quiet unless it did something. This fires every ten minutes all year
+        // and the trial ends twice.
+        if (report.claimed > 0) {
+          console.log(
+            `trial notices: ${report.sent} sent, ${report.failed} failed of ${report.claimed} claimed`,
+          )
+        }
+      })
+      .catch((error: unknown) => {
+        console.error('trial notice sweep failed', error)
+      })
+
+    // The other thing that sends, and safe from every instance for the same
+    // reason: the reminder is claimed by writing the deadline it is about onto
+    // the loan, conditional on the value that was read a moment earlier. See
+    // `src/equipmentReminder.ts`.
+    void sweepReturnReminders()
+      .then((report) => {
+        if (report.claimed > 0) {
+          console.log(
+            `return reminders: ${report.sent} sent, ${report.failed} failed of ${report.claimed} claimed`,
+          )
+        }
+      })
+      .catch((error: unknown) => {
+        console.error('return reminder sweep failed', error)
+      })
   },
   10 * 60 * 1000,
 )

@@ -1,4 +1,5 @@
-import { ServerClient } from 'postmark'
+import { Models, ServerClient } from 'postmark'
+import { signupVerificationEmail } from './emails.js'
 import { env } from './env.js'
 
 /**
@@ -103,12 +104,8 @@ export async function sendSignupVerification(
 ): Promise<boolean> {
   if (!mailer) return false
 
-  const link = `${env.SIGNUP_VERIFY_URL}?token=${encodeURIComponent(token)}`
-  const hours = env.SIGNUP_TOKEN_TTL_MINUTES / 60
-  const expiry =
-    env.SIGNUP_TOKEN_TTL_MINUTES < 60
-      ? `${env.SIGNUP_TOKEN_TTL_MINUTES} minutes`
-      : `${hours % 1 === 0 ? hours : hours.toFixed(1)} hours`
+  const link = `${env.signupVerifyUrl}?token=${encodeURIComponent(token)}`
+  const { html, text } = signupVerificationEmail(link, readableExpiry())
 
   await mailer.client.sendEmail({
     From: mailer.from,
@@ -117,18 +114,29 @@ export async function sendSignupVerification(
     // expired twice will answer this email rather than try a third time.
     ReplyTo: mailer.to,
     Subject: 'Confirm your email — Robotics Club of Central Florida',
-    TextBody: [
-      'Welcome to the Robotics Club of Central Florida.',
-      '',
-      'Confirm this address to finish setting up your account:',
-      link,
-      '',
-      `The link is good for ${expiry}. If it expires, start again from the join page and we'll send a new one.`,
-      '',
-      "If you didn't sign up, ignore this email — no account is created until the link is followed.",
-    ].join('\n'),
+    HtmlBody: html,
+    TextBody: text,
     MessageStream: env.POSTMARK_MESSAGE_STREAM,
+    // Off, explicitly, whatever the server's default is set to. Link tracking
+    // rewrites every href to a postmarkapp.com redirect, and this href carries
+    // a credential — it would put the token in a third party's logs, hand the
+    // student a URL that looks nothing like the club's site on the one email
+    // where they are being asked to trust it, and replace the copyable
+    // fallback URL with an opaque tracking link.
+    TrackLinks: Models.LinkTrackingOptions.None,
+    // A verification email is not a campaign. Nobody needs to know whether it
+    // was opened, and the pixel is one more thing for a filter to dislike.
+    TrackOpens: false,
   })
 
   return true
+}
+
+/** "120 minutes" is a configuration value; "2 hours" is an answer. */
+function readableExpiry(): string {
+  const minutes = env.SIGNUP_TOKEN_TTL_MINUTES
+  if (minutes < 60) return `${minutes} minutes`
+
+  const hours = minutes / 60
+  return hours === 1 ? 'an hour' : `${Number(hours.toFixed(1))} hours`
 }

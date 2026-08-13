@@ -46,12 +46,21 @@ const mail = vi.mocked(sendSignupVerification)
 
 const EMAIL = 'test-signup@ucf.edu'
 const HANDLE = 'test_signup_handle'
+/** Discord's own id for that handle — a snowflake, so digits only. */
+const DISCORD_ID = '135792468135792468'
+
+const CONNECTED = {
+  status: 'connected',
+  username: HANDLE,
+  id: DISCORD_ID,
+} as const
 
 const account = {
   firstName: 'Test',
   lastName: 'Signup',
   password: 'a-long-enough-password',
   discordUsername: HANDLE,
+  acknowledgementAccepted: true,
 }
 
 function post(path: string, body: unknown) {
@@ -116,7 +125,7 @@ beforeEach(async () => {
   // The handle is real and in the club's server, and the link goes out, unless
   // a test says otherwise.
   discord.mockReset()
-  discord.mockResolvedValue({ status: 'connected', username: HANDLE })
+  discord.mockResolvedValue(CONNECTED)
   mail.mockReset()
   mail.mockResolvedValue(true)
 })
@@ -341,6 +350,10 @@ describe('POST /api/signup/complete', () => {
       fullName: 'Test Signup',
       email: EMAIL,
       discordUsername: HANDLE,
+      // The snowflake as well as the handle. A member who renames themselves
+      // on Discord is still reachable by this, and it is what the bot opens a
+      // DM against without searching the guild first.
+      discordId: DISCORD_ID,
       // Signing up is not membership: no slug keeps the account off the public
       // roster, and GUEST is what an officer promotes from. `joinedAt` is the
       // date somebody became a member, which is not today.
@@ -349,6 +362,10 @@ describe('POST /api/signup/complete', () => {
       joinedAt: null,
     })
     expect(user?.passwordHash).toMatch(/^scrypt\$/)
+    // The agreement is the reason the box is there. A signup that recorded
+    // everything except the acknowledgement leaves the club unable to show
+    // anyone ever accepted the lab rules.
+    expect(user?.acknowledgementAcceptedAt).toBeInstanceOf(Date)
 
     // The link goes with the account it created, rather than staying live
     // beside it.
@@ -381,7 +398,7 @@ describe('POST /api/signup/complete', () => {
    * answer to.
    */
   it('stores the handle as Discord spells it, not as it was typed', async () => {
-    discord.mockResolvedValue({ status: 'connected', username: HANDLE })
+    discord.mockResolvedValue(CONNECTED)
 
     const { id } = (await (
       await finish({ discordUsername: `  @${HANDLE.toUpperCase()} ` })
@@ -400,9 +417,13 @@ describe('POST /api/signup/complete', () => {
       await finish({ discordUsername: `@${HANDLE.toUpperCase()}` })
     ).json()) as { id: string }
 
-    expect((await prisma.user.findUnique({ where: { id } }))?.discordUsername).toBe(
-      HANDLE,
-    )
+    const user = await prisma.user.findUnique({ where: { id } })
+
+    expect(user?.discordUsername).toBe(HANDLE)
+    // Nothing was asked, so there is no snowflake to have learned. Storing one
+    // here would be inventing it, and everything downstream treats a stored id
+    // as a confirmed account.
+    expect(user?.discordId).toBeNull()
   })
 
   it('refuses a handle Discord cannot find, in the words the form shows', async () => {
@@ -444,6 +465,15 @@ describe('POST /api/signup/complete', () => {
     ['a short password', { password: 'short' }],
     ['a missing surname', { lastName: '  ' }],
     ['a display name in the Discord field', { discordUsername: 'Phi Bi' }],
+    /**
+     * The member acknowledgement, checked here as well as in the form. A
+     * checkbox is a promise the browser makes, and posting straight at this
+     * endpoint must not be a way past agreeing to the safety rules — which is
+     * the one field on this form that exists for the club's sake rather than
+     * the account's.
+     */
+    ['an unaccepted acknowledgement', { acknowledgementAccepted: false }],
+    ['no acknowledgement at all', { acknowledgementAccepted: undefined }],
   ])('refuses %s without creating anything', async (_case, over) => {
     const response = await finish(over)
 
@@ -494,10 +524,7 @@ describe('POST /api/signup/discord-check', () => {
     const response = await discordCheck({ discordUsername: HANDLE })
 
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      status: 'connected',
-      username: HANDLE,
-    })
+    expect(await response.json()).toEqual(CONNECTED)
   })
 
   /**

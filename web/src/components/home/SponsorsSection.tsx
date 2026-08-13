@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import type { ApiSponsor, SponsorTier } from '../../lib/api'
+import { imageSrc } from '../../lib/storedFiles'
 import { useApi } from '../../lib/useApi'
 
 /**
@@ -146,7 +147,7 @@ function SponsorCard({ sponsor, repeat }: { sponsor: ApiSponsor; repeat?: boolea
             /* Decorative: the name is printed directly below, so announcing the
                logo too would read the sponsor out twice. */
             <img
-              src={sponsor.logoUrl}
+              src={imageSrc(sponsor.logoUrl)}
               alt=""
               className="max-h-full max-w-full object-contain"
             />

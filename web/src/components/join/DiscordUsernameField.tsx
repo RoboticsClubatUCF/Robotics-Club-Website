@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from 'react'
 import { postJson, type ApiDiscordCheck } from '../../lib/api'
-import { fieldClass, labelClass } from './joinChrome'
+import { fieldClass, labelClass } from '../shared/formChrome'
 import instructionsUrl from '../../assets/DiscordInstructions.png'
 
 /**

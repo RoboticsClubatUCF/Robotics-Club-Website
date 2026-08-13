@@ -20,6 +20,17 @@ import { prisma } from '../db.js'
 type Stats = { projects: number; members: number; events: number }
 type Member = { slug: string; role: string; officerPosition: string | null }
 type Project = { slug: string }
+type ProjectDetail = {
+  images: {
+    id: string
+    url: string
+    caption: string | null
+    focalX: number
+    focalY: number
+    zoom: number
+  }[]
+  links: { id: string; label: string; url: string }[]
+}
 type Event = { slug: string; startsAt: string; endsAt: string | null }
 type Sponsor = { name: string; tier: string }
 
@@ -97,6 +108,54 @@ describe('GET /api/projects', () => {
   it('404s an unknown slug instead of 500ing', async () => {
     const response = await app.request('/api/projects/no-such-project')
     expect(response.status).toBe(404)
+  })
+
+  /**
+   * The gallery and the resource links belong to the detail route alone. The
+   * listing answers up to a hundred rows, so a `select` that grew them there
+   * would ship every project's whole gallery to anyone opening `/projects` —
+   * which is exactly the kind of change that looks harmless in a diff.
+   */
+  it('carries the gallery and links on the detail route and not on the list', async () => {
+    const [first] = await get<Project[]>('/api/projects?limit=1')
+    if (!first) return
+
+    const detail = await get<ProjectDetail>(`/api/projects/${first.slug}`)
+    expect(Array.isArray(detail.images)).toBe(true)
+    expect(Array.isArray(detail.links)).toBe(true)
+
+    const listed = await get<Record<string, unknown>[]>('/api/projects?limit=100')
+    for (const project of listed) {
+      expect(project, `project ${project.slug}`).not.toHaveProperty('images')
+      expect(project, `project ${project.slug}`).not.toHaveProperty('links')
+    }
+  })
+
+  /**
+   * The array order *is* the display order, which is why neither list carries a
+   * sort key. Sending one as well would give the client a second opinion to
+   * disagree with. The framing, by contrast, has to be on the wire: the public
+   * page is what draws these, and without it every gallery reverts to a plain
+   * centred crop for exactly the visitors it was framed for.
+   */
+  it('carries the framing but not the sort key', async () => {
+    const [first] = await get<Project[]>('/api/projects?limit=1')
+    if (!first) return
+
+    const detail = await get<ProjectDetail>(`/api/projects/${first.slug}`)
+    for (const image of detail.images) {
+      expect(Object.keys(image).sort()).toEqual([
+        'caption',
+        'focalX',
+        'focalY',
+        'id',
+        'url',
+        'zoom',
+      ])
+    }
+    for (const link of detail.links) {
+      expect(Object.keys(link).sort()).toEqual(['id', 'label', 'url'])
+    }
   })
 })
 

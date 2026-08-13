@@ -15,8 +15,12 @@ const subteams = [
 ]
 
 /**
- * The public roster: users with a slug. One of each role, so the ordering the
- * team page depends on is visible in development.
+ * The public roster: users with a slug.
+ *
+ * Nearly all `MEMBER`, and that is the model rather than laziness. What these
+ * people *do* is not in this column: Priya and Sam lead teams, Mateo leads a
+ * project, and every one of those facts lives on a `ProjectMember` row against
+ * one project — see the sandbox below. `title` is what the roster prints.
  */
 const members = [
   {
@@ -31,7 +35,7 @@ const members = [
   {
     slug: 'priya-raman',
     fullName: 'Priya Raman',
-    role: 'TEAM_LEAD' as const,
+    role: 'MEMBER' as const,
     title: 'Software Lead',
     gradYear: 2027,
     active: true,
@@ -40,7 +44,7 @@ const members = [
   {
     slug: 'sam-okafor',
     fullName: 'Sam Okafor',
-    role: 'TEAM_LEAD' as const,
+    role: 'MEMBER' as const,
     title: 'Mechanical Lead',
     gradYear: 2026,
     active: true,
@@ -49,7 +53,7 @@ const members = [
   {
     slug: 'mateo-ruiz',
     fullName: 'Mateo Ruiz',
-    role: 'PROJECT_LEAD' as const,
+    role: 'MEMBER' as const,
     title: 'Vision Stack Lead',
     gradYear: 2026,
     active: true,
@@ -67,7 +71,7 @@ const members = [
   {
     slug: 'dana-whitfield',
     fullName: 'Dana Whitfield',
-    role: 'MENTOR' as const,
+    role: 'MEMBER' as const,
     title: 'Faculty Mentor',
     gradYear: null,
     active: true,
@@ -76,10 +80,13 @@ const members = [
   {
     slug: 'rae-lindqvist',
     fullName: 'Rae Lindqvist',
-    role: 'ALUMNUS' as const,
+    role: 'MEMBER' as const,
     title: 'Captain, 2023-2024',
     gradYear: 2025,
-    // Inactive is what `?status=alumni` filters on; the role is the label.
+    // `active: false` is the *only* thing marking an alumnus now. There was an
+    // `ALUMNUS` role saying it a second time, which is exactly the duplication
+    // this model got rid of — and `?status=alumni` filtered on this flag even
+    // then, so nothing about the roster changed when the role went.
     active: false,
     subteam: null,
   },
@@ -94,9 +101,10 @@ const members = [
  *
  * `officerPosition` is the seat and drives which card someone lands in; `title`
  * is only the label printed on it, so an "Interim President" can say so without
- * falling out of the president's card. The advisor is a `MENTOR` rather than an
- * `OFFICER` — they sit on the board but hold no student office, which is the
- * whole reason the seat is a separate field from the role.
+ * falling out of the president's card. The advisor is a plain `MEMBER` rather
+ * than an `OFFICER` — they sit on the board but hold no student office and have
+ * no business in the print queue or the member search, which is the whole
+ * reason the seat is a separate field from the role.
  */
 const officers = [
   {
@@ -174,11 +182,125 @@ const officers = [
     fullName: 'Dr. Alina Petrov',
     officerPosition: 'FACULTY_ADVISOR' as const,
     title: 'Faculty Advisor',
-    role: 'MENTOR' as const,
+    role: 'MEMBER' as const,
     bio: 'Placeholder advisor. Replace before this is public.',
     gradYear: null,
     subteam: null,
   },
+]
+
+/**
+ * A project that exists only so the dashboard has something to show.
+ *
+ * Separate from the real projects below, and that separation is the point.
+ * The seeded *people* are invented, and the real projects deliberately carry
+ * no leads for exactly that reason — attaching Priya Raman to Project
+ * S.T.O.R.M. would publish a claim about who runs a real thing. This one is
+ * labelled in its own summary as scaffolding, so the teams, ranks, meeting
+ * schedule and tasks below have somewhere honest to live.
+ *
+ * Delete it and its members in Studio once the club's own structure is in.
+ */
+const sandbox = {
+  slug: 'seed-sandbox',
+  title: 'Seed Sandbox',
+  summary:
+    'Development scaffolding, not a real project. Seeded so the dashboard has teams, tasks and a meeting to render. Safe to delete.',
+  status: 'CONCEPT' as const,
+  featured: false,
+  // A weekly meeting, so the dashboard calendar has recurring chips to draw
+  // without anybody having to set one up by hand first.
+  meetingWeekday: 4,
+  meetingTime: '18:30',
+  meetingLocation: 'ENG2 Lab',
+  teams: [
+    { name: 'Autonomy', description: 'Navigation, vision, and the arm.' },
+    { name: 'Chassis', description: 'Drivetrain, suspension, and the frame.' },
+  ],
+  /**
+   * The permission model, one row each, and the only place any of these four
+   * is anything other than a club member. Mateo runs this project and nothing
+   * else; Priya leads a team inside it while being nothing in particular
+   * anywhere else; Sam, who leads nothing here, is on the roster as "Mechanical
+   * Lead" because that is a `title` and titles grant nothing.
+   *
+   * One `PROJECT_LEAD`, which is the cap — the appointment route refuses a
+   * second. `title` here is the display string beside the rank, distinct from
+   * the `title` on the user.
+   */
+  members: [
+    { slug: 'mateo-ruiz', rank: 'PROJECT_LEAD' as const, title: 'Project Lead', team: null },
+    { slug: 'priya-raman', rank: 'TEAM_LEAD' as const, title: 'Software Lead', team: 'Autonomy' },
+    { slug: 'jordan-lee', rank: 'MEMBER' as const, title: null, team: 'Autonomy' },
+    { slug: 'sam-okafor', rank: 'MEMBER' as const, title: null, team: 'Chassis' },
+  ],
+  /**
+   * Fixed literal ids because a task has no natural key: upserting on the id
+   * is what makes a second `npm run seed` move these rather than mint two more.
+   */
+  tasks: [
+    {
+      id: '01936000-0000-7000-8000-000000000a01',
+      team: 'Autonomy',
+      title: 'Calibrate the depth camera',
+      details: 'The mounts moved when the arm was refitted. Redo the intrinsics.',
+      assignees: ['jordan-lee'],
+    },
+    {
+      id: '01936000-0000-7000-8000-000000000a02',
+      team: 'Chassis',
+      title: 'Order replacement drive belts',
+      details: null,
+      assignees: ['sam-okafor'],
+    },
+  ],
+}
+
+/**
+ * The lending list. Upserted on `name`, which is unique — so re-running the
+ * seed adjusts these rather than stacking up duplicate drills. No loans are
+ * seeded: a borrowing record is a claim that a named person took something,
+ * and inventing one is the sort of thing an officer would act on.
+ */
+const equipment = [
+  {
+    name: 'Cordless drill',
+    description: 'Two batteries and a charger, in the black case.',
+    quantity: 2,
+  },
+  {
+    name: 'Soldering station',
+    description: 'Hakko, with a fume extractor. Stays in the lab.',
+    quantity: 3,
+  },
+  {
+    name: 'Digital calipers',
+    description: '150mm, metric and imperial.',
+    quantity: 4,
+  },
+]
+
+/**
+ * Stand-in artwork for a project's gallery, so the slideshow has something to
+ * be until real build photos go in.
+ *
+ * Deliberately **external** URLs rather than uploads. `deleteIfStored` only
+ * touches `/api/files/` addresses, so seeded rows can be added and removed all
+ * day without a single `stored_files` row being created or destroyed — which
+ * keeps the storage rules exercised only by genuine uploads, the thing actually
+ * worth testing by hand.
+ */
+const placeholderGallery = (title: string) =>
+  ['THE BUILD', 'THE TEAM', 'COMPETITION DAY'].map((label, index) => ({
+    url: `https://placehold.co/1600x1000/101010/ffc904/png?text=${encodeURIComponent(`${title}\n${label}`)}`,
+    caption: `${label.toLowerCase().replace(/^./, (c) => c.toUpperCase())} — replace me with a real photo.`,
+    sortOrder: index,
+  }))
+
+/** Stand-in resources, in the shape a real project's would take. */
+const placeholderLinks = [
+  { label: 'Club Discord', url: 'https://discord.gg/rccf', sortOrder: 0 },
+  { label: 'How to join a project', url: 'https://rccf.org/join', sortOrder: 1 },
 ]
 
 /**
@@ -283,6 +405,30 @@ function nthWeekday(
     hour,
     minute,
   )
+}
+
+/**
+ * Placeholder gallery and links, and **only onto a project that has none**.
+ *
+ * The rest of the seed can upsert because every row it writes has a natural
+ * key. These do not — one gallery slide is much like another — so the obvious
+ * `deleteMany` + `createMany` would wipe a lead's real photos every time
+ * anybody ran the seed. Checking for emptiness first is what makes re-running
+ * safe, and it means a project that has been curated once is never touched
+ * again.
+ */
+async function seedPlaceholderPage(projectId: string, title: string) {
+  if ((await prisma.projectImage.count({ where: { projectId } })) === 0) {
+    await prisma.projectImage.createMany({
+      data: placeholderGallery(title).map((image) => ({ ...image, projectId })),
+    })
+  }
+
+  if ((await prisma.projectLink.count({ where: { projectId } })) === 0) {
+    await prisma.projectLink.createMany({
+      data: placeholderLinks.map((link) => ({ ...link, projectId })),
+    })
+  }
 }
 
 const hoursAfter = (start: Date, hours: number) =>
@@ -501,6 +647,29 @@ async function main() {
     create: { email: 'guest@rccf.local', fullName: 'Prospective Member' },
   })
 
+  // Passwords for two of the seeded roster members, so every rank the
+  // dashboard branches on can actually be signed into. Mateo leads the
+  // sandbox project and Jordan is a plain member of it, which between them
+  // covers the lead surfaces and the member ones. Same password as the admin;
+  // these are `.local` addresses that can receive nothing.
+  const devPassword = await hashPassword(
+    process.env.SEED_ADMIN_PASSWORD ?? 'changeme',
+  )
+  for (const [slug, email] of [
+    ['mateo-ruiz', 'lead@rccf.local'],
+    ['jordan-lee', 'member@rccf.local'],
+  ] as const) {
+    const existing = await prisma.user.findUnique({ where: { slug } })
+    // Only ever adds a way in; never overwrites an address a real member has
+    // since been given, and never touches a password already set.
+    if (existing && !existing.email && !existing.passwordHash) {
+      await prisma.user.update({
+        where: { slug },
+        data: { email, passwordHash: devPassword },
+      })
+    }
+  }
+
   for (const subteam of subteams) {
     await prisma.subteam.upsert({
       where: { slug: subteam.slug },
@@ -553,11 +722,13 @@ async function main() {
   // Upsert only: deleting a project from the array above will not remove it
   // from a database that already has it. Delete those by hand, or in Studio.
   for (const { leads, ...project } of projects) {
-    await prisma.project.upsert({
+    const row = await prisma.project.upsert({
       where: { slug: project.slug },
       update: project,
       create: project,
     })
+
+    await seedPlaceholderPage(row.id, project.title)
 
     for (const slug of leads) {
       const user = await prisma.user.findUniqueOrThrow({ where: { slug } })
@@ -568,10 +739,86 @@ async function main() {
         where: {
           projectId_userId: { projectId: created.id, userId: user.id },
         },
-        update: { role: 'Lead' },
-        create: { projectId: created.id, userId: user.id, role: 'Lead' },
+        update: { title: 'Lead' },
+        create: { projectId: created.id, userId: user.id, title: 'Lead' },
       })
     }
+  }
+
+  // The sandbox project, its teams, its ranked members, and its tasks. Upsert
+  // throughout, so re-seeding adjusts rather than duplicates.
+  {
+    const { teams, members, tasks: sandboxTasks, ...project } = sandbox
+
+    const created = await prisma.project.upsert({
+      where: { slug: project.slug },
+      update: project,
+      create: project,
+    })
+
+    await seedPlaceholderPage(created.id, project.title)
+
+    const teamIds = new Map<string, string>()
+    for (const team of teams) {
+      const row = await prisma.team.upsert({
+        where: { projectId_name: { projectId: created.id, name: team.name } },
+        update: team,
+        create: { ...team, projectId: created.id },
+      })
+      teamIds.set(team.name, row.id)
+    }
+
+    for (const { slug, team, ...member } of members) {
+      const user = await prisma.user.findUnique({ where: { slug } })
+      // The roster members are seeded above, but an officer may have deleted
+      // one — a missing fixture is not worth failing the whole seed over.
+      if (!user) continue
+
+      const data = { ...member, teamId: team ? (teamIds.get(team) ?? null) : null }
+      await prisma.projectMember.upsert({
+        where: { projectId_userId: { projectId: created.id, userId: user.id } },
+        update: data,
+        create: { ...data, projectId: created.id, userId: user.id },
+      })
+    }
+
+    for (const { id, team, assignees, ...task } of sandboxTasks) {
+      const users = await prisma.user.findMany({
+        where: { slug: { in: assignees } },
+        select: { id: true },
+      })
+
+      const data = {
+        ...task,
+        projectId: created.id,
+        teamId: team ? (teamIds.get(team) ?? null) : null,
+      }
+      await prisma.task.upsert({
+        where: { id },
+        // Assignees are replaced rather than added to, so re-seeding after
+        // somebody was reassigned in Studio puts the fixture back as written.
+        update: {
+          ...data,
+          assignees: {
+            deleteMany: {},
+            create: users.map((user) => ({ userId: user.id })),
+          },
+        },
+        create: {
+          ...data,
+          id,
+          assignees: { create: users.map((user) => ({ userId: user.id })) },
+        },
+      })
+    }
+  }
+
+  for (const item of equipment) {
+    await prisma.equipment.upsert({
+      where: { name: item.name },
+      update: item,
+      create: item,
+    })
   }
 
   for (const event of events) {
@@ -611,6 +858,9 @@ async function main() {
     subteams: await prisma.subteam.count(),
     projects: await prisma.project.count(),
     events: await prisma.event.count(),
+    teams: await prisma.team.count(),
+    tasks: await prisma.task.count(),
+    equipment: await prisma.equipment.count(),
     sponsors: await prisma.sponsor.count(),
     posts: await prisma.post.count(),
   }

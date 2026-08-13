@@ -116,8 +116,11 @@ export const faqs: Faq[] = [
     question: 'How do I become a member?',
     answer: 'Becoming a member is as easy as:',
     steps: [
-      'Create an RCCF web account by going to sign in → become a member',
-      "Fill out your members' survey and pay dues",
+      // Both of these were written before there was anywhere to sign up. The
+      // first described a route that did not exist, and the second a members'
+      // survey the club has since dropped.
+      'Create an RCCF web account with the "Join the club" button up top',
+      'Pay your dues',
       'Join a general body meeting (times posted on Discord)',
     ],
   },

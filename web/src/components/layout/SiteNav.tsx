@@ -1,21 +1,44 @@
 import { useEffect, useId, useState } from 'react'
 import { Link } from 'react-router'
 import { BrandMark } from './BrandMark'
-import { navLinks } from '../../content/home'
+import { Avatar } from '../shared/Avatar'
+import { navLinks, type NavLink } from '../../content/home'
+import { useSession } from '../../lib/session'
 
 /**
  * Sticky top bar. The blur is what lets the near-black background sit at 90%
  * opacity — content scrolling underneath stays suggested rather than legible.
  *
  * Below the breakpoint the links move into a panel under the bar. The bar keeps
- * three things at every width — the mark, the join button and the menu toggle —
- * because a phone is where most people first hit the site and the join button is
- * the only reason the bar exists. Fitting all three inside 320px is why the
- * button says "JOIN" there and "JOIN THE CLUB" above the breakpoint.
+ * three things at every width — the mark, the call-to-action button and the
+ * menu toggle — because a phone is where most people first hit the site and
+ * that button is the only reason the bar exists. Fitting all three inside 320px
+ * is why it carries a short label as well as a long one.
+ *
+ * Signing in changes two things and no more: the button becomes the way to the
+ * dashboard rather than the way to sign up, and the "Sign in" link comes out of
+ * the list. Everything else on the bar is the same for everyone.
  */
 export function SiteNav() {
   const [open, setOpen] = useState(false)
   const menuId = useId()
+  const { session } = useSession()
+
+  const signedIn = session.status === 'signed-in'
+
+  /**
+   * "Sign in" sits with the section links rather than becoming a second button
+   * beside the gold one — the bar is already three things wide at 320px, and a
+   * page with two buttons on it has no primary action.
+   *
+   * It shows while the session is still being read, rather than appearing a
+   * moment later. Nearly everybody arriving here is signed out, so this is the
+   * state that stays put for most people; a member who is signed in sees it for
+   * as long as one request takes.
+   */
+  const links: NavLink[] = signedIn
+    ? navLinks
+    : [...navLinks, { href: '/login', label: 'Sign in' }]
 
   useEffect(() => {
     if (!open) return
@@ -55,7 +78,7 @@ export function SiteNav() {
         </Link>
 
         <ul className="hidden items-center gap-7 wide:flex">
-          {navLinks.map((link) => (
+          {links.map((link) => (
             <li key={link.href}>
               <NavAnchor
                 link={link}
@@ -65,16 +88,35 @@ export function SiteNav() {
           ))}
         </ul>
 
-        {/* The whole reason the bar exists. It used to point at the FAQ, which
-            is where becoming a member was explained while there was nowhere to
-            actually do it. */}
-        <Link
-          to="/join"
-          className="btn btn-primary btn-cta shrink-0 px-3.5 py-2.5 text-[11px] font-semibold wide:px-4.5 wide:text-xs"
-        >
-          <span className="wide:hidden">JOIN</span>
-          <span className="hidden wide:inline">JOIN THE CLUB</span>
-        </Link>
+        {/* The whole reason the bar exists — while you are signed out. It used
+            to point at the FAQ, which is where becoming a member was explained
+            while there was nowhere to actually do it. */}
+        {signedIn ? (
+          /* Signed in, this is the avatar instead: at that point the bar's job
+             is "who am I and how do I get to my things", and a button spelling
+             out MY DASHBOARD was the widest way to say it. It goes to the
+             account page rather than the dashboard root because that is what a
+             picture of a person promises, and the rail on the other side of it
+             reaches everything else in one more click. */
+          <Link
+            to="/dashboard/profile"
+            aria-label={`Your account, ${session.user.fullName}`}
+            className="focus-visible:outline-primary shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            <Avatar
+              fullName={session.user.fullName}
+              className="size-9 text-[12px] hover:opacity-85 wide:size-10 wide:text-[13px]"
+            />
+          </Link>
+        ) : (
+          <Link
+            to="/join"
+            className="btn btn-primary btn-cta shrink-0 px-3.5 py-2.5 text-[11px] font-semibold wide:px-4.5 wide:text-xs"
+          >
+            <span className="wide:hidden">JOIN</span>
+            <span className="hidden wide:inline">JOIN THE CLUB</span>
+          </Link>
+        )}
 
         <button
           type="button"
@@ -103,7 +145,7 @@ export function SiteNav() {
         }`}
       >
         <ul className="px-page flex flex-col py-2">
-          {navLinks.map((link) => (
+          {links.map((link) => (
             <li key={link.href} className="border-rule border-b last:border-b-0">
               <NavAnchor
                 link={link}

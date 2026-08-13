@@ -147,11 +147,23 @@ describe('JoinPage', () => {
     fireEvent.change(screen.getByLabelText(/DISCORD USERNAME/i), {
       target: { value: 'phibiscool' },
     })
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: /member acknowledgement/i }),
+    )
 
     fireEvent.submit(screen.getByRole('button', { name: /create my account/i }))
 
     expect(await screen.findByText(/welcome to rccf/i)).toBeInTheDocument()
     expect(screen.getByText(/pay your dues/i)).toBeInTheDocument()
     expect(screen.getByText(/general body meeting/i)).toBeInTheDocument()
+
+    // Somewhere to go next, and both of them are real destinations rather than
+    // a button back to where they started.
+    expect(
+      screen.getByRole('link', { name: /go to my dashboard/i }),
+    ).toHaveAttribute('href', '/dashboard')
+    expect(
+      screen.getByRole('link', { name: /see the projects/i }),
+    ).toHaveAttribute('href', '/projects')
   })
 })

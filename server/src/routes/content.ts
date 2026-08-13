@@ -209,8 +209,9 @@ content.get(
  *
  * Its own route rather than `/members?role=OFFICER` because the seat and the
  * permission level are different things — the faculty advisor belongs on this
- * board and is a `MENTOR`, and a `role=OFFICER` filter would both miss them and
- * sweep up officers who hold no named seat.
+ * board and is a plain `MEMBER`, since sitting on the board is not a reason to
+ * hand somebody the print queue and the member search. A `role=OFFICER` filter
+ * would both miss them and sweep up officers who hold no named seat.
  *
  * Unfilled seats are absent, not null: the site draws one card per position and
  * fills in whoever holds it, so an empty seat is the landing page's business to
@@ -236,7 +237,7 @@ content.get('/members/:slug', async (c) => {
       joinedAt: true,
       projects: {
         select: {
-          role: true,
+          title: true,
           project: { select: { slug: true, title: true, season: true } },
         },
       },
@@ -277,6 +278,16 @@ content.get(
   },
 )
 
+/**
+ * The gallery and the resource links ride on the *detail* route and nowhere
+ * else. The listing above answers up to a hundred rows and renders neither, so
+ * carrying them there would ship every gallery in the club to every visitor of
+ * `/projects`.
+ *
+ * `sortOrder` deliberately does not go on the wire. The array order *is* the
+ * order — sending both invites the client to disagree with itself, and the
+ * reorder route takes ids in order anyway.
+ */
 content.get('/projects/:slug', async (c) => {
   const project = await prisma.project.findUnique({
     where: { slug: c.req.param('slug') },
@@ -284,12 +295,34 @@ content.get('/projects/:slug', async (c) => {
       ...projectSelect,
       description: true,
       members: {
+        // Two `title`s, at two levels, and they are different things: the outer
+        // one is what this person is called *on this project* ("Software
+        // Lead"), the inner one is their club title. Both are free text and
+        // neither grants anything.
         select: {
-          role: true,
+          title: true,
           user: {
             select: { slug: true, fullName: true, photoUrl: true, title: true },
           },
         },
+      },
+      images: {
+        orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+        select: {
+          id: true,
+          url: true,
+          caption: true,
+          // How the picture sits in the frame. Public because the public page
+          // is what draws it — without these every gallery reverts to a plain
+          // centred crop for the visitors it was framed for.
+          focalX: true,
+          focalY: true,
+          zoom: true,
+        },
+      },
+      links: {
+        orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+        select: { id: true, label: true, url: true },
       },
     },
   })

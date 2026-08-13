@@ -8,3 +8,32 @@ import { afterEach } from 'vitest'
 afterEach(() => {
   cleanup()
 })
+
+/**
+ * jsdom parses `<dialog>` but does not implement opening one.
+ *
+ * `showModal()` and `close()` are simply absent, so the acknowledgement dialog
+ * throws on mount in a test while working in every browser that has shipped
+ * since 2022. This is the narrowest thing that closes the gap: flip the `open`
+ * attribute, which is what `HTMLDialogElement.open` reflects, and fire the
+ * `close` event the component listens for.
+ *
+ * Everything else a real modal does — the backdrop, focus trapping, Escape,
+ * making the page behind inert — is deliberately *not* faked. jsdom has no
+ * layout and no focus model to speak of, so a stand-in would only be something
+ * to assert against that no browser had to agree with. Those belong to the
+ * platform; see the jsdom notes in `.claude/docs/testing.md`.
+ */
+const dialog = globalThis.HTMLDialogElement?.prototype
+
+if (dialog && !dialog.showModal) {
+  dialog.showModal = function showModal(this: HTMLDialogElement) {
+    this.open = true
+  }
+
+  dialog.close = function close(this: HTMLDialogElement, returnValue?: string) {
+    this.open = false
+    if (returnValue !== undefined) this.returnValue = returnValue
+    this.dispatchEvent(new Event('close'))
+  }
+}

@@ -1,13 +1,18 @@
 import { useEffect, useState } from 'react'
-import { getJson } from './api'
+import { ApiError, getJson } from './api'
 
 /**
  * A discriminated union rather than `{ data, loading, error }`, so a component
  * can't read `data` without having handled the other two states first.
+ *
+ * `code` is the HTTP status of the failure, or `0` when the request never
+ * reached the server. Most pages ignore it — "couldn't load" covers everything
+ * — but a detail page for a slug that doesn't exist needs to say "no such
+ * project" rather than implying the API is down.
  */
 export type ApiState<T> =
   | { status: 'loading' }
-  | { status: 'error' }
+  | { status: 'error'; code: number }
   | { status: 'ready'; data: T }
 
 /**
@@ -36,7 +41,10 @@ export function useApi<T>(path: string): ApiState<T> {
         // An abort is this effect being cleaned up, not a failure.
         if (controller.signal.aborted) return
         console.error(error)
-        setState({ status: 'error' })
+        setState({
+          status: 'error',
+          code: error instanceof ApiError ? error.status : 0,
+        })
       })
 
     return () => {

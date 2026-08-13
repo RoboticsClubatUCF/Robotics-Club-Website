@@ -1,0 +1,19 @@
+Welcome to the Robotics Club of Central Florida (RCCF). To ensure a safe, productive, and collaborative environment for all members, we require both new and returning members to read and agree to the following guidelines and responsibilities.
+
+1. Club Constitution and Bylaws
+I acknowledge that I have received access to, read, and understand the official RCCF Constitution and Bylaws. I agree to abide by the rules, regulations, and operational procedures outlined within these
+documents while participating in club activities, meetings, and official communications via club domains and servers.
+
+2. Safety and Equipment Usage
+I will adhere to all safety protocols when working in the lab, workshop, or testing environments. I agree to use club equipment—including but not limited to 3D printers, fabrication tools, test benches, microcontrollers, and battery systems—only after receiving proper training and explicit
+authorization. I will report any damaged equipment, software/server infrastructure issues, safety hazards, or injuries to the club leadership immediately.
+
+3. Professional Conduct and Respect
+I will treat all fellow members, club leadership, university faculty, and external partners with respect and professionalism.
+I will foster an inclusive environment and will not engage in harassment, discrimination, or any behavior that compromises the collaborative nature of the club. I understand that I represent RCCF and the University of Central Florida during off-campus events, major competitions, and online interactions, and I will conduct myself accordingly.
+
+4. Commitment and Participation
+I understand that active participation is vital to the success of our technical projects and design proposals. I commit to attending scheduled team meetings, contributing to my assigned tasks, maintaining team documentation, and communicating proactively with project leads if I am unable to meet my commitments.
+
+5. Financial Responsibilities
+I agree to pay any applicable club dues in a timely manner. If I am authorized to make purchases on behalf of the club for parts or materials, I will strictly follow the RCCF reimbursement procedures, ensuring all required documentation and receipts are submitted to the leadership team for approval.

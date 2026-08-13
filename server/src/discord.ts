@@ -31,8 +31,9 @@ import { env } from './env.js'
 
 export type DiscordCheck =
   /** The handle is a member of the club's server. `username` is Discord's own
-      spelling of it, which is what gets stored. */
-  | { status: 'connected'; username: string }
+      spelling of it, and `id` the account's snowflake — the handle is what a
+      person can change, the id is what the bot addresses a message to. */
+  | { status: 'connected'; username: string; id: string }
   /** Discord answered, and nobody in the guild has that username. */
   | { status: 'not_found' }
   /** No bot configured. Nothing was asked, so nothing is known. */
@@ -75,7 +76,43 @@ export function isHandleShaped(handle: string): boolean {
 }
 
 interface GuildMember {
-  user?: { username?: string }
+  user?: { id?: string; username?: string }
+}
+
+const API = 'https://discord.com/api/v10'
+
+const HEADERS = {
+  'User-Agent': 'RCCFWebsite (https://github.com/RoboticsClubatUCF, 13.0)',
+} as const
+
+/**
+ * One call to Discord, with the deadline every one of them needs.
+ *
+ * Somebody else's service, on the request path of a form. Five seconds is
+ * already longer than anyone will sit still for, and without a deadline a hung
+ * connection holds the request open until the proxy gives up on it.
+ */
+async function call(
+  path: string,
+  init: RequestInit = {},
+): Promise<Response | null> {
+  if (!bot) return null
+
+  try {
+    return await fetch(`${API}${path}`, {
+      ...init,
+      headers: {
+        ...HEADERS,
+        Authorization: `Bot ${bot.token}`,
+        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+        ...init.headers,
+      },
+      signal: AbortSignal.timeout(5_000),
+    })
+  } catch (error) {
+    console.error(`discord: ${path} failed`, error)
+    return null
+  }
 }
 
 /**
@@ -93,32 +130,18 @@ export async function checkDiscordHandle(
   const query = normaliseHandle(handle)
   if (!isHandleShaped(query)) return { status: 'not_found' }
 
-  const url = new URL(
-    `https://discord.com/api/v10/guilds/${bot.guildId}/members/search`,
+  const search = new URLSearchParams({
+    query,
+    // A prefix search on a 32-character exact string cannot sensibly return
+    // more than a handful, and only an exact match counts anyway.
+    limit: '10',
+  })
+
+  const response = await call(
+    `/guilds/${bot.guildId}/members/search?${search.toString()}`,
   )
-  url.searchParams.set('query', query)
-  // A prefix search on a 32-character exact string cannot sensibly return more
-  // than a handful, and only an exact match counts anyway.
-  url.searchParams.set('limit', '10')
 
-  let response: Response
-
-  try {
-    response = await fetch(url, {
-      headers: {
-        Authorization: `Bot ${bot.token}`,
-        'User-Agent': 'RCCFWebsite (https://github.com/RoboticsClubatUCF, 13.0)',
-      },
-      // Somebody else's service, in front of a person waiting on a form. Five
-      // seconds is already longer than anyone will sit still for, and without a
-      // deadline a hung connection holds the request open until the proxy gives
-      // up on it.
-      signal: AbortSignal.timeout(5_000),
-    })
-  } catch (error) {
-    console.error('discord: member search failed', error)
-    return { status: 'unavailable' }
-  }
+  if (!response) return { status: 'unavailable' }
 
   if (!response.ok) {
     // 401 is a bad token, 403 is the Server Members Intent switched off or the
@@ -142,9 +165,90 @@ export async function checkDiscordHandle(
 
   const match = members.find(
     (member) => member.user?.username?.toLowerCase() === query,
-  )
+  )?.user
 
-  return match?.user?.username
-    ? { status: 'connected', username: match.user.username.toLowerCase() }
+  return match?.username && match.id
+    ? { status: 'connected', username: match.username.toLowerCase(), id: match.id }
     : { status: 'not_found' }
+}
+
+/**
+ * What became of a message the bot tried to send.
+ *
+ * `refused` and `unavailable` are split for the same reason `not_found` and
+ * `unavailable` are split above: one is Discord answering, the other is Discord
+ * not answering. A member whose privacy settings decline messages from server
+ * members refuses for ever and there is nothing to retry; a 500 or a timeout
+ * says nothing at all. The caller here does not retry either way — see the note
+ * on `TrialNotice` — but the log has to be able to tell an officer which of the
+ * two happened.
+ */
+export type DiscordDelivery =
+  | { status: 'sent' }
+  | { status: 'refused'; reason: string }
+  | { status: 'unavailable'; reason: string }
+  | { status: 'unchecked' }
+
+/**
+ * Send somebody a direct message.
+ *
+ * Two calls, because a bot has no standing channel with anyone: the first opens
+ * (or re-opens) the DM channel, the second posts into it. Opening one is
+ * idempotent — Discord hands back the existing channel — so this is safe to
+ * call for someone who has been messaged before.
+ *
+ * It can only work at all for a member of a guild the bot is in, which is
+ * exactly who this is ever used for. A member who has switched off direct
+ * messages from server members is a 403 and stays one; that is their setting,
+ * not a fault to work around.
+ */
+export async function sendDirectMessage(
+  discordUserId: string,
+  content: string,
+): Promise<DiscordDelivery> {
+  if (!bot) return { status: 'unchecked' }
+
+  const channel = await call('/users/@me/channels', {
+    method: 'POST',
+    body: JSON.stringify({ recipient_id: discordUserId }),
+  })
+
+  if (!channel) return { status: 'unavailable', reason: 'network' }
+
+  if (!channel.ok) {
+    const reason = `open DM channel: ${channel.status} ${channel.statusText}`
+    // 403 here is the recipient's privacy settings; 404 is an account that no
+    // longer exists. Neither will ever start working.
+    return channel.status === 403 || channel.status === 404
+      ? { status: 'refused', reason }
+      : { status: 'unavailable', reason }
+  }
+
+  let channelId: string | undefined
+
+  try {
+    channelId = ((await channel.json()) as { id?: string }).id
+  } catch {
+    return { status: 'unavailable', reason: 'unparseable channel response' }
+  }
+
+  if (!channelId) {
+    return { status: 'unavailable', reason: 'channel response carried no id' }
+  }
+
+  const sent = await call(`/channels/${channelId}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({ content }),
+  })
+
+  if (!sent) return { status: 'unavailable', reason: 'network' }
+
+  if (!sent.ok) {
+    const reason = `send message: ${sent.status} ${sent.statusText}`
+    return sent.status === 403
+      ? { status: 'refused', reason }
+      : { status: 'unavailable', reason }
+  }
+
+  return { status: 'sent' }
 }

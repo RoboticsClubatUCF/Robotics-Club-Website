@@ -3,11 +3,12 @@ import { Link, useSearchParams } from 'react-router'
 import { ApiError, postJson, type ApiSignupVerified } from '../lib/api'
 import { SignupStart } from '../components/join/SignupStart'
 import { SignupFinish } from '../components/join/SignupFinish'
+import { Confetti } from '../components/shared/Confetti'
 import {
-  JoinEyebrow,
-  JoinHeading,
-  JoinPanel,
-} from '../components/join/joinChrome'
+  FormEyebrow,
+  FormHeading,
+  FormPanel,
+} from '../components/shared/formChrome'
 
 /**
  * Signing up, which is how someone joins the club.
@@ -117,8 +118,8 @@ export function JoinPage() {
 function CheckingLink() {
   return (
     <div aria-busy="true">
-      <JoinEyebrow>/ ONE MOMENT</JoinEyebrow>
-      <JoinHeading>Checking your link…</JoinHeading>
+      <FormEyebrow>/ ONE MOMENT</FormEyebrow>
+      <FormHeading>Checking your link…</FormHeading>
       <div className="border-rule bg-base-200 h-40 border" />
     </div>
   )
@@ -127,12 +128,12 @@ function CheckingLink() {
 function BadLink({ message }: { message: string }) {
   return (
     <>
-      <JoinEyebrow>/ THAT LINK DIDN'T WORK</JoinEyebrow>
-      <JoinHeading>We can send you another.</JoinHeading>
+      <FormEyebrow>/ THAT LINK DIDN'T WORK</FormEyebrow>
+      <FormHeading>We can send you another.</FormHeading>
 
-      <JoinPanel tone="accent">
+      <FormPanel tone="accent">
         <p className="text-dim text-sm leading-[1.7] text-pretty">{message}</p>
-      </JoinPanel>
+      </FormPanel>
 
       <Link
         to="/join"
@@ -148,31 +149,48 @@ function BadLink({ message }: { message: string }) {
 }
 
 /**
- * What happens next, in the club's own order — the same three steps the FAQ
- * gives, minus the one they have just done. An account on its own is not
- * membership, and a page that says "you're in" and stops is how somebody ends
- * up waiting to be told what to do.
+ * The one screen on the site that celebrates rather than informs, hence the
+ * confetti — it is the end of a form somebody just filled in twice over.
+ *
+ * It still has to say what happens next. An account is not membership, and a
+ * page that says "you're in" and stops is how somebody ends up waiting to be
+ * told what to do: the two remaining steps are the club's own, in the club's
+ * order, and neither of them happens here.
  */
 function AccountCreated() {
   return (
     <>
-      <JoinEyebrow>/ YOU'RE SIGNED UP</JoinEyebrow>
-      <JoinHeading>Welcome to RCCF.</JoinHeading>
+      <Confetti />
 
-      <p className="text-dim mb-7 text-sm leading-[1.7] text-pretty">
-        Your account is created. There are two things left before you can start
-        on a project, and neither happens on this website.
+      <FormEyebrow>/ YOU'RE SIGNED UP</FormEyebrow>
+      <FormHeading>Welcome to RCCF.</FormHeading>
+
+      <p className="text-dim mb-5 text-sm leading-[1.7] text-pretty">
+        Your account is created, and your Discord username is connected to it.
+        That link is the one that matters day to day — it is how you get added
+        to project channels, tagged for build nights, and counted at meetings.
       </p>
 
-      <JoinPanel>
+      <p className="text-dim mb-7 text-sm leading-[1.7] text-pretty">
+        The club has been building robots at UCF since 1972: competition teams,
+        lab projects, and a workshop that members are trained on and then
+        trusted with. Nobody is assigned to any of it. Come and see what is
+        being built, say which part you want, and that is genuinely how people
+        end up on a team.
+      </p>
+
+      <FormPanel>
+        <p className="text-faint mb-4 font-mono text-[10px] font-medium tracking-[0.16em]">
+          STILL TO DO
+        </p>
+
         <ol className="text-dim space-y-4 text-sm leading-[1.7]">
           <li className="flex gap-3">
             <span className="text-primary shrink-0 pt-px font-mono text-[11px] font-medium">
               1.
             </span>
             <span className="text-pretty">
-              Fill out the members' survey and pay your dues — $25 a semester,
-              $50 for the year.
+              Pay your dues — $25 a semester, $50 for the year.
             </span>
           </li>
           <li className="flex gap-3">
@@ -185,21 +203,21 @@ function AccountCreated() {
             </span>
           </li>
         </ol>
-      </JoinPanel>
+      </FormPanel>
 
       <div className="mt-7 flex flex-wrap items-center gap-3.5">
         <Link
-          to="/"
+          to="/dashboard"
           className="btn btn-primary btn-cta px-7 py-[15px] text-[13px] font-semibold"
         >
-          BACK TO THE SITE
+          GO TO MY DASHBOARD
         </Link>
-        <a
-          href="/#events"
+        <Link
+          to="/projects"
           className="btn btn-outline h-auto min-h-0 border-white/28 px-7 py-[15px] text-[13px] font-semibold tracking-[0.04em] text-white transition-[border-color,background-color] duration-200 hover:border-white hover:bg-white/6 hover:text-white"
         >
-          See what's on
-        </a>
+          See the projects
+        </Link>
       </div>
     </>
   )

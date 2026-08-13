@@ -2,15 +2,16 @@ import { useId, useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import { ApiError, postJson, type ApiSignupCreated } from '../../lib/api'
 import { socialLinks } from '../../content/home'
+import { AcknowledgementDialog } from './AcknowledgementDialog'
 import { DiscordUsernameField } from './DiscordUsernameField'
 import {
-  JoinEyebrow,
-  JoinHeading,
-  JoinPanel,
+  FormEyebrow,
+  FormHeading,
+  FormPanel,
   fieldClass,
   labelClass,
   submitClass,
-} from './joinChrome'
+} from '../shared/formChrome'
 import qrCodeUrl from '../../assets/qr-code.png'
 
 /**
@@ -86,6 +87,7 @@ export function SignupFinish({
   // Controlled, because the field beside it checks the value against Discord as
   // it settles. Everything else is read off the form at submit.
   const [discordUsername, setDiscordUsername] = useState('')
+  const [readingAcknowledgement, setReadingAcknowledgement] = useState(false)
   const id = useId()
 
   const create = (event: FormEvent<HTMLFormElement>) => {
@@ -108,6 +110,11 @@ export function SignupFinish({
       lastName: field(data, 'lastName'),
       password,
       discordUsername,
+      // Read off the box rather than hardcoded, unlike the eligibility one on
+      // the first step. `required` means a browser never submits this unchecked,
+      // so sending what it actually says costs nothing and keeps the server's
+      // copy of the agreement honest if it ever does.
+      acknowledgementAccepted: field(data, 'acknowledgementAccepted') === 'on',
     })
       .then(onCreated)
       .catch((error: unknown) => {
@@ -118,8 +125,8 @@ export function SignupFinish({
 
   return (
     <>
-      <JoinEyebrow>/ ALMOST THERE</JoinEyebrow>
-      <JoinHeading>Finish setting up your account.</JoinHeading>
+      <FormEyebrow>/ ALMOST THERE</FormEyebrow>
+      <FormHeading>Finish setting up your account.</FormHeading>
 
       <p className="text-dim mb-7 text-sm leading-[1.7] text-pretty">
         Confirmed for <strong className="text-white">{email}</strong>. A couple
@@ -204,7 +211,7 @@ export function SignupFinish({
           />
         </div>
 
-        <JoinPanel>
+        <FormPanel>
           <p className="mb-1.5 text-sm font-semibold">
             Make sure you are in the club Discord!
           </p>
@@ -246,7 +253,39 @@ export function SignupFinish({
             value={discordUsername}
             onChange={setDiscordUsername}
           />
-        </JoinPanel>
+        </FormPanel>
+
+        {/* The box and the link that opens the document are siblings, not
+            nested: a `<button>` inside a `<label htmlFor>` gets the label's
+            activation too, so opening the rules would tick the box that says
+            they have been read. */}
+        <div className="flex items-start gap-3">
+          <input
+            id={`${id}-acknowledgement`}
+            type="checkbox"
+            name="acknowledgementAccepted"
+            required
+            className="checkbox checkbox-sm border-rule checked:border-primary checked:bg-primary checked:text-primary-content mt-0.5 shrink-0"
+          />
+          <div className="text-dim text-sm leading-[1.6] text-pretty">
+            <label
+              htmlFor={`${id}-acknowledgement`}
+              className="cursor-pointer"
+            >
+              I have read and agree to the RCCF member acknowledgement — the
+              club's safety, equipment, conduct and dues rules.
+            </label>{' '}
+            <button
+              type="button"
+              onClick={() => {
+                setReadingAcknowledgement(true)
+              }}
+              className="text-primary cursor-pointer underline underline-offset-2"
+            >
+              Read it
+            </button>
+          </div>
+        </div>
 
         <button
           type="submit"
@@ -273,6 +312,15 @@ export function SignupFinish({
           )}
         </div>
       </form>
+
+      {/* Outside the form: a dialog inside one is legal, but everything in
+          there is a control the browser would otherwise consider part of it. */}
+      <AcknowledgementDialog
+        open={readingAcknowledgement}
+        onClose={() => {
+          setReadingAcknowledgement(false)
+        }}
+      />
     </>
   )
 }

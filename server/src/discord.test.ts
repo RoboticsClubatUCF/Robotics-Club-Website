@@ -18,7 +18,15 @@ import { isHandleShaped, normaliseHandle } from './discord.js'
 const RESULTS = {
   /** A member whose display name is nothing like their username — the case the
       instructions image on the join page is about. */
-  phibi: [{ user: { username: 'phibiscool', global_name: 'PhiBi' } }],
+  phibi: [
+    {
+      user: {
+        id: '246813579246813579',
+        username: 'phibiscool',
+        global_name: 'PhiBi',
+      },
+    },
+  ],
   none: [],
 }
 
@@ -92,9 +100,12 @@ describe('checkDiscordHandle', () => {
     const fetchStub = stubDiscord(RESULTS.phibi)
     const { checkDiscordHandle } = await load()
 
+    // The snowflake comes back beside the handle: it is what survives somebody
+    // renaming themselves, and what the bot addresses a direct message to.
     expect(await checkDiscordHandle('phibiscool')).toEqual({
       status: 'connected',
       username: 'phibiscool',
+      id: '246813579246813579',
     })
 
     const [url, init] = fetchStub.mock.calls[0]!

@@ -107,6 +107,18 @@ const completeSchema = z.object({
    */
   password: z.string().min(10).max(200),
   discordUsername: z.string().trim().min(1).max(64),
+  /**
+   * The member acknowledgement — safety, equipment, conduct, dues.
+   *
+   * `z.literal(true)` for the same reason `/start` uses it: a checkbox is a
+   * promise the browser makes, and posting straight at this endpoint must not
+   * be a way past reading the thing. Separate from that first box on purpose —
+   * one says who may join, this one is what they are agreeing to.
+   *
+   * When it was accepted is written to the account, because an agreement the
+   * club cannot produce afterwards has not done the job it was collected for.
+   */
+  acknowledgementAccepted: z.literal(true),
 })
 
 /** The token is a credential, so only its hash is ever compared or stored. */
@@ -150,6 +162,11 @@ async function requirePending(token: string) {
  * the Postgres message included, because the alternative when this stops
  * matching is a 500 on a case the route already knows how to answer — and
  * nothing fails loudly enough to notice.
+ *
+ * Two columns now spell 'discord' — the handle and the account id — and both
+ * landing on the same answer is deliberate. A snowflake already on file under
+ * some other handle is the same situation from the visitor's side: that Discord
+ * account is connected to an account here already.
  */
 function uniqueConflict(error: unknown): 'email' | 'discord' | null {
   if (typeof error !== 'object' || error === null) return null
@@ -246,7 +263,7 @@ signup.post('/start', writes, zValidator('json', startSchema), async (c) => {
     // it is never put in the response, because a token the caller is handed is
     // a token that proves nothing about the address it was meant for.
     console.log(
-      `signup ${email}: no mailer configured — verification link is ${env.SIGNUP_VERIFY_URL}?token=${encodeURIComponent(token)}`,
+      `signup ${email}: no mailer configured — verification link is ${env.signupVerifyUrl}?token=${encodeURIComponent(token)}`,
     )
   }
 
@@ -332,6 +349,10 @@ signup.post(
   async (c) => {
     const { token, firstName, lastName, password, discordUsername } =
       c.req.valid('json')
+    // Read now rather than at the write below: this is the moment the agreement
+    // was made, and the scrypt hash between here and there takes long enough to
+    // be worth not folding into the timestamp.
+    const acknowledgementAcceptedAt = new Date()
 
     const pending = await requirePending(token)
     const handle = normaliseHandle(discordUsername)
@@ -362,6 +383,13 @@ signup.post(
     const confirmedHandle =
       check.status === 'connected' ? check.username : handle
 
+    // The account's snowflake, when Discord was actually asked. This is the
+    // half that survives somebody changing their username, and it is what the
+    // bot addresses a direct message to — without it, every message costs a
+    // guild search first. Null when no bot is configured, which is the same
+    // state every row created before the check existed is in.
+    const confirmedId = check.status === 'connected' ? check.id : null
+
     const passwordHash = await hashPassword(password)
 
     try {
@@ -375,6 +403,8 @@ signup.post(
             email: pending.email,
             passwordHash,
             discordUsername: confirmedHandle,
+            discordId: confirmedId,
+            acknowledgementAcceptedAt,
             // No slug and the default GUEST role: a signup is not a roster
             // entry. `joinedAt` stays null too — that is the date someone
             // became a member, which is a decision an officer makes later;
