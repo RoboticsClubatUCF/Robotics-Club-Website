@@ -14,7 +14,7 @@ import {
 } from '../printSettings.js'
 import { rateLimit } from '../rateLimit.js'
 import { currentTerm } from '../semester.js'
-import { requireMemberForRoute } from '../authz.js'
+import { requireDuesForRoute } from '../authz.js'
 import { type AuthEnv, originGuard, requireAuth } from '../session.js'
 
 /**
@@ -34,9 +34,12 @@ import { type AuthEnv, originGuard, requireAuth } from '../session.js'
  * absence, is the budget rule**: a personal print comes out of the member's
  * per-term allowance and a project print is uncapped.
  *
- * **Members only, not merely signed-in.** `requireMemberForRoute` refuses a
- * `GUEST` outright as well as anyone whose dues have lapsed — the printers run
- * on club money, and an account is not a membership.
+ * **Paid-up members only, not merely signed-in.** `requireDuesForRoute` is the
+ * whole gate, and it is the same one the management pages use: the printers run
+ * on club money, and an account is not a membership. This used to be a stricter
+ * check of its own, `requireClubMember`, which also refused a `GUEST` — that
+ * mattered when the summer granted everybody access whether or not they had
+ * claimed it. It no longer does, so the two collapsed. See `authz.ts`.
  *
  * The member's own list is `GET /api/me/print-requests` and their balance is
  * `GET /api/me/print-allowance`; the officer queue is under `/api/officer`.
@@ -113,7 +116,7 @@ print.post(
   '/',
   originGuard,
   requireAuth,
-  requireMemberForRoute,
+  requireDuesForRoute,
   uploadLimit,
   submissions,
   async (c) => {
@@ -250,7 +253,7 @@ print.delete(
   '/:id',
   originGuard,
   requireAuth,
-  requireMemberForRoute,
+  requireDuesForRoute,
   submissions,
   async (c) => {
     const user = c.get('user')

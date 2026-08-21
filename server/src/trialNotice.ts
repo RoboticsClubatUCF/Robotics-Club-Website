@@ -54,15 +54,27 @@ import { billableTerm, trialEndsAt } from './semester.js'
  * else, and a sweep that skipped them would be a bug nobody noticed until an
  * officer asked why they were never reminded.
  */
+/**
+ * The wording changed when the free window did, and it had to.
+ *
+ * This used to be a courtesy: the trial ending moved somebody from free access
+ * to owing money, but the site went on letting them in until the sweep caught
+ * up, and the message could be read at leisure. Access is `duesPaidThrough` now
+ * and nothing else, so the moment this fires is the moment their Discord
+ * Members role comes off and the dashboard shuts. The message says that plainly
+ * rather than making them work it out from a padlock.
+ */
 const message = (firstName: string, term: string, url: string) =>
   [
-    `Hi ${firstName} — your two-week trial with the Robotics Club of Central Florida has ended.`,
+    `Hi ${firstName} — the free window at the Robotics Club of Central Florida has closed for ${term}.`,
     '',
-    `Dues for ${term} are $25 for the semester or $50 for the year, and paying keeps your access to the lab and to project teams. Summer is free, so a year bought now runs through both of the terms that are not.`,
+    'That means your club access has paused: the lab, project tools and your Members role in this server all come back the moment dues go through.',
+    '',
+    `Dues are $25 for the semester or $50 for the year. Summer is free, so a year bought now runs through both of the terms that are not — and if you are more than halfway through a semester, your $25 buys the next one instead of the tail of this one.`,
     '',
     `You can pay here: ${url}`,
     '',
-    'If you have already paid, or you think this reached you by mistake, reply to an officer in the server and we will sort it out.',
+    'Your projects are still yours and nothing has been removed — you can still see them, you just cannot change anything until dues are current. If you have already paid, or you think this reached you by mistake, reply to an officer in the server and we will sort it out.',
   ].join('\n')
 
 const TERM_NAMES: Record<Season, string> = {

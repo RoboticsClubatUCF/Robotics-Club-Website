@@ -34,6 +34,11 @@ vi.mock('../discord.js', async (importOriginal) => ({
   // the fakes.
   ...(await importOriginal<typeof import('../discord.js')>()),
   checkDiscordHandle: vi.fn(),
+  // Overridden so the officer branch is reachable at all: the real value is
+  // null unless somebody sets `DISCORD_OFFICER_ROLE_ID`, which is how this
+  // ships. A literal because a `vi.mock` factory is hoisted above every import
+  // and cannot read a `const` from this module.
+  officerRoleId: '267371948953042945',
 }))
 
 vi.mock('../mail.js', async (importOriginal) => ({
@@ -53,6 +58,10 @@ const CONNECTED = {
   status: 'connected',
   username: HANDLE,
   id: DISCORD_ID,
+  // Empty, and stated rather than left off: `roles` decides whether a signup
+  // lands as an officer, so a stub that omitted it would be claiming something
+  // it had not thought about.
+  roles: [] as string[],
 } as const
 
 const account = {
@@ -372,6 +381,43 @@ describe('POST /api/signup/complete', () => {
     expect(
       await prisma.signupVerification.count({ where: { email: EMAIL } }),
     ).toBe(0)
+  })
+
+  /**
+   * The board is appointed in Discord, so somebody who already carries the role
+   * when they sign up is an officer from their first sign-in rather than ten
+   * minutes later when the sweep next runs. The answer costs nothing: the guild
+   * search this route already makes returns the roles with it.
+   *
+   * `joinedAt` is stamped for the same reason a payment stamps it — an officer
+   * is a member by the act of being on the board, and one with no `joinedAt`
+   * prints a blank year on their public profile. The slug still is not set:
+   * publishing a person stays a decision a person makes.
+   */
+  it('makes an officer of somebody who carries the Discord role', async () => {
+    discord.mockResolvedValue({
+      ...CONNECTED,
+      roles: ['999999999999999999', '267371948953042945'],
+    })
+
+    const { id } = (await (await finish()).json()) as { id: string }
+    const user = await prisma.user.findUnique({ where: { id } })
+
+    expect(user).toMatchObject({ role: 'OFFICER', slug: null })
+    expect(user?.joinedAt).toBeInstanceOf(Date)
+  })
+
+  /** Carrying *some* role is not carrying *the* role. */
+  it('leaves somebody with other Discord roles a guest', async () => {
+    discord.mockResolvedValue({
+      ...CONNECTED,
+      roles: ['999999999999999999'],
+    })
+
+    const { id } = (await (await finish()).json()) as { id: string }
+    const user = await prisma.user.findUnique({ where: { id } })
+
+    expect(user).toMatchObject({ role: 'GUEST', joinedAt: null })
   })
 
   /**

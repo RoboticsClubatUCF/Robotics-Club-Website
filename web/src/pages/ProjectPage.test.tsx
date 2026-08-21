@@ -13,6 +13,8 @@ const project = (over: Partial<ApiProjectDetail> = {}): ApiProjectDetail => ({
   summary: 'Research, design, build and test a Mars rover.',
   description: null,
   season: 'June 2026',
+  termYear: 2035,
+  termSeason: 'FALL',
   competition: 'UNIVERSITY ROVER CHALLENGE',
   status: 'IN_PROGRESS',
   coverUrl: null,
@@ -179,7 +181,15 @@ describe('ProjectPage', () => {
       stubRoutes({
         '/auth/me': { user: user('MEMBER') },
         '/projects/project-storm': project(),
-        '/dues/status': { membership: { hasAccess: false } },
+        // `paidThrough` spelled out, not left off: it is what tells a lapsed
+        // member from a newcomer, and a missing key reads as neither.
+        '/dues/status': {
+          membership: {
+            hasAccess: false,
+            canActivate: false,
+            paidThrough: '2025-12-14T00:00:00.000Z',
+          },
+        },
         '/me/projects': [
           { rank: 'PROJECT_LEAD', role: null, team: null, project: { id: 'p1' } },
         ],
@@ -194,6 +204,45 @@ describe('ProjectPage', () => {
     expect(
       screen.getByText('Research, design, build and test a Mars rover.'),
     ).toBeInTheDocument()
+  })
+
+  /**
+   * The same lock, a different reason, and it must not say "dues lapsed".
+   *
+   * Inside a free window nothing has lapsed and nothing is owed — the fix is
+   * one press and no card. This banner hardcoded the lapsed wording and a
+   * PAY MY DUES link, which was correct while "no cover" only ever meant money
+   * was owed and became wrong the day free stopped being automatic.
+   */
+  it('tells a lead inside a free window to claim, not to pay', async () => {
+    vi.stubGlobal(
+      'fetch',
+      stubRoutes({
+        '/auth/me': { user: user('MEMBER') },
+        '/projects/project-storm': project(),
+        '/dues/status': {
+          membership: {
+            hasAccess: false,
+            canActivate: true,
+            paidThrough: null,
+          },
+        },
+        '/me/projects': [
+          { rank: 'PROJECT_LEAD', role: null, team: null, project: { id: 'p1' } },
+        ],
+      }),
+    )
+
+    renderPage()
+
+    expect(await screen.findByText(/FREE RIGHT NOW/)).toBeInTheDocument()
+    expect(screen.queryByText(/DUES LAPSED/)).toBeNull()
+    expect(
+      screen.getByRole('link', { name: /CLAIM MY MEMBERSHIP/ }),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /PAY MY DUES/ })).toBeNull()
+    // And the page is still readable, exactly as when dues have lapsed.
+    expect(screen.getByText('Project S.T.O.R.M.')).toBeInTheDocument()
   })
 
   /** ADMIN is exempt from the dues lock, here as everywhere. */

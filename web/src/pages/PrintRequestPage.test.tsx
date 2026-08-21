@@ -473,7 +473,12 @@ const term: ApiTerm = {
 const context = (
   hasAccess: boolean,
   projects: ApiMyProject[] = [],
-  over: { role?: UserRole; paidThrough?: string | null } = {},
+  over: {
+    role?: UserRole
+    paidThrough?: string | null
+    /** A free window is running and unclaimed — the third lock reason. */
+    canActivate?: boolean
+  } = {},
 ): DashboardContext => ({
   user: {
     id: 'u1',
@@ -488,9 +493,9 @@ const context = (
   membership: {
     status: 'ready',
     data: {
-      status: hasAccess ? 'ACTIVE' : 'EXPIRED',
+      status: hasAccess ? 'ACTIVE' : over.canActivate ? 'FREE' : 'EXPIRED',
       hasAccess,
-      duesRequired: !hasAccess,
+      duesRequired: !hasAccess && !over.canActivate,
       // Explicitly overridable, and `null` is the case that matters: it is
       // what says the site never promoted this person, which is how a
       // newcomer is told apart from a member the sweep demoted.
@@ -499,7 +504,7 @@ const context = (
       term,
       billable: term,
       freeActive: false,
-      canActivate: false,
+      canActivate: over.canActivate ?? false,
     },
   },
   reloadMembership: () => Promise.resolve(),
@@ -587,17 +592,19 @@ describe('when dues have lapsed', () => {
  * The stricter of the two gates: the printers want a member, not merely
  * somebody with an account.
  *
- * `hasAccess: true` throughout, which is the case worth testing. Over the
- * summer, between terms and inside the trial fortnight the server says
- * everybody is covered — that is what makes those free — so standing alone
- * would let an account made ten minutes ago order prints.
+ * `hasAccess` is the whole of it now. These fixtures used to pass
+ * `hasAccess: true` alongside a guest role, because the summer and the opening
+ * fortnight reported everybody covered and a second, stricter check refused a
+ * guest anyway. Both are gone: access is the dues date, so an uncovered account
+ * is uncovered whatever its role says, and the only question left is which of
+ * the three sentences it gets.
  */
-describe('for a guest', () => {
+describe('when there is no cover', () => {
   it('offers membership instead of the form, and asks the server nothing', async () => {
     const stub = stubFetch({})
     vi.stubGlobal('fetch', stub)
 
-    renderIn(context(true, [], { role: 'GUEST', paidThrough: null }))
+    renderIn(context(false, [], { role: 'GUEST', paidThrough: null }))
 
     expect(await screen.findByText(/printers are for members/i)).toBeInTheDocument()
     expect(screen.queryByLabelText(/the model/i)).not.toBeInTheDocument()
@@ -608,10 +615,28 @@ describe('for a guest', () => {
   it('does not tell them their dues lapsed, because they never had any', async () => {
     vi.stubGlobal('fetch', stubFetch({}))
 
-    renderIn(context(true, [], { role: 'GUEST', paidThrough: null }))
+    renderIn(context(false, [], { role: 'GUEST', paidThrough: null }))
 
     await screen.findByText(/printers are for members/i)
     expect(screen.queryByText(/dues have lapsed/i)).not.toBeInTheDocument()
+  })
+
+  /**
+   * The third sentence, and the one that did not exist before. Being shut out
+   * while the club is charging nothing reads as a bug unless the page says the
+   * fix is free — so this one must not mention money at all.
+   */
+  it('tells somebody in a free window to claim it, and quotes no price', async () => {
+    const stub = stubFetch({})
+    vi.stubGlobal('fetch', stub)
+
+    renderIn(context(false, [], { paidThrough: null, canActivate: true }))
+
+    expect(await screen.findByText(/one press away/i)).toBeInTheDocument()
+    expect(screen.getByText(/free right now/i)).toBeInTheDocument()
+    expect(screen.queryByText(/printers are for members/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/dues have lapsed/i)).not.toBeInTheDocument()
+    expect(stub).not.toHaveBeenCalled()
   })
 
   /**

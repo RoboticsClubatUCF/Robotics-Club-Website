@@ -210,6 +210,7 @@ function Manage({
             <EventsSection projectId={projectId} teams={teams} rank={rank} myTeamId={myTeamId} />
             <TasksSection projectId={projectId} teams={teams} members={members} rank={rank} myTeamId={myTeamId} />
             <MeetingSection project={project} reload={load} />
+            <DiscordRoleSection project={project} reload={load} />
             <DangerSection projectId={projectId} title={project.title} reloadProjects={reloadProjects} />
           </>
         ) : (
@@ -1187,6 +1188,94 @@ function MeetingSection({
             maxLength={160}
             defaultValue={project.meetingLocation ?? ''}
             placeholder="ENG2 Lab"
+            className={`${fieldClass} h-8`}
+            disabled={busy}
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={busy}
+          className="btn btn-primary btn-cta px-5 py-2.5 text-[12px] font-semibold disabled:opacity-60"
+        >
+          SAVE
+        </button>
+      </form>
+
+      <p role="status" className="mt-2 min-h-4 text-[12px]">
+        {message ? (
+          <span className="text-error">{message}</span>
+        ) : saved ? (
+          <span className="text-success">Saved.</span>
+        ) : (
+          ''
+        )}
+      </p>
+    </FormPanel>
+  )
+}
+
+// ---------------------------------------------------------------- discord
+
+/**
+ * The crew's Discord role.
+ *
+ * Its own panel rather than a field on the meeting form, because it is not a
+ * setting of the same kind: everything else on this page describes the
+ * project, and this one hands out and takes away access to a channel. The copy
+ * says so, since a lead pasting a number into a box has no other way to know
+ * that pressing SAVE is about to change what a dozen people can see.
+ */
+function DiscordRoleSection({
+  project,
+  reload,
+}: {
+  project: ApiProjectTeamView['project']
+  reload: () => Promise<void>
+}) {
+  const { message, busy, run } = useSectionStatus()
+  const [saved, setSaved] = useState(false)
+  const id = useId()
+
+  const save = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const raw = new FormData(event.currentTarget).get('discordRoleId')
+    const value = typeof raw === 'string' ? raw.trim() : ''
+
+    setSaved(false)
+    void run(async () => {
+      await patchJson(`/projects/${project.id}`, {
+        discordRoleId: value || null,
+      })
+      await reload()
+      setSaved(true)
+    })
+  }
+
+  return (
+    <FormPanel>
+      <p className="text-faint mb-1 font-mono text-[10px] font-medium tracking-[0.16em]">
+        DISCORD ROLE
+      </p>
+      <p className="text-dim mb-4 text-[13px] leading-[1.6] text-pretty">
+        Everyone on this project is given this Discord role, and loses it when
+        they leave. Clearing it takes the role off all of them. In Discord with
+        Developer Mode on, right-click the role and Copy Role ID.
+      </p>
+
+      <form onSubmit={save} className="flex flex-wrap items-end gap-3">
+        <div className="min-w-52 flex-1">
+          <label htmlFor={`${id}-role`} className={labelClass}>
+            ROLE ID
+          </label>
+          <input
+            id={`${id}-role`}
+            name="discordRoleId"
+            inputMode="numeric"
+            pattern="\d{17,20}"
+            title="A Discord role id is 17-20 digits"
+            defaultValue={project.discordRoleId ?? ''}
+            placeholder="Not set"
             className={`${fieldClass} h-8`}
             disabled={busy}
           />

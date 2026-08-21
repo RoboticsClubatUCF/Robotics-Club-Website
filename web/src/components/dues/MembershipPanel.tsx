@@ -75,7 +75,10 @@ function ExpiryChip({ membership }: { membership: ApiMembership }) {
       ? (['UNTIL', membership.paidThrough] as const)
       : membership.status === 'EXPIRED'
         ? (['LAPSED', membership.paidThrough] as const)
-        : (['FREE UNTIL', membership.freeThrough] as const)
+        // Not "FREE UNTIL", which read as *you are covered until then*. In this
+        // state they are not covered at all — the date is a deadline to act on,
+        // not cover they hold.
+        : (['CLAIM BY', membership.freeThrough] as const)
 
   return (
     <span className="text-faint font-mono text-[10px] font-medium tracking-[0.16em]">
@@ -110,13 +113,14 @@ function Explanation({
           {membership.term.season === 'SUMMER'
             ? 'Summer costs nothing, and you have claimed it. '
             : 'The break between terms costs nothing, and you have claimed it. '}
-          Dues for{' '}
-          <strong className="text-white">{termLabel(membership.billable)}</strong>{' '}
-          start
-          {membership.freeThrough
-            ? ` after the free fortnight, on ${formatShortDate(membership.freeThrough)}`
-            : ' when the term does'}
-          . You can settle those now if you would rather have it done with.
+          It runs
+          {membership.paidThrough
+            ? ` to ${formatShortDate(membership.paidThrough)}`
+            : ' to the end of the free window'}
+          , two weeks into{' '}
+          <strong className="text-white">{termLabel(membership.billable)}</strong>
+          , and dues start when it closes. You can settle those now if you would
+          rather have it done with.
         </p>
       </>
     )
@@ -146,50 +150,47 @@ function Explanation({
     )
   }
 
-  if (membership.status === 'TRIAL' && membership.freeThrough) {
-    return (
-      <>
-        <p className={lead}>You are on the two-week free trial.</p>
-        <p className={line}>
-          It ends{' '}
-          <strong className="text-white">
-            {countdown(membership.freeThrough, now)}
-          </strong>
-          , on {formatShortDate(membership.freeThrough)}. Come and see what is
-          being built — and you can pay for the semester or the year at any
-          point before then rather than waiting for it to run out.
-        </p>
-      </>
-    )
-  }
-
+  /**
+   * Free, and **not claimed** — which is the state that changed meaning.
+   *
+   * `FREE` used to say "the club is charging nobody, so you are covered". It
+   * now says "the club is charging nobody, and you are still not covered",
+   * because access is the dues date and this person has none. So the lead line
+   * has to be about them rather than about the calendar: somebody who reads
+   * "summer is free" and then cannot open the print page has been told the
+   * wrong thing.
+   */
   if (membership.status === 'FREE') {
-    // Summer, or the gap between one term ending and the next beginning. Both
-    // are genuinely free, and both end on a date worth naming.
     return (
       <>
-        <p className={lead}>
-          {membership.term.season === 'SUMMER'
-            ? 'Summer is free.'
-            : 'Nothing is due between semesters.'}
-        </p>
+        <p className={lead}>Your membership is free to claim.</p>
         <p className={line}>
           {membership.term.season === 'SUMMER'
-            ? 'Membership costs nothing over the summer, and the lab is open when there is someone to open it. '
-            : 'The term has not started yet, so there are no dues to pay. '}
-          Dues for{' '}
+            ? 'The club charges nothing over the summer. '
+            : 'The club charges nothing between semesters. '}
+          It still has to be switched on, though &mdash; that is what tells us
+          you are around. One press covers you to{' '}
           <strong className="text-white">
-            {termLabel(membership.billable)}
-          </strong>{' '}
-          begin after the free trial, which runs to{' '}
-          {membership.freeThrough
-            ? formatShortDate(membership.freeThrough)
-            : formatShortDate(membership.billable.startsAt)}
-          .{' '}
-          {membership.canActivate
-            ? 'Switch your membership on for it below — it costs nothing and takes one press.'
-            : 'You can pay now and have it done with.'}
+            {membership.freeThrough
+              ? formatShortDate(membership.freeThrough)
+              : formatShortDate(membership.billable.startsAt)}
+          </strong>
+          , two weeks into {termLabel(membership.billable)}, when dues for that
+          term begin.
         </p>
+        {/* The deadline as a countdown as well as a date, and only here. A
+            window that shuts in three days is the one state on this page where
+            waiting costs something, and "on 7 September" does not read as
+            urgent in August. */}
+        {membership.freeThrough && (
+          <p className={line}>
+            The window closes{' '}
+            <strong className="text-white">
+              {countdown(membership.freeThrough, now)}
+            </strong>
+            .
+          </p>
+        )}
       </>
     )
   }
@@ -200,9 +201,11 @@ function Explanation({
       <p className={line}>
         {membership.paidThrough
           ? `Membership lapsed on ${formatDate(membership.paidThrough)}. `
-          : 'The free trial for this semester has ended. '}
-        Paying keeps your access to the lab and to project teams —{' '}
-        {termLabel(membership.billable)} is covered as soon as it goes through.
+          : 'The free window for this semester has closed. '}
+        Paying brings back the lab, the printers and every tool on your projects
+        &mdash; you can still see them meanwhile, you just cannot change
+        anything. {termLabel(membership.billable)} is covered as soon as it goes
+        through.
       </p>
     </>
   )

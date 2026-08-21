@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react'
+import { useId, useState } from 'react'
 import { Link, useOutletContext } from 'react-router'
 import { DuesLocked } from '../components/dashboard/DuesLocked'
 import { duesLocked } from '../lib/dues'
@@ -15,15 +15,15 @@ import { LinkRows } from '../components/projects/LinkRows'
 import { ProjectEditor } from '../components/projects/ProjectEditor'
 import { useUnsavedGuard } from '../components/projects/useUnsavedGuard'
 import { ConfirmDialog } from '../components/shared/ConfirmDialog'
-import { ApiError, deleteJson, getJson, patchJson, postJson } from '../lib/api'
+import { deleteJson, postJson } from '../lib/api'
 import type {
   ApiManagedProject,
-  ApiOfficerMember,
   ApiProject,
   ApiProjectDetail,
   ApiProjectImage,
   ApiProjectLink,
 } from '../lib/api'
+import { explainApiError } from '../lib/apiErrors'
 import {
   publishDraft,
   usableLinks,
@@ -33,12 +33,17 @@ import {
 import { useApi } from '../lib/useApi'
 
 /**
- * The projects desk: creating one, and appointing its leads.
+ * The projects desk: starting one, and running last term's again.
  *
- * Both live here rather than on a project's own manage page because they are
- * the two decisions that stay with the board — a project exists because the
- * board said so, and its lead holds the rank because the board granted it.
- * Everything after that point belongs to the lead.
+ * Both live here rather than on a project's own manage page because both are
+ * decisions that stay with the board — which projects the club runs. Everything
+ * after that point belongs to the lead.
+ *
+ * **Appointing that lead used to be here and is not any more.** It sat on this
+ * page twice over, as a field inside the create form and as a panel underneath
+ * it, and it is a decision about a *person* rather than about a project. It is
+ * one panel on the roles desk now, `/dashboard/officer/roles`, beside the other
+ * two questions of the same shape.
  *
  * **Officers and admins, and nobody else.** It briefly had a second audience:
  * somebody carrying a `PROJECT_LEAD` roster label could start one project of
@@ -52,15 +57,10 @@ import { useApi } from '../lib/useApi'
  * every request regardless of who finds the URL, and it is the one that decides.
  */
 
-function explain(error: unknown): string {
-  if (error instanceof ApiError) {
-    if (error.status === 0) return "We couldn't reach the server. Try again in a moment."
-    if (error.status === 403) return 'The server does not agree you are an officer.'
-    if (error.status === 429) return 'Too many changes at once — give it a minute.'
-    if (error.detail) return error.detail
-  }
-  return 'That did not go through. Try again in a moment.'
-}
+const explain = (error: unknown) =>
+  explainApiError(error, {
+    forbidden: 'The server does not agree you are an officer.',
+  })
 
 export function OfficerProjectsPage() {
   const { user, membership } = useOutletContext<DashboardContext>()
@@ -80,7 +80,7 @@ export function OfficerProjectsPage() {
         <FormHeading>This desk belongs to the officers.</FormHeading>
         <FormPanel>
           <p className="text-dim text-sm leading-[1.7] text-pretty">
-            Creating projects and appointing leads is board business. If you
+            Deciding which projects the club runs is board business. If you
             think you should be able to do this, talk to an officer.
           </p>
         </FormPanel>
@@ -94,202 +94,10 @@ export function OfficerProjectsPage() {
       <FormHeading>Projects.</FormHeading>
 
       <div className="space-y-5">
-        <CreateProject userId={user.id} />
-        <AppointLead />
+        <CreateProject />
+        <DuplicateProject />
       </div>
     </>
-  )
-}
-
-/**
- * How to say which account this is, in one line.
- *
- * Email first where there is one, and the Discord handle otherwise — an account
- * can have a handle and no email at all, and printing nothing for those made
- * them look like empty rows in the picker.
- */
-const contactOf = (member: ApiOfficerMember) =>
-  member.email ??
-  (member.discordUsername ? `@${member.discordUsername}` : null)
-
-/**
- * The people picker, answering as it is typed.
- *
- * It matches on name, email **and Discord handle** — see `GET /officer/members`
- * in `server/src/routes/officer.ts`, where the search itself lives.
- *
- * Two details keep search-as-you-type honest here. The debounce, so a name is
- * one request rather than one per keystroke; and the `AbortController`, without
- * which "ro" can land after "rowan" and put the wrong list on screen — a race
- * that shows up exactly when the network is slow and nowhere else. Both are the
- * shape `DiscordUsernameField` uses, for the same two reasons.
- *
- * Under two characters nothing is asked at all, because the route's own
- * validator refuses that and a 400 per keystroke is not a search.
- */
-const DEBOUNCE_MS = 300
-
-function MemberSearch({
-  picked,
-  onPick,
-  disabled,
-}: {
-  picked: ApiOfficerMember | null
-  onPick: (member: ApiOfficerMember | null) => void
-  disabled: boolean
-}) {
-  const id = useId()
-  const [query, setQuery] = useState('')
-  const [results, setResults] = useState<ApiOfficerMember[] | null>(null)
-  const [searching, setSearching] = useState(false)
-  const [message, setMessage] = useState('')
-
-  const term = query.trim()
-
-  useEffect(() => {
-    if (term.length < 2) {
-      setResults(null)
-      setSearching(false)
-      setMessage('')
-      return
-    }
-
-    const controller = new AbortController()
-    const timer = setTimeout(() => {
-      setSearching(true)
-      setMessage('')
-
-      getJson<ApiOfficerMember[]>(
-        `/officer/members?query=${encodeURIComponent(term)}`,
-        controller.signal,
-      )
-        .then((found) => {
-          setResults(found)
-          setSearching(false)
-        })
-        .catch((error: unknown) => {
-          // An abort is this effect being cleaned up, not a failure — what was
-          // typed changed and a newer search is already on its way.
-          if (controller.signal.aborted) return
-          setResults(null)
-          setSearching(false)
-          setMessage(explain(error))
-        })
-    }, DEBOUNCE_MS)
-
-    return () => {
-      clearTimeout(timer)
-      controller.abort()
-    }
-  }, [term])
-
-  if (picked) {
-    return (
-      <div className="border-rule bg-base-100 flex items-center justify-between gap-4 border px-3 py-2.5">
-        <span className="text-sm font-medium">
-          {picked.fullName}
-          {contactOf(picked) && (
-            <span className="text-faint ml-2 text-[12px] font-normal">
-              {contactOf(picked)}
-            </span>
-          )}
-        </span>
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => {
-            onPick(null)
-          }}
-          className="text-faint hover:text-primary cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em]"
-        >
-          CHANGE
-        </button>
-      </div>
-    )
-  }
-
-  return (
-    <div>
-      {/* Deliberately not a `<form>`: this picker sits *inside* the create
-          form, and a form inside a form is invalid HTML — the parser drops the
-          inner one. React builds the DOM through the API rather than the
-          parser, so a nested one happened to work; that is not a thing to rely
-          on. There is no submit button to press now anyway, but Enter is still
-          swallowed below, because the create form is listening for it. */}
-      <label htmlFor={id} className={labelClass}>
-        FIND A MEMBER
-      </label>
-      <input
-        id={id}
-        name="query"
-        type="search"
-        autoComplete="off"
-        value={query}
-        minLength={2}
-        maxLength={100}
-        placeholder="Name, email or Discord"
-        className={fieldClass}
-        disabled={disabled}
-        onChange={(event) => {
-          setQuery(event.target.value)
-        }}
-        onKeyDown={(event) => {
-          // The results are already there; without this the keypress reaches
-          // the create form and submits a half-filled project.
-          if (event.key === 'Enter') event.preventDefault()
-        }}
-      />
-
-      {results && (
-        <ul className="border-rule divide-rule mt-3 divide-y border">
-          {results.length === 0 && (
-            <li className="text-faint px-3 py-2.5 text-[13px]">
-              Nobody matches that.
-            </li>
-          )}
-          {results.map((member) => (
-            <li key={member.id}>
-              <button
-                type="button"
-                onClick={() => {
-                  onPick(member)
-                  setResults(null)
-                }}
-                className="hover:bg-wash flex w-full cursor-pointer items-baseline justify-between gap-4 px-3 py-2.5 text-left transition-colors duration-150"
-              >
-                <span className="text-sm font-medium">{member.fullName}</span>
-                {/* Both, stacked, because either can be the only one an account
-                    has — and two students with the same name are told apart by
-                    whichever of them the officer recognises. */}
-                <span className="text-faint shrink-0 text-right text-[12px]">
-                  {member.email}
-                  {member.discordUsername && (
-                    <span className="block text-[11px]">
-                      @{member.discordUsername}
-                    </span>
-                  )}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {/* One line, always rendered, carrying whichever of the three things is
-          true — so the region exists before it has anything to announce and
-          nothing below it moves when it does. */}
-      <p
-        role="status"
-        className={`mt-2 min-h-4 text-[12px] ${message ? 'text-error' : 'text-faint'}`}
-      >
-        {message ||
-          (searching
-            ? 'Searching…'
-            : term.length > 0 && term.length < 2
-              ? 'Two letters or more.'
-              : '')}
-      </p>
-    </div>
   )
 }
 
@@ -317,7 +125,7 @@ function MemberSearch({
  * price of the one seam that is left: somebody who walks away mid-setup would
  * otherwise leave an empty project on the public site with nothing to say so.
  */
-function CreateProject({ userId }: { userId: string }) {
+function CreateProject() {
   const [created, setCreated] = useState<Created | null>(null)
 
   if (created) {
@@ -331,7 +139,7 @@ function CreateProject({ userId }: { userId: string }) {
     )
   }
 
-  return <CreateForm userId={userId} onCreated={setCreated} />
+  return <CreateForm onCreated={setCreated} />
 }
 
 /**
@@ -355,15 +163,8 @@ type Created = {
   failures: string[]
 }
 
-function CreateForm({
-  userId,
-  onCreated,
-}: {
-  userId: string
-  onCreated: (created: Created) => void
-}) {
+function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
   const id = useId()
-  const [lead, setLead] = useState<ApiOfficerMember | null>(null)
   const [links, setLinks] = useState<DraftLink[]>([])
   const [images, setImages] = useState<DraftImage[]>([])
   const [state, setState] = useState<
@@ -394,11 +195,10 @@ function CreateForm({
       competition: value('competition'),
       description,
       repoUrl: value('repoUrl'),
-      // Left off entirely when nobody was picked, rather than sent as null: the
-      // route's field is optional and a project waiting for its lead is a
-      // normal thing for the board to have agreed to. A lead creating their own
-      // project never sends this — the server seats them regardless.
-      ...(lead ? { leadUserId: lead.id } : {}),
+      discordRoleId: value('discordRoleId'),
+      // No lead. Appointing one is the roles desk's job now, and the term is
+      // left off so the server stamps the one we are in — which is what an
+      // officer creating a project today means every time.
     })
       .then(async (project) => {
         // Past this line the project exists and is public, so nothing below may
@@ -413,7 +213,6 @@ function CreateForm({
         })
 
         form.reset()
-        setLead(null)
         setLinks([])
         // Not released: the object URLs belong to the editor's rows now, and
         // `DraftGallery` unmounting is what hands back any that never landed.
@@ -423,10 +222,9 @@ function CreateForm({
         onCreated({
           project,
           description: description ?? null,
-          // Whether the officer who pressed the button named themselves. Only
-          // decides which banner the editor below shows, so being wrong here
-          // costs a sentence rather than a permission.
-          mine: lead?.id === userId,
+          // Nobody is on a new project now, so the editor below always shows
+          // the officer banner. It only decides which sentence is printed.
+          mine: false,
           ...published,
         })
       })
@@ -539,20 +337,6 @@ function CreateForm({
         </div>
 
         <div>
-          <p className={labelClass}>PROJECT LEAD — OPTIONAL</p>
-          <MemberSearch picked={lead} onPick={setLead} disabled={sending} />
-          {/* Optional on purpose. The board agreeing to run something and the
-              board settling who runs it are two decisions, often a week apart,
-              and making the first wait on the second is how a project gets a
-              lead who was picked to unblock a form. Appointing one later is the
-              panel directly below this. */}
-          <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
-            One per project, and it can be settled later — APPOINT OR STAND DOWN
-            A PROJECT LEAD, below, does this at any point.
-          </p>
-        </div>
-
-        <div>
           <label htmlFor={`${id}-description`} className={labelClass}>
             THE WRITE-UP
           </label>
@@ -589,6 +373,31 @@ function CreateForm({
             className={fieldClass}
             disabled={sending}
           />
+        </div>
+
+        <div>
+          <label htmlFor={`${id}-discord`} className={labelClass}>
+            DISCORD ROLE
+          </label>
+          <input
+            id={`${id}-discord`}
+            name="discordRoleId"
+            inputMode="numeric"
+            pattern="\d{17,20}"
+            placeholder="984535585270157362"
+            className={fieldClass}
+            disabled={sending}
+          />
+          {/* Worth spelling out that this one does something, because every
+              other field on this form is a label. The server checks the id
+              against the guild's real roles before saving it — a wrong
+              snowflake is not an error at Discord and would otherwise match
+              nobody for ever. */}
+          <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
+            Optional. Everyone on the project is given this Discord role, and
+            loses it when they leave. In Discord with Developer Mode on,
+            right-click the role and Copy Role ID.
+          </p>
         </div>
 
         <LinkRows links={links} disabled={sending} onChange={setLinks} />
@@ -777,69 +586,135 @@ function SetUpProject({
 }
 
 /**
- * For the mid-term realities: a lead graduates, somebody else steps up. Works
- * on people who have never joined through the site — appointing them is what
- * puts them on the project.
+ * Running last term's project again this term.
  *
- * **A project has one lead, and MAKE PROJECT LEAD refuses rather than swaps.**
- * The server answers 409 naming whoever is sitting there, and `explain` prints
- * a 409's own sentence, so no code here handles that case — the officer reads
- * who it is and presses DEMOTE TO MEMBER, which is the button beside this one.
- * Two deliberate steps, because which of two people runs a build is not
- * something to infer from a single click.
+ * The club's builds do not fit in a semester — S.T.O.R.M. and Knightmare run
+ * for years — and the dashboard now asks every project which term it belongs
+ * to. So a build that carries on is several rows, one per term, rather than one
+ * row that quietly never leaves anybody's MY PROJECTS. This is how the next row
+ * gets made without retyping a write-up somebody spent an afternoon on.
+ *
+ * **The writing comes across; the people do not.** Everything descriptive is
+ * copied, gallery and resource links included. Members, teams, tasks and events
+ * are not: a new term is when people decide again, and a copy that silently
+ * re-enrolled last spring's roster would put a project back on the dashboard of
+ * somebody who has graduated. They join, and the lead is appointed on the roles
+ * desk, the same as any other project.
+ *
+ * It lands in the same editor the create form ends in, because the first thing
+ * anybody does after duplicating is change the summary.
  */
-function AppointLead() {
-  const projects = useApi<ApiProject[]>('/projects?limit=100')
-  const id = useId()
-  const [member, setMember] = useState<ApiOfficerMember | null>(null)
-  const [projectId, setProjectId] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState<{ tone: 'error' | 'success'; text: string } | null>(null)
+function DuplicateProject() {
+  const [created, setCreated] = useState<Created | null>(null)
 
-  const setRank = (rank: 'PROJECT_LEAD' | 'MEMBER') => {
-    if (!member || !projectId) {
-      setMessage({ tone: 'error', text: 'Pick a project and a member first.' })
-      return
+  if (created) {
+    return (
+      <SetUpProject
+        created={created}
+        onFinished={() => {
+          setCreated(null)
+        }}
+      />
+    )
+  }
+
+  return <DuplicateForm onCreated={setCreated} />
+}
+
+const SEASON_LABEL = { SPRING: 'Spring', SUMMER: 'Summer', FALL: 'Fall' }
+
+function DuplicateForm({
+  onCreated,
+}: {
+  onCreated: (created: Created) => void
+}) {
+  const id = useId()
+  const projects = useApi<ApiProject[]>('/projects?limit=100')
+  const [sourceId, setSourceId] = useState('')
+  const [state, setState] = useState<
+    { status: 'idle' } | { status: 'sending' } | { status: 'failed'; message: string }
+  >({ status: 'idle' })
+
+  const source =
+    projects.status === 'ready'
+      ? projects.data.find((project) => project.id === sourceId)
+      : undefined
+
+  const submit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    const data = new FormData(event.currentTarget)
+    const value = (name: string) => {
+      const raw = data.get(name)
+      return typeof raw === 'string' && raw.trim() ? raw.trim() : undefined
     }
 
-    setBusy(true)
-    setMessage(null)
-    patchJson(`/officer/projects/${projectId}/members/${member.id}/rank`, { rank })
-      .then(() => {
-        setMessage({
-          tone: 'success',
-          text:
-            rank === 'PROJECT_LEAD'
-              ? `${member.fullName} now leads this project.`
-              : `${member.fullName} is a regular member of this project now.`,
+    const year = value('termYear')
+    const season = value('termSeason')
+
+    setState({ status: 'sending' })
+    postJson<ApiManagedProject>(`/officer/projects/${sourceId}/duplicate`, {
+      slug: value('slug'),
+      title: value('title'),
+      season: value('season') ?? null,
+      // Left off when blank, like `title` and unlike `season`: nothing sent
+      // means the server carries the original's role across, which is what
+      // running the same build again almost always wants.
+      discordRoleId: value('discordRoleId'),
+      // Both or neither — the server refuses a season with no year, because
+      // that lands the project in a term nobody chose and it vanishes from
+      // every dashboard rather than erroring.
+      ...(year && season ? { termYear: Number(year), termSeason: season } : {}),
+    })
+      .then((project) => {
+        setState({ status: 'idle' })
+        onCreated({
+          project,
+          // The copy carries the original's write-up, but the create response
+          // does not include `description` — it is not in `managedProjectSelect`
+          // — and unlike the create form there is nothing typed here to hand
+          // over. The editor re-reads the project, so this only decides what it
+          // shows for the instant before that lands.
+          description: null,
+          mine: false,
+          images: [],
+          links: [],
+          failures: [],
         })
       })
       .catch((error: unknown) => {
-        setMessage({ tone: 'error', text: explain(error) })
-      })
-      .finally(() => {
-        setBusy(false)
+        // Nothing is reset: a taken slug is one word to change rather than the
+        // whole form again.
+        setState({ status: 'failed', message: explain(error) })
       })
   }
+
+  const sending = state.status === 'sending'
 
   return (
     <FormPanel>
       <p className="text-faint mb-4 font-mono text-[10px] font-medium tracking-[0.16em]">
-        APPOINT OR STAND DOWN A PROJECT LEAD
+        RUN ONE AGAIN NEXT TERM
+      </p>
+      <p className="text-dim mb-4 text-[13px] leading-[1.6] text-pretty">
+        Copies a project&rsquo;s writing, pictures and links into a new one for a
+        new semester. Nobody is carried over &mdash; members join the new one,
+        and its lead is appointed on the roles desk.
       </p>
 
-      <div className="space-y-4">
+      <form onSubmit={submit} className="space-y-4">
         <div>
-          <label htmlFor={`${id}-project`} className={labelClass}>
-            PROJECT
+          <label htmlFor={`${id}-source`} className={labelClass}>
+            COPY FROM
           </label>
           <select
-            id={`${id}-project`}
+            id={`${id}-source`}
             className="select border-rule bg-base-200 w-full text-sm"
-            value={projectId}
-            disabled={busy || projects.status !== 'ready'}
+            value={sourceId}
+            required
+            disabled={sending || projects.status !== 'ready'}
             onChange={(event) => {
-              setProjectId(event.target.value)
+              setSourceId(event.target.value)
             }}
           >
             <option value="">
@@ -852,45 +727,148 @@ function AppointLead() {
             {projects.status === 'ready' &&
               projects.data.map((project) => (
                 <option key={project.id} value={project.id}>
-                  {project.title}
+                  {project.title} — {SEASON_LABEL[project.termSeason]}{' '}
+                  {project.termYear}
                 </option>
               ))}
           </select>
         </div>
 
-        <MemberSearch picked={member} onPick={setMember} disabled={busy} />
-
-        <div className="flex flex-wrap gap-3">
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => {
-              setRank('PROJECT_LEAD')
-            }}
-            className="btn btn-primary btn-cta px-5 py-2.5 text-[12px] font-semibold disabled:opacity-60"
-          >
-            MAKE PROJECT LEAD
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => {
-              setRank('MEMBER')
-            }}
-            className="btn btn-outline h-auto min-h-0 border-white/28 px-5 py-2.5 text-[12px] font-semibold text-white hover:border-white hover:bg-white/6 hover:text-white disabled:opacity-60"
-          >
-            DEMOTE TO MEMBER
-          </button>
+        <div className="grid gap-4 wide:grid-cols-2">
+          <div>
+            {/* "NEW" on all four of these, because the create panel above is on
+                screen at the same time and carries a TITLE, a SLUG and a SEASON
+                of its own. Two identical labels on one page is a form somebody
+                fills in the wrong half of. */}
+            <label htmlFor={`${id}-dup-title`} className={labelClass}>
+              NEW TITLE
+            </label>
+            {/* Keyed on the source so picking a different one refills it: this
+                is uncontrolled, and without the key React keeps whatever the
+                previous choice put there. */}
+            <input
+              key={sourceId}
+              id={`${id}-dup-title`}
+              name="title"
+              maxLength={160}
+              defaultValue={source?.title ?? ''}
+              placeholder="Same as the original"
+              className={fieldClass}
+              disabled={sending}
+            />
+          </div>
+          <div>
+            <label htmlFor={`${id}-dup-slug`} className={labelClass}>
+              NEW SLUG — THE URL, /projects/…
+            </label>
+            <input
+              id={`${id}-dup-slug`}
+              name="slug"
+              required
+              maxLength={60}
+              pattern="[a-z0-9]+(-[a-z0-9]+)*"
+              title="Lowercase words joined by hyphens, like mars-rover"
+              placeholder="mars-rover-2027"
+              className={fieldClass}
+              disabled={sending}
+            />
+            {/* The one field with no sensible default. Two projects cannot share
+                a URL, so the officer has to say how this one differs. */}
+            <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
+              Has to be new — the original keeps its own.
+            </p>
+          </div>
         </div>
 
+        <div className="grid gap-4 wide:grid-cols-3">
+          <div>
+            <label htmlFor={`${id}-dup-season`} className={labelClass}>
+              NEW SEASON — THE LABEL
+            </label>
+            <input
+              id={`${id}-dup-season`}
+              name="season"
+              maxLength={40}
+              placeholder="2027-2028"
+              className={fieldClass}
+              disabled={sending}
+            />
+          </div>
+          <div>
+            <label htmlFor={`${id}-dup-term-season`} className={labelClass}>
+              TERM
+            </label>
+            <select
+              id={`${id}-dup-term-season`}
+              name="termSeason"
+              className="select border-rule bg-base-200 w-full text-sm"
+              defaultValue=""
+              disabled={sending}
+            >
+              <option value="">This term</option>
+              <option value="SPRING">Spring</option>
+              <option value="SUMMER">Summer</option>
+              <option value="FALL">Fall</option>
+            </select>
+          </div>
+          <div>
+            <label htmlFor={`${id}-dup-term-year`} className={labelClass}>
+              YEAR
+            </label>
+            <input
+              id={`${id}-dup-term-year`}
+              name="termYear"
+              type="number"
+              min={2000}
+              max={2100}
+              placeholder="This year"
+              className={fieldClass}
+              disabled={sending}
+            />
+            {/* The two together or neither: leaving both alone stamps the term
+                the club is in, which is what duplicating usually means. */}
+            <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
+              Leave both blank for the current term.
+            </p>
+          </div>
+        </div>
+
+        <div>
+          <label htmlFor={`${id}-dup-discord`} className={labelClass}>
+            NEW DISCORD ROLE
+          </label>
+          {/* Blank carries the original's across, the same rule NEW TITLE
+              follows — the same build next semester is the same crew in the
+              same channel, which is why the column has no unique index. Left
+              empty rather than prefilled because the list this panel reads is
+              the *public* one, and a role id has no business on an
+              unauthenticated route just to populate a box. Taking a role off a
+              copy is done on the project's own manage page. */}
+          <input
+            id={`${id}-dup-discord`}
+            name="discordRoleId"
+            inputMode="numeric"
+            pattern="\d{17,20}"
+            placeholder="Same as the original"
+            className={fieldClass}
+            disabled={sending}
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={sending || !sourceId}
+          className="btn btn-primary btn-cta w-full px-6 py-3.5 text-[13px] font-semibold disabled:opacity-60"
+        >
+          {sending ? 'COPYING…' : 'DUPLICATE IT'}
+        </button>
+
         <p role="status" className="min-h-4 text-[13px]">
-          {message && (
-            <span className={message.tone === 'error' ? 'text-error' : 'text-success'}>
-              {message.text}
-            </span>
+          {state.status === 'failed' && (
+            <span className="text-error">{state.message}</span>
           )}
         </p>
-      </div>
+      </form>
     </FormPanel>
   )
 }

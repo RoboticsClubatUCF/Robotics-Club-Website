@@ -69,12 +69,19 @@ const myProject = (over: Partial<ApiMyProject> = {}): ApiMyProject => ({
   rank: 'MEMBER',
   title: null,
   team: null,
+  // The dashboard splits MY PROJECTS on this, so every fixture has to say
+  // which side it is on.
+  current: true,
   project: {
     id: 'p1',
     slug: 'rover',
     title: 'Rover',
     summary: null,
     season: null,
+    // Every project carries the term it is built for, and the dashboard
+    // splits on it. Pinned rather than left to today's date.
+    termYear: 2035,
+    termSeason: 'FALL',
     competition: null,
     status: 'IN_PROGRESS',
     coverUrl: null,
@@ -85,6 +92,7 @@ const myProject = (over: Partial<ApiMyProject> = {}): ApiMyProject => ({
     meetingWeekday: null,
     meetingTime: null,
     meetingLocation: null,
+  discordRoleId: null,
   },
   ...over,
 })
@@ -236,6 +244,89 @@ describe('DashboardLayout', () => {
     // One manage link, not two: the second membership is a plain member's.
     expect(screen.getAllByRole('link', { name: 'MANAGE' })).toHaveLength(1)
   })
+
+  /**
+   * The rail is this term only. A member three years in wants this Thursday's
+   * meeting, not a history — and without the split MY PROJECTS grows for ever,
+   * because a build that runs across semesters is one row per semester now.
+   */
+  it('lists this term only, and offers the rest as a page', async () => {
+    vi.stubGlobal(
+      'fetch',
+      stubFetch({
+        '/auth/me': { user: user() },
+        '/dues/status': duesStatus(),
+        '/me/projects': [
+          myProject(),
+          myProject({
+            current: false,
+            project: {
+              ...myProject().project,
+              id: 'p2',
+              slug: 'rover-old',
+              title: 'Rover Old',
+              termYear: 2034,
+            },
+          }),
+        ],
+      }),
+    )
+
+    renderDashboard()
+
+    expect(await screen.findByRole('link', { name: 'ROVER' })).toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: 'ROVER OLD' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'PAST PROJECTS' }),
+    ).toHaveAttribute('href', '/dashboard/projects/past')
+  })
+
+  /**
+   * A group with nothing under it reads as a list that failed to load, so the
+   * gap between terms says what it is.
+   */
+  it('says so when nothing is running this term', async () => {
+    vi.stubGlobal(
+      'fetch',
+      stubFetch({
+        '/auth/me': { user: user() },
+        '/dues/status': duesStatus(),
+        '/me/projects': [myProject({ current: false })],
+      }),
+    )
+
+    renderDashboard()
+
+    expect(await screen.findByText('Nothing this semester yet.')).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'PAST PROJECTS' }),
+    ).toBeInTheDocument()
+  })
+
+  /**
+   * And no PAST PROJECTS row for somebody who has nothing behind them — the
+   * group is hidden entirely, the way it always has been for a newcomer, and
+   * the overview carries the prompt to join one.
+   */
+  it('offers no past-projects row to somebody with no past', async () => {
+    vi.stubGlobal(
+      'fetch',
+      stubFetch({
+        '/auth/me': { user: user() },
+        '/dues/status': duesStatus(),
+        '/me/projects': [myProject()],
+      }),
+    )
+
+    renderDashboard()
+
+    await screen.findByRole('link', { name: 'ROVER' })
+    expect(
+      screen.queryByRole('link', { name: 'PAST PROJECTS' }),
+    ).not.toBeInTheDocument()
+  })
 })
 
 /**
@@ -368,10 +459,26 @@ describe('when dues lapse', () => {
    * loan shelf to an account made ten minutes ago, so the two rows that spend
    * club money ask for a member as well.
    */
-  it('locks printing and borrowing for a guest who owes nothing', async () => {
+  /**
+   * An unclaimed free window locks the rail exactly like an unpaid term does.
+   *
+   * This test used to be about a *guest*, and the rail used to lock these two
+   * rows on a stricter rule than the rest. Both went: access is the dues date,
+   * so a free window nobody has claimed is no access, and every locked row in
+   * the rail is locked by the one condition.
+   */
+  it('locks printing and borrowing inside an unclaimed free window', async () => {
     vi.stubGlobal(
       'fetch',
-      withDues('GUEST', duesStatus({ status: 'FREE', paidThrough: null })),
+      withDues(
+        'MEMBER',
+        duesStatus({
+          status: 'FREE',
+          hasAccess: false,
+          paidThrough: null,
+          canActivate: true,
+        }),
+      ),
     )
 
     renderDashboard()
@@ -387,10 +494,48 @@ describe('when dues lapse', () => {
     expect(screen.getByRole('link', { name: 'DUES & PAYMENTS' })).toBeInTheDocument()
   })
 
-  it('tells a guest what membership is rather than that their dues lapsed', async () => {
+  /**
+   * And the note names the way out, which differs by reason. The claim state is
+   * the one that would otherwise read as a bug — the club is charging nothing
+   * and the rail is still shut — so it has to say the fix is free.
+   */
+  it('tells somebody in a free window that the fix is one press', async () => {
     vi.stubGlobal(
       'fetch',
-      withDues('GUEST', duesStatus({ status: 'FREE', paidThrough: null })),
+      withDues(
+        'MEMBER',
+        duesStatus({
+          status: 'FREE',
+          hasAccess: false,
+          paidThrough: null,
+          canActivate: true,
+        }),
+      ),
+    )
+
+    renderDashboard()
+
+    expect(await screen.findByText(/free right now/i)).toBeInTheDocument()
+    expect(screen.queryByText(/dues have lapsed/i)).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'CLAIM MY MEMBERSHIP' }),
+    ).toHaveAttribute('href', '/dashboard/dues')
+  })
+
+  /** Nothing free running, and no date ever: the newcomer's wording. */
+  it('tells a newcomer what membership is rather than that their dues lapsed', async () => {
+    vi.stubGlobal(
+      'fetch',
+      withDues(
+        'GUEST',
+        duesStatus({
+          status: 'EXPIRED',
+          hasAccess: false,
+          duesRequired: true,
+          paidThrough: null,
+          canActivate: false,
+        }),
+      ),
     )
 
     renderDashboard()

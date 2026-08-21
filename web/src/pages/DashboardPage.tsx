@@ -9,6 +9,7 @@ import {
   FormPanel,
 } from '../components/shared/formChrome'
 import { getJson, postJson } from '../lib/api'
+import { LOCK_COPY, coverGap } from '../lib/dues'
 import type { ApiMyTask, ApiProject } from '../lib/api'
 import { duesLocked } from '../lib/dues'
 import { meetingLine } from '../lib/meetings'
@@ -119,28 +120,44 @@ function Membership({ state }: { state: DashboardContext['membership'] }) {
   }
 
   const membership = state.data
+  const gap = coverGap(membership)
 
   return (
     <>
       <MembershipPanel membership={membership} />
 
-      {/* Shown whatever the status. Somebody on a trial, or reading this in a
-          free summer, should be able to settle the term ahead now rather than
-          being told to come back when it costs something. */}
+      {/* Shown whatever the status, so somebody reading this inside a free
+          window can settle the term ahead now rather than being told to come
+          back when it costs something.
+
+          The label follows `coverGap`, not `duesRequired`, and that distinction
+          is the bug this replaced. `duesRequired` is false during a free window
+          — nothing is owed — so this said VIEW DUES & PAYMENTS to somebody with
+          no access at all, when what they needed was one free press. */}
       <div className="mt-5">
         <Link
           to="/dashboard/dues"
           className="btn btn-primary btn-cta px-7 py-[15px] text-[13px] font-semibold"
         >
-          {membership.duesRequired ? 'PAY MY DUES' : 'VIEW DUES & PAYMENTS'}
+          {gap ? LOCK_COPY[gap].cta : 'VIEW DUES & PAYMENTS'}
         </Link>
       </div>
     </>
   )
 }
 
-/** The projects I am on: name, standing, and when they meet. */
+/**
+ * The projects I am on *this term*: name, standing, and when they meet.
+ *
+ * Only the current ones, because the point of the panel is what somebody is
+ * working on — a member three years in would otherwise scroll past a history to
+ * find this Thursday's meeting. The rest are one link away.
+ */
 function MyProjects({ projects }: { projects: DashboardContext['projects'] }) {
+  const mine = projects.status === 'ready' ? projects.data : []
+  const thisTerm = mine.filter(({ current }) => current)
+  const before = mine.length - thisTerm.length
+
   return (
     <FormPanel>
       <p className="text-faint mb-4 font-mono text-[10px] font-medium tracking-[0.16em]">
@@ -161,14 +178,18 @@ function MyProjects({ projects }: { projects: DashboardContext['projects'] }) {
       )}
 
       {projects.status === 'ready' &&
-        (projects.data.length === 0 ? (
+        (thisTerm.length === 0 ? (
           <p className="text-dim text-sm leading-[1.7] text-pretty">
-            You're not on a project yet. Open one from the list beside this and
-            join it there.
+            {/* Two different situations and two different sentences. Somebody
+                who has never joined needs to be told where to; somebody between
+                terms needs to know the list is right rather than broken. */}
+            {before === 0
+              ? "You're not on a project yet. Open one from the list beside this and join it there."
+              : "You're not on a project this semester. Projects run a term at a time, so this fills up when you join one."}
           </p>
         ) : (
           <ul className="space-y-4">
-            {projects.data.map(({ project, rank, title, team }) => {
+            {thisTerm.map(({ project, rank, title, team }) => {
               const meets = meetingLine(project)
               const standing = [
                 rank === 'PROJECT_LEAD'
@@ -205,6 +226,17 @@ function MyProjects({ projects }: { projects: DashboardContext['projects'] }) {
             })}
           </ul>
         ))}
+
+      {/* Only when there is something behind it, and outside the branch above
+          so it shows whether or not this term is empty. */}
+      {projects.status === 'ready' && before > 0 && (
+        <Link
+          to="/dashboard/projects/past"
+          className="text-faint hover:text-primary mt-5 inline-block font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200"
+        >
+          PAST PROJECTS ({before})
+        </Link>
+      )}
     </FormPanel>
   )
 }
@@ -311,7 +343,12 @@ function MyTasks() {
  * project. Joining happens on the project's own page, behind the dues check.
  */
 function OpenProjects() {
-  const state = useApi<ApiProject[]>('/projects?status=IN_PROGRESS&limit=100')
+  // This term's only. Offering somebody a place on last spring's build is an
+  // invitation to join a project that finished, and the server computes which
+  // term that is — the browser has no way to know and no business guessing.
+  const state = useApi<ApiProject[]>(
+    '/projects?status=IN_PROGRESS&term=current&limit=100',
+  )
 
   return (
     <FormPanel>

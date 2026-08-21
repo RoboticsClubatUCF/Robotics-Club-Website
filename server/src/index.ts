@@ -1,7 +1,16 @@
 import { serve } from '@hono/node-server'
 import { app } from './app.js'
 import { prisma } from './db.js'
-import { discordConfigured } from './discord.js'
+import {
+  discordConfigured,
+  memberRoleId,
+  officerSyncConfigured,
+  projectLeadRoleId,
+  roleSyncDryRun,
+  teamLeadRoleId,
+} from './discord.js'
+import { syncDiscordOfficers } from './discordOfficers.js'
+import { sweepDiscordRoles } from './discordRoles.js'
 import { env } from './env.js'
 import { sweepReturnReminders } from './equipmentReminder.js'
 import { mailConfigured } from './mail.js'
@@ -40,6 +49,28 @@ const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
     discordConfigured
       ? `Discord username checks → guild ${env.DISCORD_GUILD_ID ?? ''}`
       : 'Discord username checks OFF (no DISCORD_BOT_TOKEN) — handles are stored unconfirmed',
+  )
+  // Who is an officer is a permission level, and this is the setting that
+  // decides whether Discord or a person answers that. Worth a line either way:
+  // switched on, it will stand somebody down within ten minutes of them losing
+  // the role, and the first sweep after it is switched on is the one to watch.
+  console.log(
+    officerSyncConfigured
+      ? `Discord officer sync → role ${env.DISCORD_OFFICER_ROLE_ID ?? ''}`
+      : 'Discord officer sync OFF (no DISCORD_OFFICER_ROLE_ID) — officers are set by hand',
+  )
+  // The only thing here that writes to somebody else's service, so it says
+  // which of the three club roles it is allowed to touch rather than a bare
+  // on/off. A project's own role is not listed — that lives on the row.
+  const pushed = [
+    memberRoleId && 'member',
+    projectLeadRoleId && 'project lead',
+    teamLeadRoleId && 'team lead',
+  ].filter(Boolean)
+  console.log(
+    pushed.length > 0
+      ? `Discord role sync → ${pushed.join(', ')}${roleSyncDryRun ? ' (DRY RUN — nothing is written)' : ''}`
+      : 'Discord role sync OFF (no role ids) — only projects carrying a role are synced',
   )
   // A dues page that cannot take a card looks exactly like one that can, right
   // up to the moment somebody tries.
@@ -80,11 +111,16 @@ const sweep = setInterval(
     })
     forgetFinishedTerms()
 
-    // Also unlike the others: this one changes what somebody *is*, rather than
-    // deleting a dead row. It is safe to run from every instance — `updateMany`
-    // with the role in the `where` means a second pass matches nothing — and it
-    // stands down entirely outside term time and whenever UCF's calendar could
-    // not be read. See `src/membershipSweep.ts`.
+    // These three run in *sequence*, unlike everything else on this tick, and
+    // the order is the point. Dues decide what somebody is; the club's Discord
+    // role decides whether they are an officer on top of that; only once both
+    // have settled is it worth telling Discord which roles they should carry.
+    // Firing them together would push a state that the next two lines were
+    // about to change, and the club would see a role flicker every ten minutes.
+    //
+    // It also means `sweepLapsedMembers` needs no hook of its own: it demotes
+    // in one bulk `updateMany` with no per-row callback, and the role sweep
+    // reconciling straight afterwards in the same tick covers it.
     void sweepLapsedMembers()
       .then((report) => {
         // Quiet unless it did something. Most of the year there is nothing
@@ -97,6 +133,56 @@ const sweep = setInterval(
       })
       .catch((error: unknown) => {
         console.error('membership sweep failed', error)
+      })
+      // The other half of who somebody is: dues decide MEMBER vs GUEST above,
+      // the club's Discord role decides OFFICER here. Off unless
+      // `DISCORD_OFFICER_ROLE_ID` is set, and it stands down rather than
+      // writing anything whenever the guild cannot be read or the answer looks
+      // like a misconfiguration. See `src/discordOfficers.ts` — all four
+      // refusals are documented there and every one of them is about not
+      // standing the whole board down by accident.
+      .then(() => syncDiscordOfficers())
+      .then((report) => {
+        // Quiet unless it did something. This fires every ten minutes and the
+        // board changes twice a year.
+        if (report.promoted + report.demoted > 0) {
+          console.log(
+            `discord officers: ${report.promoted} promoted, ${report.demoted} stood down`,
+          )
+        }
+      })
+      .catch((error: unknown) => {
+        console.error('discord officer sync failed', error)
+      })
+      // And the direction nothing else on this server goes: Postgres out to
+      // Discord. Everything above decided what people *are*; this hands out the
+      // roles that follow from it. Off unless one of the role ids is set or a
+      // project carries one, and it refuses rather than writes whenever the
+      // guild cannot be read or a removal looks like a misconfiguration. See
+      // `src/discordRoles.ts`.
+      .then(() => sweepDiscordRoles())
+      .then((report) => {
+        if (report.added + report.removed > 0) {
+          console.log(
+            `discord roles: ${report.added} added, ${report.removed} removed across ${report.people} matched member(s)`,
+          )
+        }
+        // Both of these mean the sweep deliberately did less than it worked
+        // out, and neither is an error — but silence would make a backlog look
+        // like nothing to do.
+        if (report.budgetSpent) {
+          console.log(
+            'discord roles: write budget spent, the rest follows next sweep',
+          )
+        }
+        if (report.heldBack.length > 0) {
+          console.warn(
+            `discord roles: ${report.heldBack.length} role(s) held back this sweep — see the warnings above`,
+          )
+        }
+      })
+      .catch((error: unknown) => {
+        console.error('discord role sync failed', error)
       })
 
     // Unlike the others this one *sends* something, so it runs on every

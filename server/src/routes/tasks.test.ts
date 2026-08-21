@@ -4,6 +4,7 @@ import { prisma } from '../db.js'
 import { env } from '../env.js'
 import {
   ProjectMemberRank,
+  Season,
   UserRole,
 } from '../generated/prisma/enums.js'
 import { createSession } from '../session.js'
@@ -57,6 +58,10 @@ beforeEach(async () => {
     data: {
       slug: `${PREFIX}rover`,
       title: 'Tasks Rover',
+      // Every project needs a term now. A year nothing real uses, so a
+      // fixture can never collide with the club's own rows.
+      termYear: 2035,
+      termSeason: Season.FALL,
       teams: { create: [{ name: 'Alpha' }, { name: 'Beta' }] },
     },
     include: { teams: true },

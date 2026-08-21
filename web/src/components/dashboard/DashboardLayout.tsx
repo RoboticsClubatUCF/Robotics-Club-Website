@@ -7,7 +7,7 @@ import type {
   ApiMyProject,
   ApiUser,
 } from '../../lib/api'
-import { duesLocked, memberLocked } from '../../lib/dues'
+import { accessLock, duesLocked } from '../../lib/dues'
 import { useSession } from '../../lib/session'
 import type { ApiState } from '../../lib/useApi'
 import { Avatar } from '../shared/Avatar'
@@ -231,6 +231,11 @@ function DashboardNav({
   const [open, setOpen] = useState(false)
   const location = useLocation()
   const mine = projects.status === 'ready' ? projects.data : []
+  // Split rather than filtered at the source: the context carries every
+  // membership because a *past* project's pages still have to resolve, and the
+  // rail is the one place that only wants the ones running now.
+  const thisTerm = mine.filter(({ current }) => current)
+  const before = mine.filter(({ current }) => !current)
   // The `/ MANAGE` group is officers only, all three rows of it. It briefly had
   // a fourth audience: somebody carrying a `PROJECT_LEAD` roster label could
   // start one project of their own. That label is not a role any more — leading
@@ -238,10 +243,12 @@ function DashboardNav({
   // it, so this is one condition again rather than two.
   const officer = user.role === 'ADMIN' || user.role === 'OFFICER'
   const locked = duesLocked(membership, user.role)
-  // Stricter, and only for the two rows that spend club money: a guest is
-  // refused those whatever their standing says. Nobody holding a rank is a
-  // guest, so the management rows below stay on `duesLocked`.
-  const requests = memberLocked(membership, user.role)
+  // The *reason*, for the one note at the bottom of the rail that has to name
+  // it. There used to be a second, stricter lock here — printing and borrowing
+  // refused a guest whatever their standing — and it is gone: access is the
+  // dues date now, so every locked row in this rail is locked by the same
+  // condition. `locked` is that condition; this is only which sentence.
+  const why = accessLock(membership, user.role)
 
   // Following a link on a phone has to put the menu away, or the page you asked
   // for opens underneath the list you asked for it from.
@@ -286,11 +293,11 @@ function DashboardNav({
             <NavLink to="/dashboard/dues" className={linkClass}>
               DUES &amp; PAYMENTS
             </NavLink>
-            {/* Locked when dues lapse *and* for anybody who has not joined:
-                the club's line is that an unpaid account gets this page and its
+            {/* Locked by the same condition as everything else below: the
+                club's line is that an uncovered account gets this page and its
                 own projects, and both of these are the club spending money on
                 somebody. */}
-            {requests ? (
+            {locked ? (
               <>
                 <LockedRow>3D PRINTING</LockedRow>
                 <LockedRow>EQUIPMENT</LockedRow>
@@ -310,7 +317,7 @@ function DashboardNav({
           {mine.length > 0 && (
             <div className="border-rule mt-5 border-t pt-5">
               <p className={groupLabelClass}>/ MY PROJECTS</p>
-              {mine.map(({ project, rank }) => (
+              {thisTerm.map(({ project, rank }) => (
                 <div key={project.id}>
                   <NavLink
                     to={`/dashboard/projects/${project.slug}`}
@@ -338,6 +345,24 @@ function DashboardNav({
                     ))}
                 </div>
               ))}
+
+              {/* Somebody with projects, none of them this term. Said here
+                  rather than left as a heading with nothing under it — a group
+                  that appears empty reads as a list that failed to load, and
+                  the row below is the answer to the question it raises. */}
+              {thisTerm.length === 0 && (
+                <p className="text-faint px-5 pb-1 text-[12px] leading-[1.5] text-pretty">
+                  Nothing this semester yet.
+                </p>
+              )}
+
+              {/* Last, under everything current, because it is where the rail
+                  stops being about what you are doing now. */}
+              {before.length > 0 && (
+                <NavLink to="/dashboard/projects/past" className={linkClass}>
+                  PAST PROJECTS
+                </NavLink>
+              )}
             </div>
           )}
 
@@ -346,12 +371,18 @@ function DashboardNav({
               <p className={groupLabelClass}>/ MANAGE</p>
               {locked ? (
                 <>
+                  <LockedRow>ROLES</LockedRow>
                   <LockedRow>PROJECTS</LockedRow>
                   <LockedRow>PRINT QUEUE</LockedRow>
                   <LockedRow>EQUIPMENT</LockedRow>
                 </>
               ) : (
                 <>
+                  {/* First, because it is the desk about people and the other
+                      three are about things. */}
+                  <NavLink to="/dashboard/officer/roles" className={linkClass}>
+                    ROLES
+                  </NavLink>
                   <NavLink to="/dashboard/officer/projects" className={linkClass}>
                     PROJECTS
                   </NavLink>
@@ -369,18 +400,37 @@ function DashboardNav({
             </div>
           )}
 
-          {/* Only for somebody who has never joined, and only because they
-              have nothing else telling them why half the rail is shut. A
-              lapsed member has no note here on purpose: the padlocks say the
-              state, the overview carries the prompt to pay, and every page
-              behind a lock explains itself when opened — a paragraph in the
-              rail as well made the same point a fourth time, on every screen,
-              to somebody who already knows. */}
-          {requests === 'guest' && (
+          {/* Two of the three lock reasons get a note here and one does not.
+              A *lapsed* member is told nothing: the padlocks say the state, the
+              overview carries the prompt to pay, and every page behind a lock
+              explains itself when opened — a paragraph in the rail as well made
+              the same point a fourth time, on every screen, to somebody who
+              already knows.
+
+              The other two have nothing else telling them why half the rail is
+              shut. `claim` is the one that would otherwise read as a bug: the
+              club is charging them nothing and the rail is still closed, so it
+              has to say that the fix is free and one press. */}
+          {why === 'claim' && (
+            <div className="border-rule mt-5 border-t px-5 pt-5">
+              <p className="text-faint text-[12px] leading-[1.5] text-pretty">
+                Membership is free right now and you have not switched it on
+                yet. One press opens all of this &mdash; no payment.
+              </p>
+              <Link
+                to="/dashboard/dues"
+                className="text-primary mt-2 inline-block font-mono text-[11px] font-medium tracking-[0.1em] underline underline-offset-2"
+              >
+                CLAIM MY MEMBERSHIP
+              </Link>
+            </div>
+          )}
+
+          {why === 'newcomer' && (
             <div className="border-rule mt-5 border-t px-5 pt-5">
               <p className="text-faint text-[12px] leading-[1.5] text-pretty">
                 The printers and the club&rsquo;s tools are for members. Joining
-                takes one page &mdash; and over the summer it costs nothing.
+                takes one page &mdash; and between semesters it costs nothing.
               </p>
               <Link
                 to="/dashboard/dues"

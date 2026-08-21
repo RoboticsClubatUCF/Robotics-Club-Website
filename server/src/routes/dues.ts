@@ -3,6 +3,7 @@ import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import { prisma } from '../db.js'
+import { pushRoles } from '../discordRoles.js'
 import {
   DuesPaymentStatus,
   DuesPlan,
@@ -150,6 +151,9 @@ dues.get('/status', requireAuth, async (c) => {
       coversThrough: true,
       paidAt: true,
       receiptUrl: true,
+      // Who comped it, and null for everything Stripe collected. A zero-amount
+      // row with no explanation beside it reads as a bug in the price column.
+      grantedBy: { select: { fullName: true } },
     },
   })
 
@@ -169,10 +173,13 @@ dues.get('/status', requireAuth, async (c) => {
     ],
     /** So the page can explain itself rather than showing a dead pay button. */
     paymentsEnabled: stripeConfigured,
-    history: history.map((row) => ({
+    history: history.map(({ grantedBy, ...row }) => ({
       ...row,
       coversThrough: row.coversThrough.toISOString(),
       paidAt: row.paidAt?.toISOString() ?? null,
+      // Flattened to the name: the page prints "Granted by Alex Chen" and has
+      // no use for an object, and this is the shape `ApiDuesStatus` mirrors.
+      grantedBy: grantedBy?.fullName ?? null,
     })),
   })
 })
@@ -193,6 +200,32 @@ dues.post(
     const now = new Date()
     const coverage = await coverageFor(plan, now, user.duesPaidThrough)
     const amountCents = priceOf(plan)
+
+    /**
+     * A payment that would not move the date is a payment that buys nothing.
+     *
+     * `coverageFor` walks forward past terms the member already holds, but it
+     * gives up after four hops — two academic years, further than anybody
+     * should be able to buy in one go. Past that it returns their own
+     * `paidThrough` as the coverage, so the charge goes through and the
+     * membership is exactly as long as it was. It is reachable: the faculty
+     * advisor and any non-student mentor are *documented* as wanting a
+     * far-future date precisely so the dues gate never touches them, and
+     * nothing stopped one of them pressing the button.
+     *
+     * Claiming has always refused this — `canActivate` is false for anybody
+     * already covered past the window — so the two halves of this page
+     * disagreed, and the half that took money was the lax one.
+     */
+    if (
+      user.duesPaidThrough !== null &&
+      coverage.through <= user.duesPaidThrough
+    ) {
+      throw new HTTPException(409, {
+        message:
+          'Your membership already runs past anything this would buy, so there is nothing to pay for. Ask an officer if that looks wrong.',
+      })
+    }
 
     // Everything below is computed, never received. The row is written before
     // the intent so there is a record of what this server intended to charge,
@@ -267,13 +300,20 @@ dues.post(
 // ---------------------------------------------------------------- activate
 
 /**
- * Claim the free window — the summer, or the gap between one term and the next.
+ * Claim the free window — the break, the summer, and the fortnight that follows.
  *
- * Nothing is charged and nothing is granted that the member did not already
- * have: `membershipStanding` gives everybody `hasAccess` through a free window
- * because that is the club's rule. What this changes is what the membership
- * *reads* as, and it leaves the club a list of who is actually around over a
- * break instead of a roster of everyone who has ever signed up.
+ * Nothing is charged, and **this now genuinely grants something.** It used to
+ * be bookkeeping: `hasAccess` was already true for the whole club through a
+ * free window, so pressing the button only changed what the membership *read*
+ * as. Access is the date now, so a member who never presses it is a member with
+ * no access — the button is the free half of the dues page rather than a
+ * formality beside it.
+ *
+ * That is the trade the club chose, and it is worth naming: the price of one
+ * consistent rule everywhere is that being free stopped being automatic. What
+ * the club gets back is a list of who is actually around over a break instead
+ * of a roster of everyone who has ever signed up, and a Discord server whose
+ * Members role means the same thing this page does.
  *
  * A button rather than a job. The alternative — flipping the whole roster at
  * the start of every summer and again at every mid-year break — is two mass
@@ -482,23 +522,23 @@ export async function receiptUrlFor(
  * purpose: it is the single field that says whether anybody is covered, and two
  * writers of it a file apart is how they end up disagreeing.
  *
- * **The date is the first day of the billable term**, not the end of the free
- * trial that follows it. Three things fall out of that, and all three are the
- * reason it is that date rather than a fortnight later:
+ * **The date is `freeThrough` — the moment the window shuts, two weeks into the
+ * dues-bearing term ahead.** It used to be the *first day* of that term, back
+ * when the opening fortnight was free for everybody whether or not they had
+ * claimed anything: the claim only had to carry somebody to the point where the
+ * blanket trial took over. Nothing is blanket now, so the claim has to cover
+ * the whole of what is free, or claiming in June would quietly buy less than
+ * doing nothing used to.
  *
- *   - The trial goes on working. When the term opens, cover lapses and
- *     `stillFree` takes over, so a member who claimed the summer gets the same
- *     two free weeks in September as everybody else instead of having them
- *     silently swallowed.
- *   - The trial-closing DM still finds them. That sweep takes everybody whose
- *     `duesPaidThrough` is null or past, and this date is a fortnight past by
- *     the time it runs — as it should be, because they have not paid.
- *   - `membershipStanding` can tell a claim from a payment by the date alone: a
- *     payment always reaches the *end* of a term, three months further on.
+ * One window, one press. From the end of spring to two weeks into fall is a
+ * single stretch — the May gap, Summer C, the August gap, fall's first
+ * fortnight — so a member claims once in May and is covered to September.
+ * Summer is not special-cased anywhere; it is free because it is inside this.
  *
- * Nothing here can move the date backwards. `canActivate` is only ever true for
- * somebody not currently covered, so their date is null or in the past and the
- * term ahead has not started — but the guard is stated rather than assumed.
+ * Nothing here can move the date backwards. `canActivate` is only ever true
+ * when the claim would genuinely extend them — somebody who has already
+ * claimed sits exactly on `freeThrough` and is refused — but the guard in the
+ * transaction is stated rather than assumed.
  *
  * **It promotes exactly as paying does.** Claiming the free break is joining
  * the club for it, so a `GUEST` who presses the button comes out a `MEMBER` —
@@ -523,7 +563,16 @@ export async function claimFreeWindow(
     })
   }
 
-  const through = standing.billable.startsAt
+  // `canActivate` is only true when a window is running, so this is non-null.
+  // Asserted rather than assumed: the alternative is writing `null` into the
+  // one column that decides whether anybody is covered.
+  const through = standing.freeThrough
+
+  if (through === null) {
+    throw new HTTPException(409, {
+      message: 'There is nothing to activate right now — dues are owed for this term.',
+    })
+  }
 
   const changed = await prisma.$transaction(async (tx) => {
     // Scalars only, and one query — see the note in `applyPayment` about Prisma
@@ -560,7 +609,126 @@ export async function claimFreeWindow(
     )
   }
 
+  pushRoles(user.id, 'claimed the free window')
+
   return membershipStanding(through, now)
+}
+
+/**
+ * An officer giving somebody a term, with no money involved.
+ *
+ * The third and last writer of `duesPaidThrough`, and it lives in this file
+ * beside the other two for the reason stated on `claimFreeWindow`: one field
+ * decides whether anybody is covered, and writers of it a file apart are how
+ * they end up disagreeing.
+ *
+ * It exists because the alternative was already happening. Somebody pays a
+ * treasurer in cash at a meeting, and an officer opens Prisma Studio and types
+ * a date into `dues_paid_through` — which covers them and does nothing else: no
+ * `GUEST` promotion, no `joinedAt`, no history, and no record that anybody
+ * granted anything. Half the roster's worth of members whose own dues page says
+ * they have never paid. This is that edit, done through the same three rules a
+ * card payment goes through.
+ *
+ * **It is a payment row, for nothing, with a name on it.** `amountCents: 0`
+ * says the club collected nothing here, `grantedById` says who decided, and the
+ * `comp_` sentinel in the unique intent id keeps that column's idempotency
+ * guarantee meaning what it means rather than going nullable. Somebody reading
+ * a member's history sees the term they were given next to the terms they
+ * bought, which is what an audit of comped dues needs and what the bare Studio
+ * edit could never provide.
+ *
+ * **It extends rather than resets**, because `coverageFor` is quoted against
+ * what they already hold — the same call the checkout page makes — so granting
+ * a semester to somebody already paid through December covers them through
+ * spring instead of shortening them to December. And like both writers above
+ * it, the date cannot move backwards.
+ */
+export async function grantMembership(
+  member: { id: string; duesPaidThrough: Date | null },
+  plan: DuesPlan,
+  grantedById: string,
+  now: Date = new Date(),
+): Promise<MembershipStanding> {
+  const coverage = await coverageFor(plan, now, member.duesPaidThrough)
+
+  // The same refusal `checkout` makes, and for the same reason: past four hops
+  // `coverageFor` gives up and hands back the member's own date, so a grant
+  // beyond that would write a zero-amount row recording that somebody was given
+  // nothing. Free rather than costly, but a misleading record is still worth
+  // refusing — and an officer told "they are already covered past that" has
+  // learned the thing they were about to get wrong.
+  if (
+    member.duesPaidThrough !== null &&
+    coverage.through <= member.duesPaidThrough
+  ) {
+    throw new HTTPException(409, {
+      message:
+        'Their membership already runs past anything this would grant, so there is nothing to give.',
+    })
+  }
+
+  const granted = await prisma.$transaction(async (tx) => {
+    // Scalars only, and one query — see the note in `applyPayment` about Prisma
+    // fanning relation selects across a transaction's single connection.
+    const row = await tx.user.findUnique({
+      where: { id: member.id },
+      select: {
+        duesPaidThrough: true,
+        role: true,
+        joinedAt: true,
+        active: true,
+      },
+    })
+
+    if (!row) throw new HTTPException(404, { message: 'No such member.' })
+
+    // Unreachable in normal use — `coverageFor` hops past whatever they already
+    // hold — but stated rather than assumed, the same way `claimFreeWindow`
+    // states it. "The officer granted me a term and my membership got shorter"
+    // is not a bug worth risking on a proof.
+    const through =
+      row.duesPaidThrough !== null && row.duesPaidThrough > coverage.through
+        ? row.duesPaidThrough
+        : coverage.through
+
+    await tx.duesPayment.create({
+      data: {
+        userId: member.id,
+        plan,
+        amountCents: 0,
+        status: DuesPaymentStatus.SUCCEEDED,
+        // Never a real intent, and shaped so nobody mistakes it for one. Unique
+        // per grant, so the constraint that stops Stripe crediting a payment
+        // twice also stops two officers double-granting on one click.
+        stripePaymentIntentId: `comp_${crypto.randomUUID()}`,
+        termYear: coverage.term.year,
+        termSeason: coverage.term.season,
+        coversThrough: through,
+        paidAt: now,
+        grantedById,
+      },
+    })
+
+    const update = membershipUpdateFor(row, now)
+
+    await tx.user.update({
+      where: { id: member.id },
+      data: { duesPaidThrough: through, ...update },
+    })
+
+    return { through, update }
+  })
+
+  console.log(
+    `dues: ${grantedById} granted ${member.id} a ${plan.toLowerCase()} through ${granted.through.toISOString().slice(0, 10)}${
+      granted.update.role ? ` — now ${granted.update.role}` : ''
+    }`,
+  )
+
+  pushRoles(member.id, `membership granted through ${granted.through.toISOString().slice(0, 10)}`)
+
+  return membershipStanding(granted.through, now)
 }
 
 /**
@@ -663,7 +831,14 @@ export async function applyPayment(intent: {
 
   const credited = await prisma.$transaction(async function credit(
     tx,
-  ): Promise<{ paidThrough: Date | null; changed: MembershipUpdate }> {
+  ): Promise<{
+    paidThrough: Date | null
+    changed: MembershipUpdate
+    /** Whether *this* pass is the one that credited it. Stripe delivers the
+        same payment more than once by design, so "succeeded" is not the same
+        question as "something just changed". */
+    creditedNow: boolean
+  }> {
     const { count } = await tx.duesPayment.updateMany({
       where: { id: payment.id, status: { not: DuesPaymentStatus.SUCCEEDED } },
       data: {
@@ -689,7 +864,11 @@ export async function applyPayment(intent: {
     // Somebody else got here first. Their pass did the crediting *and* the
     // promotion; this one reports the result rather than doing either again.
     if (count === 0 || !user) {
-      return { paidThrough: user?.duesPaidThrough ?? null, changed: {} }
+      return {
+        paidThrough: user?.duesPaidThrough ?? null,
+        changed: {},
+        creditedNow: false,
+      }
     }
 
     const current = user.duesPaidThrough
@@ -708,17 +887,25 @@ export async function applyPayment(intent: {
       data: { duesPaidThrough: extended, ...changed },
     })
 
-    return { paidThrough: extended, changed }
+    return { paidThrough: extended, changed, creditedNow: true }
   })
 
-  if (credited.changed.role) {
+  const { creditedNow, ...outcome } = credited
+
+  if (outcome.changed.role) {
     // Worth a line of its own: this is the only thing on the site that changes
     // somebody's role without an officer doing it, and the log is where anyone
     // wondering why goes to look.
     console.log(
-      `dues: ${payment.userId} paid and is now ${credited.changed.role}. Still off the public roster — that needs a slug an officer sets.`,
+      `dues: ${payment.userId} paid and is now ${outcome.changed.role}. Still off the public roster — that needs a slug an officer sets.`,
     )
   }
 
-  return { status, ...credited, receiptUrl }
+  // Only on the pass that actually credited. The webhook and the browser's
+  // confirm routinely both arrive for one payment, and Stripe re-delivers
+  // besides — pushing on each would ask Discord the same question three times
+  // and get the same answer.
+  if (creditedNow) pushRoles(payment.userId, 'dues paid')
+
+  return { status, ...outcome, receiptUrl }
 }

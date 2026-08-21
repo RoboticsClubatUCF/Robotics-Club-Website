@@ -4,6 +4,7 @@ import { prisma } from './db.js'
 import { env } from './env.js'
 import {
   ProjectMemberRank,
+  Season,
   UserRole,
 } from './generated/prisma/enums.js'
 import { clearCalendarCache } from './semester.js'
@@ -145,6 +146,10 @@ beforeEach(async () => {
     data: {
       slug: `${PREFIX}a`,
       title: 'Authz Project A',
+      // Every project needs a term now. A year nothing real uses, so a
+      // fixture can never collide with the club's own rows.
+      termYear: 2035,
+      termSeason: Season.FALL,
       teams: { create: [{ name: 'Team T' }, { name: 'Team U' }] },
     },
     include: { teams: true },
@@ -154,7 +159,12 @@ beforeEach(async () => {
   teamU = a.teams.find((t) => t.name === 'Team U')!.id
 
   const b = await prisma.project.create({
-    data: { slug: `${PREFIX}b`, title: 'Authz Project B' },
+    data: {
+      slug: `${PREFIX}b`,
+      title: 'Authz Project B',
+      termYear: 2035,
+      termSeason: Season.FALL,
+    },
   })
   projectB = b.id
 
@@ -801,5 +811,85 @@ describe('when dues lapse', () => {
     expect(((await response.json()) as { error: string }).error).not.toMatch(
       /dues/i,
     )
+  })
+})
+
+/**
+ * The three sentences a refusal can carry, and which one you get.
+ *
+ * There is one gate now — `requireCurrentDues`, which is `duesPaidThrough` in
+ * the future and `ADMIN` — where there used to be two. The stricter of the pair
+ * refused a `GUEST` outright and picked its wording from the role; that check
+ * is gone, because nothing can set a dues date without promoting the account in
+ * the same transaction, so it had become a test that could never fail for
+ * anybody who got past the first one.
+ *
+ * What survives is the wording, chosen from the date instead. Getting it the
+ * wrong way round is how somebody two years in reads that they were never a
+ * member, so it is worth a matrix of its own — and it lives here rather than in
+ * `print.test.ts` and `equipment.test.ts` because the sentence turns on whether
+ * a free window is running, and this is the suite with a pinned clock. `NOW` is
+ * mid-fall 2035: term time, well past the fortnight, nothing free on offer.
+ */
+describe('what a refusal says', () => {
+  const asking = (person: Person) =>
+    request('POST', '/api/print', person, {
+      fileId: '00000000-0000-0000-0000-000000000000',
+      material: 'PLA',
+      colour: 'Black',
+      quantity: 1,
+    })
+
+  const refusalFor = async (
+    paidThrough: Date | null,
+    role: UserRole = UserRole.MEMBER,
+  ) => {
+    await prisma.user.update({
+      where: { id: memberIds.memberA },
+      data: { duesPaidThrough: paidThrough, role },
+    })
+
+    const response = await asking('memberA')
+    expect(response.status).toBe(403)
+
+    return ((await response.json()) as { error: string }).error
+  }
+
+  it('tells somebody who never paid what membership is', async () => {
+    expect(await refusalFor(null)).toMatch(/paid-up members/i)
+  })
+
+  it('tells a lapsed member nothing has been taken away', async () => {
+    const error = await refusalFor(LAPSED)
+
+    expect(error).toMatch(/dues have lapsed/i)
+    // The kindness is the whole reason the two are told apart: somebody two
+    // years in must not read that they never joined.
+    expect(error).not.toMatch(/paid-up members/i)
+  })
+
+  /**
+   * A `GUEST` with a date that has run out is a member the sweep demoted, and
+   * gets the lapsed sentence rather than the newcomer's — the role is not what
+   * decides this any more, and this is the case that proves it.
+   */
+  it('reads the date, not the role', async () => {
+    expect(await refusalFor(LAPSED, UserRole.GUEST)).toMatch(/dues have lapsed/i)
+  })
+
+  /**
+   * And the third sentence, which is new: while a free window is running,
+   * quoting a price at somebody would be false. They are one press from being
+   * let in. Checked by moving the clock into the August gap rather than by
+   * moving the fixture, because the window is a property of the calendar.
+   */
+  it('tells somebody to claim it while the window is open', async () => {
+    vi.setSystemTime(new Date('2035-08-15T12:00:00'))
+
+    try {
+      expect(await refusalFor(null)).toMatch(/free right now/i)
+    } finally {
+      vi.setSystemTime(NOW)
+    }
   })
 })

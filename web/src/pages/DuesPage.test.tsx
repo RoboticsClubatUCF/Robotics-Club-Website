@@ -1,7 +1,7 @@
 import { fireEvent, render as renderBare, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { MemoryRouter } from 'react-router'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DuesPage } from './DuesPage'
 import { SessionProvider } from '../lib/auth'
 import type { ApiDuesStatus, ApiTerm } from '../lib/api'
@@ -139,8 +139,30 @@ const json = (body: unknown) =>
     }),
   )
 
+/**
+ * Mid-summer 2026, pinned.
+ *
+ * The claim panel asks whether the billable term has *started* — that is what
+ * separates "the break is free" from "the first two weeks are free", and the
+ * two are different sentences to somebody sitting in class. Against the real
+ * clock this suite would say one thing in August and the other in September,
+ * which is the failure `testing.md` describes: arithmetic tested against today
+ * passes in one month and fails in another.
+ *
+ * Only `Date` is faked. Faking the timers as well would break every
+ * `findByText` below — Testing Library polls by advancing the clock, and a
+ * frozen one never resolves.
+ */
+const MID_SUMMER = new Date('2026-06-20T12:00:00')
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(MID_SUMMER)
+})
+
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.useRealTimers()
 })
 
 describe('DuesPage', () => {
@@ -167,19 +189,22 @@ describe('DuesPage', () => {
    * get wrong: nothing is owed, so there is nothing forcing the page to show a
    * way to pay — and it has to anyway.
    */
-  it('still offers both plans to somebody on the free trial', async () => {
+  it('still offers both plans inside an unclaimed free window', async () => {
     stubApi(
       duesStatus({
         membership: {
-          status: 'TRIAL',
-          hasAccess: true,
+          // `TRIAL` is gone: one continuous window from the end of one
+          // dues-bearing term to two weeks into the next made the split
+          // between "the gap" and "the fortnight" meaningless.
+          status: 'FREE',
+          hasAccess: false,
           duesRequired: false,
           paidThrough: null,
           freeThrough: '2026-09-07T04:00:00.000Z',
           term: fall,
           billable: fall,
           freeActive: false,
-          canActivate: false,
+          canActivate: true,
         },
       }),
     )
@@ -275,7 +300,10 @@ describe('DuesPage', () => {
       duesStatus({
         membership: {
           status: 'FREE',
-          hasAccess: true,
+          // `FREE` is *not* access any more — it is "the club is charging
+          // nobody and this person has not claimed it". The fixture said
+          // `true` here from when the calendar covered everybody.
+          hasAccess: false,
           duesRequired: false,
           paidThrough: null,
           freeThrough: '2026-09-07T04:00:00.000Z',
@@ -301,6 +329,51 @@ describe('DuesPage', () => {
       expect(
         screen.getByRole('button', { name: /activate my membership/i }),
       ).toBeEnabled()
+    })
+
+    /**
+     * The phase that did not exist before, and the one this panel got wrong.
+     *
+     * The window used to stop on the term's first day, so "summer or a break"
+     * covered every case it could be shown in. It now runs a fortnight *into*
+     * the term — and calling that "the break" to somebody in week one of
+     * classes is plainly wrong to the person reading it.
+     */
+    it('calls the opening fortnight what it is, not a break', async () => {
+      vi.setSystemTime(new Date('2026-08-30T12:00:00'))
+      // Term has started, so `term` is fall rather than summer.
+      stubApi(freeSummer({ term: fall }))
+      render()
+
+      expect(await screen.findByText('THE FIRST TWO WEEKS')).toBeInTheDocument()
+      expect(screen.queryByText('BETWEEN SEMESTERS')).not.toBeInTheDocument()
+      expect(screen.queryByText('SUMMER MEMBERSHIP')).not.toBeInTheDocument()
+      expect(
+        screen.getByText(/first two weeks of Fall 2026 are free/i),
+      ).toBeInTheDocument()
+    })
+
+    it('still calls the gap before a term a break', async () => {
+      // Four days before fall opens: no longer summer, not yet term time.
+      vi.setSystemTime(new Date('2026-08-20T12:00:00'))
+      stubApi(freeSummer({ term: fall }))
+      render()
+
+      expect(await screen.findByText('BETWEEN SEMESTERS')).toBeInTheDocument()
+      expect(screen.queryByText('THE FIRST TWO WEEKS')).not.toBeInTheDocument()
+    })
+
+    /**
+     * The heading is the first thing read, and "Your membership." to somebody
+     * who has none is the page agreeing that nothing needs doing.
+     */
+    it('heads the page with the thing to do', async () => {
+      stubApi(freeSummer())
+      render()
+
+      expect(await screen.findByText('Switch it on.')).toBeInTheDocument()
+      expect(screen.queryByText('Your membership.')).not.toBeInTheDocument()
+      expect(screen.queryByText('Time to renew.')).not.toBeInTheDocument()
     })
 
     it('claims it and re-reads where that leaves them', async () => {
@@ -654,6 +727,8 @@ describe('DuesPage', () => {
             termYear: 2026,
             termSeason: 'FALL',
             coversThrough: spring.endsAt,
+            // Stripe collected it, so nobody granted it.
+            grantedBy: null,
             paidAt: '2026-08-30T15:00:00.000Z',
             receiptUrl: 'https://pay.stripe.com/receipts/test',
           },
@@ -669,5 +744,41 @@ describe('DuesPage', () => {
       'href',
       'https://pay.stripe.com/receipts/test',
     )
+  })
+
+  /**
+   * A term an officer comped is a row here too, with their name on it. Without
+   * that, somebody who paid a treasurer in cash sees a dues page saying they
+   * have never paid anything — which was the state before the grant route
+   * existed, because the officer edited the column by hand and nothing else.
+   *
+   * "$0.00" would be the literal truth about the money and the wrong sentence
+   * about what happened, so the amount is replaced rather than printed.
+   */
+  it('shows a comped term as granted, with who granted it', async () => {
+    stubApi(
+      duesStatus({
+        history: [
+          {
+            id: 'p2',
+            plan: 'SEMESTER',
+            amountCents: 0,
+            termYear: 2026,
+            termSeason: 'FALL',
+            coversThrough: fall.endsAt,
+            grantedBy: 'Alex Chen',
+            paidAt: '2026-08-30T15:00:00.000Z',
+            receiptUrl: null,
+          },
+        ],
+      }),
+    )
+    render()
+
+    expect(await screen.findByText('Granted')).toBeInTheDocument()
+    expect(screen.getByText(/by Alex Chen/)).toBeInTheDocument()
+    expect(screen.queryByText('$0.00')).not.toBeInTheDocument()
+    // Nothing to link to: no money moved, so Stripe has no receipt page.
+    expect(screen.queryByRole('link', { name: 'RECEIPT' })).not.toBeInTheDocument()
   })
 })

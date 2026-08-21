@@ -98,10 +98,20 @@ export async function demoteIfLapsed(user: {
     return user.role
   }
 
-  // Past the date is not the same as expired: the summer, the break between
-  // terms and the trial fortnight all still cover them.
+  // **`duesRequired`, not `hasAccess`** — and the difference is the reason this
+  // line exists at all. Access is now the date alone, so by this point
+  // `hasAccess` is already false and reading it would demote somebody the
+  // moment their date passed, in the middle of a free window they have not got
+  // round to claiming. `duesRequired` asks the other question: is anything
+  // actually owed, or is the club not charging this week?
+  //
+  // Which keeps the *roster* role and *access* apart on purpose. Access went
+  // the day the date did; the role is "have you joined and not drifted away",
+  // and dropping somebody off the public roster during a fortnight when the
+  // club is charging nobody would be churn rather than information. The sweep
+  // below turns on exactly the same condition, and the two must not diverge.
   const standing = await membershipStanding(user.duesPaidThrough, now)
-  if (standing.hasAccess) return user.role
+  if (!standing.duesRequired) return user.role
 
   // Guarded on the role, so two requests racing write once. A failure here is
   // not worth failing the request over — the sweep will pick them up.
@@ -121,14 +131,17 @@ export async function demoteIfLapsed(user: {
 export async function sweepLapsedMembers(
   now: Date = new Date(),
 ): Promise<SweepReport> {
-  // Whether anybody *can* be expired right now is a property of the calendar,
-  // not of any one person: `stillFree` covers the summer, the gap between terms
-  // and the trial fortnight for everybody at once. So one probe with no payment
-  // behind it answers it for the whole roster, and most of the year this is
-  // where the sweep stops.
+  // Whether the club is charging anybody right now is a property of the
+  // calendar rather than of any one person — the free window runs for everybody
+  // at once — so one probe with no payment behind it answers it for the whole
+  // roster, and most of the year this is where the sweep stops.
+  //
+  // `duesRequired` is the same condition `demoteIfLapsed` uses above, and they
+  // have to stay the same one: the live path and the timer disagreeing means a
+  // member's role depends on whether they happened to load a page.
   const standing = await membershipStanding(null, now)
 
-  if (standing.status !== 'EXPIRED') return { demoted: 0, skipped: 'nothing-is-expired' }
+  if (!standing.duesRequired) return { demoted: 0, skipped: 'nothing-is-expired' }
 
   if (!standing.billable.fromCalendar) {
     console.warn(

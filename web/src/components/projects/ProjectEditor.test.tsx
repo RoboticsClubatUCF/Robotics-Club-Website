@@ -20,6 +20,10 @@ const project = (over: Partial<ApiProjectDetail> = {}): ApiProjectDetail => ({
   summary: null,
   description: null,
   season: null,
+  // Every project carries the term it is built for, and the dashboard
+  // splits on it. Pinned rather than left to today's date.
+  termYear: 2035,
+  termSeason: 'FALL',
   competition: null,
   status: 'IN_PROGRESS',
   coverUrl: null,

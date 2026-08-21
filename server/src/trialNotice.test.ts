@@ -129,7 +129,13 @@ describe('sweepTrialNotices', () => {
     const report = await sweepTrialNotices(JUST_AFTER_TRIAL)
 
     expect(report.sent).toBeGreaterThanOrEqual(1)
-    expect(dm).toHaveBeenCalledWith(DISCORD_ID, expect.stringContaining('trial'))
+    // The message is about the free window closing rather than a personal
+    // trial ending, because that is what it now is: one calendar window for
+    // everybody, and the moment it shuts is the moment access stops.
+    expect(dm).toHaveBeenCalledWith(
+      DISCORD_ID,
+      expect.stringContaining('free window'),
+    )
 
     const notice = await prisma.trialNotice.findFirst({ where: { userId: id } })
     expect(notice?.deliveredAt).toBeInstanceOf(Date)
@@ -212,7 +218,7 @@ describe('sweepTrialNotices', () => {
     const { id } = await unpaidMember({ discordId: null })
     lookup.mockImplementation(async (handle) =>
       handle === HANDLE
-        ? { status: 'connected', username: HANDLE, id: DISCORD_ID }
+        ? { status: 'connected', username: HANDLE, id: DISCORD_ID, roles: [] }
         : { status: 'not_found' },
     )
 
@@ -245,7 +251,7 @@ describe('sweepTrialNotices', () => {
     // Discord comes back, and the message goes out on the next sweep.
     lookup.mockImplementation(async (handle) =>
       handle === HANDLE
-        ? { status: 'connected', username: HANDLE, id: DISCORD_ID }
+        ? { status: 'connected', username: HANDLE, id: DISCORD_ID, roles: [] }
         : { status: 'not_found' },
     )
     await sweepTrialNotices(JUST_AFTER_TRIAL)

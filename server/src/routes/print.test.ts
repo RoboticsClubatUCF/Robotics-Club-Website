@@ -2,8 +2,11 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { app } from '../app.js'
 import { prisma } from '../db.js'
 import { env } from '../env.js'
-import { PrintRequestStatus, UserRole } from '../generated/prisma/enums.js'
-import type { Season } from '../generated/prisma/enums.js'
+import {
+  PrintRequestStatus,
+  Season,
+  UserRole,
+} from '../generated/prisma/enums.js'
 import { currentTerm } from '../semester.js'
 import { createSession } from '../session.js'
 
@@ -119,11 +122,18 @@ beforeEach(async () => {
       data: {
         slug: `${PREFIX}mine`,
         title: 'Print Fixture Rover',
+        termYear: 2035,
+        termSeason: Season.FALL,
         members: { create: { userId: member.id } },
       },
     }),
     prisma.project.create({
-      data: { slug: `${PREFIX}theirs`, title: 'Print Fixture Blimp' },
+      data: {
+        slug: `${PREFIX}theirs`,
+        title: 'Print Fixture Blimp',
+        termYear: 2035,
+        termSeason: Season.FALL,
+      },
     }),
   ])
 
@@ -374,132 +384,69 @@ describe('submitting', () => {
 /**
  * Who may ask at all.
  *
- * The printers run on club money, so they want a **member** rather than anybody
- * with an account. This is a different question from whether dues are current,
- * and the difference is the whole point: the summer, the break between terms
- * and the trial fortnight all report `hasAccess: true` for *everyone*, so
- * standing alone would let an account made ten minutes ago order prints.
+ * The printers run on club money, and the gate is now the same one everything
+ * else uses: `duesPaidThrough` in the future, `ADMIN` aside. This used to be a
+ * stricter check of its own that refused a `GUEST` whatever their standing —
+ * necessary while the summer and the opening fortnight reported access for
+ * everybody, and redundant the moment access became the date, since nothing can
+ * set that date without promoting the account in the same transaction.
+ *
+ * The wording each refusal gets is `authz.test.ts`'s matrix, which pins its
+ * clock; those assertions turn on which sentence, and the sentence turns on
+ * whether a free window is running today. What is checked here is that this
+ * router is behind the gate at all.
  */
-describe('guests', () => {
-  /**
-   * The clock is deliberately not pinned here, and the fixtures are why. Both
-   * accounts carry the same `duesPaidThrough`, so whatever the calendar says
-   * today it says about both of them equally — the only thing that differs is
-   * the role, which makes this a test of the role and nothing else. Pinning a
-   * date would only have hidden that.
-   */
-  it('are refused where a member with the same dues is not', async () => {
-    const [guest, member] = await Promise.all([
-      prisma.user.create({
-        data: {
-          fullName: 'Print Guest',
-          email: email('guest'),
-          role: UserRole.GUEST,
-          duesPaidThrough: PAID_UP,
-        },
-      }),
-      prisma.user.create({
-        data: {
-          fullName: 'Print Joined',
-          email: email('joined'),
-          role: UserRole.MEMBER,
-          duesPaidThrough: PAID_UP,
-        },
-      }),
-    ])
+describe('who may ask', () => {
+  it('refuses an account with no cover', async () => {
+    const lapsed = await prisma.user.create({
+      data: {
+        fullName: 'Print Lapsed',
+        email: email('lapsed'),
+        role: UserRole.MEMBER,
+        duesPaidThrough: new Date('2024-01-15T00:00:00'),
+      },
+    })
 
-    const refused = await upload(await cookieFor(guest.id), 'part.stl', asciiStl())
-    expect(refused.status).toBe(403)
+    const response = await upload(await cookieFor(lapsed.id), 'part.stl', asciiStl())
 
-    const accepted = await upload(await cookieFor(member.id), 'part.stl', asciiStl())
-    expect(accepted.status).toBe(201)
+    expect(response.status).toBe(403)
   })
 
-  it('are told what membership is, not that their dues lapsed', async () => {
+  /**
+   * **The role does not decide this any more, and that is the change.** A
+   * `GUEST` carrying a live date is somebody an officer set a date on by hand,
+   * and under one rule they are covered — the old check refused them for a
+   * reason that no longer exists.
+   */
+  it('lets a covered account through whatever its role says', async () => {
     const guest = await prisma.user.create({
       data: {
-        fullName: 'Print Newcomer',
-        email: email('newcomer'),
+        fullName: 'Print Covered Guest',
+        email: email('guest'),
         role: UserRole.GUEST,
-        // Never paid anything, which is what makes them a newcomer rather than
-        // somebody the sweep demoted.
-        duesPaidThrough: null,
+        duesPaidThrough: PAID_UP,
       },
     })
 
     const response = await upload(await cookieFor(guest.id), 'part.stl', asciiStl())
 
-    expect(response.status).toBe(403)
-    expect(await response.json()).toMatchObject({
-      error: expect.stringContaining('club members'),
-    })
+    expect(response.status).toBe(201)
   })
 
-  /**
-   * A lapsed member *is* a guest — `demoteIfLapsed` moves them — and telling
-   * somebody who has been in the club two years that they have not joined
-   * would be both wrong and unkind. `duesPaidThrough` tells the two apart.
-   */
-  it('who are demoted members get the lapsed wording instead', async () => {
-    const demoted = await prisma.user.create({
-      data: {
-        fullName: 'Print Lapsed',
-        email: email('lapsed'),
-        role: UserRole.GUEST,
-        // A date that has genuinely gone by, not this file's 2035 fixtures:
-        // "were they ever a member" is read against the clock, so a date still
-        // running would mean an officer set the role by hand — which is the
-        // newcomer's wording, not this one.
-        duesPaidThrough: new Date('2024-01-15T00:00:00'),
-      },
-    })
-
-    const response = await upload(await cookieFor(demoted.id), 'part.stl', asciiStl())
-
-    expect(response.status).toBe(403)
-    expect(await response.json()).toMatchObject({
-      error: expect.stringContaining('lapsed'),
-    })
-  })
-
-  /**
-   * A guest whose dues are still running cannot have got there by paying —
-   * that promotes in the same transaction — so it is an officer having set the
-   * role by hand. Telling them their dues lapsed would be plainly false: they
-   * are covered, and what they are not is a member.
-   */
-  it('set back by an officer while still covered are not told they lapsed', async () => {
-    const demoted = await prisma.user.create({
-      data: {
-        fullName: 'Print Set Back',
-        email: email('setback'),
-        role: UserRole.GUEST,
-        duesPaidThrough: PAID_UP,
-      },
-    })
-
-    const response = await upload(await cookieFor(demoted.id), 'part.stl', asciiStl())
-
-    expect(response.status).toBe(403)
-    expect(await response.json()).toMatchObject({
-      error: expect.stringContaining('club members'),
-    })
-  })
-
-  it('cannot withdraw either, so the whole router is shut', async () => {
+  it('shuts the whole router, not just the submit route', async () => {
     const id = await submit()
-    const guest = await prisma.user.create({
+    const lapsed = await prisma.user.create({
       data: {
-        fullName: 'Print Guest Two',
-        email: email('guest2'),
-        role: UserRole.GUEST,
-        duesPaidThrough: PAID_UP,
+        fullName: 'Print Lapsed Two',
+        email: email('lapsed2'),
+        role: UserRole.MEMBER,
+        duesPaidThrough: new Date('2024-01-15T00:00:00'),
       },
     })
 
     const response = await app.request(`/api/print/${id}`, {
       method: 'DELETE',
-      headers: { cookie: await cookieFor(guest.id) },
+      headers: { cookie: await cookieFor(lapsed.id) },
     })
 
     expect(response.status).toBe(403)

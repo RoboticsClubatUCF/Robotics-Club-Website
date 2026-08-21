@@ -4,6 +4,8 @@ import { z } from 'zod'
 import { isOfficer } from '../authz.js'
 import { prisma } from '../db.js'
 import { allowanceFor } from '../printAllowance.js'
+import { isCurrentTerm } from '../projectTerm.js'
+import { currentTerm } from '../semester.js'
 import { type AuthEnv, requireAuth } from '../session.js'
 import { loanSelect } from './equipment.js'
 import { managedProjectSelect } from './officer.js'
@@ -12,7 +14,7 @@ import { printSelect } from './print.js'
 /**
  * The signed-in member's own view of the club — everything here is "mine".
  *
- *   GET /api/me/projects        -> my memberships: project, rank, team
+ *   GET /api/me/projects        -> my memberships: project, rank, team, term
  *   GET /api/me/events?from&to  -> the calendar as I see it
  *   GET /api/me/tasks           -> the open tasks with my name on them
  *   GET /api/me/print-requests  -> my 3D print requests, newest first
@@ -25,21 +27,48 @@ import { printSelect } from './print.js'
  */
 export const me = new Hono<AuthEnv>()
 
+/**
+ * Every membership, this term's and every term's, each one flagged.
+ *
+ * Filtered here it would be a smaller response and a worse one. The dashboard
+ * reads this once for the whole section and hands it to the rail, the overview
+ * and every project page under it — including a *past* project's manage page,
+ * which resolves the project by finding its slug in this list. Dropping last
+ * term's rows would take that page away from the lead who ran it.
+ *
+ * So the split is a flag, and the two audiences filter it in opposite
+ * directions. It also costs nothing: the past-projects page needs no request of
+ * its own.
+ */
 me.get('/projects', requireAuth, async (c) => {
-  const memberships = await prisma.projectMember.findMany({
-    where: { userId: c.get('user').id },
-    orderBy: { project: { title: 'asc' } },
-    select: {
-      rank: true,
-      title: true,
-      team: { select: { id: true, name: true } },
-      // The managed select rather than the public one: the dashboard prints
-      // the meeting line, which public listings have no use for.
-      project: { select: managedProjectSelect },
-    },
-  })
+  const [memberships, term] = await Promise.all([
+    prisma.projectMember.findMany({
+      where: { userId: c.get('user').id },
+      orderBy: { project: { title: 'asc' } },
+      select: {
+        rank: true,
+        title: true,
+        team: { select: { id: true, name: true } },
+        // The managed select rather than the public one: the dashboard prints
+        // the meeting line, which public listings have no use for.
+        project: { select: managedProjectSelect },
+      },
+    }),
+    // Cached for a day per instance, so this is arithmetic rather than a read
+    // of UCF's calendar on every dashboard load.
+    currentTerm(),
+  ])
 
-  return c.json(memberships)
+  return c.json(
+    memberships.map((membership) => ({
+      ...membership,
+      // Beside `rank`, not inside `project`. Everything in there is a column,
+      // and a computed flag sitting among them is the thing somebody later
+      // "tidies up" into the database — where it would be wrong for a
+      // fortnight every August and need a sweep to fix.
+      current: isCurrentTerm(membership.project, term),
+    })),
+  )
 })
 
 /**

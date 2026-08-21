@@ -1,5 +1,6 @@
 import { prisma } from '../src/db.js'
 import { hashPassword } from '../src/password.js'
+import { currentTerm } from '../src/semester.js'
 
 /**
  * Placeholder content so the site has something to render in development.
@@ -719,13 +720,28 @@ async function main() {
     })
   }
 
+  // Which term the seeded projects are built for, asked once.
+  //
+  // Computed rather than written down, so a fresh development database has
+  // projects that read as *current* on the dashboard rather than an empty
+  // MY PROJECTS and a full past-projects page. `currentTerm` falls back to
+  // fixed dates when calendar.ucf.edu cannot be read, so this never fails the
+  // seed — approximately the right term is entirely good enough for fixtures.
+  const term = await currentTerm()
+  const seededTerm = { termYear: term.year, termSeason: term.season }
+
   // Upsert only: deleting a project from the array above will not remove it
   // from a database that already has it. Delete those by hand, or in Studio.
+  //
+  // The term goes in `create` and deliberately not in `update`. Rolling a build
+  // into the next semester is an officer's edit on a real project, and a seed
+  // that re-stamped it on every run would quietly undo that — the one way this
+  // script could destroy work rather than top it up.
   for (const { leads, ...project } of projects) {
     const row = await prisma.project.upsert({
       where: { slug: project.slug },
       update: project,
-      create: project,
+      create: { ...project, ...seededTerm },
     })
 
     await seedPlaceholderPage(row.id, project.title)
@@ -753,7 +769,7 @@ async function main() {
     const created = await prisma.project.upsert({
       where: { slug: project.slug },
       update: project,
-      create: project,
+      create: { ...project, ...seededTerm },
     })
 
     await seedPlaceholderPage(created.id, project.title)

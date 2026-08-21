@@ -2,8 +2,9 @@ import { useCallback, useEffect, useId, useState } from 'react'
 import { useOutletContext } from 'react-router'
 import { DuesLocked } from '../components/dashboard/DuesLocked'
 import type { DashboardContext } from '../components/dashboard/DashboardLayout'
+import { ClaimFree } from '../components/dashboard/ClaimFree'
 import { MembersOnly } from '../components/dashboard/MembersOnly'
-import { memberLocked } from '../lib/dues'
+import { accessLock } from '../lib/dues'
 import {
   FormEyebrow,
   FormHeading,
@@ -145,10 +146,17 @@ function explain(error: unknown): string {
 export function EquipmentPage() {
   const dashboard = useOutletContext<DashboardContext | null>()
   const lock = dashboard
-    ? memberLocked(dashboard.membership, dashboard.user.role)
+    ? accessLock(dashboard.membership, dashboard.user.role)
     : null
 
-  if (lock === 'guest') {
+  // Three locks, three sentences — see `accessLock` in `lib/dues.ts`. The
+  // free one is the state that did not exist before: the club is charging
+  // nobody and this person has still not claimed it.
+  if (lock === 'claim') {
+    return <ClaimFree eyebrow="/ EQUIPMENT" thing="The club's tools" />
+  }
+
+  if (lock === 'newcomer') {
     return <MembersOnly eyebrow="/ EQUIPMENT" thing="The club's tools" />
   }
 

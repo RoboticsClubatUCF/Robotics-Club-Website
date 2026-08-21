@@ -30,17 +30,19 @@ import type { AuthEnv, SessionUser } from './session.js'
  * member who genuinely lacks the rank gets nothing useful from a more specific
  * answer either — the fix is "ask your lead" in every case.
  *
- * **Running anything needs current dues.** Every check below ends with
- * `requireCurrentDues`, so a lead or an officer whose dues have lapsed keeps
- * their rank and loses the tools until they pay. Reading does not: nothing gates
- * `requireProjectMember`, because somebody who has let their dues run out is
- * still on their projects and can still see them. `ADMIN` is exempt from all of
- * it — the club cannot be in a position where the only person who can fix a
- * membership problem is locked out by one.
+ * **Doing anything needs current dues, and current dues is one date.** Every
+ * check below ends with `requireCurrentDues`, which is `duesPaidThrough > now`
+ * and nothing else — the same question the dashboard draws its padlocks from
+ * and the same one the Discord bot asks before handing out the Members role.
+ * There is exactly one exemption, `ADMIN`, because the club cannot be in a
+ * position where the only person who can fix a membership problem is locked out
+ * by one. **Officers are not exempt**: a lead or an officer whose dues have
+ * lapsed keeps their rank and loses the tools until they pay.
  *
- * **Asking the club for something needs membership on top of that.**
- * `requireClubMember` refuses a `GUEST` outright, because having an account is
- * not the same as having joined — see the long note on it below.
+ * **Reading is never gated.** Nothing checks dues in `requireProjectMember`,
+ * because somebody who has let their dues run out is still on their projects
+ * and can still look at them — they simply cannot change anything. That line is
+ * the whole of what a lapsed member keeps, and it must not grow a dues check.
  *
  * The dues check runs *after* the rank check, and that order is deliberate.
  * Somebody who was never a lead gets the ordinary 403 rather than a note about
@@ -59,23 +61,51 @@ export const isAdmin = (user: SessionUser): boolean =>
 const LAPSED =
   'Your dues have lapsed. Pay them and everything comes straight back — your projects and your standing on them have not changed.'
 
+const NEVER_PAID =
+  'This is for paid-up members. Dues take a minute on the dues page, and everything opens the moment they go through.'
+
+const CLAIM_IT =
+  'Membership is free right now — claim it on the dues page and this opens straight away. It takes one press and costs nothing.'
+
 /**
- * Running things is for paid-up members.
+ * The one gate. Everything on this site that is not reading goes through here.
  *
- * `hasAccess` rather than the date, like everywhere else on the site: the
- * summer, the gap between terms and the trial fortnight all count as covered,
- * and a free window somebody has claimed is that same date moved forward. So
- * this only ever bites in term time, and only somebody who genuinely owes.
+ * **`hasAccess` is `duesPaidThrough > now` and nothing else**, so this is the
+ * same question the Discord bot asks before handing out the Members role and
+ * the same one the dashboard asks before drawing a padlock. There is no longer
+ * a second, looser notion of access for the summer or the opening fortnight:
+ * those are free, but they are *claimed*, and claiming puts a real date on the
+ * row like paying does.
  *
  * `ADMIN` is exempt and always will be. Whoever can fix a membership must not
  * be lockable out by a membership — that is how a club ends up with nobody able
- * to put it right.
+ * to put it right. **Nothing else is exempt, officers included.** A board that
+ * has not paid is a board that cannot reach its own desks, which is the club's
+ * decision and not this file's to soften.
+ *
+ * Three refusals, because they need three different sentences and getting them
+ * the wrong way round is how somebody two years in reads that they were never
+ * a member:
+ *
+ *   - a free window is running → say so, because they are one press from being
+ *     let in and quoting a price at them would be false;
+ *   - a date that has run out → they are a member who lapsed, and nothing has
+ *     been taken away permanently;
+ *   - no date ever → a newcomer, who is told what membership is.
  */
 export async function requireCurrentDues(user: SessionUser): Promise<void> {
   if (isAdmin(user)) return
 
   const standing = await membershipStanding(user.duesPaidThrough)
-  if (!standing.hasAccess) throw new HTTPException(403, { message: LAPSED })
+  if (standing.hasAccess) return
+
+  throw new HTTPException(403, {
+    message: standing.canActivate
+      ? CLAIM_IT
+      : user.duesPaidThrough === null
+        ? NEVER_PAID
+        : LAPSED,
+  })
 }
 
 /**
@@ -95,66 +125,24 @@ export const requireDuesForRoute: MiddlewareHandler<AuthEnv> = async (
   await next()
 }
 
-const NOT_A_MEMBER =
-  'This is for club members. Pay your dues — or claim the free window, if one is running — and it opens straight away.'
-
 /**
- * Asking the club for something is for members, not for anyone with an account.
+ * There used to be a second, stricter gate here, and it is gone on purpose.
  *
- * **A `GUEST` is refused outright here, whatever their standing says**, and that
- * is a different question from the one `requireCurrentDues` answers. Two things
- * have to be true to consume club resources, and they are genuinely
- * independent:
+ * `requireClubMember` refused a `GUEST` outright *on top of* the dues check,
+ * and it existed for one reason: coverage alone would have let an account made
+ * ten minutes ago order prints, because the summer and the opening fortnight
+ * reported `hasAccess: true` for everybody. That is no longer true. Access is
+ * now `duesPaidThrough > now`, which can only be set by paying, claiming or an
+ * officer granting — and all three promote a `GUEST` in the same transaction.
+ * So the role check had become a test that could never fail for anybody who had
+ * got past the first one, and two gates that always agree are one gate and a
+ * place for them to stop agreeing.
  *
- *   - *Are you a member of the club at all?* — the role, and only `GUEST` fails.
- *   - *Are your dues current?* — `membershipStanding`, never the role.
- *
- * The second is why the standing rule elsewhere still holds: the sweep can be
- * an hour behind and nothing breaks, because coverage is asked at the moment of
- * the request. But coverage alone would let anybody who signed up ten minutes
- * ago order prints, because the summer, the break between terms and the trial
- * fortnight all report `hasAccess: true` for *everyone* — that is what makes
- * them free, and it is not the same thing as having joined.
- *
- * Nothing is lost by it. A guest becomes a member on one page: paying does it,
- * and so does claiming a free window, which costs nothing and is one press —
- * both go through `membershipUpdateFor`, so the promotion lands in the same
- * transaction as the date.
- *
- * Which sentence they get turns on `duesPaidThrough`, the same signal the
- * demotion sweep reads: **a date that has run out** means this is a member the
- * sweep demoted, and "nothing has been taken away" is the true and kinder thing
- * to say to them. Getting that the wrong way round is how somebody who has been
- * in the club two years reads that they are not in it.
- *
- * Both other shapes get the newcomer's wording, and the second is the one worth
- * spelling out. A null date is somebody the site never promoted. A date still
- * *running* on an account that is nonetheless a `GUEST` cannot happen by paying
- * — that promotes in the same transaction — so it is an officer having set the
- * role by hand, and telling that person their dues lapsed would be plainly
- * false: they are covered, and what they are not is a member.
+ * 3D printing and equipment borrowing now use `requireDuesForRoute` like
+ * everything else. The two *sentences* survive — a newcomer and a lapsed member
+ * still hear different things — but they are chosen in `requireCurrentDues`
+ * from the date rather than from the role.
  */
-export async function requireClubMember(user: SessionUser): Promise<void> {
-  if (isAdmin(user)) return
-
-  if (user.role === UserRole.GUEST) {
-    const lapsed =
-      user.duesPaidThrough !== null && user.duesPaidThrough <= new Date()
-
-    throw new HTTPException(403, { message: lapsed ? LAPSED : NOT_A_MEMBER })
-  }
-
-  await requireCurrentDues(user)
-}
-
-/** The same, as middleware, for the print and equipment routers. */
-export const requireMemberForRoute: MiddlewareHandler<AuthEnv> = async (
-  c,
-  next,
-) => {
-  await requireClubMember(c.get('user'))
-  await next()
-}
 
 /** For the routes that are officer business outright — queues, appointments. */
 export const requireOfficer: MiddlewareHandler<AuthEnv> = async (c, next) => {

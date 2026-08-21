@@ -19,12 +19,19 @@ const membership = (over: Partial<ApiMyProject['project']> = {}): ApiMyProject =
   rank: 'MEMBER',
   title: null,
   team: null,
+  // The dashboard splits MY PROJECTS on this, so every fixture has to say
+  // which side it is on.
+  current: true,
   project: {
     id: 'p1',
     slug: 'rover',
     title: 'Rover',
     summary: null,
     season: null,
+    // Every project carries the term it is built for, and the dashboard
+    // splits on it. Pinned rather than left to today's date.
+    termYear: 2035,
+    termSeason: 'FALL',
     competition: null,
     status: 'IN_PROGRESS',
     coverUrl: null,
@@ -35,6 +42,7 @@ const membership = (over: Partial<ApiMyProject['project']> = {}): ApiMyProject =
     meetingWeekday: 4,
     meetingTime: '18:30',
     meetingLocation: 'ENG2 Lab',
+    discordRoleId: null,
     ...over,
   },
 })

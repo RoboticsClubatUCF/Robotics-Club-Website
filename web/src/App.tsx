@@ -13,6 +13,8 @@ import { NotFoundPage } from './pages/NotFoundPage'
 import { OfficerEquipmentPage } from './pages/OfficerEquipmentPage'
 import { OfficerPrintQueuePage } from './pages/OfficerPrintQueuePage'
 import { OfficerProjectsPage } from './pages/OfficerProjectsPage'
+import { OfficerRolesPage } from './pages/OfficerRolesPage'
+import { PastProjectsPage } from './pages/PastProjectsPage'
 import { PrintRequestPage } from './pages/PrintRequestPage'
 import { ProjectDashboardPage } from './pages/ProjectDashboardPage'
 import { ProjectManagePage } from './pages/ProjectManagePage'
@@ -59,8 +61,14 @@ function App() {
               <Route path="dues" element={<DuesPage />} />
               <Route path="print" element={<PrintRequestPage />} />
               <Route path="equipment" element={<EquipmentPage />} />
+              {/* Before the `:slug` routes below. React Router ranks a static
+                  segment above a dynamic one whatever the order here, so this
+                  is for the reader — but it is also the reminder that a project
+                  slugged `past` would be unreachable from the dashboard. */}
+              <Route path="projects/past" element={<PastProjectsPage />} />
               <Route path="projects/:slug" element={<ProjectDashboardPage />} />
               <Route path="projects/:slug/manage" element={<ProjectManagePage />} />
+              <Route path="officer/roles" element={<OfficerRolesPage />} />
               <Route path="officer/projects" element={<OfficerProjectsPage />} />
               <Route path="officer/print" element={<OfficerPrintQueuePage />} />
               <Route path="officer/equipment" element={<OfficerEquipmentPage />} />

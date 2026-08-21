@@ -22,11 +22,23 @@ datasource db {
 /// here as roster labels, spelled identically to that column and meaning
 /// something else entirely, which is exactly as confusing as it sounds.
 ///
-/// The site writes this column in two places and neither one may ever touch
-/// `OFFICER` or `ADMIN`: `membershipUpdateFor` in `src/routes/dues.ts` moves a
-/// `GUEST` who pays or claims a free window up to `MEMBER`, and
-/// `src/membershipSweep.ts` puts a lapsed `MEMBER` back to `GUEST`. Everything
-/// above `MEMBER` is conferred by a person, not by the site.
+/// Three writers, and each owns exactly one edge of the ladder.
+///
+///   - **Dues** move people between `MEMBER` and `GUEST`. `membershipUpdateFor`
+///     in `src/routes/dues.ts` promotes a `GUEST` who pays, claims a free window
+///     or is granted a term by an officer; `src/membershipSweep.ts` puts a
+///     lapsed `MEMBER` back down.
+///   - **The club's Discord officer role** moves people between `OFFICER` and
+///     whichever of `MEMBER`/`GUEST` their dues say — `src/discordOfficers.ts`,
+///     and only when `DISCORD_OFFICER_ROLE_ID` is configured. The board is
+///     appointed in Discord and the site follows.
+///   - **A human**, for `ADMIN`, in Prisma Studio. Nothing in this codebase
+///     writes or clears `ADMIN`, in either direction, and the sync excludes it
+///     structurally rather than by a check it could get wrong.
+///
+/// So no writer crosses more than one boundary, and the two automatic ones hand
+/// off cleanly: an ex-officer is handed back to the dues loop at whatever the
+/// dues loop would have said about them.
 ///
 /// Declaration order is load-bearing twice over: Postgres sorts an enum by the
 /// order its values were declared, so this is both the permission ranking and
@@ -129,6 +141,7 @@ model User {
   projects        ProjectMember[]
   sessions        Session[]
   duesPayments    DuesPayment[]
+  grantedDues     DuesPayment[]   @relation("grantedDues")
   trialNotices    TrialNotice[]
   createdEvents   Event[]         @relation("createdEvents")
   createdTasks    Task[]          @relation("createdTasks")
@@ -181,6 +194,32 @@ model Project {
   summary     String? // one-liner for cards
   description String? // long form, markdown
   season      String? // e.g. "2025-2026"
+
+  /// The term this project is being built for — and the only thing that can
+  /// answer "is this one of ours *now*".
+  ///
+  /// Two columns about when, and the split is the point: `season` above is free
+  /// text a lead types, and the rows prove it — the seed alone carries
+  /// "Spring 2026", "June 2026", "Season-long" and "Year-round". It prints well
+  /// under a title and compares, sorts and filters not at all. **`season`
+  /// prints; this pair decides.** Same `(termYear, termSeason)` that
+  /// `DuesPayment` and `TrialNotice` carry, so one `currentTerm()` answers what
+  /// is current across dues, print allowances and projects rather than three
+  /// ideas of the club's year drifting apart.
+  ///
+  /// Required, unlike every other descriptive column here, and deliberately so:
+  /// a nullable term is a project that silently never reads as current and
+  /// nobody notices for a semester. Existing rows were stamped once from
+  /// `startedAt ?? createdAt` by the migration that added these, and nothing
+  /// re-derives them afterwards — a build that runs on into the next term is
+  /// either edited forward or duplicated, and both are decisions a person makes.
+  ///
+  /// No index. `DuesPayment` and `TrialNotice` carry one because they grow a row
+  /// per member per term; this table grows a handful a year and Postgres will
+  /// sequential-scan it whatever the plan says.
+  termYear    Int           @map("term_year")
+  termSeason  Season        @map("term_season")
+
   // The competition or partner org a project is built for, e.g. "UNIVERSITY
   // ROVER CHALLENGE". Free text rather than a relation: it is a label the site
   // prints, nothing joins on it, and a club project may have no competition.
@@ -202,6 +241,22 @@ model Project {
   meetingWeekday  Int?    @map("meeting_weekday")
   meetingTime     String? @map("meeting_time")
   meetingLocation String? @map("meeting_location")
+
+  /// The Discord role this project's crew carries, or null for a project the
+  /// club does not run a role for. Whoever is a `ProjectMember` here is given
+  /// it and whoever leaves loses it — see `src/discordRoles.ts`.
+  ///
+  /// **Deliberately not `@unique`.** A build that runs three semesters is three
+  /// rows sharing one role, which is the entire point of duplicating a project
+  /// forward; a unique index would make the second semester impossible. The
+  /// sync unions the role across a person's memberships for exactly that
+  /// reason, so leaving last term's row does not take the role away.
+  ///
+  /// Nothing in Postgres can check this is a real role — a snowflake that
+  /// belongs to nobody is not an error at Discord's API, it simply matches
+  /// no one for ever. The write routes check it against the guild's role list
+  /// instead, which is the only place the mistake is catchable.
+  discordRoleId String? @map("discord_role_id")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -1094,6 +1149,21 @@ model DuesPayment {
   /// one the handler tries to remember. Crediting twice would hand somebody a
   /// free extra semester every time Stripe hiccuped.
   stripePaymentIntentId String @unique @map("stripe_payment_intent_id")
+
+  /// The officer who comped this, and null for everything Stripe collected.
+  ///
+  /// A term granted by hand is still a term somebody was given, so it is a row
+  /// here rather than a bare edit to `dues_paid_through` — that edit is what
+  /// officers do in Prisma Studio today, and it leaves the member promoted by
+  /// nothing, credited by nobody and with an empty payment history. The grant
+  /// route writes `amountCents: 0` and a `comp_…` sentinel into the unique id
+  /// above, so the idempotency constraint keeps meaning what it means and a
+  /// zero-amount row with a name on it is unambiguous.
+  ///
+  /// `SetNull` rather than cascade: an officer leaving the club must not delete
+  /// the record that somebody's semester was paid for.
+  grantedById String? @map("granted_by_id")
+  grantedBy   User?   @relation("grantedDues", fields: [grantedById], references: [id], onDelete: SetNull)
 
   /// The term the purchase was made against, and where cover runs to. Both are
   /// frozen at checkout rather than recomputed later: UCF publishes calendar

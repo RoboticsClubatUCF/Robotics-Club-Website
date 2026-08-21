@@ -5,9 +5,17 @@ import { z } from 'zod'
 import { requireOfficer } from '../authz.js'
 import { prisma } from '../db.js'
 import {
+  assertRealRole,
+  discordRoleField,
+  pushRoles,
+} from '../discordRoles.js'
+import { copyIfStored } from '../files.js'
+import {
+  DuesPlan,
   LoanStatus,
   PrintRequestStatus,
   ProjectMemberRank,
+  ProjectStatus,
 } from '../generated/prisma/enums.js'
 import type { Prisma } from '../generated/prisma/client.js'
 import { capFrom, loanDate, startsAt } from '../loanWindow.js'
@@ -17,8 +25,15 @@ import {
   allowancesFor,
 } from '../printAllowance.js'
 import { printedColumns, printedSettings } from '../printSettings.js'
+import {
+  TERM_PAIRED,
+  termFields,
+  termFor,
+  termsAgree,
+} from '../projectTerm.js'
 import { rateLimit } from '../rateLimit.js'
 import { type AuthEnv, originGuard, requireAuth } from '../session.js'
+import { grantMembership } from './dues.js'
 import { HOLDING } from './equipment.js'
 import { printSelect } from './print.js'
 
@@ -26,9 +41,11 @@ import { printSelect } from './print.js'
  * The officer desk: the things that are club business rather than any one
  * project's.
  *
- *   POST  /api/officer/projects                          -> create a project (see below — not officers only)
+ *   POST  /api/officer/projects                          -> create a project
+ *   POST  /api/officer/projects/:id/duplicate            -> run it again next term
  *   PATCH /api/officer/projects/:id/members/:userId/rank -> appoint or demote a project lead
  *   GET   /api/officer/members?query=                    -> find a person, for the pickers
+ *   POST  /api/officer/members/:id/membership            -> grant a term, no money involved
  *   GET   /api/officer/print-queue?status=&all=          -> the 3D print queue
  *   PATCH /api/officer/print/:id                         -> move one through it, and record what it cost
  *   GET   /api/officer/equipment                         -> the inventory, with what is out
@@ -42,6 +59,11 @@ import { printSelect } from './print.js'
  * create route to find: which projects the club runs is a board decision.
  * Appointing their leads is the same decision a step later, which is why both
  * live in this file rather than beside the things a lead does.
+ *
+ * Granting somebody a term sits here for the same reason and not because it is
+ * about projects — it is the board deciding that a person is paid up. It writes
+ * through `grantMembership` in `dues.ts` rather than touching the column, so
+ * the one file that owns `duesPaidThrough` still owns it.
  *
  * Everything answers per-caller and most of it writes, so the whole router
  * sits outside `publicApi`, and every route requires an officer before it does
@@ -67,6 +89,11 @@ export const managedProjectSelect = {
   title: true,
   summary: true,
   season: true,
+  // Both, and they are not the same idea: `season` is the label a lead types,
+  // this pair is what `currentTerm()` is compared against. Two small scalars,
+  // so none of the reasons `description` is left out below apply.
+  termYear: true,
+  termSeason: true,
   competition: true,
   status: true,
   coverUrl: true,
@@ -77,6 +104,7 @@ export const managedProjectSelect = {
   meetingWeekday: true,
   meetingTime: true,
   meetingLocation: true,
+  discordRoleId: true,
 } as const
 
 const createProject = z.object({
@@ -109,16 +137,9 @@ const createProject = z.object({
    */
   description: z.string().trim().max(20_000).optional(),
   repoUrl: z.url().max(500).optional(),
-  /**
-   * Optional, and a project with no lead yet is a perfectly normal state: the
-   * board agrees to run something before it has settled who runs it, and
-   * appointing one later is two clicks on the same desk. That matters more than
-   * it reads — a leaderless project is now a state the site can sit in
-   * indefinitely, because the lead of one may walk out without a replacement
-   * lined up.
-   */
-  leadUserId: z.uuid().optional(),
-})
+  ...termFields,
+  ...discordRoleField,
+}).refine(termsAgree, TERM_PAIRED)
 
 officer.post(
   '/projects',
@@ -128,7 +149,7 @@ officer.post(
   writes,
   zValidator('json', createProject),
   async (c) => {
-    const { leadUserId: leadId, ...data } = c.req.valid('json')
+    const data = c.req.valid('json')
 
     // Pre-checked rather than caught: Prisma 7's driver adapter buries P2002 in
     // three different shapes, and two officers racing to the same slug is not a
@@ -140,28 +161,160 @@ officer.post(
       })
     }
 
-    if (leadId && !(await prisma.user.findUnique({ where: { id: leadId } }))) {
-      throw new HTTPException(404, { message: 'No such member to make lead.' })
+    // Nothing but the project. This route used to accept a `leadUserId` and
+    // seat the lead inside the same create; appointing now lives on the roles
+    // desk with the other people decisions, so there is one route that grants
+    // that rank instead of two. A project with no lead is a normal state and
+    // always was — the board agrees to run something before it has settled who
+    // runs it, and a leaderless project is a state the site sits in
+    // indefinitely, because the lead of one may walk out with nobody lined up.
+    // Before the write, because a role id that matches nobody is not an error
+    // anywhere else — not at Discord's API and not in Postgres.
+    await assertRealRole(data.discordRoleId)
+
+    const project = await prisma.project.create({
+      data: { ...data, ...(await termFor(data)) },
+      select: managedProjectSelect,
+    })
+
+    return c.json(project, 201)
+  },
+)
+
+/**
+ * Running last term's project again this term.
+ *
+ * The club's builds do not fit in a semester. S.T.O.R.M. and Knightmare run for
+ * years, and the dashboard now asks every project which term it belongs to — so
+ * a build that carries on is several rows, one per term, rather than one row
+ * that quietly never leaves anybody's MY PROJECTS. This is how the next row
+ * gets made without retyping a write-up somebody spent an afternoon on.
+ *
+ * **The writing comes across; the people do not.** Everything descriptive is
+ * copied — summary, write-up, competition, repository, the meeting slot, the
+ * resource links and the gallery. Members, teams, tasks and events are not: a
+ * new term is when people decide again, and a copy that silently re-enrolled
+ * last spring's roster would put a project back on the dashboard of somebody
+ * who graduated. They join, and the lead is appointed on the roles desk, the
+ * same as any other project.
+ *
+ * The copy starts `IN_PROGRESS` and unfeatured whatever the original became.
+ * Duplicating an `ARCHIVED` project is how a build comes *back*, so inheriting
+ * the status would make the one case this route is for the one case it gets
+ * wrong; and the landing page's shortlist is curation, not something a copy
+ * inherits.
+ */
+const duplicateProject = z.object({
+  slug: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(
+      /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+      'Slugs are lowercase words joined by hyphens, like "mars-rover".',
+    )
+    .max(60),
+  /** Defaults to the original's. Offered because "Knightmare" run twice is two
+      rows with one name, and some officers would rather say "Knightmare 2027". */
+  title: z.string().trim().min(1).max(160).optional(),
+  /** The free-text label, which almost always wants changing when the term does. */
+  season: z.string().trim().max(40).nullable().optional(),
+  ...termFields,
+  /** Defaults to the original's, unlike the term. The same build next semester
+      is the same crew in the same Discord channel, which is exactly why the
+      column carries no unique index. */
+  ...discordRoleField,
+}).refine(termsAgree, TERM_PAIRED)
+
+officer.post(
+  '/projects/:id/duplicate',
+  originGuard,
+  requireAuth,
+  requireOfficer,
+  writes,
+  zValidator('json', duplicateProject),
+  async (c) => {
+    const { slug, title, season, discordRoleId, ...named } =
+      c.req.valid('json')
+
+    const source = await prisma.project.findUnique({
+      where: { id: c.req.param('id') },
+      select: {
+        title: true,
+        summary: true,
+        description: true,
+        season: true,
+        competition: true,
+        coverUrl: true,
+        repoUrl: true,
+        discordRoleId: true,
+        meetingWeekday: true,
+        meetingTime: true,
+        meetingLocation: true,
+        images: {
+          orderBy: { sortOrder: 'asc' },
+          select: {
+            url: true,
+            caption: true,
+            sortOrder: true,
+            focalX: true,
+            focalY: true,
+            zoom: true,
+          },
+        },
+        links: {
+          orderBy: { sortOrder: 'asc' },
+          select: { label: true, url: true, sortOrder: true },
+        },
+      },
+    })
+
+    if (!source) throw new HTTPException(404, { message: 'No such project' })
+
+    // Pre-checked for the same reason `POST /projects` pre-checks it.
+    if (await prisma.project.findUnique({ where: { slug } })) {
+      throw new HTTPException(409, {
+        message: 'A project already has that slug.',
+      })
     }
 
-    // The seat rides inside the create rather than following it, so a project
-    // cannot exist for even an instant without the lead it was made with.
-    // Nothing else happens here: seating somebody as a lead used to also write
-    // a roster label onto `User.role`, and that whole second loop is gone —
-    // leading a project is a fact about the membership row and nowhere else.
+    const { images, links, coverUrl, ...content } = source
+    const officerId = c.get('user').id
+
+    // Only what the officer typed is checked. The source's own id came through
+    // this check when it was set, and re-checking it would let a role deleted
+    // in Discord since then block a duplication that has nothing to do with it.
+    await assertRealRole(discordRoleId)
+
+    // The bytes first, and outside the create, because copying a gallery is a
+    // read and a write per picture and an interactive transaction holding one
+    // connection is the wrong place for that. Nothing is linked to the new
+    // project yet, so the worst a failure here leaves behind is orphaned rows in
+    // `stored_files` — invisible, and cheaper than a duplication that half
+    // happened.
+    const [cover, gallery] = await Promise.all([
+      coverUrl ? copyIfStored(coverUrl, officerId) : Promise.resolve(null),
+      Promise.all(
+        images.map(async (image) => ({
+          ...image,
+          url: await copyIfStored(image.url, officerId),
+        })),
+      ),
+    ])
+
     const project = await prisma.project.create({
       data: {
-        ...data,
-        ...(leadId
-          ? {
-              members: {
-                create: {
-                  userId: leadId,
-                  rank: ProjectMemberRank.PROJECT_LEAD,
-                },
-              },
-            }
-          : {}),
+        ...content,
+        slug,
+        ...(title === undefined ? {} : { title }),
+        ...(season === undefined ? {} : { season }),
+        ...(discordRoleId === undefined ? {} : { discordRoleId }),
+        ...(await termFor(named)),
+        coverUrl: cover,
+        status: ProjectStatus.IN_PROGRESS,
+        featured: false,
+        images: { create: gallery },
+        links: { create: links },
       },
       select: managedProjectSelect,
     })
@@ -252,6 +405,13 @@ officer.patch(
       update: { rank },
       select: { projectId: true, userId: true, rank: true, teamId: true },
     })
+
+    pushRoles(
+      userId,
+      rank === ProjectMemberRank.PROJECT_LEAD
+        ? 'appointed project lead'
+        : 'stood down as project lead',
+    )
 
     return c.json(membership)
   },
@@ -946,9 +1106,63 @@ officer.get(
         email: true,
         discordUsername: true,
         role: true,
+        // So the roles desk can say where somebody stands *before* an officer
+        // grants them a term. Granting one to a member already paid through
+        // spring is not harmful — it extends rather than resets — but it is a
+        // decision made blind, and this is the one thing that unblinds it.
+        duesPaidThrough: true,
       },
     })
 
     return c.json(members)
+  },
+)
+
+// -------------------------------------------------------------- memberships
+
+/**
+ * Giving somebody a term, without money changing hands.
+ *
+ * The cash-at-a-meeting case, and the scholarship case, and the case of an
+ * officer whose dues the board waives. All three were being handled by typing a
+ * date into `dues_paid_through` in Prisma Studio, which covers the person and
+ * does nothing else — the promotion, the `joinedAt` stamp and any record of who
+ * decided are all things `grantMembership` does and a column edit cannot.
+ *
+ * Officers, not just admins. Collecting dues is the treasurer's job and the
+ * treasurer is an officer; making this admin-only would mean the one person who
+ * takes the money cannot record it.
+ */
+const grantBody = z.object({ plan: z.enum(DuesPlan) })
+
+officer.post(
+  '/members/:id/membership',
+  originGuard,
+  requireAuth,
+  requireOfficer,
+  writes,
+  zValidator('json', grantBody),
+  async (c) => {
+    const member = await prisma.user.findUnique({
+      where: { id: c.req.param('id') },
+      select: { id: true, fullName: true, duesPaidThrough: true },
+    })
+
+    if (!member) throw new HTTPException(404, { message: 'No such member' })
+
+    const standing = await grantMembership(
+      member,
+      c.req.valid('json').plan,
+      c.get('user').id,
+    )
+
+    // The standing rather than the row, because the desk's next sentence is
+    // "covered through 13 December" and that date is the *result* of the grant
+    // meeting whatever they already held — not the plan they were given.
+    return c.json({
+      member: { id: member.id, fullName: member.fullName },
+      paidThrough: standing.paidThrough?.toISOString() ?? null,
+      status: standing.status,
+    })
   },
 )

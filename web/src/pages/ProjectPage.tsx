@@ -12,7 +12,7 @@ import type {
   ApiProjectDetail,
   ApiUser,
 } from '../lib/api'
-import { duesLocked } from '../lib/dues'
+import { LOCK_COPY, accessLock, coverGap } from '../lib/dues'
 import { canEditProject, editingAsOfficer, rankOn } from '../lib/projectEditing'
 import { slidesOf } from '../lib/projectGallery'
 import { useSession } from '../lib/session'
@@ -380,11 +380,11 @@ function EditAffordance({
   if (dues.status === 'loading' || mine.status === 'loading') return null
   if (!canEditProject(user.role, minesOf(signedIn), project.id)) return null
 
-  // `duesLocked` wants the membership itself, and `/dues/status` wraps it —
+  // `accessLock` wants the membership itself, and `/dues/status` wraps it —
   // the dashboard gets the unwrapped form from its layout context, this page
   // does not. It also handles the ADMIN exemption and "not ready reads as
   // unlocked", so neither is re-decided here.
-  const locked = duesLocked(
+  const locked = accessLock(
     dues.status === 'ready'
       ? { status: 'ready', data: dues.data.membership }
       : dues,
@@ -394,12 +394,14 @@ function EditAffordance({
   if (locked) {
     return (
       <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1 font-mono text-[10px] font-medium tracking-[0.14em]">
-        <span className="text-faint">DUES LAPSED — EDITING COMES BACK WHEN THEY'RE PAID</span>
+        {/* Not always "DUES LAPSED": the same lock now fires inside a free
+            window, where nothing has lapsed and nothing is owed. */}
+        <span className="text-faint">{LOCK_COPY[locked].short}</span>
         <Link
           to="/dashboard/dues"
           className="text-primary hover:underline underline-offset-2"
         >
-          PAY MY DUES ›
+          {LOCK_COPY[locked].cta} ›
         </Link>
       </span>
     )
@@ -609,21 +611,31 @@ function JoinAction({
 
   // If the dues read failed there is no way to promise the join will pass the
   // gate — send them via the dues page, which can explain properly.
-  if (dues.status === 'error' || !dues.data.membership.hasAccess) {
+  const gap =
+    dues.status === 'error' ? 'newcomer' : coverGap(dues.data.membership)
+
+  if (gap) {
     return (
       <FormPanel tone="accent">
         <p className="text-faint mb-2 font-mono text-[10px] font-medium tracking-[0.16em]">
           JOIN THIS PROJECT
         </p>
+        {/* Three reasons, three sentences, matching the 403 this route would
+            answer with. It used to say "settle your dues" whatever the reason,
+            which inside a free window is telling somebody to pay for a thing
+            that is free and one press away. */}
         <p className="text-dim mb-4 text-sm leading-[1.7] text-pretty">
-          Joining a project needs a paid-up membership. Settle your dues and
-          come straight back — this page will have the button waiting.
+          {gap === 'claim'
+            ? 'Joining needs a current membership — and yours is free to switch on right now. One press, no card, and this page will have the button waiting.'
+            : gap === 'dues'
+              ? 'Joining a project needs current dues. Settle them and come straight back — this page will have the button waiting.'
+              : 'Joining a project is for paid-up members. Dues take a minute, and this page will have the button waiting.'}
         </p>
         <Link
           to="/dashboard/dues"
           className="btn btn-primary btn-cta px-6 py-3 text-[13px] font-semibold"
         >
-          PAY MY DUES
+          {LOCK_COPY[gap].cta}
         </Link>
       </FormPanel>
     )

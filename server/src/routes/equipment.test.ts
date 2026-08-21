@@ -183,66 +183,61 @@ describe('the catalogue', () => {
 })
 
 /**
- * The club lends its own things, so the counter wants a **member** — not
- * merely somebody with an account.
+ * The club lends its own things, and the gate is now the same one everything
+ * else uses: `duesPaidThrough` in the future, `ADMIN` aside.
  *
- * A different question from whether dues are current, and the distinction is
- * the point: the summer, the break between terms and the trial fortnight all
- * report `hasAccess: true` for everyone, so standing alone would hand the loan
- * shelf to an account made ten minutes ago.
+ * This used to be a stricter check of its own that refused a `GUEST` whatever
+ * their standing. It was necessary while the summer and the opening fortnight
+ * reported access for everybody — standing alone would then have handed the
+ * loan shelf to an account made ten minutes ago — and redundant the moment
+ * access became the date, since nothing sets that date without promoting the
+ * account in the same transaction.
+ *
+ * Which sentence each refusal gets is `authz.test.ts`'s matrix, where the clock
+ * is pinned; the wording turns on whether a free window is running today, so it
+ * cannot be asserted from a suite reading the real calendar.
  */
-describe('guests', () => {
-  /**
-   * Both fixtures carry the same `duesPaidThrough`, so whatever the calendar
-   * says today it says about both equally and the role is the only thing that
-   * differs. That is what makes this a test of the role, and why it needs no
-   * pinned clock.
-   */
-  const asGuest = async (name: string, duesPaidThrough: Date | null) => {
-    const guest = await prisma.user.create({
+describe('who may borrow', () => {
+  const withDues = async (
+    name: string,
+    duesPaidThrough: Date | null,
+    role: UserRole = UserRole.MEMBER,
+  ) => {
+    const person = await prisma.user.create({
       data: {
-        fullName: 'Equip Guest',
+        fullName: 'Equip Borrower',
         email: email(name),
-        role: UserRole.GUEST,
+        role,
         duesPaidThrough,
       },
     })
-    return cookieFor(guest.id)
+    return cookieFor(person.id)
   }
 
-  it('cannot see the catalogue or ask for anything', async () => {
-    const cookie = await asGuest('guest', PAID_UP)
+  it('shuts the whole router to an account with no cover', async () => {
+    const cookie = await withDues('lapsed', new Date('2024-01-15T00:00:00'))
 
     expect((await request('GET', '/api/equipment', cookie)).status).toBe(403)
     expect((await ask(cookie)).status).toBe(403)
-
-    // The same dues, one rank up: this is what proves the role did it.
-    expect((await request('GET', '/api/equipment', memberCookie)).status).toBe(200)
   })
 
-  it('are told what membership is, not that their dues lapsed', async () => {
-    const cookie = await asGuest('newcomer', null)
+  it('refuses an account that never paid anything', async () => {
+    const cookie = await withDues('newcomer', null)
 
-    const response = await ask(cookie)
-
-    expect(response.status).toBe(403)
-    expect(await response.json()).toMatchObject({
-      error: expect.stringContaining('club members'),
-    })
+    expect((await ask(cookie)).status).toBe(403)
   })
 
   /**
-   * A demoted member is a guest too, and must not be told they never joined.
-   * The date has to be one that has genuinely gone by — a date still running on
-   * a guest means an officer set the role by hand, which is a different case
-   * and a different sentence.
+   * **The role does not decide this any more, and that is the change.** A
+   * `GUEST` carrying a live date is somebody an officer set a date on by hand;
+   * under one rule they are covered, and the old check refused them for a
+   * reason that no longer exists.
    */
-  it('who are demoted members get the lapsed wording instead', async () => {
-    const cookie = await asGuest('lapsed', new Date('2024-01-15T00:00:00'))
+  it('lets a covered account through whatever its role says', async () => {
+    const cookie = await withDues('coveredguest', PAID_UP, UserRole.GUEST)
 
-    expect(await (await ask(cookie)).json()).toMatchObject({
-      error: expect.stringContaining('lapsed'),
-    })
+    expect((await request('GET', '/api/equipment', cookie)).status).toBe(200)
+    expect((await ask(cookie)).status).toBe(201)
   })
 })
 

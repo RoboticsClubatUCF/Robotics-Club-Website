@@ -135,6 +135,17 @@ and down this ladder**, and the loop has two halves:
   the ten-minute timer is the backstop for everybody who has stopped turning up.
   Both: only `MEMBER`, only accounts with a payment on record, and the sweep
   never runs when UCF's calendar could not be read.
+- **And the Discord roles follow, in the other direction.** `src/discordRoles.ts`
+  gives out the Members, Project Leads and Team Leads roles plus each project's
+  own — `Project.discordRoleId` — on the same ten-minute tick, chained *after*
+  the two sweeps above so Postgres has settled before Discord is told. The
+  Officers role goes the opposite way and the site never writes it
+  (`src/discordOfficers.ts`). Each role id is independently optional and unset
+  means never touched; a guild member the site cannot match to a `User` row is
+  never written to at all; and `DISCORD_ROLE_SYNC_DRY_RUN` names every change
+  without making one. The Members role is the literal `duesPaidThrough` date,
+  which is now exactly what `membershipStanding().hasAccess` means — this file
+  got there first and the rest of the site came to meet it.
 
 **The role is not the gate; the standing is.** What somebody may *do* is decided
 by `membershipStanding` at the moment of the request. With dues owed the
@@ -257,7 +268,7 @@ shared-cache headers never touch them.
 | `POST /api/projects/:id/join` | Refused unless `membershipStanding().hasAccess` |
 | `DELETE /api/projects/:id/members/me` | Leave. **Including the only project lead**, which leaves the project leaderless and DMs the officers so somebody knows — the old refusal told them to have an officer appoint another first, which nothing can satisfy now a project has one lead. Writes no roles at all: leaving changes what you run, not what you are |
 | `GET /api/projects/:id/team` | Members-only. Teams and roster, no email addresses |
-| `PATCH /api/projects/:id` | Project lead. Slug and `featured` are not editable. Answers with `managedProjectSelect` **plus `description`** — the editor rebuilds its state from the write rather than re-reading the publicly cached page, so a column this route accepts and does not answer with comes back `undefined` and leaves the form permanently unsaved |
+| `PATCH /api/projects/:id` | Project lead. Slug and `featured` are not editable. Accepts `discordRoleId`, which is the one field here that changes something outside this site — setting it hands the role to every member of the project and clearing it takes it back, so the route pushes all of them straight away rather than waiting for the sweep. Answers with `managedProjectSelect` **plus `description`** — the editor rebuilds its state from the write rather than re-reading the publicly cached page, so a column this route accepts and does not answer with comes back `undefined` and leaves the form permanently unsaved |
 | `POST /api/projects/:id/cover` | Project lead. Multipart image; replaces and deletes the old upload |
 | `POST /api/projects/:id/images` · `/images/upload` | Project lead. The public page's gallery, by URL or as a file. Capped at 12 a project; uploads are sniffed and size-capped, and the browser shrinks them first. Both take `focalX`/`focalY`/`zoom` **at add time** — a gallery assembled on the create page is framed before the project exists, and framing arriving separately could fail on its own and leave a photo sitting wrong. The upload reads them off the multipart body, ignoring anything unparseable |
 | `PATCH /api/projects/:id/images/order` | Project lead. The whole order, as a list of ids — refused unless the set matches exactly, which is what stops one tab dropping another's newest photo |
@@ -274,7 +285,7 @@ shared-cache headers never touch them.
 | `GET /api/equipment`     | **Members only.** The catalogue with a live `available` count and each item's `maxLoanDays` |
 | `POST /api/equipment/:id/loans` · `POST /api/equipment/loans/:id/cancel` | One open loan per person per item. `requestedDueAt` is **required**; `startAt` in the future makes it a booking. The window is refused past the item's `maxLoanDays` |
 | `GET /api/files/:id`     | Images public and immutable; print models owner-or-officer, `no-store` |
-| `POST /api/officer/projects` | Officers only, without limit, naming a lead or leaving it for later. `summary` is required; `description` and `repoUrl` are accepted here because they are columns on the project, which is part of what lets the desk fill the whole thing in on one page — pictures and links are held in the browser and sent straight after |
+| `POST /api/officer/projects` | Officers only, without limit. `summary` is required; `description` and `repoUrl` are accepted here because they are columns on the project, which is part of what lets the desk fill the whole thing in on one page — pictures and links are held in the browser and sent straight after. `discordRoleId` is the crew's Discord role and is **checked against the guild's real roles** before the write: a mistyped snowflake is not an error at Discord and would match nobody for ever |
 | `PATCH /api/officer/projects/:id/members/:userId/rank` | Appoint or stand down a project lead, `PROJECT_LEAD` or `MEMBER`. **409 naming the incumbent** if the project already has a lead — stand them down first; re-appointing the sitting lead is a no-op 200. Writes no roles: appointing yourself as an officer costs you nothing by construction |
 | `GET /api/officer/members` | `?query=` — the people picker. Matches name, email **and Discord handle**, because an account may carry a handle and no email |
 | `GET /api/officer/print-queue?status=&all=` · `PATCH /api/officer/print/:id` | `all=1` returns every status, for the browser's search. Settling **deletes the uploaded model**. `gramsUsed` required for a personal DONE; `overAllowance` to go past the cap. Moving to `PRINTING` stamps `startedAt`, which is what later tells a cancelled print from a declined request |
@@ -312,20 +323,25 @@ Postgres knows a string beginning `/api/files/` is a reference, so
 Without that, the files would sit in `stored_files` forever with nothing
 pointing at them and no way to find them again. `files.test.ts` is the tripwire.
 
-### Two gates, and why they are separate
+### One gate
 
-`requireCurrentDues` asks whether somebody's dues are current, from
-`membershipStanding` and never from the role. `requireClubMember` adds a second,
-independent question — whether they are a member at all — and refuses a `GUEST`
-outright. Both are in `src/authz.ts`; only 3D printing and equipment borrowing
-use the second.
+`requireCurrentDues` in `src/authz.ts`, and it asks one question:
+`duesPaidThrough > now`. `ADMIN` is the only exemption — officers included.
+Every check in that file ends with it, `requireDuesForRoute` is the same thing
+as middleware, and 3D printing, equipment borrowing and every management tool
+sit behind it equally.
 
-The reason they cannot be one check: the summer, the break between terms and the
-trial fortnight all report `hasAccess: true` for **everyone**, because that is
-what makes those periods free. Standing alone would therefore let an account
-created ten minutes ago order prints and borrow tools. Nothing is lost by the
-stricter gate — paying promotes a guest to member, and so does claiming a free
-window, which costs nothing and is one press.
+There used to be a second, stricter gate, `requireClubMember`, which also
+refused a `GUEST` outright. It was necessary while the summer, the break between
+terms and the opening fortnight reported `hasAccess: true` for **everyone** —
+standing alone would then have let an account created ten minutes ago order
+prints. Access is the dues date now, and nothing sets that date without
+promoting the account in the same transaction, so the role check could never
+fail for anybody who had already passed the date check. Two gates that always
+agree are one gate and a place for them to stop agreeing.
+
+The refusal still carries three different sentences, chosen from the date rather
+than the role: a free window running, a date that ran out, or no date ever.
 
 ### The 3D printing material allowance
 
@@ -485,11 +501,17 @@ a day, with fixed fallback dates for when it cannot be reached — the club's du
 year cannot depend on somebody else's uptime. `src/semester.ts` is the whole of
 that logic and the rules it encodes:
 
-- Summer is free, and so is the gap between one term ending and the next
-  beginning.
-- The first two weeks of a fall or spring term are free for everybody.
+- **Access is `duesPaidThrough > now`, and nothing else.** The website, this
+  API and the Discord bot all ask that one question.
+- **The free window runs from the end of one dues-bearing term to two weeks into
+  the next**, and it is *claimed*, not given. One press covers the gap, all of
+  Summer C, the next gap and the opening fortnight — May to September on one
+  claim. Summer is not special-cased; it is free because it sits inside this.
 - $25 covers the term it was bought against; $50 covers that term and the next
   dues-bearing one — fall then spring, or spring then fall.
+- **Past the halfway point of a term, a payment buys the next one**
+  (`purchasableTerm`). The rest of the current term comes along, because
+  coverage is one date running forward rather than a start and an end.
 
 Money is only ever credited from Stripe's own account of a payment, never from
 the browser. The webhook and `POST /api/dues/sync` both funnel into one

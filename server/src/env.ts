@@ -89,6 +89,63 @@ const envSchema = z.object({
     .string()
     .regex(/^\d{17,20}$/, 'must be a Discord snowflake (17-20 digits)')
     .optional(),
+  /**
+   * The Discord role that *is* the officer board.
+   *
+   * Set it and the club appoints officers in Discord: whoever carries this role
+   * is an `OFFICER` on the site, and whoever loses it stops being one. Leave it
+   * unset and officers are set by hand in Prisma Studio, exactly as they were
+   * before this existed.
+   *
+   * **Unset is the safety valve, and it is the default for a reason.** The
+   * first sweep after this is set will stand down every sitting officer who is
+   * in the guild without the role — so the order is: match the Discord role to
+   * the board you actually want, *then* set this, then read the first sweep's
+   * log. There is no way for the code to tell a board that has not been given
+   * the role yet from a board that has been dissolved.
+   */
+  DISCORD_OFFICER_ROLE_ID: z
+    .string()
+    .regex(/^\d{17,20}$/, 'must be a Discord snowflake (17-20 digits)')
+    .optional(),
+
+  /**
+   * The three roles that follow the *site* — the opposite direction from the
+   * officer role above, and the distinction is the whole design.
+   *
+   * Discord appoints the board and the site reads it. The site decides these
+   * three and pushes them: whoever has a dues date still running carries
+   * `DISCORD_MEMBER_ROLE_ID`, whoever leads a project carries
+   * `DISCORD_PROJECT_LEAD_ROLE_ID`, whoever leads a team carries
+   * `DISCORD_TEAM_LEAD_ROLE_ID`. See `src/discordRoles.ts`.
+   *
+   * **Each is independently optional, and unset means never touched.** There
+   * is no mode in which an unconfigured role is read or written, which is what
+   * lets the club switch one on at a time and is the safety valve the officer
+   * role has for the same reason.
+   */
+  DISCORD_MEMBER_ROLE_ID: z
+    .string()
+    .regex(/^\d{17,20}$/, 'must be a Discord snowflake (17-20 digits)')
+    .optional(),
+  DISCORD_PROJECT_LEAD_ROLE_ID: z
+    .string()
+    .regex(/^\d{17,20}$/, 'must be a Discord snowflake (17-20 digits)')
+    .optional(),
+  DISCORD_TEAM_LEAD_ROLE_ID: z
+    .string()
+    .regex(/^\d{17,20}$/, 'must be a Discord snowflake (17-20 digits)')
+    .optional(),
+
+  /**
+   * Work out every role change and write none of them, naming each in the log.
+   *
+   * Worth having because this is the one sweep whose mistakes land on other
+   * people's Discord accounts rather than in a table somebody can correct. A
+   * club switching the sync on reads one sweep's output first, checks the
+   * removals are the ones it meant, and only then lets it write.
+   */
+  DISCORD_ROLE_SYNC_DRY_RUN: z.stringbool().default(false),
 
   // ------------------------------------------------------------- sessions
 
@@ -257,6 +314,24 @@ const envSchema = z.object({
       // later by whoever tries to message that member.
       message:
         'DISCORD_BOT_TOKEN and DISCORD_GUILD_ID must be set together, or left unset together',
+    },
+  )
+  .refine(
+    (parsed) =>
+      ![
+        parsed.DISCORD_OFFICER_ROLE_ID,
+        parsed.DISCORD_MEMBER_ROLE_ID,
+        parsed.DISCORD_PROJECT_LEAD_ROLE_ID,
+        parsed.DISCORD_TEAM_LEAD_ROLE_ID,
+      ].some(Boolean) || (parsed.DISCORD_BOT_TOKEN && parsed.DISCORD_GUILD_ID),
+    {
+      // One-directional, unlike the pair above, because these are not the same
+      // kind of dependency. A bot with no role ids is the club as it stands
+      // — handles are checked, trials are announced, nobody is appointed. A
+      // role id with no bot is a setting that reads exactly like it is running
+      // the board and cannot ask Discord anything.
+      message:
+        'A Discord role id needs DISCORD_BOT_TOKEN and DISCORD_GUILD_ID — without a bot there is nothing to read the role from or write it to',
     },
   )
   .refine(

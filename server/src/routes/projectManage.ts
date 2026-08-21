@@ -5,11 +5,18 @@ import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import {
   membershipOf,
+  requireCurrentDues,
   requireProjectLead,
   requireProjectMember,
   requireTeamLead,
 } from '../authz.js'
 import { prisma } from '../db.js'
+import {
+  assertRealRole,
+  discordRoleField,
+  pushRoles,
+  pushRolesFor,
+} from '../discordRoles.js'
 import { env } from '../env.js'
 import { deleteIfStored, looksLikeImage, storeFile } from '../files.js'
 import {
@@ -18,8 +25,8 @@ import {
   ProjectStatus,
 } from '../generated/prisma/enums.js'
 import { notifyOfficers } from '../officerNotify.js'
+import { TERM_PAIRED, termFields, termsAgree } from '../projectTerm.js'
 import { rateLimit } from '../rateLimit.js'
-import { membershipStanding } from '../semester.js'
 import { type AuthEnv, originGuard, requireAuth } from '../session.js'
 import { managedProjectSelect } from './officer.js'
 
@@ -97,17 +104,13 @@ projectManage.post(
       })
     }
 
-    // The dues gate. `hasAccess`, not `duesPaidThrough` read as a flag —
-    // summer, the between-terms gap and the trial fortnight all count as
-    // covered, exactly as they do everywhere else on the site — including a free
-    // window somebody has claimed, which is that same date moved forward.
-    const standing = await membershipStanding(user.duesPaidThrough)
-    if (!standing.hasAccess) {
-      throw new HTTPException(403, {
-        message:
-          'Joining a project needs a paid-up membership. Settle your dues and come straight back.',
-      })
-    }
+    // The dues gate, and now literally the same one as everywhere else rather
+    // than a second copy of it. This used to read `hasAccess` itself and throw
+    // its own sentence — which was fine while "no cover" meant one thing, and
+    // wrong the moment it meant three: during a free window it told somebody to
+    // settle dues they did not owe, for a thing that was one free press away.
+    // `requireCurrentDues` picks the right sentence from the date.
+    await requireCurrentDues(user)
 
     if (await membershipOf(user.id, project.id)) {
       throw new HTTPException(409, {
@@ -119,6 +122,8 @@ projectManage.post(
       data: { projectId: project.id, userId: user.id },
       select: { projectId: true, rank: true },
     })
+
+    pushRoles(user.id, `joined ${project.title}`)
 
     return c.json(membership, 201)
   },
@@ -161,6 +166,11 @@ projectManage.delete(
     await prisma.projectMember.delete({
       where: { projectId_userId: { projectId, userId: user.id } },
     })
+
+    // The union rule earns its keep here: somebody leaving one semester's row
+    // of a build that runs on keeps the crew role through the other row, and a
+    // lead of two projects who walks out of one stays a lead in Discord.
+    pushRoles(user.id, 'left a project')
 
     if (membership.rank === ProjectMemberRank.PROJECT_LEAD) {
       // The title is read here rather than by `getProject` at the top of the
@@ -230,14 +240,17 @@ projectManage.get('/projects/:id/team', requireAuth, async (c) => {
   // The whole managed shape, not just id and title: the manage page prefills
   // its meeting-schedule form from this same response, and officers reach that
   // page without a membership row to read the values off.
-  const { id, slug, title, summary, season, competition, status, coverUrl,
-    repoUrl, featured, startedAt, completedAt, meetingWeekday, meetingTime,
-    meetingLocation } = project
+  // Listed by name rather than spread, which means `managedProjectSelect`
+  // growing a field does *not* reach this response — add it in both places or
+  // the manage page's editor prefills that field with nothing.
+  const { id, slug, title, summary, season, termYear, termSeason, competition,
+    status, coverUrl, repoUrl, featured, startedAt, completedAt,
+    meetingWeekday, meetingTime, meetingLocation, discordRoleId } = project
 
   return c.json({
-    project: { id, slug, title, summary, season, competition, status, coverUrl,
-      repoUrl, featured, startedAt, completedAt, meetingWeekday, meetingTime,
-      meetingLocation },
+    project: { id, slug, title, summary, season, termYear, termSeason,
+      competition, status, coverUrl, repoUrl, featured, startedAt, completedAt,
+      meetingWeekday, meetingTime, meetingLocation, discordRoleId },
     teams,
     members: members.map(({ user, ...member }) => ({ ...member, ...user })),
   })
@@ -268,7 +281,23 @@ const editProject = z.object({
     .nullable()
     .optional(),
   meetingLocation: z.string().trim().max(160).nullable().optional(),
-})
+  /**
+   * The term, editable by the lead and not just by officers — unlike `slug` and
+   * `featured` above. Rolling a build into the next semester only regroups the
+   * dashboards of the people already on it, and the person who knows the build
+   * is still running is the one running it. Duplicating it instead, so last
+   * term's write-up stays where it was, is the officers' call on their desk.
+   */
+  ...termFields,
+  /**
+   * The crew's Discord role, editable by the lead for the same reason the term
+   * is: they are the one who knows which channel the build actually lives in.
+   * Setting it hands the role to everybody already on the project within ten
+   * minutes, and clearing it takes it off them — so it is a real action, not a
+   * label.
+   */
+  ...discordRoleField,
+}).refine(termsAgree, TERM_PAIRED)
 
 projectManage.patch(
   '/projects/:id',
@@ -280,6 +309,10 @@ projectManage.patch(
     const project = await getProject(c.req.param('id'))
     await requireProjectLead(c.get('user'), project.id)
     const patch = c.req.valid('json')
+
+    if (patch.discordRoleId !== undefined) {
+      await assertRealRole(patch.discordRoleId)
+    }
 
     const updated = await prisma.project.update({
       where: { id: project.id },
@@ -303,6 +336,26 @@ projectManage.patch(
     // `deleteIfStored` ignores external URLs entirely.
     if (patch.coverUrl !== undefined && patch.coverUrl !== project.coverUrl) {
       await deleteIfStored(project.coverUrl)
+    }
+
+    // Changing this one field changes what *every* member of the project
+    // should be carrying, which is unlike anything else on this form. Setting
+    // it hands the role out; clearing it takes it back. The sweep would reach
+    // them within ten minutes regardless, but a lead who has just pasted a role
+    // id wants to see it land.
+    if (
+      patch.discordRoleId !== undefined &&
+      patch.discordRoleId !== project.discordRoleId
+    ) {
+      const roster = await prisma.projectMember.findMany({
+        where: { projectId: project.id },
+        select: { userId: true },
+      })
+
+      pushRolesFor(
+        roster.map((member) => member.userId),
+        `${project.title}'s Discord role changed`,
+      )
     }
 
     return c.json(updated)
@@ -788,6 +841,15 @@ projectManage.delete(
       await deleteIfStored(image.url)
     }
 
+    // Read the roster before the cascade eats it. `ProjectMember` goes with the
+    // project through `onDelete: Cascade`, silently and with no per-row code
+    // path, so this is the last moment anything can know whose Discord roles
+    // just stopped being justified.
+    const roster = await prisma.projectMember.findMany({
+      where: { projectId: project.id },
+      select: { userId: true },
+    })
+
     // Members detach before their teams go: the (teamId, projectId) foreign
     // key is RESTRICT, so deleting teams out from under seated members is a
     // constraint violation by design.
@@ -798,6 +860,11 @@ projectManage.delete(
       }),
       prisma.project.delete({ where: { id: project.id } }),
     ])
+
+    pushRolesFor(
+      roster.map((member) => member.userId),
+      `${project.title} was deleted`,
+    )
 
     return c.json({ deleted: true })
   },
@@ -881,6 +948,17 @@ projectManage.delete(
     const team = await getTeam(c.req.param('teamId'))
     await requireProjectLead(c.get('user'), team.projectId)
 
+    // Who is about to be demoted, read before the bulk update makes it
+    // unknowable — `updateMany` answers with a count and no identities.
+    const demoted = await prisma.projectMember.findMany({
+      where: {
+        projectId: team.projectId,
+        teamId: team.id,
+        rank: ProjectMemberRank.TEAM_LEAD,
+      },
+      select: { userId: true },
+    })
+
     // Three steps, one transaction. The demotion is the subtle one: a
     // TEAM_LEAD rank means nothing without a team under it, and leaving the
     // rank behind would hand its holder the next team they happened to join.
@@ -899,6 +977,11 @@ projectManage.delete(
       }),
       prisma.team.delete({ where: { id: team.id } }),
     ])
+
+    pushRolesFor(
+      demoted.map((member) => member.userId),
+      `${team.name} was deleted`,
+    )
 
     return c.json({ deleted: true })
   },
@@ -981,6 +1064,10 @@ projectManage.patch(
       select: { userId: true, title: true, rank: true, teamId: true },
     })
 
+    if (patch.rank !== undefined) {
+      pushRoles(userId, `rank changed on ${project.title}`)
+    }
+
     return c.json(membership)
   },
 )
@@ -1009,6 +1096,8 @@ projectManage.delete(
     await prisma.projectMember.delete({
       where: { projectId_userId: { projectId: project.id, userId } },
     })
+
+    pushRoles(userId, `removed from ${project.title}`)
 
     return c.json({ removed: true })
   },

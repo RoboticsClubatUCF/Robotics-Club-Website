@@ -3,8 +3,10 @@ import { app } from '../app.js'
 import { prisma } from '../db.js'
 import { env } from '../env.js'
 import {
+  FileKind,
   ProjectMemberRank,
   ProjectStatus,
+  Season,
   UserRole,
 } from '../generated/prisma/enums.js'
 import { notifyOfficers } from '../officerNotify.js'
@@ -17,6 +19,22 @@ import { createSession } from '../session.js'
 // walking out of a fixture project.
 vi.mock('../officerNotify.js', () => ({
   notifyOfficers: vi.fn(() => Promise.resolve()),
+}))
+
+// And the same again, one step further: joining, leaving, being ranked and
+// having a project deleted all push Discord roles now. That is not a message a
+// real person can ignore — it changes what they can see in the club's server —
+// and the dev `.env` carries a live bot token. Nothing in this file may reach
+// the guild.
+vi.mock('../discord.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../discord.js')>()),
+  memberRoleId: null,
+  projectLeadRoleId: null,
+  teamLeadRoleId: null,
+  addGuildRole: vi.fn(() => Promise.resolve({ status: 'done' as const })),
+  removeGuildRole: vi.fn(() => Promise.resolve({ status: 'done' as const })),
+  guildRoster: vi.fn(() => Promise.resolve({ status: 'unchecked' as const })),
+  guildRoles: vi.fn(() => Promise.resolve({ status: 'unchecked' as const })),
 }))
 
 /**
@@ -133,6 +151,10 @@ beforeEach(async () => {
     data: {
       slug: `${PREFIX}rover`,
       title: 'PM Rover',
+      // Every project needs a term now. A year nothing real uses, so a
+      // fixture can never collide with the club's own rows.
+      termYear: 2035,
+      termSeason: Season.FALL,
       status: ProjectStatus.IN_PROGRESS,
       members: {
         create: { userId: lead.id, rank: ProjectMemberRank.PROJECT_LEAD },
@@ -145,6 +167,8 @@ beforeEach(async () => {
     data: {
       slug: `${PREFIX}rover-two`,
       title: 'PM Rover II',
+      termYear: 2035,
+      termSeason: Season.FALL,
       status: ProjectStatus.IN_PROGRESS,
       members: {
         create: { userId: lead.id, rank: ProjectMemberRank.PROJECT_LEAD },
@@ -186,21 +210,28 @@ const request = (method: string, path: string, cookie: string, body?: unknown) =
   })
 
 describe('the officer desk', () => {
-  it('creates a project with its lead already attached', async () => {
+  /**
+   * Creating makes the project and nothing else.
+   *
+   * The route used to take a `leadUserId` and seat the lead inside the same
+   * write; appointing moved to the roles desk so there is one route that grants
+   * that rank instead of two. An empty roster is the correct outcome, not a
+   * missing step — the board agrees to run something before it has settled who
+   * runs it.
+   */
+  it('creates a project with nobody on it', async () => {
     const response = await request('POST', '/api/officer/projects', officerCookie, {
       slug: `${PREFIX}new-build`,
       title: 'New Build',
       summary: 'A thing',
-      leadUserId: paidId,
     })
 
     expect(response.status).toBe(201)
     const project = (await response.json()) as { id: string }
 
-    const membership = await prisma.projectMember.findUnique({
-      where: { projectId_userId: { projectId: project.id, userId: paidId } },
-    })
-    expect(membership?.rank).toBe(ProjectMemberRank.PROJECT_LEAD)
+    expect(
+      await prisma.projectMember.count({ where: { projectId: project.id } }),
+    ).toBe(0)
   })
 
   it('refuses a slug that is already a project', async () => {
@@ -208,7 +239,6 @@ describe('the officer desk', () => {
       slug: `${PREFIX}rover`,
       title: 'Duplicate',
       summary: 'A thing',
-      leadUserId: paidId,
     })
 
     expect(response.status).toBe(409)
@@ -283,12 +313,20 @@ describe('the officer desk', () => {
    * would catch somebody rebuilding it.
    */
   it('seats the lead without touching what they are in the club', async () => {
-    await request('POST', '/api/officer/projects', officerCookie, {
+    const response = await request('POST', '/api/officer/projects', officerCookie, {
       slug: `${PREFIX}seating`,
       title: 'Seating',
       summary: 'A thing',
-      leadUserId: paidId,
     })
+
+    const project = (await response.json()) as { id: string }
+
+    await request(
+      'PATCH',
+      `/api/officer/projects/${project.id}/members/${paidId}/rank`,
+      officerCookie,
+      { rank: 'PROJECT_LEAD' },
+    )
 
     const after = await prisma.user.findUnique({ where: { id: paidId } })
     expect(after?.role).toBe(UserRole.MEMBER)
@@ -305,11 +343,17 @@ describe('the officer desk', () => {
       slug: `${PREFIX}mine`,
       title: 'My Own Build',
       summary: 'A thing',
-      leadUserId: officerId,
     })
 
     expect(response.status).toBe(201)
     const project = (await response.json()) as { id: string }
+
+    await request(
+      'PATCH',
+      `/api/officer/projects/${project.id}/members/${officerId}/rank`,
+      officerCookie,
+      { rank: 'PROJECT_LEAD' },
+    )
 
     const seat = await prisma.projectMember.findUnique({
       where: { projectId_userId: { projectId: project.id, userId: officerId } },
@@ -492,11 +536,15 @@ describe('creating a project', () => {
   })
 
   /**
-   * The field is honoured now rather than ignored — an officer naming somebody
-   * else is the whole point of it, and there is no longer a caller for whom it
-   * had to be overridden.
+   * The field is gone, and a body still carrying it seats nobody.
+   *
+   * Zod strips what it does not declare rather than refusing it, so an old
+   * client — or a hand-written request copied from the previous shape — gets a
+   * 201 and an empty roster. That is the right answer and worth pinning: the
+   * failure this guards against is somebody re-adding `leadUserId` to the
+   * schema and quietly restoring a second route that grants `PROJECT_LEAD`.
    */
-  it('seats the lead an officer names', async () => {
+  it('ignores a lead named at creation', async () => {
     const response = await request(
       'POST',
       '/api/officer/projects',
@@ -507,12 +555,9 @@ describe('creating a project', () => {
     expect(response.status).toBe(201)
     const project = (await response.json()) as { id: string }
 
-    const seats = await prisma.projectMember.findMany({
-      where: { projectId: project.id },
-    })
-    expect(seats).toHaveLength(1)
-    expect(seats[0].userId).toBe(paidId)
-    expect(seats[0].rank).toBe(ProjectMemberRank.PROJECT_LEAD)
+    expect(
+      await prisma.projectMember.count({ where: { projectId: project.id } }),
+    ).toBe(0)
   })
 })
 
@@ -529,6 +574,8 @@ describe('appointing a project lead', () => {
       data: {
         slug: `${PREFIX}unled`,
         title: 'PM Unled',
+        termYear: 2035,
+        termSeason: Season.FALL,
         status: ProjectStatus.IN_PROGRESS,
       },
     })
@@ -625,6 +672,36 @@ describe('joining a project', () => {
     expect(await response.json()).toMatchObject({
       error: expect.stringContaining('dues'),
     })
+  })
+
+  /**
+   * And *not* in words about dues while the club is charging nothing.
+   *
+   * This route used to read `hasAccess` itself and throw its own sentence,
+   * which was fine while "no cover" meant one thing. It means three now, and
+   * the hardcoded one told somebody inside a free window to settle dues they
+   * did not owe for a thing that was one free press away. It defers to
+   * `requireCurrentDues`, so the sentence follows the date — asserted by moving
+   * the clock into the August gap rather than by moving the fixture, because
+   * the window is a property of the calendar.
+   */
+  it('tells somebody inside a free window to claim it instead', async () => {
+    vi.setSystemTime(new Date(2035, 7, 15, 12, 0, 0))
+
+    try {
+      const response = await request(
+        'POST',
+        `/api/projects/${projectId}/join`,
+        unpaidCookie,
+      )
+
+      expect(response.status).toBe(403)
+      const { error } = (await response.json()) as { error: string }
+      expect(error).toMatch(/free right now/i)
+      expect(error).not.toMatch(/lapsed/i)
+    } finally {
+      vi.setSystemTime(MID_FALL)
+    }
   })
 
   it('answers a second join with a conflict, not a duplicate row', async () => {
@@ -1453,5 +1530,312 @@ describe('GET /api/me/projects', () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual([])
+  })
+})
+
+/**
+ * Running last term's project again this term.
+ *
+ * A build that carries across semesters is several rows now, one per term, and
+ * this is how the next one gets made. What it copies is the writing; what it
+ * deliberately does not copy is the people.
+ */
+describe('duplicating a project', () => {
+  const duplicate = (body: Record<string, unknown>) =>
+    request(
+      'POST',
+      `/api/officer/projects/${projectId}/duplicate`,
+      officerCookie,
+      body,
+    )
+
+  beforeEach(async () => {
+    await prisma.project.update({
+      where: { id: projectId },
+      data: {
+        summary: 'A rover',
+        description: 'The long write-up',
+        competition: 'UNIVERSITY ROVER CHALLENGE',
+        repoUrl: 'https://example.com/repo',
+        meetingWeekday: 4,
+        meetingTime: '18:30',
+        meetingLocation: 'ENG2 Lab',
+        links: {
+          create: { label: 'Docs', url: 'https://example.com', sortOrder: 0 },
+        },
+      },
+    })
+  })
+
+  it('carries the writing across and stamps the new term', async () => {
+    const response = await duplicate({
+      slug: `${PREFIX}rover-2036`,
+      termYear: 2036,
+      termSeason: Season.SPRING,
+    })
+
+    expect(response.status).toBe(201)
+    expect(await response.json()).toMatchObject({
+      slug: `${PREFIX}rover-2036`,
+      title: 'PM Rover',
+      summary: 'A rover',
+      competition: 'UNIVERSITY ROVER CHALLENGE',
+      repoUrl: 'https://example.com/repo',
+      meetingWeekday: 4,
+      meetingTime: '18:30',
+      termYear: 2036,
+      termSeason: Season.SPRING,
+    })
+  })
+
+  /**
+   * The whole reason the roster is left behind: a new term is when people
+   * decide again, and a copy that re-enrolled last spring's team would put a
+   * project back on the dashboard of somebody who has graduated.
+   */
+  it('starts with nobody on it', async () => {
+    const response = await duplicate({ slug: `${PREFIX}rover-empty` })
+    const copy = (await response.json()) as { id: string }
+
+    expect(
+      await prisma.projectMember.count({ where: { projectId: copy.id } }),
+    ).toBe(0)
+    // …even though the original has its lead on it.
+    expect(
+      await prisma.projectMember.count({ where: { projectId } }),
+    ).toBeGreaterThan(0)
+  })
+
+  it('copies the resource links', async () => {
+    const response = await duplicate({ slug: `${PREFIX}rover-links` })
+    const copy = (await response.json()) as { id: string }
+
+    const links = await prisma.projectLink.findMany({
+      where: { projectId: copy.id },
+    })
+    expect(links).toHaveLength(1)
+    expect(links[0]).toMatchObject({
+      label: 'Docs',
+      url: 'https://example.com',
+    })
+  })
+
+  /**
+   * The sharp edge. Copying the image *rows* alone looks right in every test —
+   * both galleries render — and breaks on deletion, because every delete route
+   * calls `deleteIfStored` by hand and would take the bytes out from under the
+   * other project. So the copy gets its own `StoredFile`, and this is what says
+   * the two are genuinely separate rather than two names for one row.
+   */
+  it('copies an uploaded picture rather than sharing it', async () => {
+    const stored = await prisma.storedFile.create({
+      data: {
+        kind: FileKind.IMAGE,
+        mimeType: 'image/png',
+        byteSize: 4,
+        originalName: `${PREFIX}pic.png`,
+        data: Buffer.from([1, 2, 3, 4]),
+      },
+    })
+
+    await prisma.projectImage.create({
+      data: {
+        projectId,
+        url: `/api/files/${stored.id}`,
+        caption: 'On the bench',
+        sortOrder: 0,
+      },
+    })
+
+    const response = await duplicate({ slug: `${PREFIX}rover-gallery` })
+    const copy = (await response.json()) as { id: string }
+
+    const images = await prisma.projectImage.findMany({
+      where: { projectId: copy.id },
+    })
+    expect(images).toHaveLength(1)
+    expect(images[0]!.caption).toBe('On the bench')
+    expect(images[0]!.url).not.toBe(`/api/files/${stored.id}`)
+
+    // Deleting the copy's file must leave the original's where it is.
+    const copiedId = images[0]!.url.replace('/api/files/', '')
+    expect(await prisma.storedFile.count({ where: { id: copiedId } })).toBe(1)
+
+    await prisma.storedFile.deleteMany({ where: { id: copiedId } })
+    expect(await prisma.storedFile.count({ where: { id: stored.id } })).toBe(1)
+
+    await prisma.storedFile.deleteMany({ where: { id: stored.id } })
+  })
+
+  /** An external URL is somebody else's hosting: copied as written. */
+  it('leaves an external picture URL as it is', async () => {
+    await prisma.projectImage.create({
+      data: { projectId, url: 'https://example.com/rover.png', sortOrder: 0 },
+    })
+
+    const response = await duplicate({ slug: `${PREFIX}rover-external` })
+    const copy = (await response.json()) as { id: string }
+
+    const images = await prisma.projectImage.findMany({
+      where: { projectId: copy.id },
+    })
+    expect(images[0]!.url).toBe('https://example.com/rover.png')
+  })
+
+  /**
+   * Duplicating an archived project is how a build comes *back*, so inheriting
+   * the status would get the one case this route exists for wrong.
+   */
+  it('brings an archived project back as in progress', async () => {
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { status: ProjectStatus.ARCHIVED, featured: true },
+    })
+
+    const response = await duplicate({ slug: `${PREFIX}rover-revived` })
+
+    expect(await response.json()).toMatchObject({
+      status: ProjectStatus.IN_PROGRESS,
+      featured: false,
+    })
+  })
+
+  it('refuses a slug that is already a project', async () => {
+    expect((await duplicate({ slug: `${PREFIX}rover` })).status).toBe(409)
+  })
+
+  it('refuses a season named without its year', async () => {
+    const response = await duplicate({
+      slug: `${PREFIX}rover-half`,
+      termSeason: Season.SPRING,
+    })
+
+    expect(response.status).toBe(400)
+  })
+
+  it('belongs to officers', async () => {
+    const response = await request(
+      'POST',
+      `/api/officer/projects/${projectId}/duplicate`,
+      leadCookie,
+      { slug: `${PREFIX}rover-nope` },
+    )
+
+    expect(response.status).toBe(403)
+  })
+})
+
+/**
+ * An officer giving somebody a term, with no money involved.
+ *
+ * The cash-at-a-meeting case. It used to be a date typed into Prisma Studio,
+ * which covers the person and does nothing else — no promotion, no `joinedAt`,
+ * and no record of who decided. All three of those are what these assert.
+ */
+describe('granting a membership', () => {
+  const grant = (userId: string, plan: 'SEMESTER' | 'YEAR') =>
+    request(
+      'POST',
+      `/api/officer/members/${userId}/membership`,
+      officerCookie,
+      { plan },
+    )
+
+  it('covers a guest and makes them a member', async () => {
+    const response = await grant(unpaidId, 'SEMESTER')
+
+    expect(response.status).toBe(200)
+
+    const after = await prisma.user.findUniqueOrThrow({
+      where: { id: unpaidId },
+    })
+    expect(after.role).toBe(UserRole.MEMBER)
+    expect(after.duesPaidThrough).not.toBeNull()
+    expect(after.duesPaidThrough!.getTime()).toBeGreaterThan(MID_FALL.getTime())
+    // Promoted, but not published: a slug stays a person's decision.
+    expect(after.slug).toBeNull()
+    expect(after.joinedAt).toBeInstanceOf(Date)
+  })
+
+  /**
+   * A payment row for nothing, with a name on it. The zero amount says the club
+   * collected nothing, `grantedById` says who decided, and the sentinel keeps
+   * the unique constraint that stops Stripe crediting twice meaning what it
+   * means rather than the column going nullable.
+   */
+  it('records who granted it, for nothing', async () => {
+    await grant(unpaidId, 'SEMESTER')
+
+    const rows = await prisma.duesPayment.findMany({
+      where: { userId: unpaidId },
+    })
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
+      amountCents: 0,
+      status: 'SUCCEEDED',
+      plan: 'SEMESTER',
+      grantedById: officerId,
+    })
+    expect(rows[0]!.stripePaymentIntentId).toMatch(/^comp_/)
+    expect(rows[0]!.paidAt).toBeInstanceOf(Date)
+  })
+
+  /**
+   * Quoted against what they already hold, the same way the checkout page is,
+   * so a second grant reaches further out instead of shortening somebody to the
+   * term they are already covered for.
+   */
+  it('extends rather than resets', async () => {
+    await grant(unpaidId, 'SEMESTER')
+    const first = await prisma.user.findUniqueOrThrow({
+      where: { id: unpaidId },
+    })
+
+    await grant(unpaidId, 'SEMESTER')
+    const second = await prisma.user.findUniqueOrThrow({
+      where: { id: unpaidId },
+    })
+
+    expect(second.duesPaidThrough!.getTime()).toBeGreaterThan(
+      first.duesPaidThrough!.getTime(),
+    )
+  })
+
+  it('shows in their own dues history, with the officer named', async () => {
+    await grant(unpaidId, 'SEMESTER')
+
+    const response = await request('GET', '/api/dues/status', unpaidCookie)
+    const body = (await response.json()) as {
+      history: { amountCents: number; grantedBy: string | null }[]
+    }
+
+    expect(body.history[0]).toMatchObject({
+      amountCents: 0,
+      grantedBy: 'PM Officer',
+    })
+  })
+
+  it('404s for somebody who does not exist', async () => {
+    const response = await grant(
+      '00000000-0000-7000-8000-000000000000',
+      'SEMESTER',
+    )
+
+    expect(response.status).toBe(404)
+  })
+
+  it('belongs to officers', async () => {
+    const response = await request(
+      'POST',
+      `/api/officer/members/${unpaidId}/membership`,
+      leadCookie,
+      { plan: 'SEMESTER' },
+    )
+
+    expect(response.status).toBe(403)
+    expect(
+      (await prisma.user.findUniqueOrThrow({ where: { id: unpaidId } }))
+        .duesPaidThrough,
+    ).toBeNull()
   })
 })

@@ -16,6 +16,10 @@ const project = (over: Partial<ApiProject> = {}): ApiProject => ({
   title: 'Project S.T.O.R.M.',
   summary: 'Research, design, build and test a Mars rover.',
   season: 'June 2026',
+  // Every project carries the term it is built for, and the dashboard
+  // splits on it. Pinned rather than left to today's date.
+  termYear: 2035,
+  termSeason: 'FALL',
   competition: 'UNIVERSITY ROVER CHALLENGE',
   status: 'IN_PROGRESS',
   coverUrl: null,

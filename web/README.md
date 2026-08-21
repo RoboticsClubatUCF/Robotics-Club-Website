@@ -134,7 +134,7 @@ sent, so there is no CORS error and no server log — every call fails exactly a
 it would if the API were down, and the whole site renders its "couldn't reach
 the server" states. `src/lib/api.ts` logs the mismatch by name if a build ever
 ships with it. The API side of moving to https is `SITE_URL` and `TRUST_PROXY`;
-see the deploy notes in `.claude/docs/architecture.md`.
+see the deploy notes in `server/README.md`.
 
 The comments in `src/index.css` carry the reasoning behind each of those
 decisions, including the ones that have already cost time.

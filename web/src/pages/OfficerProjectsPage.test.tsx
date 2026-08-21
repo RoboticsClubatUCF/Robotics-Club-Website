@@ -20,11 +20,13 @@ import { urlOf } from '../test/stubFetch'
  * project is live between the steps, and somebody who stops halfway has to be
  * told so and given a way out.
  *
- * The second thing under test is who gets what. Officers see the create panel
- * and the appointment panel; somebody carrying the `PROJECT_LEAD` roster label
- * sees the create panel alone, and only until they lead something. That cap is
- * `requireProjectCreator` on the server and the page only mirrors it, so what
- * these check is that the mirror says the same thing.
+ * The second panel is duplication, which exists because the dashboard became
+ * term-scoped: a build that runs for years is one row per term now, and this is
+ * how the next row gets made.
+ *
+ * Appointing a lead used to be tested here and is not any more — it moved to
+ * the roles desk, and so did its tests. What is left on this page is entirely
+ * about projects.
  */
 
 const term: ApiTerm = {
@@ -41,6 +43,10 @@ const created: ApiManagedProject = {
   title: 'Mars Rover',
   summary: 'Research, design, build and test a Mars rover.',
   season: null,
+  // Every project carries the term it is built for, and the dashboard
+  // splits on it. Pinned rather than left to today's date.
+  termYear: 2035,
+  termSeason: 'FALL',
   competition: null,
   status: 'IN_PROGRESS',
   coverUrl: null,
@@ -51,12 +57,24 @@ const created: ApiManagedProject = {
   meetingWeekday: null,
   meetingTime: null,
   meetingLocation: null,
+  discordRoleId: null,
+}
+
+/** A project already on the books, for the duplicate panel to copy from. */
+const existing: ApiManagedProject = {
+  ...created,
+  id: 'p-old',
+  slug: 'rover-one',
+  title: 'Rover One',
+  termYear: 2034,
+  termSeason: 'SPRING',
 }
 
 const mine = (rank: ApiMyProject['rank']): ApiMyProject => ({
   rank,
   title: null,
   team: null,
+  current: true,
   project: { ...created, id: 'p-old', slug: 'rover-one', title: 'Rover One' },
 })
 
@@ -111,11 +129,16 @@ const renderPage = (dashboard = context()) =>
   )
 
 /**
- * The create panel, scoped — the appoint-a-lead panel below it carries a second
- * people-picker with the same label, so an unscoped query finds two.
+ * The create panel, scoped — the duplicate panel below it is on screen at the
+ * same time, and both are forms about a project. Its fields are labelled NEW
+ * TITLE and NEW SLUG so the two do not collide, but scoping is still what makes
+ * these queries say which form they mean.
  */
 const createPanel = () =>
   within(screen.getByText('CREATE A PROJECT').closest('div')!)
+
+const duplicatePanel = () =>
+  within(screen.getByText('RUN ONE AGAIN NEXT TERM').closest('div')!)
 
 /**
  * Fills the create form and submits it. No lead is picked: the field is
@@ -192,7 +215,12 @@ function stubDesk(over: Record<string, unknown> = {}) {
         201,
       )
     }
-    if (url.includes('/projects?')) return json([])
+    if (url.includes('/officer/projects') && url.endsWith('/duplicate')) {
+      return json(over.duplicate ?? { ...created, id: 'p-copy' }, 201)
+    }
+    // The duplicate panel's source list. One project, so the select has
+    // something to pick and the term suffix has something to print.
+    if (url.includes('/projects?')) return json(over.projects ?? [existing])
     if (init?.method === 'DELETE') return json({ deleted: true })
     return json({})
   })
@@ -421,6 +449,9 @@ describe('OfficerProjectsPage', () => {
 
     await createProject()
 
+    // Unscoped, and that is the assertion: the duplicate panel is on screen
+    // throughout and has fields of the same shape, so these queries only find
+    // one each because its labels say NEW TITLE and NEW SEASON.
     expect(screen.getByLabelText('TITLE')).toHaveValue('Mars Rover')
     expect(screen.getByLabelText('SUMMARY')).toHaveValue(
       'Research, design, build and test a Mars rover.',
@@ -543,78 +574,223 @@ describe('OfficerProjectsPage', () => {
 })
 
 /**
- * The lead picker, which answers as it is typed rather than on a button.
+ * Running last term's project again this term.
  *
- * Fake timers for the debounce, and `advanceTimersByTimeAsync` inside `act` to
- * flush it — never `findBy*` or `waitFor` under fake timers, which would sit
- * there advancing nothing until the test times out.
+ * The club's builds outlast a semester, and the dashboard is term-scoped now,
+ * so a build that carries on is one row per term. This is the panel that makes
+ * the next row.
  */
-describe('the lead picker', () => {
-  const type = async (value: string) => {
-    fireEvent.change(createPanel().getByLabelText('FIND A MEMBER'), {
-      target: { value },
-    })
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(400)
+describe('duplicating a project', () => {
+  const pickSource = () => {
+    fireEvent.change(duplicatePanel().getByLabelText('COPY FROM'), {
+      target: { value: 'p-old' },
     })
   }
 
-  afterEach(() => {
-    vi.useRealTimers()
-  })
-
-  it('searches without being asked to, and picks from what it finds', async () => {
-    vi.useFakeTimers()
-    const fetchMock = stubDesk()
-    vi.stubGlobal('fetch', fetchMock)
+  it('names the term beside each project to copy from', async () => {
+    vi.stubGlobal('fetch', stubDesk())
     renderPage()
+    await act(async () => {})
 
-    await type('rowan')
-
-    expect(fetchMock.mock.calls.map(([input]) => urlOf(input))).toContainEqual(
-      expect.stringContaining('/officer/members?query=rowan'),
-    )
-    fireEvent.click(createPanel().getByRole('button', { name: /Rowan Chen/ }))
-    expect(createPanel().getByText('Rowan Chen')).toBeInTheDocument()
-  })
-
-  /** The route's own validator refuses one letter, so asking is a 400 a keystroke. */
-  it('asks nothing until there are two letters', async () => {
-    vi.useFakeTimers()
-    const fetchMock = stubDesk()
-    vi.stubGlobal('fetch', fetchMock)
-    renderPage()
-
-    await type('r')
-
+    // A build run three years running is three rows with one name, so the
+    // title alone would not say which one is being copied.
     expect(
-      fetchMock.mock.calls.filter(([input]) =>
-        urlOf(input).includes('/officer/members'),
-      ),
-    ).toHaveLength(0)
-    expect(screen.getByText('Two letters or more.')).toBeInTheDocument()
+      duplicatePanel().getByRole('option', { name: 'Rover One — Spring 2034' }),
+    ).toBeInTheDocument()
   })
 
-  /** Five keystrokes are one request, not five. */
-  it('waits for the typing to stop', async () => {
-    vi.useFakeTimers()
+  it('sends the new slug and the term, and lands in the editor', async () => {
     const fetchMock = stubDesk()
     vi.stubGlobal('fetch', fetchMock)
     renderPage()
+    await act(async () => {})
 
-    const field = createPanel().getByLabelText('FIND A MEMBER')
-    for (const value of ['ro', 'row', 'rowa', 'rowan']) {
-      fireEvent.change(field, { target: { value } })
-    }
+    pickSource()
+    fireEvent.change(duplicatePanel().getByLabelText(/NEW SLUG/), {
+      target: { value: 'rover-two' },
+    })
+    fireEvent.change(duplicatePanel().getByLabelText('TERM'), {
+      target: { value: 'FALL' },
+    })
+    fireEvent.change(duplicatePanel().getByLabelText('YEAR'), {
+      target: { value: '2035' },
+    })
+
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(400)
+      fireEvent.click(
+        duplicatePanel().getByRole('button', { name: 'DUPLICATE IT' }),
+      )
+    })
+
+    const call = fetchMock.mock.calls.find(([input]) =>
+      urlOf(input).endsWith('/duplicate'),
+    )
+    expect(call).toBeDefined()
+    expect(urlOf(call![0])).toContain('/officer/projects/p-old/duplicate')
+    expect(JSON.parse(call![1]!.body as string)).toMatchObject({
+      slug: 'rover-two',
+      termYear: 2035,
+      termSeason: 'FALL',
+    })
+
+    // Straight into the editor, because the first thing anybody does after
+    // duplicating is change the summary.
+    expect(screen.getByText(/is live/)).toBeInTheDocument()
+  })
+
+  /** Leaving both blank means "the term we are in", which the server decides. */
+  it('sends no term when neither field is filled', async () => {
+    const fetchMock = stubDesk()
+    vi.stubGlobal('fetch', fetchMock)
+    renderPage()
+    await act(async () => {})
+
+    pickSource()
+    fireEvent.change(duplicatePanel().getByLabelText(/NEW SLUG/), {
+      target: { value: 'rover-two' },
+    })
+
+    await act(async () => {
+      fireEvent.click(
+        duplicatePanel().getByRole('button', { name: 'DUPLICATE IT' }),
+      )
+    })
+
+    const call = fetchMock.mock.calls.find(([input]) =>
+      urlOf(input).endsWith('/duplicate'),
+    )
+    const body = JSON.parse(call![1]!.body as string) as Record<string, unknown>
+    expect(body).not.toHaveProperty('termYear')
+    expect(body).not.toHaveProperty('termSeason')
+  })
+
+  /** The server's own sentence, printed rather than flattened into an apology. */
+  it('keeps what was typed when the slug is taken', async () => {
+    const fetchMock = vi.fn((input: string | URL | Request) =>
+      urlOf(input).endsWith('/duplicate')
+        ? json({ error: 'A project already has that slug.' }, 409)
+        : urlOf(input).includes('/projects?')
+          ? json([existing])
+          : json({}),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    renderPage()
+    await act(async () => {})
+
+    pickSource()
+    fireEvent.change(duplicatePanel().getByLabelText(/NEW SLUG/), {
+      target: { value: 'rover-one' },
+    })
+
+    await act(async () => {
+      fireEvent.click(
+        duplicatePanel().getByRole('button', { name: 'DUPLICATE IT' }),
+      )
     })
 
     expect(
-      fetchMock.mock.calls.filter(([input]) =>
-        urlOf(input).includes('/officer/members'),
-      ),
-    ).toHaveLength(1)
+      screen.getByText('A project already has that slug.'),
+    ).toBeInTheDocument()
+    expect(duplicatePanel().getByLabelText(/NEW SLUG/)).toHaveValue('rover-one')
   })
 })
 
+/**
+ * The crew's Discord role, which is the one field on either form that changes
+ * something outside this website.
+ */
+describe('the project Discord role', () => {
+  it('sends what was typed into the create form', async () => {
+    const fetchMock = stubDesk()
+    vi.stubGlobal('fetch', fetchMock)
+    renderPage()
+    await act(async () => {})
+
+    fireEvent.change(createPanel().getByLabelText('DISCORD ROLE'), {
+      target: { value: '984535585270157362' },
+    })
+    await createProject()
+
+    const call = fetchMock.mock.calls.find(
+      ([input, init]) =>
+        urlOf(input).endsWith('/officer/projects') && init?.method === 'POST',
+    )
+    expect(JSON.parse(call![1]!.body as string)).toMatchObject({
+      discordRoleId: '984535585270157362',
+    })
+  })
+
+  it('says nothing about the role when the duplicate box is left blank', async () => {
+    // Blank means "same as the original", the rule NEW TITLE already follows,
+    // and the server is what carries it across. Sending an explicit null here
+    // would silently strip the crew role off next semester's row.
+    const fetchMock = stubDesk()
+    vi.stubGlobal('fetch', fetchMock)
+    renderPage()
+    await act(async () => {})
+
+    fireEvent.change(duplicatePanel().getByLabelText('COPY FROM'), {
+      target: { value: 'p-old' },
+    })
+    fireEvent.change(duplicatePanel().getByLabelText(/NEW SLUG/), {
+      target: { value: 'rover-two' },
+    })
+
+    await act(async () => {
+      fireEvent.click(
+        duplicatePanel().getByRole('button', { name: 'DUPLICATE IT' }),
+      )
+    })
+
+    const call = fetchMock.mock.calls.find(([input]) =>
+      urlOf(input).endsWith('/duplicate'),
+    )
+    expect(JSON.parse(call![1]!.body as string)).not.toHaveProperty(
+      'discordRoleId',
+    )
+  })
+
+  it('sends a different role when the officer names one', async () => {
+    const fetchMock = stubDesk()
+    vi.stubGlobal('fetch', fetchMock)
+    renderPage()
+    await act(async () => {})
+
+    fireEvent.change(duplicatePanel().getByLabelText('COPY FROM'), {
+      target: { value: 'p-old' },
+    })
+    fireEvent.change(duplicatePanel().getByLabelText(/NEW SLUG/), {
+      target: { value: 'rover-two' },
+    })
+    fireEvent.change(duplicatePanel().getByLabelText('NEW DISCORD ROLE'), {
+      target: { value: '1242854709300039781' },
+    })
+
+    await act(async () => {
+      fireEvent.click(
+        duplicatePanel().getByRole('button', { name: 'DUPLICATE IT' }),
+      )
+    })
+
+    const call = fetchMock.mock.calls.find(([input]) =>
+      urlOf(input).endsWith('/duplicate'),
+    )
+    expect(JSON.parse(call![1]!.body as string)).toMatchObject({
+      discordRoleId: '1242854709300039781',
+    })
+  })
+
+  /**
+   * Both panels are on screen together, so the two labels have to differ —
+   * the rule that gave the duplicate form NEW TITLE and NEW SLUG. Unscoped
+   * queries are the assertion.
+   */
+  it('labels the two role fields differently', async () => {
+    vi.stubGlobal('fetch', stubDesk())
+    renderPage()
+    await act(async () => {})
+
+    expect(screen.getByLabelText('DISCORD ROLE')).toBeInTheDocument()
+    expect(screen.getByLabelText('NEW DISCORD ROLE')).toBeInTheDocument()
+  })
+})

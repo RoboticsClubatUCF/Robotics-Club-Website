@@ -6,6 +6,7 @@ import { looksLikeImage, looksLikePrintModel, storedUrl } from './files.js'
 import {
   FileKind,
   ProjectMemberRank,
+  Season,
   UserRole,
 } from './generated/prisma/enums.js'
 import { createSession } from './session.js'
@@ -54,6 +55,12 @@ beforeEach(async () => {
       fullName: 'Files Lead',
       email: `${PREFIX}lead@ucf.edu`,
       role: UserRole.MEMBER,
+      // Pinned to 2035, per `testing.md`: every fixture that has to get through
+      // a gate needs a dues date now that access is the date and nothing else.
+      // These suites used to pass without one because the summer and the
+      // opening fortnight let everybody in — which is exactly the accident that
+      // rule was written to stop.
+      duesPaidThrough: new Date('2035-12-31T00:00:00'),
     },
   })
 
@@ -61,6 +68,10 @@ beforeEach(async () => {
     data: {
       slug: `${PREFIX}rover`,
       title: 'Files Rover',
+      // Every project needs a term now. A year nothing real uses, so a
+      // fixture can never collide with the club's own rows.
+      termYear: 2035,
+      termSeason: Season.FALL,
       members: {
         create: { userId: lead.id, rank: ProjectMemberRank.PROJECT_LEAD },
       },

@@ -85,16 +85,21 @@ export function countdown(iso: string, now: number = Date.now()): string {
 /**
  * The label on the status chip, and its colour.
  *
- * `FREE` and `TRIAL` are both "you owe nothing at this moment" and are still
- * separate words, because only one of them has a deadline attached. Telling
- * somebody on a trial that membership is simply free is how they find out
- * otherwise by being turned away at the lab.
+ * **`FREE` is not a good state to be in**, and the word has to carry that. It
+ * used to mean "the club is charging nobody, you are covered" and it now means
+ * "the club is charging nobody, and you have not claimed it" — the same three
+ * letters, the opposite answer to *may I get in*. So the chip reads FREE TO
+ * CLAIM rather than NO DUES DUE, and it is the same warning colour the club
+ * uses for anything that needs a press.
+ *
+ * `TRIAL` is gone with the status it labelled. One continuous window from the
+ * end of one dues-bearing term to two weeks into the next made the split
+ * between "the gap" and "the fortnight" meaningless — same offer, same press.
  *
  * `ACTIVE` used to read PAID, and that was wrong for a whole season a year: a
- * membership can be active without a payment behind it — the summer and the
- * break between terms cost nothing, and a member who has claimed one of those
- * is as covered as anybody who paid. The word has to be about the membership,
- * not about the money.
+ * membership can be active without a payment behind it — a claimed window is
+ * as covering as anything bought. The word has to be about the membership, not
+ * about the money.
  */
 /**
  * Whether dues have lapsed and the dashboard is down to its two open pages,
@@ -117,55 +122,90 @@ export function duesLocked(
   membership: ApiState<ApiMembership>,
   role: UserRole,
 ): boolean {
-  if (membership.status !== 'ready' || role === 'ADMIN') return false
-  return !membership.data.hasAccess
+  // The boolean face of `accessLock` below, and deliberately not a second read
+  // of `hasAccess`: the rail and the page it links to must lock on the same
+  // condition or one of them is lying.
+  return accessLock(membership, role) !== null
 }
 
 /**
- * Why 3D printing and equipment are shut, or `null` when they are not —
- * mirroring `requireClubMember` on the server.
+ * Why a page is shut, or `null` when it is not.
  *
- * Stricter than `duesLocked`, and about a different question. Those two pages
- * are the club spending its own money on somebody, so they want a **member**,
- * not merely somebody with an account: a `GUEST` is refused whatever their
- * standing says. Coverage alone would let an account made ten minutes ago order
- * prints, because the summer, the break between terms and the trial fortnight
- * all report `hasAccess: true` for everyone — that is what makes them free, and
- * it is not the same as having joined.
+ * **One predicate with three sentences**, mirroring `requireCurrentDues` in
+ * `server/src/authz.ts`, which decides exactly the same three ways. There used
+ * to be two predicates: `duesLocked` for the management pages and a stricter
+ * `memberLocked` for printing and borrowing, which also refused a `GUEST`
+ * outright. That mattered while the summer and the opening fortnight reported
+ * `hasAccess: true` for everybody — coverage alone would have let an account
+ * made ten minutes ago order prints. Access is the dues date now, and nothing
+ * sets that date without promoting the account in the same transaction, so the
+ * role check had become one that could never fail for anybody who got past the
+ * date. Two locks that always agree are one lock and a place for them to stop
+ * agreeing.
  *
- * The management pages keep using `duesLocked`, because nobody holding a rank
- * is a guest and the only question there is whether they have paid.
+ * The three reasons are not decoration. They are the difference between telling
+ * somebody the club wants money, telling them it does not want any right now,
+ * and telling somebody two years in that they were never a member:
  *
- * Two reasons rather than a boolean, because they need opposite sentences. A
- * guest whose dues date has **run out** is a member the sweep demoted, and
- * telling them they are not in the club — after two years in it — would be both
- * wrong and unkind, so they get the dues wording. Everyone else reading as a
- * guest gets the newcomer's: no date at all is somebody the site never
- * promoted, and a date still running on a guest cannot come from paying, so it
- * is an officer's hand-set role and "your dues lapsed" would be plainly false.
- *
- * Mirrors `requireClubMember` in `server/src/authz.ts`, which decides the same
- * three ways.
+ *   - `claim` — a free window is running. Quoting a price would be false; they
+ *     are one press from being let in, and it costs nothing.
+ *   - `dues` — a date that has run out. A member, on hold, nothing taken away.
+ *   - `newcomer` — no date, ever, and nothing free on offer.
  */
-export type AccessLock = 'dues' | 'guest' | null
+export type AccessLock = 'claim' | 'dues' | 'newcomer' | null
 
-export function memberLocked(
+/**
+ * Why this membership is not cover, ignoring who is looking.
+ *
+ * Split out from `accessLock` because two callers need the reason without the
+ * exemption: the overview's button, which should say CLAIM rather than PAY to
+ * an admin who has genuinely not claimed, and the join panel on a public
+ * project page, which has a membership and no dashboard context.
+ */
+export function coverGap(membership: ApiMembership): AccessLock {
+  if (membership.hasAccess) return null
+  if (membership.canActivate) return 'claim'
+
+  return membership.paidThrough === null ? 'newcomer' : 'dues'
+}
+
+export function accessLock(
   membership: ApiState<ApiMembership>,
   role: UserRole,
-  now: number = Date.now(),
 ): AccessLock {
-  // Same as `duesLocked`: lock nothing until the standing has actually
-  // arrived, so no padlock flashes at a paid-up member on every page load.
+  // Lock nothing until the standing has actually arrived, so no padlock
+  // flashes at a paid-up member while their status is still on the wire.
   if (membership.status !== 'ready' || role === 'ADMIN') return null
 
-  if (role === 'GUEST') {
-    const { paidThrough } = membership.data
-    const lapsed = paidThrough !== null && new Date(paidThrough).getTime() <= now
+  return coverGap(membership.data)
+}
 
-    return lapsed ? 'dues' : 'guest'
-  }
-
-  return membership.data.hasAccess ? null : 'dues'
+/**
+ * The words each reason gets, in one place.
+ *
+ * Every one of these lived somewhere else until the free window stopped
+ * granting access on its own. Before that, "no cover" only ever happened when
+ * money was genuinely owed, so a hardcoded PAY MY DUES was correct wherever it
+ * appeared — five pages had one, and all five became wrong on the same day. The
+ * button is what has to be right: telling somebody to pay for a thing that is
+ * free and one press away is the version of this bug people notice.
+ */
+export const LOCK_COPY: Record<
+  NonNullable<AccessLock>,
+  { cta: string; short: string }
+> = {
+  claim: {
+    cta: 'CLAIM MY MEMBERSHIP',
+    short: 'FREE RIGHT NOW — NOT SWITCHED ON YET',
+  },
+  dues: {
+    cta: 'PAY MY DUES',
+    short: "DUES LAPSED — EVERYTHING COMES BACK WHEN THEY'RE PAID",
+  },
+  newcomer: {
+    cta: 'PAY MY DUES',
+    short: 'MEMBERS ONLY — DUES TAKE A MINUTE',
+  },
 }
 
 export const STATUS_CHIP: Record<
@@ -176,13 +216,9 @@ export const STATUS_CHIP: Record<
     label: 'ACTIVE',
     className: 'border-success/40 bg-success/10 text-success',
   },
-  TRIAL: {
-    label: 'FREE TRIAL',
-    className: 'border-primary/40 bg-primary/10 text-primary',
-  },
   FREE: {
-    label: 'NO DUES DUE',
-    className: 'border-info/40 bg-info/10 text-info',
+    label: 'FREE TO CLAIM',
+    className: 'border-warning/40 bg-warning/10 text-warning',
   },
   EXPIRED: {
     label: 'DUES UNPAID',

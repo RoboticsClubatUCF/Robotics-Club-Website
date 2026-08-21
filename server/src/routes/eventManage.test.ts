@@ -4,6 +4,7 @@ import { prisma } from '../db.js'
 import { env } from '../env.js'
 import {
   ProjectMemberRank,
+  Season,
   UserRole,
 } from '../generated/prisma/enums.js'
 import { createSession } from '../session.js'
@@ -61,7 +62,15 @@ beforeEach(async () => {
         ] as const
       ).map(([name, role]) =>
         prisma.user.create({
-          data: { fullName: `Events ${name}`, email: email(name), role },
+          data: {
+            fullName: `Events ${name}`,
+            email: email(name),
+            role,
+            // Pinned to 2035, per `testing.md`. Access is the dues date now,
+            // so a fixture without one is refused for a reason that has
+            // nothing to do with what the test is about.
+            duesPaidThrough: new Date('2035-12-31T00:00:00'),
+          },
         }),
       ),
     )
@@ -71,6 +80,10 @@ beforeEach(async () => {
     data: {
       slug: `${PREFIX}rover`,
       title: 'Events Rover',
+      // Every project needs a term now. A year nothing real uses, so a
+      // fixture can never collide with the club's own rows.
+      termYear: 2035,
+      termSeason: Season.FALL,
       teams: { create: [{ name: 'Alpha' }, { name: 'Beta' }] },
     },
     include: { teams: true },
@@ -205,6 +218,8 @@ describe('creating events', () => {
       data: {
         slug: `${PREFIX}other`,
         title: 'Other',
+        termYear: 2035,
+        termSeason: Season.FALL,
         teams: { create: { name: 'Gamma' } },
       },
       include: { teams: true },

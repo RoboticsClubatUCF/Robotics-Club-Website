@@ -19,12 +19,30 @@ import { Season } from './generated/prisma/enums.js'
  *
  * The club's rules, in the order they matter:
  *
- *   - Summer is free. So is the gap between one term ending and the next
- *     beginning.
- *   - The first two weeks of a term are free for everybody — a trial, so
- *     somebody can come and look at the projects before paying for them.
- *   - $25 buys the term it was bought against. $50 buys that term and the next
- *     dues-bearing one: fall then spring, or spring then fall.
+ *   - **Access is `duesPaidThrough`, and nothing else.** A date in the future
+ *     is access; a date in the past, or no date, is none. Only `ADMIN` is
+ *     exempt, and that exemption lives in `authz.ts` rather than here. There is
+ *     no second way in — no role, no grace, no "well, it is summer". This is
+ *     the rule the whole file now serves, and it is what makes the website, the
+ *     API and the Discord bot agree by construction rather than by three
+ *     matching implementations.
+ *   - **Dues run to the end of the term they bought.** $25 buys one, $50 buys
+ *     that one and the next dues-bearing one: fall then spring, or spring then
+ *     fall.
+ *   - **Past halfway through a term, a payment buys the *next* one.** Nobody
+ *     should hand over a full term's dues in week eleven for three weeks of
+ *     cover. The date still runs continuously, so the rest of the current term
+ *     comes along with it — see `purchasableTerm`.
+ *   - **The free window is claimed, not given.** It runs from the end of one
+ *     dues-bearing term to two weeks into the next, and summer sits inside it,
+ *     so one press covers May to September. Claiming sets `duesPaidThrough` to
+ *     the day the window shuts; it is not a state anybody is in by default.
+ *
+ * The last of those changed: the summer and the first fortnight used to grant
+ * access to *everybody*, claimed or not, and `hasAccess` was true for the whole
+ * club through both. That made "is this person covered" and "is anything owed
+ * today" two different questions with two different answers, and every consumer
+ * had to know which it wanted. Now there is one.
  */
 
 /** Seasons as UCF's feed spells them; `Season` is how the database does. */
@@ -328,11 +346,17 @@ export function nextPaidTerm(term: Term): { year: number; season: Season } {
 }
 
 /**
- * The term a payment made now would be bought against.
+ * The dues-bearing term the calendar is pointing at.
  *
- * Fall and spring are themselves. Summer is not chargeable, so money handed
- * over in June buys the fall that follows it — the alternative being a page
- * that takes $25 and covers nothing.
+ * Fall and spring are themselves. Summer is not chargeable, so June points at
+ * the fall that follows it — the alternative being a page that takes $25 and
+ * covers nothing.
+ *
+ * **This is the term the free window hangs off, and it is deliberately not the
+ * term a payment buys.** Those two came apart when payments started rolling
+ * forward past halfway: in November a payment buys spring, but the free window
+ * does not reopen in November, and folding the halfway rule in here would make
+ * it look as though it did. `purchasableTerm` below is the other one.
  */
 export async function billableTerm(now: Date = new Date()): Promise<Term> {
   const term = await currentTerm(now)
@@ -343,8 +367,56 @@ export async function billableTerm(now: Date = new Date()): Promise<Term> {
 }
 
 /**
- * When the free trial for a term runs out, or null for a term that has no
- * trial because the whole thing is free.
+ * Whether a term is more than half over.
+ *
+ * Measured on the term's own length rather than a fixed number of weeks,
+ * because spring, summer and fall are not the same length and UCF moves all
+ * three. Before a term starts this is negative, which is the answer that makes
+ * buying during an intermission buy the term ahead rather than the one after.
+ */
+export function pastHalfway(term: Term, now: Date): boolean {
+  const midpoint =
+    term.startsAt.getTime() + (term.endsAt.getTime() - term.startsAt.getTime()) / 2
+
+  return now.getTime() >= midpoint
+}
+
+/**
+ * The term a payment made right now actually buys.
+ *
+ * `billableTerm`, rolled forward one dues-bearing term once the current one is
+ * more than half gone. Nobody should pay a full term's dues in week eleven and
+ * get three weeks for it, so past the midpoint the money buys the next term
+ * instead.
+ *
+ * **The rest of the current term comes along free, and that is a consequence
+ * rather than a second rule.** Coverage is one date running forward, so buying
+ * spring in November sets the date to spring's end and November-to-December is
+ * inside it. There is no start date on a membership and there should not be:
+ * two dates is two things to get wrong, and the club has never wanted to sell
+ * somebody a term that has not begun *and* lock them out until it does.
+ */
+export async function purchasableTerm(now: Date = new Date()): Promise<Term> {
+  const term = await billableTerm(now)
+
+  if (!pastHalfway(term, now)) return term
+
+  const next = nextPaidTerm(term)
+  return getTerm(next.year, next.season)
+}
+
+/**
+ * When the free window shuts: two weeks into the dues-bearing term ahead.
+ *
+ * One continuous window rather than one per free stretch, and that is the whole
+ * of it. From the day spring ends to two weeks into fall is a single period —
+ * the May gap, all of Summer C, the August gap and fall's opening fortnight —
+ * and one claim covers the lot. Summer needs no special case: it is free
+ * because it is inside this, not because anything checks for it.
+ *
+ * Null only for a summer term, which `billableTerm` never returns; the guard is
+ * here so that changing `billableTerm` fails loudly instead of quietly opening
+ * a window that never shuts.
  */
 export function trialEndsAt(term: Term): Date | null {
   if (term.season === Season.SUMMER) return null
@@ -352,33 +424,55 @@ export function trialEndsAt(term: Term): Date | null {
   return new Date(term.startsAt.getTime() + env.TRIAL_DAYS * DAY_MS)
 }
 
+/**
+ * Three states, and only the first of them is access.
+ *
+ * There used to be a fourth. `TRIAL` meant "inside the opening fortnight" and
+ * `FREE` meant "summer or a gap", and both granted access to everybody without
+ * anybody claiming anything. They have collapsed into one `FREE` that means
+ * something quite different: **not covered, but one press away from it.**
+ */
 export type MembershipStatus =
-  /** Covered today — dues paid for it, or a free window claimed. */
+  /** Covered today. `duesPaidThrough` is in the future — paid, claimed or granted. */
   | 'ACTIVE'
-  /** Inside the first two weeks of the term — free, and about to not be. */
-  | 'TRIAL'
-  /** Summer, or the gap between terms. Nothing is owed by anybody. */
+  /** Not covered, and the free window is running: claiming costs nothing. */
   | 'FREE'
-  /** Dues are owed and unpaid. */
+  /** Not covered, and nothing is free. Dues are owed. */
   | 'EXPIRED'
 
 export interface MembershipStanding {
   status: MembershipStatus
-  /** Whether the person may use club facilities today, whatever the reason. */
+  /**
+   * Whether the person may use anything today.
+   *
+   * **Exactly `paidThrough > now`, and that is the point.** It used to be
+   * `status !== 'EXPIRED'`, which handed the whole club access every summer and
+   * every opening fortnight whether or not they had claimed. One date, one
+   * answer — the same one `discordRoles.ts` writes into the guild, so the two
+   * cannot disagree.
+   */
   hasAccess: boolean
   /** The term now falls in, or the one being counted down to. */
   term: Term
-  /** The term a payment made now would buy. Differs from `term` only in summer. */
+  /**
+   * The term a payment made now would buy — `purchasableTerm`, so past the
+   * halfway point of the current one this is already the next.
+   */
   billable: Term
   /** What `User.duesPaidThrough` says, echoed for callers that only have this. */
   paidThrough: Date | null
   /**
-   * The moment access stops being free — the end of the trial for the term
-   * ahead. Null once dues are genuinely required, which is the same thing as
-   * "there is nothing keeping this person in but a payment".
+   * When the free window shuts, or null when none is running. Claiming sets
+   * `duesPaidThrough` to exactly this, so it is both the deadline and the
+   * cover somebody gets for pressing the button.
    */
   freeThrough: Date | null
-  /** Whether money is owed *today* by somebody who has not paid. */
+  /**
+   * Dues are owed today: not covered, and nothing free to claim. Exactly
+   * `status === 'EXPIRED'`, kept as its own field because every call site
+   * reads better for it and because the two demotion paths in
+   * `membershipSweep.ts` both turn on this rather than on `hasAccess`.
+   */
   duesRequired: boolean
   /**
    * `ACTIVE` because a free window was claimed rather than because dues were
@@ -399,10 +493,13 @@ export interface MembershipStanding {
 /**
  * Where one person stands right now.
  *
- * The order of the tests is the substance of this function. Paid cover is
- * checked before the free windows so that a member who bought the year still
- * reads as `ACTIVE` through the summer rather than as `FREE` — they paid for
- * it, and a status that forgets that is a status somebody will argue with.
+ * **One line decides it: `covered`.** Everything else here describes the
+ * calendar around that answer — what is on offer, until when, and what a
+ * payment would buy — but nothing else grants anything. That is the change
+ * this file was rewritten for: `hasAccess` used to be true for the entire club
+ * every summer, so the question "may this person do things" and the question
+ * "is the club charging today" had different answers and every caller had to
+ * know which one it meant.
  *
  * Pure, and one date in: claiming a free window is not a second kind of record
  * to look up, it is `duesPaidThrough` moved to the day the window closes. That
@@ -413,60 +510,57 @@ export async function membershipStanding(
   now: Date = new Date(),
 ): Promise<MembershipStanding> {
   const term = await currentTerm(now)
-  const billable =
-    term.season === Season.SUMMER
-      ? await getTerm(term.year, Season.FALL)
-      : term
 
-  // Not `term`'s trial: in summer, and in the break before a term starts, the
-  // next thing that will cost anybody money is the trial of the term ahead.
-  const trialEnd = trialEndsAt(billable)
-  const stillFree = trialEnd !== null && now < trialEnd
-  const freeThrough = stillFree ? trialEnd : null
+  // Two different terms, and conflating them is the bug this pair exists to
+  // prevent. The window hangs off the term the calendar points at; the quote
+  // hangs off the term a payment would actually buy, which past halfway is the
+  // one after. In November those differ by a whole semester.
+  const [windowTerm, billable] = await Promise.all([
+    billableTerm(now),
+    purchasableTerm(now),
+  ])
+
+  const windowEnd = trialEndsAt(windowTerm)
+  const stillFree = windowEnd !== null && now < windowEnd
+  const freeThrough = stillFree ? windowEnd : null
 
   const covered = paidThrough !== null && paidThrough > now
 
   /**
-   * Covered, but only as far as the term everybody is waiting for begins.
+   * Covered by a claim rather than by money.
    *
-   * This is how a claimed free window is told apart from a payment, and it
-   * needs no second record to do it: claiming moves `duesPaidThrough` to the
-   * first day of the billable term, while *paying* always carries it to the end
-   * of that term or beyond — `coverageFor` cannot produce anything shorter. The
-   * two are three months apart, so the test survives the calendar corrections
-   * UCF publishes rather than turning on an exact date match.
+   * Told apart by the date alone, with no second record: claiming lands exactly
+   * on `windowEnd`, while paying always reaches a term's `endsAt` — three
+   * months further on, and `coverageFor` cannot produce anything shorter. So
+   * the comparison survives the calendar corrections UCF publishes rather than
+   * turning on an exact match. It moved with the window: claiming used to land
+   * on the *first day* of the term and now lands a fortnight in.
    */
-  const freeActive = covered && paidThrough <= billable.startsAt
+  const freeActive = covered && windowEnd !== null && paidThrough <= windowEnd
 
   const status: MembershipStatus = covered
     ? 'ACTIVE'
     : stillFree
-      ? // Inside the term proper it is a trial with a deadline; before the term
-        // has started it is simply a period nothing is charged for. The two get
-        // different words because they want different sentences on the page.
-        now >= billable.startsAt
-        ? 'TRIAL'
-        : 'FREE'
+      ? 'FREE'
       : 'EXPIRED'
 
   return {
     status,
-    // The club's rule is that the summer and the break are free *for everybody*,
-    // so not having pressed a button has never been a reason to turn somebody
-    // away from the lab. Claiming changes what the membership reads as and how
-    // long the date runs, not what it opens.
-    hasAccess: status !== 'EXPIRED',
+    // The whole rule, and the only place it is written down.
+    hasAccess: covered,
     term,
     billable,
     paidThrough,
     freeThrough,
-    duesRequired: !covered && !stillFree,
+    duesRequired: status === 'EXPIRED',
     freeActive,
-    // `FREE` is exactly "a window is running and this person is not covered by
-    // it yet", so it is the whole condition. Not offered during `TRIAL`: that
-    // is inside the term, and the club asked for this on the summer and the
-    // gaps between terms.
-    canActivate: status === 'FREE',
+    // A window is running and claiming would actually move them forward.
+    // Somebody who has already claimed sits exactly on `windowEnd` and is
+    // refused a second press; somebody who has paid is months past it.
+    canActivate:
+      stillFree &&
+      windowEnd !== null &&
+      (paidThrough === null || paidThrough < windowEnd),
   }
 }
 
@@ -493,7 +587,11 @@ export async function coverageFor(
   now: Date = new Date(),
   paidThrough: Date | null = null,
 ): Promise<Coverage> {
-  let term = await billableTerm(now)
+  // `purchasableTerm`, not `billableTerm`: past the halfway point of a term the
+  // money buys the next one. The hop loop below then walks past anything they
+  // already hold, so the two rules compose rather than fight — somebody halfway
+  // through fall who already paid for spring buys the fall after.
+  let term = await purchasableTerm(now)
 
   for (let hop = 0; hop < 4; hop++) {
     if (paidThrough === null || paidThrough < term.endsAt) break

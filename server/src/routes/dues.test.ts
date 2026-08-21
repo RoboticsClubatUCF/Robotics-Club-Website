@@ -4,7 +4,7 @@ import { prisma } from '../db.js'
 import { env } from '../env.js'
 import { Season, UserRole } from '../generated/prisma/enums.js'
 import { hashPassword } from '../password.js'
-import { clearCalendarCache, getTerm } from '../semester.js'
+import { clearCalendarCache, getTerm, trialEndsAt } from '../semester.js'
 import { stripe, stripeConfigured, webhooksConfigured } from '../stripe.js'
 import { applyPayment, membershipUpdateFor } from './dues.js'
 
@@ -24,6 +24,27 @@ import { applyPayment, membershipUpdateFor } from './dues.js'
  * specific date, only which side of one things land. `semester.test.ts` is
  * where the calendar itself is checked.
  */
+
+/**
+ * Outright, never optionally — and here the reason is stronger than the one on
+ * `print.test.ts`. All three writers of `duesPaidThrough` now push Discord
+ * roles, and a role write is not a message somebody can ignore: it changes
+ * what a real person can see in the club's actual server. The dev `.env` has a
+ * live bot token, and the moment anybody sets `DISCORD_MEMBER_ROLE_ID` there,
+ * an unmocked run of this suite hands out and takes away real roles.
+ */
+vi.mock('../discord.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../discord.js')>()),
+  memberRoleId: null,
+  projectLeadRoleId: null,
+  teamLeadRoleId: null,
+  addGuildRole: vi.fn(() => Promise.resolve({ status: 'done' as const })),
+  removeGuildRole: vi.fn(() => Promise.resolve({ status: 'done' as const })),
+  guildRoster: vi.fn(() =>
+    Promise.resolve({ status: 'unchecked' as const }),
+  ),
+  guildRoles: vi.fn(() => Promise.resolve({ status: 'unchecked' as const })),
+}))
 
 const EMAIL = 'test-dues@ucf.edu'
 const PASSWORD = 'a-long-enough-password'
@@ -183,6 +204,37 @@ describe('POST /api/dues/checkout', () => {
     expect((await post('/api/dues/checkout', { plan: 'SEMESTER' })).status).toBe(
       401,
     )
+  })
+
+  /**
+   * A payment that would not move the date is a payment that buys nothing.
+   *
+   * `coverageFor` walks past terms already held and gives up after four hops —
+   * beyond that it returns the member's own date, so the charge lands and the
+   * membership is exactly as long as it was. Reachable in real life: the
+   * faculty advisor and any non-student mentor are documented as wanting a
+   * far-future `duesPaidThrough` so the gate never touches them.
+   *
+   * Worth a test rather than a comment because the two halves of this page
+   * disagreed about it — claiming has always refused somebody already covered,
+   * and the half that took money was the lax one. Runs before the Stripe check
+   * below on purpose: the refusal happens whether or not the club has keys.
+   */
+  it('refuses a payment that would not extend anything', async () => {
+    const cookie = await signIn()
+    await prisma.user.update({
+      where: { id: userId },
+      data: { duesPaidThrough: new Date('2099-01-01T00:00:00') },
+    })
+
+    const response = await post('/api/dues/checkout', { plan: 'SEMESTER' }, { cookie })
+
+    expect(response.status).toBe(409)
+    expect(await response.json()).toMatchObject({
+      error: expect.stringContaining('nothing to pay for'),
+    })
+    // And nothing was written on the way to refusing.
+    expect(await prisma.duesPayment.count({ where: { userId } })).toBe(0)
   })
 
   it('turns down a plan it does not sell', async () => {
@@ -641,17 +693,21 @@ describe('POST /api/dues/activate', () => {
   })
 
   /**
-   * The date is the *first day of the term ahead*, not the end of the trial
-   * that follows it — so the free fortnight in September still happens, and the
-   * trial-closing DM still finds somebody who has not paid.
+   * The date is the day the window *shuts* — two weeks into the term ahead.
+   *
+   * It used to be that term's first day, which was right while the fortnight
+   * after it was free for everybody regardless: the claim only had to carry
+   * somebody as far as the blanket trial. Nothing is blanket now, so a claim
+   * that stopped on the first day would buy less than doing nothing used to.
    */
-  it('moves the date to the day the term ahead opens', async () => {
+  it('moves the date to the day the free window shuts', async () => {
     const cookie = await signIn()
 
     await activate(cookie)
 
-    const fallStart = (await getTerm(2035, Season.FALL)).startsAt
-    expect((await paidThroughOf())?.getTime()).toBe(fallStart.getTime())
+    const windowEnd = trialEndsAt(await getTerm(2035, Season.FALL))
+    expect(windowEnd).not.toBeNull()
+    expect((await paidThroughOf())?.getTime()).toBe(windowEnd!.getTime())
   })
 
   it('is idempotent, and never walks the date backwards', async () => {

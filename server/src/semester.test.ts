@@ -6,6 +6,7 @@ import {
   currentTerm,
   getTerm,
   membershipStanding,
+  purchasableTerm,
   trialEndsAt,
 } from './semester.js'
 import { Season } from './generated/prisma/enums.js'
@@ -211,12 +212,16 @@ describe('which term it is', () => {
 describe('who owes what', () => {
   const none = null
 
-  it('asks nothing of anybody over the summer', async () => {
+  it('charges nobody over the summer, and lets nobody in who has not claimed', async () => {
     const standing = await membershipStanding(none, at('2026-06-20'))
 
     expect(standing.status).toBe('FREE')
     expect(standing.duesRequired).toBe(false)
-    expect(standing.hasAccess).toBe(true)
+    // The line the whole rewrite turns on. `FREE` used to mean "free for
+    // everybody, come in"; it now means "free, and one press away". Access is
+    // the date and this person has none.
+    expect(standing.hasAccess).toBe(false)
+    expect(standing.canActivate).toBe(true)
   })
 
   it('asks nothing between one term ending and the next beginning', async () => {
@@ -226,27 +231,43 @@ describe('who owes what', () => {
     expect(standing.duesRequired).toBe(false)
   })
 
-  /** Two weeks from the first day of classes, for everyone, every term. */
-  it('gives everybody the first fortnight of a term free', async () => {
+  /**
+   * The opening fortnight is the tail of the same window, not a second one.
+   *
+   * There used to be a `TRIAL` status here for exactly these two weeks, sitting
+   * beside `FREE` for the summer and the gaps. One continuous window from the
+   * end of one dues-bearing term to two weeks into the next made the split
+   * meaningless: it is the same offer, claimable on the same press, and the
+   * only thing that ever differed was the sentence on the page.
+   */
+  it('keeps the window open through the first fortnight of a term', async () => {
     const standing = await membershipStanding(none, at('2026-08-30'))
 
-    expect(standing.status).toBe('TRIAL')
+    expect(standing.status).toBe('FREE')
     expect(standing.duesRequired).toBe(false)
     expect(standing.freeThrough).not.toBeNull()
+    // Claimable *inside* the fortnight, which it was not before — the old
+    // `canActivate` was off during the trial because access came free anyway.
+    expect(standing.canActivate).toBe(true)
   })
 
   /**
    * Claiming a free window.
    *
    * The summer used to be free *silently* — the calendar covered everybody,
-   * every stale account included. Claiming makes "active member over the
-   * summer" a thing somebody did, and it is not a second kind of record: it is
-   * `duesPaidThrough` moved to the day the billable term opens. Everything
-   * below is what that one date buys.
+   * every stale account included, and claiming only changed what the
+   * membership read as. Now it is the difference between access and none, and
+   * it is still not a second kind of record: it is `duesPaidThrough` moved to
+   * the day the window shuts. Everything below is what that one date buys.
    */
   describe('claiming a free window', () => {
-    /** What `claimFreeWindow` writes: the first day of the term ahead. */
-    const claimed = async () => (await getTerm(2026, Season.FALL)).startsAt
+    /**
+     * What `claimFreeWindow` writes: the day the window shuts, two weeks into
+     * the term ahead. It used to be that term's *first* day, back when the
+     * fortnight after it was free for everybody regardless.
+     */
+    const claimed = async () =>
+      trialEndsAt(await getTerm(2026, Season.FALL)) as Date
 
     it('reads as active once claimed, without a payment behind it', async () => {
       const standing = await membershipStanding(
@@ -275,30 +296,51 @@ describe('who owes what', () => {
      * The whole point of the button, and the reason it can be offered on the
      * page rather than only implied.
      */
-    it('is offered over the summer and between terms, and not once the term is on', async () => {
+    it('is offered right through the window and not a day past it', async () => {
+      // The May gap, Summer C, the August gap and fall's opening fortnight are
+      // one stretch, and one press covers all of it.
       expect((await membershipStanding(none, at('2026-06-20'))).canActivate).toBe(true)
+      expect((await membershipStanding(none, at('2026-08-15'))).canActivate).toBe(true)
+      expect((await membershipStanding(none, at('2026-08-30'))).canActivate).toBe(true)
       expect((await membershipStanding(none, at('2026-12-20'))).canActivate).toBe(true)
-      // Inside the term: the trial has its own words and its own deadline, and
-      // the club asked for this on the summer and the gaps.
-      expect((await membershipStanding(none, at('2026-08-30'))).canActivate).toBe(false)
       // Dues are genuinely owed. There is nothing free to claim.
       expect((await membershipStanding(none, at('2026-09-30'))).canActivate).toBe(false)
     })
 
+    /** One press, May to September — the reason the window is not split. */
+    it('covers the whole stretch from one claim', async () => {
+      const inMay = await membershipStanding(none, at('2026-05-10'))
+      const through = inMay.freeThrough
+
+      expect(through).not.toBeNull()
+
+      // Still covered in the August gap and in fall's first fortnight, on the
+      // strength of a date claimed in May.
+      expect((await membershipStanding(through, at('2026-06-20'))).hasAccess).toBe(true)
+      expect((await membershipStanding(through, at('2026-08-15'))).hasAccess).toBe(true)
+      expect((await membershipStanding(through, at('2026-08-30'))).hasAccess).toBe(true)
+      // And out the day it shuts.
+      expect((await membershipStanding(through, at('2026-09-30'))).hasAccess).toBe(false)
+    })
+
     /**
-     * The reason the date is the term's *first day* rather than the end of the
-     * trial that follows it: claiming the summer must not swallow the two free
-     * weeks everybody gets in September.
+     * A claim carries through the opening fortnight rather than handing over to
+     * it. This is the case that flipped: the date used to stop on the term's
+     * first day and let the blanket trial take the next two weeks, which only
+     * worked while the trial was blanket.
      */
-    it('hands over to the trial when the term opens', async () => {
+    it('carries straight through the term’s first fortnight', async () => {
       const standing = await membershipStanding(
         await claimed(),
         at('2026-08-30'),
       )
 
-      expect(standing.status).toBe('TRIAL')
-      expect(standing.duesRequired).toBe(false)
-      expect(standing.freeThrough).not.toBeNull()
+      expect(standing.status).toBe('ACTIVE')
+      expect(standing.hasAccess).toBe(true)
+      expect(standing.freeActive).toBe(true)
+      // Already on the last day the window covers, so there is nothing left to
+      // claim — the guard against pressing the button twice.
+      expect(standing.canActivate).toBe(false)
     })
 
     /** And once the trial is out, a claim buys nothing more. */
@@ -314,15 +356,16 @@ describe('who owes what', () => {
     })
 
     /**
-     * Not having pressed a button has never been a reason to turn somebody away
-     * from the lab: the club's rule is that the window is free for everybody,
-     * and claiming changes what the membership reads as, not what it opens.
+     * The rule this whole file was rewritten around, stated as a test so it
+     * cannot quietly go back. Free is claimed, not given: somebody who has not
+     * pressed the button is not covered, however free the week is.
      */
-    it('does not gate access on having claimed', async () => {
+    it('gates access on having claimed', async () => {
       const unclaimed = await membershipStanding(none, at('2026-06-20'))
 
       expect(unclaimed.status).toBe('FREE')
-      expect(unclaimed.hasAccess).toBe(true)
+      expect(unclaimed.hasAccess).toBe(false)
+      expect(unclaimed.canActivate).toBe(true)
     })
 
     /** Somebody who paid ahead has nothing to claim and is already active. */
@@ -457,5 +500,108 @@ describe('what a payment buys', () => {
     expect(coverage.through.getTime()).toBeGreaterThanOrEqual(
       farFuture.getTime(),
     )
+  })
+})
+
+/**
+ * Past halfway, the money buys the next term.
+ *
+ * The rule exists because a full term's dues in week eleven is three weeks of
+ * cover, and nobody would pay it twice. The dates below are checked against the
+ * stubbed calendar rather than guessed: fall 2026 runs 24 August to 13
+ * December, so its midpoint is around 18 October, and spring 2026 runs 12
+ * January to 6 May, midpoint around 9 March.
+ */
+describe('buying past the halfway point', () => {
+  it('buys the term itself in the first half', async () => {
+    const term = await purchasableTerm(at('2026-09-30'))
+
+    expect(term.season).toBe(Season.FALL)
+    expect(term.year).toBe(2026)
+  })
+
+  it('buys the spring after it in the second half of fall', async () => {
+    const term = await purchasableTerm(at('2026-11-10'))
+
+    expect(term.season).toBe(Season.SPRING)
+    expect(term.year).toBe(2027)
+  })
+
+  it('buys the fall after it in the second half of spring', async () => {
+    const term = await purchasableTerm(at('2026-04-01'))
+
+    expect(term.season).toBe(Season.FALL)
+    expect(term.year).toBe(2026)
+  })
+
+  /**
+   * The rest of the current term comes along, and that is the point rather than
+   * a side effect: coverage is one date running forward, so buying spring in
+   * November covers November too. Somebody paying late is not buying less.
+   */
+  it('covers the rest of the current term as well, on one date', async () => {
+    const coverage = await coverageFor('SEMESTER', at('2026-11-10'))
+
+    expect(coverage.term.season).toBe(Season.SPRING)
+    expect(coverage.through.getFullYear()).toBe(2027)
+    expect(coverage.through.getMonth()).toBe(4)
+    // Which is to say: still covered in December, mid-way through the term
+    // they did not technically buy.
+    expect(
+      (await membershipStanding(coverage.through, at('2026-12-01'))).hasAccess,
+    ).toBe(true)
+  })
+
+  /** A year bought late is the next two, not this one and the next. */
+  it('rolls a year purchase forward too', async () => {
+    const coverage = await coverageFor('YEAR', at('2026-11-10'))
+
+    expect(coverage.covers.map((term) => term.season)).toEqual([
+      Season.SPRING,
+      Season.FALL,
+    ])
+    expect(coverage.covers[0]!.year).toBe(2027)
+  })
+
+  /**
+   * Before a term begins, "halfway through" is negative — which is what makes
+   * buying during an intermission buy the term ahead rather than the one after
+   * it. Worth its own case because it is the arithmetic that would silently
+   * sell somebody the wrong semester.
+   */
+  it('is not triggered during the intermission before a term', async () => {
+    const august = await purchasableTerm(at('2026-08-15'))
+    expect(august.season).toBe(Season.FALL)
+    expect(august.year).toBe(2026)
+
+    const december = await purchasableTerm(at('2026-12-20'))
+    expect(december.season).toBe(Season.SPRING)
+    expect(december.year).toBe(2027)
+  })
+
+  /** In summer the billable term is the coming fall, which has not started. */
+  it('buys the coming fall in summer, not the spring after', async () => {
+    const term = await purchasableTerm(at('2026-06-20'))
+
+    expect(term.season).toBe(Season.FALL)
+    expect(term.year).toBe(2026)
+  })
+
+  /**
+   * **The free window does not reopen in November**, and this is the case the
+   * two-term split in `membershipStanding` exists to protect. Folding the
+   * halfway rule into `billableTerm` would point the window at spring, whose
+   * fortnight has not happened yet — so the site would start telling everybody
+   * membership was free from mid-October to late January.
+   */
+  it('does not reopen the free window when the purchase rolls forward', async () => {
+    const standing = await membershipStanding(null, at('2026-11-10'))
+
+    expect(standing.status).toBe('EXPIRED')
+    expect(standing.canActivate).toBe(false)
+    expect(standing.freeThrough).toBeNull()
+    // And the quote is still honest about which term the money would buy.
+    expect(standing.billable.season).toBe(Season.SPRING)
+    expect(standing.billable.year).toBe(2027)
   })
 })

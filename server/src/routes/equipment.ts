@@ -8,7 +8,7 @@ import { LoanStatus } from '../generated/prisma/enums.js'
 import { DAY_MS, loanDate, loanDays, startsAt } from '../loanWindow.js'
 import { notifyOfficers } from '../officerNotify.js'
 import { rateLimit } from '../rateLimit.js'
-import { requireMemberForRoute } from '../authz.js'
+import { requireDuesForRoute } from '../authz.js'
 import { type AuthEnv, originGuard, requireAuth } from '../session.js'
 
 /**
@@ -21,9 +21,12 @@ import { type AuthEnv, originGuard, requireAuth } from '../session.js'
  * The inventory itself is officer-run — see `officer.ts` — and so is every
  * decision about a loan. This router is the counter, not the store room.
  *
- * **Members only, not merely signed-in.** `requireMemberForRoute` refuses a
- * `GUEST` outright as well as anyone whose dues have lapsed — the club lends
- * its own things, and an account is not a membership.
+ * **Paid-up members only, not merely signed-in.** `requireDuesForRoute` is the
+ * whole gate, and it is the same one the management pages use: the club lends
+ * its own things, and an account is not a membership. This used to be a
+ * stricter check of its own, `requireClubMember`, which also refused a `GUEST`
+ * — that mattered when the summer granted everybody access whether or not they
+ * had claimed it. It no longer does, so the two collapsed. See `authz.ts`.
  *
  * **A loan holds a unit from the moment it is approved**, not from collection:
  * a drill promised to somebody who has not walked over yet is not available
@@ -69,7 +72,7 @@ const MAX_BOOKING_DAYS = 180
  * the list is short, but N+1 in a loop is how a short list stops being fast
  * without anybody noticing.
  */
-equipment.get('/', requireAuth, requireMemberForRoute, async (c) => {
+equipment.get('/', requireAuth, requireDuesForRoute, async (c) => {
   const [items, held] = await Promise.all([
     prisma.equipment.findMany({
       where: { active: true },
@@ -103,7 +106,7 @@ equipment.post(
   '/:id/loans',
   originGuard,
   requireAuth,
-  requireMemberForRoute,
+  requireDuesForRoute,
   requests,
   zValidator(
     'json',
@@ -217,7 +220,7 @@ equipment.post(
   '/loans/:id/cancel',
   originGuard,
   requireAuth,
-  requireMemberForRoute,
+  requireDuesForRoute,
   requests,
   async (c) => {
     const user = c.get('user')

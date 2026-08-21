@@ -31,9 +31,9 @@ import { socialLinks } from '../content/home'
  *
  * Three things it has to get right, in the order they bite:
  *
- * **The offer to pay is always there.** Somebody on the free trial, or reading
- * this in the middle of a free summer, can pay for the term ahead right now
- * rather than being told to come back later — which is the whole reason the
+ * **The offer to pay is always there.** Somebody inside a free window, or
+ * reading this in the middle of a free summer, can pay for the term ahead right
+ * now rather than being told to come back later — which is the whole reason the
  * plans render above the fold in every state rather than only when money is
  * owed.
  *
@@ -332,7 +332,9 @@ export function DuesPage() {
       <FormHeading>
         {membership.status === 'EXPIRED'
           ? 'Time to renew.'
-          : 'Your membership.'}
+          : membership.status === 'FREE'
+            ? 'Switch it on.'
+            : 'Your membership.'}
       </FormHeading>
 
       <div className="mb-8">
@@ -345,6 +347,7 @@ export function DuesPage() {
             membership={membership}
             state={activation}
             onActivate={() => void activate()}
+            now={Date.now()}
           />
         </div>
       )}
@@ -376,10 +379,10 @@ export function DuesPage() {
         </>
       ) : (
         <>
-          {/* Offered in every state, including the two where nothing is owed.
-              Somebody on a trial or in the middle of a free summer can settle
-              the term ahead now instead of being told to come back — which is
-              the single most useful thing this page does for the club. */}
+          {/* Offered in every state, including the one where nothing is owed.
+              Somebody inside a free window can settle the term ahead now
+              instead of being told to come back — which is the single most
+              useful thing this page does for the club. */}
           <p className="text-faint mb-4 font-mono text-[10px] font-medium tracking-[0.16em]">
             {membership.duesRequired
               ? 'PAY YOUR DUES'
@@ -421,8 +424,11 @@ export function DuesPage() {
 
       {history.length > 0 && (
         <div className="mt-10">
+          {/* "Paid or granted", because a comped term appears in this list as a
+              zero-amount row and "WHAT YOU HAVE PAID" above one reads as a bug
+              in the price column. */}
           <p className="text-faint mb-4 font-mono text-[10px] font-medium tracking-[0.16em]">
-            WHAT YOU HAVE PAID
+            WHAT YOU HAVE PAID OR BEEN GIVEN
           </p>
           <ul className="border-rule divide-rule divide-y border">
             {history.map((payment) => (
@@ -431,10 +437,19 @@ export function DuesPage() {
                 className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-3"
               >
                 <span className="text-sm">
-                  {formatMoney(payment.amountCents)}{' '}
+                  {/* An officer granting a term writes a row for nothing with
+                      their name on it. The amount would be "$0.00" otherwise,
+                      which says the club charged nothing rather than that
+                      somebody decided. */}
+                  {payment.grantedBy ? (
+                    <span className="font-medium">Granted</span>
+                  ) : (
+                    formatMoney(payment.amountCents)
+                  )}{' '}
                   <span className="text-dim">
                     — {payment.plan === 'YEAR' ? 'academic year' : 'semester'},
                     through {formatDate(payment.coversThrough)}
+                    {payment.grantedBy && `, by ${payment.grantedBy}`}
                   </span>
                 </span>
                 <span className="text-faint flex items-center gap-3 font-mono text-[11px]">
@@ -462,42 +477,56 @@ export function DuesPage() {
 }
 
 /**
- * The summer, and the gap between one term and the next.
+ * The one free window: the break, the summer, and the fortnight that follows.
  *
- * Both are free, and both used to be free *silently* — the calendar covered
- * everybody, including every account that has not been near the club since
- * 2023. Claiming makes "active member over the summer" something a person did.
- * The alternative is the club flipping the whole roster twice a year, which is
- * a mass write about hundreds of people to learn something true of a couple of
- * dozen.
+ * It used to be free *silently* — the calendar covered everybody, including
+ * every account that has not been near the club since 2023 — and claiming only
+ * changed what the membership read as. It is the access now, so this panel is
+ * the free half of the dues page rather than a formality beside it.
  *
- * So this has to be clear that pressing it costs nothing and is not a payment.
- * A gold panel above a page of prices is going to be read as a bill by
- * somebody, which is why the first line says what it does not do.
+ * It has to be clear that pressing it costs nothing and is not a payment. A
+ * gold panel above a page of prices is going to be read as a bill by somebody,
+ * which is why the first line says what it does not do.
+ *
+ * **Three phases, not two.** The window used to stop at the term's first day,
+ * so "summer or a break" covered every case it could be shown in. It now runs
+ * a fortnight *into* the term, and calling that "the break" in week one is
+ * plainly wrong to the person reading it — they are sitting in class. The
+ * billable term's start is what separates them: before it, a break; after it,
+ * the opening fortnight.
  */
 function FreeWindow({
   membership,
   state,
   onActivate,
+  now,
 }: {
   membership: ApiDuesStatus['membership']
   state: Activation
   onActivate: () => void
+  now: number
 }) {
   const summer = membership.term.season === 'SUMMER'
+  const started = new Date(membership.billable.startsAt).getTime() <= now
 
   return (
     <FormPanel tone="accent">
       <p className="text-faint mb-3 font-mono text-[10px] font-medium tracking-[0.16em]">
-        {summer ? 'SUMMER MEMBERSHIP' : 'BETWEEN SEMESTERS'}
+        {started
+          ? 'THE FIRST TWO WEEKS'
+          : summer
+            ? 'SUMMER MEMBERSHIP'
+            : 'BETWEEN SEMESTERS'}
       </p>
       <p className="mb-1.5 text-sm font-semibold">
-        {summer
-          ? 'Summer is free — switch it on.'
-          : 'The break is free — switch it on.'}
+        {started
+          ? `The first two weeks of ${termLabel(membership.billable)} are free — switch it on.`
+          : summer
+            ? 'Summer is free — switch it on.'
+            : 'The break is free — switch it on.'}
       </p>
       <p className="text-dim text-sm leading-[1.7] text-pretty">
-        No charge and no card. It marks you as an active member{' '}
+        No charge and no card. It covers you{' '}
         {membership.freeThrough ? (
           <>
             through{' '}
@@ -508,8 +537,12 @@ function FreeWindow({
         ) : (
           <>until {termLabel(membership.billable)} dues begin</>
         )}
-        , so the club knows who is around — you keep the lab and your projects
-        either way.
+        {/* Not "so the club knows who is around" any more, which was true when
+            the window let everybody in regardless and this only recorded who
+            turned up. It is the access now, and saying otherwise leaves
+            somebody wondering why the print page is shut. */}
+        , which is what opens the lab, the printers and the tools on your
+        projects until then.
       </p>
 
       <button
@@ -540,9 +573,9 @@ function FreeWindow({
  * you are sitting in, and the member who believes that either doesn't pay or
  * pays and then asks an officer where their money went.
  *
- * Only for somebody `ACTIVE` **on a payment**. On a trial or in an unclaimed
- * free window the plans do cover the term ahead of you, which is what the
- * eyebrow beside this already says, and a second sentence would be noise.
+ * Only for somebody `ACTIVE` **on a payment**. In an unclaimed free window the
+ * plans do cover the term ahead of you, which is what the eyebrow beside this
+ * already says, and a second sentence would be noise.
  *
  * `freeActive` is excluded and that exclusion is the whole reason this comment
  * is long. `ACTIVE` used to mean exactly "paid through a date in the future",

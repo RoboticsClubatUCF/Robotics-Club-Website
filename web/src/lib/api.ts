@@ -279,7 +279,18 @@ export type ApiProject = {
   slug: string
   title: string
   summary: string | null
+  /** The free-text label a lead types: "Spring 2026", "Season-long". It prints
+      and it compares to nothing — the pair below is what decides. */
   season: string | null
+  /**
+   * The term this project is built for.
+   *
+   * A build that runs for years is one row per term, so this is what tells last
+   * semester's rover from this semester's. `Season` is declared in calendar
+   * order on the server, so `(termYear, termSeason)` sorts chronologically.
+   */
+  termYear: number
+  termSeason: Season
   competition: string | null
   status: ProjectStatus
   coverUrl: string | null
@@ -366,6 +377,12 @@ export type ApiManagedProject = ApiProject & {
   /** Wall-clock "18:30", campus-local. */
   meetingTime: string | null
   meetingLocation: string | null
+  /**
+   * The Discord role this project's crew carries, or null. Setting it hands the
+   * role to everybody on the project and clearing it takes it back, so the form
+   * that edits this is editing people's Discord access rather than a label.
+   */
+  discordRoleId: string | null
 }
 
 /** One row of `GET /api/me/projects`: my standing on one project. `rank` is the
@@ -374,6 +391,15 @@ export type ApiMyProject = {
   rank: ProjectMemberRank
   title: string | null
   team: { id: string; name: string } | null
+  /**
+   * Whether this project's term is the one we are in, decided by the server
+   * against UCF's calendar rather than by comparing dates here.
+   *
+   * It sits beside `rank` rather than inside `project` because everything in
+   * there is a stored column and this is a fact about the clock. The dashboard
+   * shows only the current ones; `/dashboard/projects/past` shows the rest.
+   */
+  current: boolean
   project: ApiManagedProject
 }
 
@@ -413,6 +439,9 @@ export type ApiOfficerMember = {
   email: string | null
   discordUsername: string | null
   role: UserRole
+  /** So the roles desk can say where somebody stands before granting them a
+      term. Null for anybody who has never paid or been granted one. */
+  duesPaidThrough: string | null
 }
 
 /**
@@ -811,7 +840,12 @@ export type ApiTerm = {
  * front of it. `FREE` is summer or the gap between terms, where nobody owes
  * anything. `EXPIRED` is the only one that is a problem.
  */
-export type MembershipStatus = 'ACTIVE' | 'TRIAL' | 'FREE' | 'EXPIRED'
+/**
+ * Mirrors `MembershipStatus` in `server/src/semester.ts`. Only `ACTIVE` is
+ * access: `FREE` means the club is charging nobody *and this person has not
+ * claimed it*, which is one press away from cover rather than cover itself.
+ */
+export type MembershipStatus = 'ACTIVE' | 'FREE' | 'EXPIRED'
 
 export type ApiMembership = {
   status: MembershipStatus
@@ -860,6 +894,13 @@ export type ApiDuesPayment = {
    * expires these links after 30 days and offers to mail a fresh one.
    */
   receiptUrl: string | null
+  /**
+   * The officer who comped this term, and null for everything Stripe collected.
+   *
+   * A zero-amount row with nothing beside it reads as a bug in the price
+   * column, so the name is what makes it a record instead.
+   */
+  grantedBy: string | null
 }
 
 export type ApiDuesStatus = {

@@ -8,8 +8,11 @@ import {
   checkDiscordHandle,
   isHandleShaped,
   normaliseHandle,
+  officerRoleId,
 } from '../discord.js'
+import { pushRoles } from '../discordRoles.js'
 import { env } from '../env.js'
+import { UserRole } from '../generated/prisma/enums.js'
 import { sendSignupVerification } from '../mail.js'
 import { hashPassword } from '../password.js'
 import { rateLimit } from '../rateLimit.js'
@@ -390,6 +393,24 @@ signup.post(
     // state every row created before the check existed is in.
     const confirmedId = check.status === 'connected' ? check.id : null
 
+    /**
+     * Whether the guild says this person is on the board.
+     *
+     * The answer is already in hand — the check above returns the roles the
+     * search came back with — so this costs no second call. False whenever no
+     * bot is configured, or when the club has not handed that decision to
+     * Discord by setting a role id: both of those are the ordinary `GUEST`.
+     *
+     * An officer signing up and landing as a guest was a real gap. They would
+     * have their own desks hidden from them until somebody noticed and opened
+     * Prisma Studio, and the ten-minute sweep would fix it eventually — but
+     * "eventually" is after the first thing they tried to do failed.
+     */
+    const officerByDiscord =
+      officerRoleId !== null &&
+      check.status === 'connected' &&
+      check.roles.includes(officerRoleId)
+
     const passwordHash = await hashPassword(password)
 
     try {
@@ -405,10 +426,21 @@ signup.post(
             discordUsername: confirmedHandle,
             discordId: confirmedId,
             acknowledgementAcceptedAt,
-            // No slug and the default GUEST role: a signup is not a roster
-            // entry. `joinedAt` stays null too — that is the date someone
-            // became a member, which is a decision an officer makes later;
-            // `createdAt` already records the signup itself.
+            // `GUEST` unless the club's Discord says otherwise, and spelled out
+            // rather than left to the column default now that the line above
+            // can say otherwise. A plain signup is not a roster entry, so
+            // `joinedAt` stays null — that is the date somebody became a
+            // member, and `createdAt` already records the signup itself.
+            //
+            // An officer is the exception on both counts: they *are* a member
+            // by the act of being on the board, and an officer with no
+            // `joinedAt` prints a blank year on their public profile. Same rule
+            // `membershipUpdateFor` follows when a payment promotes somebody.
+            //
+            // Still no slug, for either of them. Publishing a person to the
+            // public roster stays a decision a person makes.
+            role: officerByDiscord ? UserRole.OFFICER : UserRole.GUEST,
+            joinedAt: officerByDiscord ? acknowledgementAcceptedAt : null,
           },
           select: { id: true },
         })
@@ -420,6 +452,12 @@ signup.post(
 
         return created
       })
+
+      // A brand new account has no dues and no projects, so this almost always
+      // works out to nothing. It runs anyway because "almost" is doing work:
+      // an officer can have granted them a term before they finished signing
+      // up, and this is the first moment the site knows their handle.
+      pushRoles(id, 'account created')
 
       // Deliberately thin. Nothing about the account goes back over the wire —
       // there is no session to establish yet, and the email and password hash

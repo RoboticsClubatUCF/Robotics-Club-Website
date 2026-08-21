@@ -15,6 +15,7 @@ import type {
   ProjectSelect,
   UserSelect,
 } from '../generated/prisma/models.js'
+import { currentTerm } from '../semester.js'
 
 /**
  * Public, read-only content for the website. Everything here is reachable
@@ -57,6 +58,11 @@ const projectSelect = {
   title: true,
   summary: true,
   season: true,
+  // The label and the term both. A multi-semester build is several rows now,
+  // one per term, so a list that printed only the free-text `season` would show
+  // the same title three times with nothing to tell them apart.
+  termYear: true,
+  termSeason: true,
   competition: true,
   status: true,
   coverUrl: true,
@@ -256,16 +262,28 @@ content.get(
     listQuery.extend({
       status: z.enum(ProjectStatus).optional(),
       season: z.string().optional(),
+      /**
+       * "This term's", computed rather than named — the caller cannot say
+       * *which* term, on purpose. A page asking for the current one has no way
+       * to know what that is without a second round trip, and one that hard-codes
+       * a guess is a page that goes quietly empty in August. `season` above
+       * stays for the free-text label; this is the real term.
+       */
+      term: z.enum(['current']).optional(),
       featured: z.enum(['true', 'false']).optional(),
     }),
   ),
   async (c) => {
-    const { status, season, featured, limit, offset } = c.req.valid('query')
+    const { status, season, term, featured, limit, offset } =
+      c.req.valid('query')
+
+    const now = term === 'current' ? await currentTerm() : null
 
     const projects = await prisma.project.findMany({
       where: {
         ...(status ? { status } : {}),
         ...(season ? { season } : {}),
+        ...(now ? { termYear: now.year, termSeason: now.season } : {}),
         ...(featured ? { featured: featured === 'true' } : {}),
       },
       orderBy: [{ featured: 'desc' }, { startedAt: 'desc' }, { title: 'asc' }],

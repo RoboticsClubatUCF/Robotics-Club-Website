@@ -42,6 +42,53 @@ export async function storeFile(
 }
 
 /**
+ * The bytes behind a URL, copied, if the URL is one of ours.
+ *
+ * The mirror of `deleteIfStored`, and it exists because of it. Duplicating a
+ * project could copy the image *rows* alone in one line and would look right in
+ * every test — both galleries render, because both point at the same file. It
+ * breaks on deletion: every route that removes an image calls `deleteIfStored`
+ * by hand, so deleting either project takes the pictures out of the other one,
+ * months later, with nothing to connect the two events. Bytes are cheap and a
+ * gallery is a handful of them; a shared row is a bug with a long fuse.
+ *
+ * External URLs fall straight through unchanged, exactly as they do on the way
+ * out — somebody else's hosting is not ours to copy or to delete.
+ */
+export async function copyIfStored(
+  url: string,
+  createdById: string | null,
+): Promise<string> {
+  if (!url.startsWith(STORED_PREFIX)) return url
+
+  const id = url.slice(STORED_PREFIX.length)
+  if (!id) return url
+
+  const source = await prisma.storedFile.findUnique({
+    where: { id },
+    select: {
+      kind: true,
+      mimeType: true,
+      byteSize: true,
+      originalName: true,
+      data: true,
+    },
+  })
+
+  // A URL of ours whose file is gone. Copying nothing is right: the caller gets
+  // the same dangling address the original carries, which renders the same
+  // broken image rather than failing the whole duplication over it.
+  if (!source) return url
+
+  const copy = await prisma.storedFile.create({
+    data: { ...source, createdById },
+    select: { id: true },
+  })
+
+  return storedUrl(copy.id)
+}
+
+/**
  * Delete the file behind a URL, if the URL is one of ours. External URLs fall
  * straight through — they are somebody else's hosting and none of our
  * business. `deleteMany` so a URL whose file is already gone (or was never
