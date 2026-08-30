@@ -4,7 +4,7 @@ import type {
   PrintMaterial,
   PrintProcess,
   PrintRequestStatus,
-} from './api'
+} from './api/api'
 
 /**
  * What the printers will do, in the words the club uses for it.
@@ -16,7 +16,7 @@ import type {
  * The rule that shapes all of it: **a process decides its materials, and only
  * FDM has infill.** A resin print is a solid or a hollowed shell; "20% gyroid"
  * is not something that can be done to one. The server enforces the same
- * pairing in `server/src/printSettings.ts` — this is the readable half, not a
+ * pairing in `server/src/printing/printSettings.ts` — this is the readable half, not a
  * second rule that could drift.
  */
 

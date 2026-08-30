@@ -1,14 +1,14 @@
 import { useEffect, useId, useState } from 'react'
-import { getJson } from '../../lib/api'
-import type { ApiOfficerMember } from '../../lib/api'
-import { explainApiError } from '../../lib/apiErrors'
+import { getJson } from '../../lib/api/api'
+import type { ApiOfficerMember } from '../../lib/api/api'
+import { explainApiError } from '../../lib/api/apiErrors'
 import { fieldClass, labelClass } from './formChrome'
 
 /**
  * The officer people-picker, answering as it is typed.
  *
  * It matches on name, email **and Discord handle** — see `GET /officer/members`
- * in `server/src/routes/officer.ts`, where the search itself lives.
+ * in `server/src/routes/officer/officer.ts`, where the search itself lives.
  *
  * Two details keep search-as-you-type honest. The debounce, so a name is one
  * request rather than one per keystroke; and the `AbortController`, without
@@ -31,7 +31,7 @@ const DEBOUNCE_MS = 300
  * can have a handle and no email at all, and printing nothing for those made
  * them look like empty rows in the picker.
  */
-export const contactOf = (member: ApiOfficerMember) =>
+const contactOf = (member: ApiOfficerMember) =>
   member.email ?? (member.discordUsername ? `@${member.discordUsername}` : null)
 
 export function MemberSearch({

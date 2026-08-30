@@ -1,6 +1,6 @@
-import { prisma } from '../src/db.js'
-import { hashPassword } from '../src/password.js'
-import { currentTerm } from '../src/semester.js'
+import { prisma } from '../src/core/db.js'
+import { hashPassword } from '../src/auth/password.js'
+import { currentTerm } from '../src/membership/semester.js'
 
 /**
  * Placeholder content so the site has something to render in development.
@@ -100,8 +100,9 @@ const members = [
  * anywhere public, because the landing page prints these under the club's real
  * office titles and a fake president reads as a real one.
  *
- * `officerPosition` is the seat and drives which card someone lands in; `title`
- * is only the label printed on it, so an "Interim President" can say so without
+ * `position` is the seat, and it goes on an **open officer term** rather than on
+ * the user — that is what "currently on the board" means now. `title` is only
+ * the label printed beside them, so an "Interim President" can say so without
  * falling out of the president's card. The advisor is a plain `MEMBER` rather
  * than an `OFFICER` — they sit on the board but hold no student office and have
  * no business in the print queue or the member search, which is the whole
@@ -111,7 +112,7 @@ const officers = [
   {
     slug: 'placeholder-president',
     fullName: 'Jordan Ellis',
-    officerPosition: 'PRESIDENT' as const,
+    position: 'PRESIDENT' as const,
     title: 'President',
     role: 'OFFICER' as const,
     bio: 'Placeholder officer. Replace before this is public.',
@@ -121,7 +122,7 @@ const officers = [
   {
     slug: 'placeholder-vice-president',
     fullName: 'Nia Barrett',
-    officerPosition: 'VICE_PRESIDENT' as const,
+    position: 'VICE_PRESIDENT' as const,
     title: 'Vice President',
     role: 'OFFICER' as const,
     bio: 'Placeholder officer. Replace before this is public.',
@@ -131,7 +132,7 @@ const officers = [
   {
     slug: 'placeholder-treasurer',
     fullName: 'Owen Castellanos',
-    officerPosition: 'TREASURER' as const,
+    position: 'TREASURER' as const,
     title: 'Treasurer',
     role: 'OFFICER' as const,
     bio: 'Placeholder officer. Replace before this is public.',
@@ -141,7 +142,7 @@ const officers = [
   {
     slug: 'placeholder-secretary',
     fullName: 'Harper Nakamura',
-    officerPosition: 'SECRETARY' as const,
+    position: 'SECRETARY' as const,
     title: 'Secretary',
     role: 'OFFICER' as const,
     bio: 'Placeholder officer. Replace before this is public.',
@@ -151,7 +152,7 @@ const officers = [
   {
     slug: 'placeholder-marketing',
     fullName: 'Devin Osei',
-    officerPosition: 'MARKETING' as const,
+    position: 'MARKETING' as const,
     title: 'Marketing',
     role: 'OFFICER' as const,
     bio: 'Placeholder officer. Replace before this is public.',
@@ -161,7 +162,7 @@ const officers = [
   {
     slug: 'placeholder-outreach',
     fullName: 'Simone Alvarez',
-    officerPosition: 'OUTREACH' as const,
+    position: 'OUTREACH' as const,
     title: 'Outreach',
     role: 'OFFICER' as const,
     bio: 'Placeholder officer. Replace before this is public.',
@@ -171,7 +172,7 @@ const officers = [
   {
     slug: 'placeholder-lab-manager',
     fullName: 'Reid Ferguson',
-    officerPosition: 'LAB_MANAGER' as const,
+    position: 'LAB_MANAGER' as const,
     title: 'Lab Manager',
     role: 'OFFICER' as const,
     bio: 'Placeholder officer. Replace before this is public.',
@@ -181,13 +182,61 @@ const officers = [
   {
     slug: 'placeholder-faculty-advisor',
     fullName: 'Dr. Alina Petrov',
-    officerPosition: 'FACULTY_ADVISOR' as const,
+    position: 'FACULTY_ADVISOR' as const,
     title: 'Faculty Advisor',
     role: 'MEMBER' as const,
     bio: 'Placeholder advisor. Replace before this is public.',
     gradYear: null,
     subteam: null,
   },
+]
+
+/**
+ * The officer archive — invented, like the board above, and for the same
+ * reason: `/officers` has three states worth seeing and none of them show
+ * up against an empty table.
+ *
+ * Every name here is made up and printed under the club's real office titles,
+ * so **replace these in Prisma Studio before this goes anywhere public**. A
+ * fake past president reads as a real one exactly the way a fake sitting one
+ * does.
+ *
+ * What the three shapes in this list are demonstrating, because the page
+ * behaves differently for each:
+ *
+ *   - **`slug` set** — the term links a roster entry, so the card borrows that
+ *     person's headshot without the photo being entered twice. This is what
+ *     rolling the board over at the end of a year actually looks like: the
+ *     sitting officers become terms pointing at their own accounts.
+ *   - **`slug` null** — somebody who was president in 2019 and has no account
+ *     and never will. Most of a real archive is this, which is why the name
+ *     lives on the term rather than behind a required relation.
+ *   - **two rows for one seat in one year** — a resignation mid-term. There is
+ *     no unique constraint stopping it, on purpose; see `schema.prisma`.
+ *
+ * Dates rather than academic years, because a term is a span now and the board
+ * follows Discord live: `startedAt`/`endedAt` are what the sync writes, and a
+ * hand-entered historical row has to be the same shape as one the sync made or
+ * the archive is reading two things. August to May is the academic year.
+ */
+const officerHistory = [
+  { position: 'PRESIDENT' as const, startedAt: '2024-08-01', endedAt: '2025-05-31', fullName: 'Priya Raman', slug: 'priya-raman' },
+  { position: 'VICE_PRESIDENT' as const, startedAt: '2024-08-01', endedAt: '2025-05-31', fullName: 'Marcus Whitfield', slug: null },
+  { position: 'TREASURER' as const, startedAt: '2024-08-01', endedAt: '2025-05-31', fullName: 'Elena Vasquez', slug: null },
+  { position: 'SECRETARY' as const, startedAt: '2024-08-01', endedAt: '2025-05-31', fullName: 'Tomas Lindqvist', slug: null },
+  { position: 'LAB_MANAGER' as const, startedAt: '2024-08-01', endedAt: '2025-05-31', fullName: 'Aisha Bello', slug: null },
+  { position: 'PRESIDENT' as const, startedAt: '2023-08-01', endedAt: '2024-05-31', fullName: 'Grace Okonkwo', slug: null },
+  { position: 'VICE_PRESIDENT' as const, startedAt: '2023-08-01', endedAt: '2024-05-31', fullName: 'Daniel Cho', slug: null },
+  { position: 'TREASURER' as const, startedAt: '2023-08-01', endedAt: '2024-05-31', fullName: 'Sofia Marchetti', slug: null },
+  { position: 'MARKETING' as const, startedAt: '2023-08-01', endedAt: '2024-05-31', fullName: 'Isabel Duarte', slug: null },
+  { position: 'OUTREACH' as const, startedAt: '2023-08-01', endedAt: '2024-05-31', fullName: 'Kwame Asante', slug: null },
+  // Both halves of one year. Resigned in December; the vice president finished it.
+  { position: 'PRESIDENT' as const, startedAt: '2022-08-01', endedAt: '2023-05-31', fullName: 'Ryan Delacroix', slug: null },
+  { position: 'PRESIDENT' as const, startedAt: '2022-08-01', endedAt: '2023-05-31', fullName: 'Mei-Lin Zhao', slug: null },
+  { position: 'SECRETARY' as const, startedAt: '2022-08-01', endedAt: '2023-05-31', fullName: 'Jonah Feldman', slug: null },
+  { position: 'LAB_MANAGER' as const, startedAt: '2022-08-01', endedAt: '2023-05-31', fullName: 'Carmen Ruiz', slug: null },
+  // A span rather than a year: the advisor held the seat across all three.
+  { position: 'FACULTY_ADVISOR' as const, startedAt: '2022-08-01', endedAt: '2025-05-31', fullName: 'Dr. Harold Kimura', slug: null },
 ]
 
 /**
@@ -209,10 +258,12 @@ const sandbox = {
     'Development scaffolding, not a real project. Seeded so the dashboard has teams, tasks and a meeting to render. Safe to delete.',
   status: 'CONCEPT' as const,
   featured: false,
-  // A weekly meeting, so the dashboard calendar has recurring chips to draw
-  // without anybody having to set one up by hand first.
-  meetingWeekday: 4,
-  meetingTime: '18:30',
+  // Two nights a week, so both calendars have recurring chips to draw without
+  // anybody setting one up by hand — and so the multi-day case is the one that
+  // gets looked at every day rather than the one nobody sees until it breaks.
+  meetingWeekdays: [2, 4],
+  meetingStartTime: '18:00',
+  meetingEndTime: '22:00',
   meetingLocation: 'ENG2 Lab',
   teams: [
     { name: 'Autonomy', description: 'Navigation, vision, and the arm.' },
@@ -625,7 +676,151 @@ const sponsors = [
   },
 ]
 
+/**
+ * **Real sponsors are not seeded, and this is the note explaining why not.**
+ *
+ * The obvious thing to do here is add the companies that actually back the club
+ * beside the invented ones. Doing it cost a duplicate the first time it was
+ * tried: `upsert` keys on `name`, Postgres compares text case-sensitively, and
+ * the club's own row said `GRIPEDGE TOOLS` while the seed said
+ * `GripEdge Tools` — so it created a second row for one company, with no logo
+ * and no website, on the club's public page. That is the exact collision
+ * `nameTaken` in `routes/officer/sponsorsAdmin.ts` refuses, and the seed goes around it.
+ *
+ * Real sponsors arrive through `/dashboard/officer/sponsors`, where the check
+ * runs. The array above stays invented, and the warning on it stays true.
+ */
+
+/**
+ * **The club's real sponsorship sheet**, and the reason this table is seeded at
+ * all when `hero_slides` is not.
+ *
+ * The rule in [database.md](../../.claude/docs/database.md) is that no invented
+ * price goes near this page — a placeholder amount is a figure a business could
+ * read off the public site and hold the club to. These are not invented: they
+ * are what the club publishes, so seeding them is what puts the real sheet on a
+ * fresh database instead of an empty section.
+ *
+ * **`blurb` is deliberately absent from every one of them.** The club's sheet is
+ * an amount over a list of what you get, with no sentence between — writing one
+ * to fill the field is exactly the invention this whole feature exists to stop.
+ * The column is nullable for that reason.
+ *
+ * The "Everything in …" lines are the sheet's own `+ Circuit Supporter`
+ * shorthand, spelled out: each tier includes the one below it. Written as words
+ * rather than as a literal `+`, because the page already prints a `+` in front
+ * of every benefit and two of them reads as a typo.
+ */
+const tierOffers = [
+  {
+    tier: 'PROCESSOR_PATRON' as const,
+    amount: '$5,000+',
+    benefits: [
+      'Acknowledgments in social media posts',
+      'Logo on club promotional materials for community events',
+      'Everything in Circuit Supporter',
+    ],
+  },
+  {
+    tier: 'CIRCUIT_SUPPORTER' as const,
+    amount: 'UP TO $3,000',
+    benefits: [
+      'Logo on club T-shirts *',
+      'Logo on multiple robots/projects of choice',
+      'Everything in Bolt Backer',
+    ],
+  },
+  {
+    tier: 'BOLT_BACKER' as const,
+    amount: 'UP TO $1,000',
+    benefits: [
+      'Logo on single robot/project of choice **',
+      'Everything in Aluminum Ally',
+    ],
+  },
+  {
+    tier: 'ALUMINUM_ALLY' as const,
+    amount: '$250',
+    benefits: [
+      'Appearance on club website sponsors page',
+      'Logo/Infographic in club workspace *',
+      'Member made sponsorship gift',
+    ],
+  },
+]
+
+/**
+ * The fine print under the grid. The markers are cited by two different tiers,
+ * which is why this is one block under the whole sheet rather than a field on
+ * any card in it — see `SponsorshipSheet` in `schema.prisma`.
+ *
+ * Blank line before the NOTE on purpose: the page prints this with
+ * `whitespace-pre-line`, so the lines here are the lines out there.
+ */
+const sponsorshipFootnotes = `* Logo size determined by donation amount
+** Robot(s)/project(s) must be selected at the time of donation
+
+NOTE: Your sponsorship is tax-deductible and we’ll provide a receipt for your records.`
+
+/**
+ * Refuse to run against anything that is not a development database.
+ *
+ * Everything below is invented — eight officers under the club's real office
+ * titles, an officer archive that never happened, sponsors that do not exist —
+ * and the file has always said "replace before this is public". That sentence
+ * was the whole of the protection, and it is addressed to whoever is reading
+ * the file rather than to whoever is typing `npm run seed` at three in the
+ * morning against the wrong `DATABASE_URL`.
+ *
+ * It cannot be undone by hand either. The seeded board only takes a chair
+ * nobody is sitting in, so on a club database with a real president the
+ * placeholder does not get the seat — it lands on the **public roster** as a
+ * slugged member instead, and the invented archive stacks onto `/officers`
+ * under real seat names. Both look like club history to anyone reading the
+ * page.
+ *
+ * Two conditions, because either alone has a hole. `NODE_ENV=production` is the
+ * obvious one and is missing exactly when it matters — a shell on the server
+ * with no environment loaded. So the roster is asked as well: a database
+ * carrying club members who are not this file's own fixtures is a database this
+ * file has no business writing to, whatever `NODE_ENV` claims. `--force` is
+ * there for the one legitimate case, a fresh production database somebody
+ * genuinely wants demo content in, and it has to be typed.
+ */
+async function refuseIfNotDevelopment(): Promise<void> {
+  if (process.argv.includes('--force')) return
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'Refusing to seed: NODE_ENV is production. This file writes invented officers and sponsors under the club’s real office titles. Pass --force if that is genuinely what you want.',
+    )
+  }
+
+  // Anybody on the public roster who is not one of this file's own fixtures.
+  // `slug` is the roster, and every slug written below is either in `members`
+  // or begins `placeholder-`.
+  const known = new Set([
+    ...members.map((m) => m.slug),
+    ...officers.map((o) => o.slug),
+  ])
+
+  const roster = await prisma.user.findMany({
+    where: { slug: { not: null } },
+    select: { slug: true },
+  })
+
+  const strangers = roster.filter(({ slug }) => slug !== null && !known.has(slug))
+
+  if (strangers.length > 0) {
+    throw new Error(
+      `Refusing to seed: ${String(strangers.length)} ${strangers.length === 1 ? 'person' : 'people'} on the public roster ${strangers.length === 1 ? 'is' : 'are'} not this file's fixtures (e.g. ${strangers[0]?.slug ?? ''}), so this looks like the club's real database. Pass --force to seed anyway.`,
+    )
+  }
+}
+
 async function main() {
+  await refuseIfNotDevelopment()
+
   // No slug: a login that isn't a roster entry, so nothing public lists it.
   const admin = await prisma.user.upsert({
     where: { email: 'admin@rccf.local' },
@@ -691,32 +886,96 @@ async function main() {
     })
   }
 
-  for (const { subteam, ...officer } of officers) {
-    // `officerPosition` is unique, so a placeholder can only take a seat nobody
-    // else holds. Once a real officer has been entered in Studio, re-running the
-    // seed has to leave them in place rather than fail on the constraint — the
-    // placeholder still lands on the roster, just without the seat.
-    const incumbent = await prisma.user.findFirst({
-      where: { officerPosition: officer.officerPosition, slug: { not: officer.slug } },
+  for (const { subteam, position, ...officer } of officers) {
+    const data = {
+      ...officer,
+      subteam: subteam ? { connect: { slug: subteam } } : undefined,
+    }
+    const seeded = await prisma.user.upsert({
+      where: { slug: officer.slug },
+      update: data,
+      create: data,
+      select: { id: true },
+    })
+
+    // The seat is an *open term* now, not a column on the user. Same courtesy
+    // as before: a placeholder only takes a chair nobody is sitting in, so once
+    // a real officer has been entered the seed leaves them there and lands the
+    // placeholder on the roster without a seat.
+    const incumbent = await prisma.officerTerm.findFirst({
+      where: { position, endedAt: null, userId: { not: seeded.id } },
       select: { fullName: true },
     })
 
     if (incumbent) {
       console.log(
-        `Leaving ${officer.officerPosition} with ${incumbent.fullName}; ` +
+        `Leaving ${position} with ${incumbent.fullName}; ` +
           `seeding ${officer.fullName} without a seat.`,
       )
+      continue
     }
 
-    const data = {
-      ...officer,
-      officerPosition: incumbent ? null : officer.officerPosition,
-      subteam: subteam ? { connect: { slug: subteam } } : undefined,
+    // Find-then-create rather than upsert: there is no unique key to upsert
+    // against, deliberately — see `schema.prisma`.
+    const held = await prisma.officerTerm.findFirst({
+      where: { userId: seeded.id, endedAt: null },
+      select: { id: true },
+    })
+
+    if (held) {
+      await prisma.officerTerm.update({ where: { id: held.id }, data: { position } })
+      continue
     }
-    await prisma.user.upsert({
-      where: { slug: officer.slug },
-      update: data,
-      create: data,
+
+    await prisma.officerTerm.create({
+      data: {
+        position,
+        // `MANUAL`, so the Discord sync never closes a seeded seat. These
+        // people do not exist in the club's guild, and a sync that stood them
+        // down would empty the board on a fresh clone.
+        source: 'MANUAL',
+        startedAt: new Date(),
+        fullName: officer.fullName,
+        userId: seeded.id,
+      },
+    })
+  }
+
+  // `officer_terms` has no unique key to upsert against — two people can hold
+  // one seat in one year and the schema deliberately allows it — so this is
+  // find-then-create rather than `upsert`. Matching on the four columns that
+  // *are* the term keeps re-running the seed from stacking up a second archive,
+  // and leaves anything an officer has typed in Studio alone: a row edited
+  // there no longer matches, so it is neither overwritten nor duplicated.
+  for (const { slug, ...term } of officerHistory) {
+    const existing = await prisma.officerTerm.findFirst({
+      where: {
+        position: term.position,
+        startedAt: new Date(term.startedAt),
+        fullName: term.fullName,
+      },
+      select: { id: true },
+    })
+
+    if (existing) continue
+
+    // Looked up rather than `connect`ed, which throws when the roster entry is
+    // gone. The link is a convenience — it lends the card a headshot — and a
+    // seed that dies because somebody deleted a placeholder from Studio is
+    // worse than one that records the term without it.
+    const holder = slug
+      ? await prisma.user.findUnique({ where: { slug }, select: { id: true } })
+      : null
+
+    await prisma.officerTerm.create({
+      data: {
+        ...term,
+        startedAt: new Date(term.startedAt),
+        endedAt: new Date(term.endedAt),
+        // Closed, hand-entered history: not the sync's to reopen or re-close.
+        source: 'MANUAL',
+        userId: holder?.id ?? null,
+      },
     })
   }
 
@@ -853,6 +1112,25 @@ async function main() {
     })
   }
 
+  // The tier sheet and its fine print, on the same terms and for the same
+  // reason: these are the club's own published numbers, so a fresh database gets
+  // the real sheet — but an officer who has since edited an amount at
+  // `/dashboard/officer/sponsors` owns it from then on, and re-seeding must not
+  // quietly put last year's price back on a page a business is reading.
+  for (const offer of tierOffers) {
+    await prisma.sponsorTierOffer.upsert({
+      where: { tier: offer.tier },
+      update: {},
+      create: offer,
+    })
+  }
+
+  await prisma.sponsorshipSheet.upsert({
+    where: { id: 'current' },
+    update: {},
+    create: { id: 'current', footnotes: sponsorshipFootnotes },
+  })
+
   await prisma.post.upsert({
     where: { slug: 'kickoff-2026' },
     update: {},
@@ -870,7 +1148,8 @@ async function main() {
     users: await prisma.user.count(),
     // Everyone with a slug — the subset the public roster shows.
     roster: await prisma.user.count({ where: { slug: { not: null } } }),
-    officers: await prisma.user.count({ where: { officerPosition: { not: null } } }),
+    officers: await prisma.officerTerm.count({ where: { endedAt: null } }),
+    officerTerms: await prisma.officerTerm.count({ where: { endedAt: { not: null } } }),
     subteams: await prisma.subteam.count(),
     projects: await prisma.project.count(),
     events: await prisma.event.count(),
@@ -878,6 +1157,7 @@ async function main() {
     tasks: await prisma.task.count(),
     equipment: await prisma.equipment.count(),
     sponsors: await prisma.sponsor.count(),
+    sponsorTiers: await prisma.sponsorTierOffer.count(),
     posts: await prisma.post.count(),
   }
   console.log('Seeded:', counts)

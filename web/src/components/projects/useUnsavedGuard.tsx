@@ -51,11 +51,8 @@ export function useUnsavedGuard(dirty: boolean) {
       }}
     >
       <p>
-        The writing and the links have changes that have not been saved. Leaving
-        now throws them away.
-      </p>
-      <p>
-        Pictures are not affected — those are saved as they are changed.
+        The writing and the links have unsaved changes. Leaving throws them
+        away. Pictures are saved as they are changed.
       </p>
     </ConfirmDialog>
   ) : null

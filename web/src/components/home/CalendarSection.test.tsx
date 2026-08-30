@@ -1,7 +1,14 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import {
+  fireEvent,
+  render as renderBare,
+  screen,
+  within,
+} from '@testing-library/react'
+import type { ReactNode } from 'react'
+import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CalendarSection } from './CalendarSection'
-import type { ApiEvent } from '../../lib/api'
+import type { ApiEvent } from '../../lib/api/api'
 import {
   stubFetch,
   stubFetchNetworkError,
@@ -17,6 +24,13 @@ import {
 const NOW = new Date(2026, 7, 12, 9, 0)
 
 /** Local time, written the way the component reads it back. */
+/**
+ * The header's "All events" is a `<Link>` now that `/events` is a real page, and
+ * a `<Link>` throws outside a router. Same helper, same reason, as
+ * `OfficersSection.test.tsx`.
+ */
+const render = (ui: ReactNode) => renderBare(<MemoryRouter>{ui}</MemoryRouter>)
+
 const local = (day: number, hour = 18, minute = 0) =>
   new Date(2026, 7, day, hour, minute).toISOString()
 
@@ -68,11 +82,22 @@ const agendaRow = async (title: string) =>
   (await agendaEntry(title)).closest('article')!
 
 /**
- * The button a square becomes once it has something on it. Queried by role
- * rather than by its label, which is a localised date string and would tie these
- * to whichever locale the runner happens to have.
+ * The square's own button — the overlay that sits behind its contents, and no
+ * longer the only button in the cell: every chip is one now, and so is the "add
+ * to calendar" trigger on each chip's card. Matched on the count at the end of
+ * its label rather than on the whole of it, because the date in front is a
+ * localised string and would tie these to whichever locale the runner has.
  */
-const dayButton = (day: number) => within(cellFor(day)).getByRole('button')
+const dayButton = (day: number) =>
+  within(cellFor(day)).getByRole('button', { name: /\d+ events?$/ })
+
+/**
+ * The card a chip shows on hover. Found through the untruncated title it
+ * repeats: the chip itself carries the same string, so the `<p>` is what tells
+ * the two apart.
+ */
+const chipCard = (day: number, title: string) =>
+  within(cellFor(day)).getByText(title, { selector: 'p' }).closest('div')!
 
 /** Every event currently listed in the schedule, in order. */
 const scheduled = () =>
@@ -225,10 +250,58 @@ describe('CalendarSection', () => {
   })
 
   /**
-   * The square is the target and the chips inside it are not: a button cannot
-   * contain a button, and the square is the one worth pressing — on a phone the
-   * chips are not even rendered, so it is the only way to reach an event from
-   * the grid at all.
+   * The card holds a pointer while it is open, which is the whole reason it can
+   * carry a control at all — so the shortcut off the grid is the same one the
+   * schedule below offers, without opening the day first.
+   */
+  it('offers add to calendar on the chip’s card, without opening the day', async () => {
+    vi.stubGlobal('fetch', stubFetch({ '/events': [event()] }))
+
+    render(<CalendarSection />)
+    await agendaEntry('General Body Meeting')
+
+    const card = within(chipCard(19, 'General Body Meeting'))
+    fireEvent.click(card.getByRole('button', { name: /add to calendar/i }))
+
+    expect(
+      card.getByRole('menuitem', { name: /google calendar/i }).getAttribute('href'),
+    ).toContain('calendar.google.com')
+    // The menu belongs to the card, not to the day: pressing it is not a press
+    // on the square behind it, so the schedule still shows the whole month.
+    expect(scheduled()).toHaveLength(1)
+    expect(dayButton(19)).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  /**
+   * A chip is drawn on top of the square's button, so without a press of its
+   * own it would be the one dead strip in the grid.
+   */
+  it('opens the day from a press on the chip itself', async () => {
+    vi.stubGlobal(
+      'fetch',
+      stubFetch({
+        '/events': [
+          event(),
+          event({ id: 'e2', title: 'Print Farm Clinic', startsAt: local(24) }),
+        ],
+      }),
+    )
+
+    render(<CalendarSection />)
+    await agendaEntry('General Body Meeting')
+
+    fireEvent.click(
+      within(cellFor(19)).getByRole('button', { name: 'General Body Meeting' }),
+    )
+
+    expect(scheduled()).toEqual(['General Body Meeting'])
+  })
+
+  /**
+   * The square is a target and a day with nothing on it is not one: there is
+   * nothing to open, and thirty empty tab stops between the ones that matter
+   * help nobody. On a phone the chips are not rendered at all, so the square is
+   * the only way to reach an event from the grid.
    */
   it('makes a day with events pressable, and one without it not', async () => {
     vi.stubGlobal('fetch', stubFetch({ '/events': [event()] }))

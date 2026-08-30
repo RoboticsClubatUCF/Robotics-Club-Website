@@ -1,5 +1,5 @@
-import type { ApiDuesPlan, DuesPlan } from '../../lib/api'
-import { formatDate, formatMoney, termsLabel } from '../../lib/dues'
+import type { ApiDuesPlan, DuesPlan } from '../../lib/api/api'
+import { formatDate, formatMoney, termsLabel } from '../../lib/dues/dues'
 
 /**
  * The two things somebody can buy.
@@ -27,7 +27,7 @@ export function PlanPicker({
 }) {
   return (
     <fieldset
-      className="grid gap-4 wide:grid-cols-2"
+      className="grid-fluid gap-4 [--col-min:16rem]"
       aria-label="Choose how long to pay for"
     >
       {plans.map((plan) => {
@@ -42,7 +42,7 @@ export function PlanPicker({
             className={`flex cursor-pointer flex-col border p-5 transition-colors duration-200 ${
               isSelected
                 ? 'border-primary bg-primary/5'
-                : 'border-rule bg-base-200 hover:border-white/25'
+                : 'border-rule bg-base-200 hover:border-base-content/25'
             } ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}
           >
             <span className="flex items-start justify-between gap-3">
@@ -70,7 +70,7 @@ export function PlanPicker({
 
             <span className="text-dim mt-4 block text-sm leading-[1.6] text-pretty">
               Covers{' '}
-              <strong className="text-white">{termsLabel(plan.covers)}</strong>,
+              <strong className="text-base-content">{termsLabel(plan.covers)}</strong>,
               through {formatDate(plan.through)}.
             </span>
 

@@ -57,7 +57,7 @@ export function AcknowledgementDialog({
          centres it — hence `m-auto`. Sizing stays off the `display` property:
          a `flex` here would beat the user-agent's `dialog:not([open])` rule and
          show the panel while it is closed. */
-      className="border-rule bg-base-200 m-auto w-[min(38rem,calc(100vw-2rem))] border p-0 text-white backdrop:bg-black/80"
+      className="border-rule bg-base-200 m-auto w-[min(38rem,calc(100vw-2rem))] border p-0 text-base-content backdrop:bg-black/80"
     >
       <div className="flex max-h-[min(42rem,calc(100dvh-4rem))] flex-col">
         <div className="border-rule flex shrink-0 items-start justify-between gap-5 border-b px-6 py-5">

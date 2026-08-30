@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
-import type { ApiTerm, ApiUser } from './lib/api'
+import type { ApiTerm, ApiUser } from './lib/api/api'
 import { bodyOf, urlOf } from './test/stubFetch'
 
 /**
@@ -20,7 +20,7 @@ import { bodyOf, urlOf } from './test/stubFetch'
  * telling them they still owe $25.
  */
 
-vi.mock('./lib/stripe', () => ({
+vi.mock('./lib/dues/stripe', () => ({
   // Never reached: nothing here opens a payment form, which would want Stripe's
   // iframe and a real client secret.
   stripePromise: null,
@@ -43,6 +43,10 @@ const user: ApiUser = {
   slug: null,
   role: 'OFFICER',
   discordUsername: null,
+  photoUrl: null,
+  photoFocalX: 50,
+  photoFocalY: 50,
+  photoZoom: 1,
 }
 
 function stubApi() {

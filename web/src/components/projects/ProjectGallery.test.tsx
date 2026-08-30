@@ -1,9 +1,9 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { ProjectGallery } from './ProjectGallery'
-import { apiBaseUrl } from '../../lib/api'
-import type { ApiProjectImage } from '../../lib/api'
-import { DEFAULT_FRAMING } from '../../lib/imageFraming'
+import { apiBaseUrl } from '../../lib/api/api'
+import type { ApiProjectImage } from '../../lib/api/api'
+import { DEFAULT_FRAMING } from '../../lib/media/imageFraming'
 
 const slides = (count: number): ApiProjectImage[] =>
   Array.from({ length: count }, (_, index) => ({

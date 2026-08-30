@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import type { ApiEvent } from '../../lib/api'
-import { addMonths, startOfMonth } from '../../lib/months'
-import { useApi } from '../../lib/useApi'
+import { Link } from 'react-router'
+import type { ApiEvent } from '../../lib/api/api'
+import { addMonths, startOfMonth } from '../../lib/events/months'
+import { useApi } from '../../lib/api/useApi'
 import { MonthCalendar } from '../shared/MonthCalendar'
 
 /**
@@ -36,12 +37,14 @@ export function CalendarSection() {
         <h2 className="text-faint font-mono text-[13px] font-bold tracking-[0.2em]">
           / EVENTS
         </h2>
-        <a
-          href="/events"
+        {/* A real `<Link>` since `/events` became a page: this grid shows one
+            month, and the listing is where the rest of the term is. */}
+        <Link
+          to="/events"
           className="text-primary border-primary/40 hover:border-primary border-b pb-0.5 text-xs font-medium transition-colors duration-200"
         >
           All events
-        </a>
+        </Link>
       </div>
 
       <MonthCalendar month={month} onMonthChange={setMonth} events={events} />

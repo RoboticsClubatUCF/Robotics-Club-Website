@@ -1,26 +1,33 @@
 import { serve } from '@hono/node-server'
 import { app } from './app.js'
-import { prisma } from './db.js'
+import { prisma } from './core/db.js'
 import {
+  confirmInteractionEndpoint,
   discordConfigured,
+  labChannelConfigured,
   memberRoleId,
   officerSyncConfigured,
   projectLeadRoleId,
   roleSyncDryRun,
   teamLeadRoleId,
-} from './discord.js'
-import { syncDiscordOfficers } from './discordOfficers.js'
-import { sweepDiscordRoles } from './discordRoles.js'
-import { env } from './env.js'
-import { sweepReturnReminders } from './equipmentReminder.js'
-import { mailConfigured } from './mail.js'
-import { sweepLapsedMembers } from './membershipSweep.js'
-import { sweepRateLimits } from './rateLimit.js'
-import { sweepSignups } from './routes/signup.js'
-import { forgetFinishedTerms, primeCalendar } from './semester.js'
-import { sweepSessions } from './session.js'
-import { stripeConfigured, webhooksConfigured } from './stripe.js'
-import { sweepTrialNotices } from './trialNotice.js'
+} from './discord/discord.js'
+import { startDiscordGateway, stopDiscordGateway } from './discord/discordGateway.js'
+import { syncDiscordOfficers } from './discord/discordOfficers.js'
+import { sweepDiscordRoles } from './discord/discordRoles.js'
+import { env } from './core/env.js'
+import { sweepReturnReminders } from './equipment/equipmentReminder.js'
+import { sweepTaskReminders } from './discord/taskReminder.js'
+import { sweepLabStatus } from './lab/labStatus.js'
+import { mailConfigured } from './email/mail.js'
+import { sweepLapsedMembers } from './membership/membershipSweep.js'
+import { sweepRateLimits } from './core/rateLimit.js'
+import { sweepEmailChanges } from './routes/account/account.js'
+import { sweepPasswordResets } from './routes/account/auth.js'
+import { sweepSignups } from './routes/account/signup.js'
+import { forgetFinishedTerms, primeCalendar } from './membership/semester.js'
+import { sweepSessions } from './auth/session.js'
+import { stripeConfigured, webhooksConfigured } from './payments/stripe.js'
+import { sweepTrialNotices } from './membership/trialNotice.js'
 
 const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
   console.log(`API listening on http://localhost:${info.port}/api`)
@@ -52,8 +59,10 @@ const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
   )
   // Who is an officer is a permission level, and this is the setting that
   // decides whether Discord or a person answers that. Worth a line either way:
-  // switched on, it will stand somebody down within ten minutes of them losing
-  // the role, and the first sweep after it is switched on is the one to watch.
+  // switched on, somebody carrying the role is promoted and somebody who has
+  // lost it is stood down on their very next request, with the ten-minute sweep
+  // as the backstop for everyone not currently browsing. The first sweep after
+  // it is switched on is the one to watch.
   console.log(
     officerSyncConfigured
       ? `Discord officer sync → role ${env.DISCORD_OFFICER_ROLE_ID ?? ''}`
@@ -72,6 +81,69 @@ const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
       ? `Discord role sync → ${pushed.join(', ')}${roleSyncDryRun ? ' (DRY RUN — nothing is written)' : ''}`
       : 'Discord role sync OFF (no role ids) — only projects carrying a role are synced',
   )
+  // The lab sign. Off is a supported state — officers still open and close the
+  // lab on the site and the landing page still says which — so this says which
+  // of the two is running, because from inside the dashboard they look
+  // identical.
+  console.log(
+    labChannelConfigured
+      ? `Lab status → Discord channel ${env.DISCORD_LAB_CHANNEL_ID ?? ''} (Discord is the record; the site follows it)`
+      : 'Lab status Discord sign OFF (no DISCORD_LAB_CHANNEL_ID) — the site still tracks whether the lab is open',
+  )
+  // The other half of the sign, and the half that is invisible when it is
+  // missing: without it the message carries no buttons at all, so "there is no
+  // button in Discord" and "the endpoint is wrong" look identical from the
+  // channel. Said here as well as warned about in `env.ts`, because this is the
+  // line somebody reads when an officer asks where the button went.
+  //
+  // **A bot is told about a button press in exactly two ways and there is no
+  // third**, and which one is running is a fact about the *application* rather
+  // than a setting here: an application with an interactions endpoint URL has
+  // every press POSTed there and its gateway told nothing. So Discord is asked
+  // once, at startup, and the answer decides whether to hold a socket open.
+  void confirmInteractionEndpoint()
+    .then((check) => {
+      switch (check.status) {
+        case 'live':
+          // The HTTP road. Nothing to hold open; presses arrive as requests.
+          console.log(`Lab buttons → ${check.url}`)
+          startDiscordGateway(true)
+          return
+
+        case 'endpoint_unusable':
+          // The worst of the four states, and the only one worth a stack of
+          // words: presses go to that URL, this server refuses every one of
+          // them, and the gateway is not told either. Nothing works, and from
+          // inside the channel it looks exactly like a button nobody wired up.
+          console.error(
+            `Lab buttons BROKEN — the application POSTs presses to ${check.url} and ${check.reason}. Either fix that, or clear the Interactions Endpoint URL in the developer portal and restart, which puts the buttons on the gateway and needs no public address at all.`,
+          )
+          startDiscordGateway(true)
+          return
+
+        case 'no_endpoint':
+          // The road the club runs on. No public address, no key, nothing to
+          // configure — the bot token is the whole of it.
+          startDiscordGateway(false)
+          return
+
+        case 'unchecked':
+          console.log('Lab buttons OFF (no DISCORD_BOT_TOKEN)')
+          return
+
+        default:
+          // Asked and not answered. Buttons stay off rather than being attached
+          // on a guess, and the next restart that can reach Discord turns them
+          // on.
+          console.log(
+            `Lab buttons OFF — could not ask Discord which way presses are delivered (${check.reason}). They come back on the next restart that can.`,
+          )
+          return
+      }
+    })
+    .catch((error: unknown) => {
+      console.error('discord: interactions endpoint check failed', error)
+    })
   // A dues page that cannot take a card looks exactly like one that can, right
   // up to the moment somebody tries.
   console.log(
@@ -83,7 +155,7 @@ const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
   // only thing that sends it.
   if (!discordConfigured) {
     console.log(
-      'Trial-end messages and equipment return reminders OFF (no DISCORD_BOT_TOKEN)',
+      'Trial-end messages, equipment return reminders and overdue-task reminders OFF (no DISCORD_BOT_TOKEN)',
     )
   }
 
@@ -105,6 +177,15 @@ const sweep = setInterval(
     })
     void sweepSignups().catch((error: unknown) => {
       console.error('signup verification sweep failed', error)
+    })
+    // The other two hashed-token tables. Same reasoning as the signup one:
+    // these rows are a live way into somebody's account, and an expired one is
+    // not something to leave sitting in a table.
+    void sweepPasswordResets().catch((error: unknown) => {
+      console.error('password reset sweep failed', error)
+    })
+    void sweepEmailChanges().catch((error: unknown) => {
+      console.error('email change sweep failed', error)
     })
     void sweepSessions().catch((error: unknown) => {
       console.error('session sweep failed', error)
@@ -138,16 +219,17 @@ const sweep = setInterval(
       // the club's Discord role decides OFFICER here. Off unless
       // `DISCORD_OFFICER_ROLE_ID` is set, and it stands down rather than
       // writing anything whenever the guild cannot be read or the answer looks
-      // like a misconfiguration. See `src/discordOfficers.ts` — all four
+      // like a misconfiguration. See `src/discord/discordOfficers.ts` — all four
       // refusals are documented there and every one of them is about not
       // standing the whole board down by accident.
       .then(() => syncDiscordOfficers())
       .then((report) => {
         // Quiet unless it did something. This fires every ten minutes and the
         // board changes twice a year.
-        if (report.promoted + report.demoted > 0) {
+        if (report.promoted + report.demoted + report.opened + report.closed > 0) {
           console.log(
-            `discord officers: ${report.promoted} promoted, ${report.demoted} stood down`,
+            `discord officers: ${report.promoted} promoted, ${report.demoted} stood down, ` +
+              `${report.opened} term(s) opened, ${report.closed} closed`,
           )
         }
       })
@@ -159,7 +241,7 @@ const sweep = setInterval(
       // roles that follow from it. Off unless one of the role ids is set or a
       // project carries one, and it refuses rather than writes whenever the
       // guild cannot be read or a removal looks like a misconfiguration. See
-      // `src/discordRoles.ts`.
+      // `src/discord/discordRoles.ts`.
       .then(() => sweepDiscordRoles())
       .then((report) => {
         if (report.added + report.removed > 0) {
@@ -188,7 +270,7 @@ const sweep = setInterval(
     // Unlike the others this one *sends* something, so it runs on every
     // instance and is safe to: a notice is claimed by inserting its primary key
     // before the message goes out, so two instances arriving together means one
-    // insert and one collision. See `src/trialNotice.ts`.
+    // insert and one collision. See `src/membership/trialNotice.ts`.
     void sweepTrialNotices()
       .then((report) => {
         // Quiet unless it did something. This fires every ten minutes all year
@@ -203,10 +285,35 @@ const sweep = setInterval(
         console.error('trial notice sweep failed', error)
       })
 
+    // Three jobs on one row. It locks the lab up when the building shuts at ten
+    // — the site masks that immediately, but the row and the Discord sign need
+    // writing — it **reads the sign back and corrects the row against it**,
+    // which is what makes Discord the record rather than a projection, and it
+    // re-pushes a sign that did not land, almost always the channel *name*:
+    // Discord allows two renames per ten minutes and this tick is that same
+    // window, so a throttled one lands on the very next pass.
+    void sweepLabStatus()
+      .then((report) => {
+        if (report.closed) {
+          console.log('lab status: building hours reached, lab closed')
+        }
+        if (report.adopted) {
+          // Worth a line of its own: it means the site and Discord had drifted,
+          // and the direction they were put back in was Discord's.
+          console.log("lab status: the row was corrected to match Discord's sign")
+        }
+        if (report.retried) {
+          console.log('lab status: re-pushed a sign that had not landed')
+        }
+      })
+      .catch((error: unknown) => {
+        console.error('lab status sweep failed', error)
+      })
+
     // The other thing that sends, and safe from every instance for the same
     // reason: the reminder is claimed by writing the deadline it is about onto
     // the loan, conditional on the value that was read a moment earlier. See
-    // `src/equipmentReminder.ts`.
+    // `src/equipment/equipmentReminder.ts`.
     void sweepReturnReminders()
       .then((report) => {
         if (report.claimed > 0) {
@@ -217,6 +324,27 @@ const sweep = setInterval(
       })
       .catch((error: unknown) => {
         console.error('return reminder sweep failed', error)
+      })
+
+    // The third sender, claimed the same way and for the same reason — the
+    // deadline the message named, written onto the task conditional on the
+    // value read a moment earlier. Deliberately *not* chained onto the
+    // membership sequence above: that ordering is about Postgres settling
+    // before Discord is told who is a member, and nothing here writes a role.
+    //
+    // `sent` counts messages and `claimed` counts tasks, which is why the line
+    // says both rather than reading them as one number: somebody with three
+    // late tasks gets one DM. See `src/discord/taskReminder.ts`.
+    void sweepTaskReminders()
+      .then((report) => {
+        if (report.claimed > 0) {
+          console.log(
+            `task reminders: ${report.sent} sent, ${report.failed} failed, about ${report.claimed} overdue tasks`,
+          )
+        }
+      })
+      .catch((error: unknown) => {
+        console.error('task reminder sweep failed', error)
       })
   },
   10 * 60 * 1000,
@@ -233,6 +361,10 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     shuttingDown = true
 
     clearInterval(sweep)
+    // Closed deliberately rather than left to the process exiting: a socket
+    // that goes without a close frame reads to Discord as a dropped connection,
+    // and the next start pays an identify for a session it could have resumed.
+    stopDiscordGateway()
     server.close(() => {
       void prisma.$disconnect().then(() => process.exit(0))
     })

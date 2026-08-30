@@ -1,13 +1,22 @@
-import { render, screen, within } from '@testing-library/react'
+import { render as renderBare, screen, within } from '@testing-library/react'
+import type { ReactNode } from 'react'
+import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SponsorsSection } from './SponsorsSection'
-import type { ApiSponsor } from '../../lib/api'
+import type { ApiSponsor } from '../../lib/api/api'
 import {
   stubFetch,
   stubFetchNetworkError,
   stubFetchPending,
   urlOf,
 } from '../../test/stubFetch'
+
+/**
+ * The header's "Sponsor us" is a `<Link>` now that `/sponsors` is a real page,
+ * and a `<Link>` throws outside a router. Same helper, same reason, as
+ * `OfficersSection.test.tsx`.
+ */
+const render = (ui: ReactNode) => renderBare(<MemoryRouter>{ui}</MemoryRouter>)
 
 const sponsor = (over: Partial<ApiSponsor> = {}): ApiSponsor => ({
   id: 's1',

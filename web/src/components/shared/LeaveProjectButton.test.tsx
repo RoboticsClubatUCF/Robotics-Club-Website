@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { LeaveProjectButton } from './LeaveProjectButton'
-import type { ProjectMemberRank } from '../../lib/api'
+import type { ProjectMemberRank } from '../../lib/api/api'
 
 const json = (body: unknown, status = 200) =>
   Promise.resolve(
@@ -70,7 +70,7 @@ describe('LeaveProjectButton', () => {
       screen.getByText('Leave Mars Rover as its project lead?'),
     ).toBeInTheDocument()
     expect(screen.getByText(/would be left with/)).toBeInTheDocument()
-    expect(screen.getByText(/officers are told/)).toBeInTheDocument()
+    expect(screen.getByText(/only an officer could run it/)).toBeInTheDocument()
     // The label sentences are gone, and must not come back.
     expect(screen.queryByText(/roster label/)).toBeNull()
     expect(screen.queryByText(/listed as/)).toBeNull()

@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ApiEvent } from '../../lib/api'
-import { addMonths, startOfMonth } from '../../lib/months'
-import type { ApiState } from '../../lib/useApi'
+import type { ApiEvent } from '../../lib/api/api'
+import { AddToCalendar } from './AddToCalendar'
+import { isTaskEntry } from '../../lib/events/events'
+import { addMonths, startOfMonth } from '../../lib/events/months'
+import type { ApiState } from '../../lib/api/useApi'
 
 /**
  * A month grid with the same month's events listed under it — the club's one
@@ -25,6 +27,13 @@ import type { ApiState } from '../../lib/useApi'
  * strings and `new Date(...)` plus the local `get*` accessors do the
  * conversion, which is what puts an event that starts at 8pm Eastern on the
  * right square for someone reading in Orlando.
+ *
+ * Project meetings arrive as ordinary entries in the same array. They are
+ * generated rather than stored — `server/src/projects/meetings.ts` expands them from the
+ * project's schedule, stops them at the end of its term and drops finals week —
+ * and this component neither knows nor needs to: the only thing it does with
+ * the extra `meeting` field is hand it to `AddToCalendar`, so one press takes
+ * the whole term rather than one evening.
  */
 
 const weekdays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
@@ -347,10 +356,14 @@ function MonthButton({
  * it is not a button, because there is nothing to open and thirty empty tab
  * stops between the ones that matter help nobody.
  *
- * The chips inside are spans, not buttons. They can't be: a button cannot
- * contain a button, and the square is the more useful target of the two. Their
- * hover cards are `aria-hidden` and the square carries an explicit `aria-label`,
- * so a card's paragraph of detail can't leak into the button's name.
+ * That button is an overlay — `absolute inset-0`, painted behind the square's
+ * own contents — rather than a wrapper around them. It has to be: the chips'
+ * cards carry an "add to calendar" menu now, and a button can contain neither a
+ * button nor a link. So the chips sit above the overlay with pointer events of
+ * their own and press it themselves, everything else in the square is
+ * `pointer-events-none` so a press there falls through, and the square's
+ * `aria-label` is the whole of its accessible name because the button has no
+ * contents left to build one from.
  */
 function DayCell({
   day,
@@ -377,8 +390,8 @@ function DayCell({
             ? /* Filled rather than merely gold, so today survives
                  `prefers-reduced-motion` and colour-blind viewing — the shape
                  changes, not just the hue. */
-              'bg-primary text-primary-content flex size-5 items-center justify-center rounded-[2px] font-mono text-[10px] font-semibold'
-            : 'text-dim flex size-5 items-center justify-center font-mono text-[10px] font-medium'
+              'bg-primary text-primary-content pointer-events-none relative flex size-5 items-center justify-center rounded-[2px] font-mono text-[10px] font-semibold'
+            : 'text-dim pointer-events-none relative flex size-5 items-center justify-center font-mono text-[10px] font-medium'
         }
       >
         {day.getDate()}
@@ -387,7 +400,7 @@ function DayCell({
       {/* Below the breakpoint a cell is about 40px wide, which fits a dot per
           event and nothing legible. The chips take over at `wide`. */}
       {events.length > 0 && (
-        <span className="mt-1 flex flex-wrap justify-center gap-0.5 wide:hidden">
+        <span className="pointer-events-none relative mt-1 flex flex-wrap justify-center gap-0.5 wide:hidden">
           {events.map((event) => (
             <span
               key={event.id}
@@ -398,9 +411,17 @@ function DayCell({
         </span>
       )}
 
-      <span className="mt-1 hidden flex-col gap-0.5 wide:flex">
+      {/* `pointer-events-none` on the column and back on per chip, so the gaps
+          and the "+n more" count press the square underneath rather than
+          swallowing the press into a dead strip. */}
+      <span className="pointer-events-none relative mt-1 hidden flex-col gap-0.5 wide:flex">
         {events.slice(0, CHIPS_PER_CELL).map((event) => (
-          <EventChip key={event.id} event={event} alignRight={alignRight} />
+          <EventChip
+            key={event.id}
+            event={event}
+            alignRight={alignRight}
+            onSelect={onSelect}
+          />
         ))}
         {overflow > 0 && (
           <span className="text-faint px-1 font-mono text-[9px] font-medium">
@@ -411,34 +432,38 @@ function DayCell({
     </>
   )
 
-  const padding = 'flex w-full flex-col items-start p-1 text-left wide:min-h-24 wide:p-1.5'
-
   return (
     <td
       className={`border-rule border p-0 align-top ${
         isSelected ? 'bg-wash' : 'bg-base-100'
       }`}
     >
-      {events.length === 0 ? (
-        <div className={padding}>{inner}</div>
-      ) : (
-        <button
-          type="button"
-          onClick={onSelect}
-          aria-pressed={isSelected}
-          /* The label, not the contents. Without it the accessible name would
-             be the day number, every chip, and every hover card's paragraph,
-             read out in one breath. */
-          aria-label={`${dayName(day)}, ${events.length} ${
-            events.length === 1 ? 'event' : 'events'
-          }`}
-          className={`${padding} hover:bg-wash focus-visible:outline-primary cursor-pointer transition-colors duration-200 focus-visible:outline-2 focus-visible:-outline-offset-2 ${
-            isSelected ? 'outline-primary outline-2 -outline-offset-2' : ''
-          }`}
-        >
-          {inner}
-        </button>
-      )}
+      {/* `relative` on every piece of `inner` is what puts the contents in
+          front of the overlay: both are positioned and neither carries a
+          z-index, so document order decides, and the button is first. */}
+      <div className="group/day relative flex w-full flex-col items-start p-1 text-left wide:min-h-24 wide:p-1.5">
+        {events.length > 0 && (
+          <button
+            type="button"
+            onClick={onSelect}
+            aria-pressed={isSelected}
+            /* The label is the button, now that the button has no contents.
+               Named for the day and a count rather than for the events on it:
+               the detail is a chip away and a paragraph of it read out in one
+               breath is not a name. */
+            aria-label={`${dayName(day)}, ${events.length} ${
+              events.length === 1 ? 'event' : 'events'
+            }`}
+            /* `group-hover/day` rather than `hover`, so the square still lights
+               up while the pointer is on one of the chips in front of it. */
+            className={`group-hover/day:bg-wash focus-visible:outline-primary absolute inset-0 cursor-pointer transition-colors duration-200 focus-visible:outline-2 focus-visible:-outline-offset-2 ${
+              isSelected ? 'outline-primary outline-2 -outline-offset-2' : ''
+            }`}
+          />
+        )}
+
+        {inner}
+      </div>
     </td>
   )
 }
@@ -457,53 +482,100 @@ function DayCell({
  * the square, and the gap between the two is the card's own `pt-1.5` rather than
  * a margin — a real gap would drop the hover as the pointer crossed it.
  *
- * There is no click and no focus here, because the chip is inside the square's
- * button and a button cannot contain a button. That is the right way round: the
- * square opens the whole day in the schedule below, which is readable, works on
- * a phone, and doesn't strand anyone on a card that vanishes. The card is a
- * shortcut for a pointer, `aria-hidden` because every word of it is in that
- * schedule.
+ * **The card takes pointer events, so it stays up while you are on it**, and
+ * that is what lets it carry "add to calendar": a card that vanished the moment
+ * the pointer left the chip could hold nothing anybody had to reach. It is why
+ * the square behind is an overlay button and this chip is a button of its own —
+ * see `DayCell`. The menu that button opens is a descendant of the card, so the
+ * pointer never leaves the hovered subtree on its way down into it.
+ *
+ * The chip is out of the tab order, as it was when it was a span. The keyboard
+ * route to an event is the square, which opens the day in the schedule below —
+ * that is readable, works on a phone, and has the same "add to calendar" on
+ * every row, so nobody is stranded on a card that needs a pointer to hold open.
+ * `focus-within` is here for the one case that does put focus inside: clicking
+ * the menu open.
  *
  * Hidden, it is `invisible` rather than merely transparent. An `opacity-0` card
- * would still swallow clicks meant for the squares underneath it.
+ * would still swallow clicks meant for the squares underneath it — and now that
+ * it has controls in it, tab stops as well.
  */
-function EventChip({ event, alignRight }: { event: ApiEvent; alignRight: boolean }) {
+function EventChip({
+  event,
+  alignRight,
+  onSelect,
+}: {
+  event: ApiEvent
+  alignRight: boolean
+  onSelect: () => void
+}) {
   return (
-    <span className="group/chip relative block w-full">
-      <span className="bg-base-300 group-hover/chip:bg-primary group-hover/chip:text-primary-content block truncate px-1 py-0.5 text-[10px] leading-tight transition-colors duration-200">
+    <div className="group/chip pointer-events-auto relative w-full">
+      <button
+        type="button"
+        /* A chip is drawn on top of the square's overlay button, so it has to
+           carry that button's press itself or it is a dead strip in the grid. */
+        onClick={onSelect}
+        /* Out of the tab order all the same: the square is already this day's
+           tab stop, and three per day is two too many. */
+        tabIndex={-1}
+        /* Press without taking focus. The click still fires; what it stops is
+           `focus-within` latching the card open over the grid every time
+           somebody uses a chip to open its day. */
+        onMouseDown={(mouse) => {
+          mouse.preventDefault()
+        }}
+        /* A deadline is marked rather than coloured: the same left bar the
+           dashboard rail uses for "you are here", because a chip in a different
+           colour reads as a different *kind of event* and this is not one — it
+           is a task, and only the person it belongs to can see it at all. */
+        className={`bg-base-300 group-hover/chip:bg-primary group-hover/chip:text-primary-content block w-full cursor-pointer truncate py-0.5 text-left text-[10px] leading-tight transition-colors duration-200 ${
+          isTaskEntry(event)
+            ? 'border-warning border-l-2 pr-1 pl-1.5'
+            : 'px-1'
+        }`}
+      >
         {event.title}
-      </span>
+      </button>
 
-      <span
-        aria-hidden
-        className={`pointer-events-none invisible absolute top-full z-20 w-64 translate-y-1 pt-1.5 opacity-0 transition-[opacity,translate,visibility] duration-200 group-hover/chip:visible group-hover/chip:translate-y-0 group-hover/chip:opacity-100 ${
+      <div
+        className={`invisible absolute top-full z-20 w-64 translate-y-1 pt-1.5 opacity-0 transition-[opacity,translate,visibility] duration-200 group-hover/chip:visible group-hover/chip:translate-y-0 group-hover/chip:opacity-100 group-focus-within/chip:visible group-focus-within/chip:translate-y-0 group-focus-within/chip:opacity-100 ${
           alignRight ? 'right-0' : 'left-0'
         }`}
       >
         {/* A step lighter than the squares it floats over — the hairline alone
             is not enough separation at this contrast. */}
-        <span className="border-rule bg-base-300 block border p-3 text-left">
-          <span className="text-primary block font-mono text-[10px] font-medium tracking-[0.14em] uppercase">
+        <div className="border-rule bg-base-300 border p-3 text-left">
+          <p className="text-primary font-mono text-[10px] font-medium tracking-[0.14em] uppercase">
             {dateLabel(event)}
-          </span>
-          <span className="mt-1.5 block text-[13px] leading-snug font-semibold">
+          </p>
+          <p className="mt-1.5 text-[13px] leading-snug font-semibold">
             {event.title}
-          </span>
-          <span className="text-dim mt-1 block font-mono text-[11px] font-medium tracking-[0.06em]">
+          </p>
+          <p className="text-dim mt-1 font-mono text-[11px] font-medium tracking-[0.06em]">
             {timeLabel(event)}
-          </span>
-          <span className="text-faint mt-1.5 block font-mono text-[9px] font-medium tracking-[0.14em]">
+          </p>
+          <p className="text-faint mt-1.5 font-mono text-[9px] font-medium tracking-[0.14em]">
             {event.type}
             {event.location && ` · ${event.location}`}
-          </span>
+          </p>
           {event.description && (
-            <span className="text-dim mt-2 line-clamp-3 block text-xs leading-[1.5]">
+            <p className="text-dim mt-2 line-clamp-3 text-xs leading-[1.5]">
               {event.description}
-            </span>
+            </p>
           )}
-        </span>
-      </span>
-    </span>
+
+          {/* Aligned with the card, not with the chip: on the right-hand
+              columns the card already hangs left, and a menu wider than the
+              card would otherwise reach past the edge of the grid. */}
+          <AddToCalendar
+            event={event}
+            align={alignRight ? 'right' : 'left'}
+            className="mt-3"
+          />
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -516,7 +588,14 @@ function EventChip({ event, alignRight }: { event: ApiEvent; alignRight: boolean
 const agendaRowClass =
   'border-rule grid grid-cols-[4.5rem_1fr] items-start gap-3 border-t py-4 wide:grid-cols-[7rem_1fr] wide:gap-6'
 
-function AgendaRow({ event }: { event: ApiEvent }) {
+/**
+ * Exported for `/events`, which is the same entry without a grid over it — the
+ * listing page shows a whole term at once rather than the month this widget is
+ * looking at. Two implementations of "an event, as a row" would have drifted the
+ * first time one of them was touched, and the add-to-calendar button and the
+ * midnight-crossing time label are exactly the details that would drift.
+ */
+export function AgendaRow({ event }: { event: ApiEvent }) {
   return (
     <article className={agendaRowClass}>
       <div className="text-primary pt-0.5 font-mono text-[11px] font-medium tracking-[0.06em] uppercase">
@@ -537,21 +616,29 @@ function AgendaRow({ event }: { event: ApiEvent }) {
             {event.description}
           </p>
         )}
-        {event.registrationUrl && (
-          <a
-            href={event.registrationUrl}
-            className="text-primary border-primary/40 hover:border-primary mt-2.5 inline-block border-b pb-0.5 text-xs font-medium transition-colors duration-200"
-          >
-            Register
-          </a>
-        )}
+        {/* The two things somebody does with an entry, on one row: sign up for
+            it, or put it in their own calendar. Both are last because both are
+            actions and everything above them is the description of the thing. */}
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <AddToCalendar event={event} />
+
+          {event.registrationUrl && (
+            <a
+              href={event.registrationUrl}
+              className="text-primary border-primary/40 hover:border-primary border-b pb-0.5 text-xs font-medium transition-colors duration-200"
+            >
+              Register
+            </a>
+          )}
+        </div>
       </div>
     </article>
   )
 }
 
-/** Placeholder rows at the real height, so the footer doesn't jump. */
-function AgendaSkeleton() {
+/** Placeholder rows at the real height, so the footer doesn't jump. Exported
+    alongside the row itself — a page drawing one has the other's problem. */
+export function AgendaSkeleton() {
   return (
     <div aria-hidden>
       {Array.from({ length: 3 }, (_, index) => (

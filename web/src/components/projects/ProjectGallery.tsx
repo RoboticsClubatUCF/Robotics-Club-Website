@@ -1,8 +1,8 @@
 import { useState, type PointerEvent as ReactPointerEvent } from 'react'
-import type { ApiProjectImage } from '../../lib/api'
-import { frameStyle } from '../../lib/imageFraming'
-import { counterLabel, inWindow } from '../../lib/projectGallery'
-import { imageSrc } from '../../lib/storedFiles'
+import type { ApiProjectImage } from '../../lib/api/api'
+import { frameStyle } from '../../lib/media/imageFraming'
+import { counterLabel, inWindow } from '../../lib/projects/projectGallery'
+import { imageSrc } from '../../lib/media/storedFiles'
 
 /**
  * A project's pictures, one at a time.
@@ -19,9 +19,40 @@ import { imageSrc } from '../../lib/storedFiles'
  * reduced-motion block in `index.css` does, with `!important`) loses nothing.
  *
  * Three slides are mounted at a time — see `SLIDE_WINDOW` in
- * `lib/projectGallery.ts` for why `loading="lazy"` cannot do this job.
+ * `lib/projects/projectGallery.ts` for why `loading="lazy"` cannot do this job.
  */
-export function ProjectGallery({ slides }: { slides: ApiProjectImage[] }) {
+export function ProjectGallery({
+  slides,
+  compact = false,
+  priority = true,
+  label = 'Project images',
+}: {
+  slides: ApiProjectImage[]
+  /**
+   * Drops the `/ GALLERY` eyebrow and the thumbnail strip, and stops being a
+   * landmark.
+   *
+   * The projects list draws one of these per project. Six regions all called
+   * "Project gallery" is six landmarks that tell a screen reader nothing apart,
+   * and six thumbnail strips is more chrome than pictures — the arrows and the
+   * counter are the whole control there. A `<section>` with no accessible name
+   * is not a landmark, which is what makes this one attribute rather than a
+   * second element.
+   */
+  compact?: boolean
+  /**
+   * Whether this gallery's first slide is the page's largest paintable element.
+   *
+   * True on a project's own page, where there is exactly one gallery. The list
+   * passes it for its first card and nothing else: `fetchPriority="high"` on
+   * every card is the same as it on none, and it would put six full-size
+   * photographs in front of the one the reader can actually see.
+   */
+  priority?: boolean
+  /** The image group's accessible name. The list names the project, because
+      "Project images" repeated down a page says nothing about any of them. */
+  label?: string
+}) {
   const [index, setIndex] = useState(0)
   // Where a drag started. Null between drags, and reset on cancel so a pointer
   // that leaves the frame mid-swipe doesn't arm the next tap.
@@ -56,10 +87,15 @@ export function ProjectGallery({ slides }: { slides: ApiProjectImage[] }) {
   }
 
   return (
-    <section aria-label="Project gallery" className="mb-8">
-      <p className="text-faint mb-4 font-mono text-[13px] font-bold tracking-[0.2em]">
-        / GALLERY
-      </p>
+    <section
+      aria-label={compact ? undefined : 'Project gallery'}
+      className={compact ? undefined : 'mb-8'}
+    >
+      {!compact && (
+        <p className="text-faint mb-4 font-mono text-[13px] font-bold tracking-[0.2em]">
+          / GALLERY
+        </p>
+      )}
 
       {/* The frame owns the aspect ratio, so the box exists at its final size
           before a single byte arrives and does not move when one does —
@@ -69,7 +105,7 @@ export function ProjectGallery({ slides }: { slides: ApiProjectImage[] }) {
           loads, and keeps showing if one never does. */}
       <div
         role="group"
-        aria-label="Project images"
+        aria-label={label}
         tabIndex={0}
         onKeyDown={(event) => {
           const to =
@@ -100,7 +136,7 @@ export function ProjectGallery({ slides }: { slides: ApiProjectImage[] }) {
             <Slide
               key={slide.id}
               slide={slide}
-              first={position === 0}
+              lcp={position === 0 && priority}
               shown={position === current}
             />
           ) : null,
@@ -144,7 +180,7 @@ export function ProjectGallery({ slides }: { slides: ApiProjectImage[] }) {
         </div>
       )}
 
-      {!single && (
+      {!single && !compact && (
         /* A genuine horizontal scroller, unlike the frame above — so the rules
            between cells come from the container's background through a 1px gap,
            the strip idiom the rest of the site uses. */
@@ -185,11 +221,12 @@ export function ProjectGallery({ slides }: { slides: ApiProjectImage[] }) {
 
 function Slide({
   slide,
-  first,
+  lcp,
   shown,
 }: {
   slide: ApiProjectImage
-  first: boolean
+  /** Whether this is the picture the page will be judged on painting. */
+  lcp: boolean
   shown: boolean
 }) {
   const [loaded, setLoaded] = useState(false)
@@ -202,12 +239,12 @@ function Slide({
       /* Empty when there is no caption, because a caption is printed under the
          frame and announcing it twice is worse than not announcing it. */
       alt={slide.caption ?? ''}
-      /* The first slide is the page's largest paintable element, so it says so
-         out loud rather than leaving the browser to guess. Everything else is
-         honestly deferrable — though the mount window, not this attribute, is
-         what actually stops eleven other pictures downloading. */
-      loading={first ? 'eager' : 'lazy'}
-      fetchPriority={first ? 'high' : 'auto'}
+      /* The page's largest paintable element says so out loud rather than
+         leaving the browser to guess. Everything else is honestly deferrable —
+         though the mount window, not this attribute, is what actually stops
+         eleven other pictures downloading. */
+      loading={lcp ? 'eager' : 'lazy'}
+      fetchPriority={lcp ? 'high' : 'auto'}
       /* So a decode never blocks the main thread at the moment the index
          changes, which is exactly when the page is being interacted with. */
       decoding="async"

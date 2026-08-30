@@ -2,12 +2,19 @@ import { useEffect, useId, useState } from 'react'
 import { Link } from 'react-router'
 import { BrandMark } from './BrandMark'
 import { Avatar } from '../shared/Avatar'
-import { navLinks, type NavLink } from '../../content/home'
-import { useSession } from '../../lib/session'
+import { pageLinks, sectionLinks, type NavLink } from '../../content/home'
+import { useSession } from '../../lib/auth/session'
 
 /**
- * Sticky top bar. The blur is what lets the near-black background sit at 90%
+ * Sticky top bar. The blur is what lets the page-coloured background sit at 90%
  * opacity — content scrolling underneath stays suggested rather than legible.
+ *
+ * **The links are two lists with a rule between them, and the split is the
+ * point.** On the left, in the order the front page runs them, are the sections
+ * of that page; on the right is everywhere else on the site, ending in the gold
+ * button. One kind of link moves the page under you and the other replaces it,
+ * and a bar that shuffled the two together made every word a coin toss — which
+ * is what it was doing when "Projects" sat between the masthead and "Events".
  *
  * Below the breakpoint the links move into a panel under the bar. The bar keeps
  * three things at every width — the mark, the call-to-action button and the
@@ -15,10 +22,22 @@ import { useSession } from '../../lib/session'
  * that button is the only reason the bar exists. Fitting all three inside 320px
  * is why it carries a short label as well as a long one.
  *
- * Signing in changes two things and no more: the button becomes the way to the
- * dashboard rather than the way to sign up, and the "Sign in" link comes out of
- * the list. Everything else on the bar is the same for everyone.
+ * Signing in swaps the right-hand end of the bar and nothing else: the last page
+ * link goes from "Sign in" to "Dashboard", and the gold button becomes the
+ * avatar. The sections, the mark and the toggle are the same for everyone.
  */
+
+/**
+ * The row was `gap-7` while it held five links and no rule. The split costs a
+ * divider and two gaps on top of the sixth link, and 900px is a real width
+ * somebody browses at — this is what keeps the whole bar on one line there
+ * rather than letting the masthead's tagline truncate on every laptop.
+ */
+const rowGap = 'gap-5'
+
+const rowLinkClass =
+  'text-dim text-[13px] font-medium transition-colors duration-200 hover:text-base-content'
+
 export function SiteNav() {
   const [open, setOpen] = useState(false)
   const menuId = useId()
@@ -27,18 +46,25 @@ export function SiteNav() {
   const signedIn = session.status === 'signed-in'
 
   /**
-   * "Sign in" sits with the section links rather than becoming a second button
-   * beside the gold one — the bar is already three things wide at 320px, and a
-   * page with two buttons on it has no primary action.
+   * The last page link is whichever of the two the visitor can actually use.
+   * Neither is a second button beside the gold one — the bar is already three
+   * things wide at 320px, and a page with two buttons on it has no primary
+   * action. Both belong with the pages specifically, because that is what they
+   * are: routes, not places on this page.
    *
-   * It shows while the session is still being read, rather than appearing a
-   * moment later. Nearly everybody arriving here is signed out, so this is the
-   * state that stays put for most people; a member who is signed in sees it for
-   * as long as one request takes.
+   * "Dashboard" is the whole section, where the avatar beside it is one page of
+   * it. Signed out that link would only ever land on `/login`, which is what the
+   * link it replaces already says, so the signed-out bar keeps the honest word.
+   *
+   * "Sign in" is also what shows while the session is still being read, rather
+   * than appearing a moment later. Nearly everybody arriving here is signed out,
+   * so this is the state that stays put for most people; a member who is signed
+   * in sees it for as long as one request takes.
    */
-  const links: NavLink[] = signedIn
-    ? navLinks
-    : [...navLinks, { href: '/login', label: 'Sign in' }]
+  const pages: NavLink[] = signedIn
+    ? [...pageLinks, { href: '/dashboard', label: 'Dashboard' }]
+    : [...pageLinks, { href: '/login', label: 'Sign in' }]
+
 
   useEffect(() => {
     if (!open) return
@@ -77,16 +103,37 @@ export function SiteNav() {
           </span>
         </Link>
 
-        <ul className="hidden items-center gap-7 wide:flex">
-          {links.map((link) => (
-            <li key={link.href}>
-              <NavAnchor
-                link={link}
-                className="text-dim text-[13px] font-medium transition-colors duration-200 hover:text-white"
-              />
-            </li>
-          ))}
-        </ul>
+        {/* Two lists, a rule, and the gold button after them. The lists are
+            labelled as well as separated: the rule says "these are two kinds of
+            thing" to everyone who can see it, and the labels say the same to
+            everyone who cannot. */}
+        <div className={`hidden items-center wide:flex ${rowGap}`}>
+          <ul
+            aria-label="Sections of this page"
+            className={`flex items-center ${rowGap}`}
+          >
+            {sectionLinks.map((link) => (
+              <li key={link.href}>
+                <NavAnchor link={link} className={rowLinkClass} />
+              </li>
+            ))}
+          </ul>
+
+          {/* A hairline rather than a `|` glyph — every other divider on this
+              site is one, and a pipe set in the body face sits at the wrong
+              height and weight beside two rows of links. Hidden from the
+              accessibility tree: the labels above carry what it means, and
+              "vertical line" read out between two lists carries nothing. */}
+          <span aria-hidden className="bg-rule h-4 w-px shrink-0" />
+
+          <ul aria-label="Other pages" className={`flex items-center ${rowGap}`}>
+            {pages.map((link) => (
+              <li key={link.href}>
+                <NavAnchor link={link} className={rowLinkClass} />
+              </li>
+            ))}
+          </ul>
+        </div>
 
         {/* The whole reason the bar exists — while you are signed out. It used
             to point at the FAQ, which is where becoming a member was explained
@@ -96,8 +143,8 @@ export function SiteNav() {
              is "who am I and how do I get to my things", and a button spelling
              out MY DASHBOARD was the widest way to say it. It goes to the
              account page rather than the dashboard root because that is what a
-             picture of a person promises, and the rail on the other side of it
-             reaches everything else in one more click. */
+             picture of a person promises — the "Dashboard" link to its left is
+             the way to the section itself. */
           <Link
             to="/dashboard/profile"
             aria-label={`Your account, ${session.user.fullName}`}
@@ -105,6 +152,12 @@ export function SiteNav() {
           >
             <Avatar
               fullName={session.user.fullName}
+              photoUrl={session.user.photoUrl}
+              framing={{
+                focalX: session.user.photoFocalX,
+                focalY: session.user.photoFocalY,
+                zoom: session.user.photoZoom,
+              }}
               className="size-9 text-[12px] hover:opacity-85 wide:size-10 wide:text-[13px]"
             />
           </Link>
@@ -134,7 +187,7 @@ export function SiteNav() {
 
       {/* Under the bar rather than over the page: a full-screen overlay would
           need focus trapping and a scroll lock to be honest, and this menu is
-          five links. `hidden` rather than unmounted so the open transition has
+          seven links. `hidden` rather than unmounted so the open transition has
           a node to run on — see the styling notes in CLAUDE.md. */}
       <div
         id={menuId}
@@ -144,23 +197,54 @@ export function SiteNav() {
             : 'hidden -translate-y-2 opacity-0'
         }`}
       >
-        <ul className="px-page flex flex-col py-2">
-          {links.map((link) => (
-            <li key={link.href} className="border-rule border-b last:border-b-0">
-              <NavAnchor
-                link={link}
-                onNavigate={() => {
-                  setOpen(false)
-                }}
-                /* Full-width and 48px tall: a nav link on a phone is a thumb
-                   target, not a word. */
-                className="hover:text-primary flex min-h-12 items-center text-sm font-medium transition-colors duration-200"
-              />
-            </li>
-          ))}
-        </ul>
+        {/* The same two lists in the same order. A vertical stack cannot use
+            the row's rule — every row already has one — so the break between
+            them is the gap, which is the one signal a column has left. */}
+        <div className="px-page flex flex-col gap-3 py-2">
+          <MenuList
+            label="Sections of this page"
+            links={sectionLinks}
+            onNavigate={() => {
+              setOpen(false)
+            }}
+          />
+          <MenuList
+            label="Other pages"
+            links={pages}
+            onNavigate={() => {
+              setOpen(false)
+            }}
+          />
+        </div>
       </div>
     </header>
+  )
+}
+
+/** One group of links in the phone panel. */
+function MenuList({
+  label,
+  links,
+  onNavigate,
+}: {
+  label: string
+  links: NavLink[]
+  onNavigate: () => void
+}) {
+  return (
+    <ul aria-label={label} className="flex flex-col">
+      {links.map((link) => (
+        <li key={link.href} className="border-rule border-b last:border-b-0">
+          <NavAnchor
+            link={link}
+            onNavigate={onNavigate}
+            /* Full-width and 48px tall: a nav link on a phone is a thumb
+               target, not a word. */
+            className="hover:text-primary flex min-h-12 items-center text-sm font-medium transition-colors duration-200"
+          />
+        </li>
+      ))}
+    </ul>
   )
 }
 

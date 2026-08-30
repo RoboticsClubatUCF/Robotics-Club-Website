@@ -1,7 +1,16 @@
-import { render, screen } from '@testing-library/react'
+import { render as renderBare, screen } from '@testing-library/react'
+import type { ReactNode } from 'react'
+import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { StatStrip } from './StatStrip'
 import { stubFetch, stubFetchNetworkError, stubFetchPending } from '../../test/stubFetch'
+
+/**
+ * The cells are `<Link>`s now that all four destinations are real pages, and a
+ * `<Link>` throws outside a router. Same helper, same reason, as
+ * `OfficersSection.test.tsx`.
+ */
+const render = (ui: ReactNode) => renderBare(<MemoryRouter>{ui}</MemoryRouter>)
 
 const counts = { projects: 5, members: 6, events: 2 }
 

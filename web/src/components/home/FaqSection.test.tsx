@@ -1,15 +1,29 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FaqSection } from './FaqSection'
 import { faqs } from '../../content/home'
+import { stubFetch } from '../../test/stubFetch'
 
 /**
- * The FAQ takes no props and makes no request, so there is little here that a
- * build wouldn't catch. What is worth pinning down is the one thing the markup
- * choice buys: a closed answer is still in the document, so the browser's own
+ * The FAQ takes no props of its own, so there is little here that a build
+ * wouldn't catch. What is worth pinning down is the one thing the markup choice
+ * buys: a closed answer is still in the document, so the browser's own
  * find-in-page reaches it. An accordion that unmounted its answers would pass
  * every other assertion in this file and quietly lose that.
+ *
+ * The one request on this section belongs to `ContactForm`, which sits at the
+ * bottom of it and asks whether this visitor may still write in before it draws
+ * the box. Nothing here is about that — but an unstubbed `fetch` in jsdom is a
+ * real call to a real port, and the API is often up on this machine.
  */
+beforeEach(() => {
+  vi.stubGlobal('fetch', stubFetch({ '/contact': { allowed: true, remaining: 2, retryAfter: 0, message: null } }))
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
+
 describe('FaqSection', () => {
   it('renders every question', () => {
     render(<FaqSection />)

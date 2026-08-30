@@ -1,20 +1,23 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { ImageFramer } from './ImageFramer'
+import { DocumentsEditor } from './DocumentsEditor'
+import { ImageFramer } from '../shared/ImageFramer'
 import { LinkRows } from './LinkRows'
+import { Status } from '../shared/Status'
+import { useSectionStatus } from '../../lib/useSectionStatus'
 import { ConfirmDialog } from '../shared/ConfirmDialog'
 import { fieldClass, labelClass, submitClass } from '../shared/formChrome'
-import { deleteJson, patchJson, postForm, postJson } from '../../lib/api'
+import { deleteJson, patchJson, postForm, postJson } from '../../lib/api/api'
 import type {
   ApiProjectDetail,
   ApiProjectImage,
   ApiProjectLink,
-} from '../../lib/api'
-import { explainApiError } from '../../lib/apiErrors'
-import { ACCEPTED_IMAGE_TYPES, downscaleImage } from '../../lib/downscaleImage'
-import { frameStyle, safeFraming, type Framing } from '../../lib/imageFraming'
-import { usableLinks, type DraftLink } from '../../lib/projectDraft'
-import { MAX_PROJECT_IMAGES, moveItem } from '../../lib/projectGallery'
-import { imageSrc, isStoredUpload } from '../../lib/storedFiles'
+} from '../../lib/api/api'
+import { explainApiError } from '../../lib/api/apiErrors'
+import { ACCEPTED_IMAGE_TYPES, downscaleImage } from '../../lib/media/downscaleImage'
+import { frameStyle, safeFraming, type Framing } from '../../lib/media/imageFraming'
+import { usableLinks, type DraftLink } from '../../lib/projects/projectDraft'
+import { MAX_PROJECT_IMAGES, moveItem } from '../../lib/projects/projectGallery'
+import { imageSrc, isStoredUpload } from '../../lib/media/storedFiles'
 
 /**
  * The public page, editable in place.
@@ -45,6 +48,7 @@ import { imageSrc, isStoredUpload } from '../../lib/storedFiles'
 export function ProjectEditor({
   project,
   asOfficer,
+  me,
   apply,
   onDone,
   onDirtyChange,
@@ -53,6 +57,13 @@ export function ProjectEditor({
 }: {
   project: ApiProjectDetail
   asOfficer: boolean
+  /**
+   * Whoever is doing the editing. Only the documentation section wants it —
+   * a credit has to start on somebody — and it is threaded through rather than
+   * read from the session there, so this component keeps working anywhere a
+   * project can be handed to it.
+   */
+  me?: { id: string; fullName: string }
   apply: (project: ApiProjectDetail) => void
   onDone: () => void
   /**
@@ -80,6 +91,9 @@ export function ProjectEditor({
       onDirtyChange={onDirtyChange ?? noop}
     />
   )
+  const documents = (
+    <DocumentsEditor key="documents" project={project} me={me} apply={apply} />
+  )
 
   return (
     <div className="space-y-10">
@@ -91,7 +105,16 @@ export function ProjectEditor({
         </p>
       )}
 
-      {writingFirst ? [writing, gallery] : [gallery, writing]}
+      {/* Documentation sits beside the gallery, never after the writing, and
+          that ordering is load-bearing rather than taste. `ProseAndLinks` ends
+          in SAVE CHANGES, and anything below it reads as being *covered* by
+          that button — which is exactly wrong here, because documents save the
+          moment they change and SAVE has nothing to do with them. Grouping the
+          two immediate-save sections together leaves the one deferred-save
+          section last, holding the only button on the page that waits. */}
+      {writingFirst
+        ? [writing, gallery, documents]
+        : [gallery, documents, writing]}
 
       {/* The way out, again, at the end of the page — the header's copy is the
           one somebody remembers, this one is the one they reach by scrolling.
@@ -101,46 +124,16 @@ export function ProjectEditor({
         <button
           type="button"
           onClick={onDone}
-          className="btn btn-outline h-auto min-h-0 border-white/28 px-6 py-3 text-[12px] font-semibold tracking-[0.08em] text-white transition-colors duration-200 hover:border-white hover:bg-white/6 hover:text-white"
+          className="btn btn-outline h-auto min-h-0 border-base-content/28 px-6 py-3 text-[12px] font-semibold tracking-[0.08em] text-base-content transition-colors duration-200 hover:border-base-content hover:bg-base-content/6 hover:text-base-content"
         >
           {doneLabel}
         </button>
         <span className="text-faint text-[12px] leading-[1.5]">
-          Pictures save as you change them; the writing and the links need SAVE.
+          Pictures and documents save as you change them; the writing and the
+          links need SAVE.
         </span>
       </div>
     </div>
-  )
-}
-
-/** One always-rendered status line per section, as every form on the site has. */
-function useSectionStatus() {
-  const [message, setMessage] = useState('')
-  const [busy, setBusy] = useState(false)
-
-  const run = async (action: () => Promise<void>) => {
-    setBusy(true)
-    setMessage('')
-    try {
-      await action()
-    } catch (error) {
-      setMessage(explainApiError(error))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return { message, busy, setMessage, run }
-}
-
-function Status({ message, tone = 'error' }: { message: string; tone?: 'error' | 'ok' }) {
-  return (
-    <p
-      role="status"
-      className={`mt-2 min-h-4 text-[12px] ${tone === 'ok' ? 'text-primary' : 'text-error'}`}
-    >
-      {message}
-    </p>
   )
 }
 
@@ -450,13 +443,12 @@ function GalleryEditor({
             type="button"
             onClick={() => void addByUrl()}
             disabled={busy || full || url.trim() === ''}
-            className="btn btn-outline mt-2 h-auto min-h-0 border-white/28 px-5 py-2.5 text-[12px] font-semibold text-white hover:border-white hover:bg-white/6 hover:text-white disabled:opacity-50"
+            className="btn btn-outline mt-2 h-auto min-h-0 border-base-content/28 px-5 py-2.5 text-[12px] font-semibold text-base-content hover:border-base-content hover:bg-base-content/6 hover:text-base-content disabled:opacity-50"
           >
             ADD
           </button>
           <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
-            A picture hosted somewhere else. Removing it here never deletes
-            anything at the other end.
+            Removing it here never deletes anything at the other end.
           </p>
         </div>
       </div>
@@ -480,8 +472,8 @@ function GalleryEditor({
           }}
         >
           <p>
-            This one was uploaded to the club's own storage, so removing it here
-            deletes the file itself. There is no copy to put back.
+            This one is in the club's own storage, so removing it deletes the
+            file. There is no copy to put back.
           </p>
         </ConfirmDialog>
       )}
@@ -661,8 +653,7 @@ function ProseAndLinks({
             className="textarea border-rule bg-base-200 w-full text-sm"
           />
           <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
-            The one line that appears on the projects list. Say what this is and
-            who it is for.
+            The one line that appears on the projects list.
           </p>
         </div>
 
@@ -711,8 +702,7 @@ function ProseAndLinks({
                 both this page and the projects list drop the segment when it is
                 empty, so a blank box is a finished answer rather than a gap. */}
             <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
-              Optional — leave it empty for a project that isn't built for one,
-              and the line under the title simply drops it.
+              Optional.
             </p>
           </div>
         </div>
@@ -734,8 +724,7 @@ function ProseAndLinks({
             className="textarea border-rule bg-base-200 w-full text-sm"
           />
           <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
-            Leave a blank line between paragraphs. Formatting marks are printed
-            as typed — there is no markdown here yet.
+            Leave a blank line between paragraphs. No markdown yet.
           </p>
         </div>
       </div>

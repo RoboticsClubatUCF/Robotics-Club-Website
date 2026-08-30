@@ -1,55 +1,64 @@
-import { officerSeats } from '../../content/home'
-import type { ApiMember } from '../../lib/api'
-import { imageSrc } from '../../lib/storedFiles'
-import { useApi } from '../../lib/useApi'
+import { Link } from 'react-router'
+import { OfficerCard, officerGridClass } from '../shared/OfficerCard'
+import type { ApiOfficerBoard, OfficerPosition } from '../../lib/api/api'
+import { seatLabel } from '../../lib/officerTerms'
+import { useApi } from '../../lib/api/useApi'
 
 /**
- * The officer board: one headshot per seat, always eight of them.
+ * The officer board: one card per officer, and one per chair nobody is in.
  *
- * The cards come from `officerSeats`, not from the response. The board has a
- * fixed shape — a club with no treasurer this term still has a treasurer's
- * seat — so a missing person is a card that says the seat is open, not a card
- * that vanishes and reflows the other seven. `GET /api/officers` only fills
- * them in.
+ * **Both counts come from the database.** `GET /api/officers` sends the sitting
+ * officers *and* the seats there are — the second straight out of the
+ * `OfficerPosition` enum — so a ninth seat added to the schema draws a ninth
+ * card with nothing edited here.
  *
- * That also means the failure and loading states have something to draw: the
- * grid is the same eight frames either way, with the names replaced by a
- * skeleton or left blank.
+ * It was a fixed eight until now, from a list in `content/home.ts` that the
+ * response only filled in, and that was wrong in two directions at once. The
+ * club could not change the size of its own board without a frontend edit; and
+ * an officer holding **no** seat — exactly what the Discord sync creates, in
+ * the window before anybody has given them a chair — had nowhere to be drawn,
+ * so a real officer was invisible here while being an officer everywhere else.
  *
- * The caption is the seat and the name and nothing else. `title`, `subteam` and
- * `gradYear` all come back in the response and are all deliberately unprinted —
- * eight cards of uneven length read as a table of exceptions rather than a
- * board. Anything more about a person belongs on their roster page.
+ * The empty chairs are still drawn, because that half of the old design was
+ * right: a club with no treasurer this term still has a treasurer's seat, and
+ * "Seat open" says so where a missing card would just look like a shorter
+ * board.
+ *
+ * The card itself is `shared/OfficerCard` — the archive at `/officers` draws the
+ * same one, so what a headshot and a caption look like is settled there.
  */
-
-const gridClass = 'bg-rule border-rule grid grid-cols-2 gap-px border wide:grid-cols-4'
-
-const cardClass = 'bg-base-100 flex h-full w-full flex-col'
-
-/**
- * A ratio rather than a height, so eight photos at eight different sizes still
- * line their captions up and the grid holds its shape before any of them load.
- *
- * The frame takes the card's full width, so it scales with the card at every
- * screen size rather than being stranded in a corner of one.
- *
- * Square, because that is what makes it read as a headshot: a standing frame
- * asks to be filled down to the waist, and eight of them turn the board into a
- * wall of full-length portraits. It also cuts a third off the section's height.
- */
-const frameClass =
-  'bg-base-200 flex aspect-square w-full items-center justify-center overflow-hidden'
-
 export function OfficersSection() {
-  const officers = useApi<ApiMember[]>('/officers')
+  const board = useApi<ApiOfficerBoard>('/officers')
 
-  const holderOf = new Map(
-    officers.status === 'ready'
-      ? officers.data.flatMap((officer) =>
-          officer.officerPosition ? [[officer.officerPosition, officer] as const] : [],
-        )
-      : [],
-  )
+  const ready = board.status === 'ready'
+  const officers = ready ? board.data.officers : []
+  const seats = ready ? board.data.seats : []
+
+  /**
+   * Seated officers first, in the order the server sent them — it can see how
+   * the enum is declared and the browser cannot — then the empty chairs, then
+   * anybody serving without one.
+   *
+   * The seatless go last rather than in amongst the others, where a card would
+   * read as holding whichever seat came above it.
+   */
+  const seated = officers.filter((officer) => officer.position !== null)
+  const held = new Set(seated.map((officer) => officer.position))
+  const empty: OfficerPosition[] = seats.filter((seat) => !held.has(seat))
+  const seatless = officers.filter((officer) => officer.position === null)
+
+  /**
+   * How many frames to draw while waiting, and it can only be a guess: the
+   * count is the answer that has not arrived. Four is the compromise — enough
+   * that the section does not appear out of nothing, few enough that a small
+   * board does not visibly shrink when it lands.
+   *
+   * Sizing the skeleton exactly is the one thing given up by letting the club
+   * decide how many seats it has.
+   */
+  const waiting = board.status === 'loading' ? 4 : 0
+
+  const nothing = ready && officers.length === 0 && seats.length === 0
 
   return (
     <section
@@ -60,79 +69,72 @@ export function OfficersSection() {
         <h2 className="text-faint font-mono text-[13px] font-bold tracking-[0.2em]">
           / OFFICERS
         </h2>
-        <a
-          href="/members"
+        {/* A real `<Link>`, unlike most of the section headers, because this one
+            points at a page that exists — `/members` did not, and still does
+            not. See the note on links in `.claude/docs/frontend.md`. */}
+        <Link
+          to="/officers"
           className="text-primary border-primary/40 hover:border-primary border-b pb-0.5 text-xs font-medium transition-colors duration-200"
         >
-          Full roster
-        </a>
+          Past officers
+        </Link>
       </div>
 
-      {officers.status === 'error' && (
-        <p className="text-faint mb-5 text-sm">
-          Couldn't load who currently holds each seat. The board is listed below.
+      {board.status === 'error' && (
+        <p className="border-rule text-faint border-t py-6.5 text-sm">
+          Couldn&rsquo;t load the officer board just now. Please try again later.
         </p>
       )}
 
-      <ul className={gridClass}>
-        {officerSeats.map((seat) => {
-          const holder = holderOf.get(seat.position)
+      {/* Different from a board of empty chairs: no seats *and* nobody in them
+          means the club has not set this up, not that every seat happens to be
+          vacant. */}
+      {nothing && (
+        <p className="border-rule text-faint border-t py-6.5 text-sm">
+          No officers are listed yet.
+        </p>
+      )}
 
-          return (
-            <li key={seat.position} className="flex">
-              <figure className={cardClass}>
-                <div className={frameClass}>
-                  {officers.status === 'loading' ? (
-                    <div className="bg-base-300 h-full w-full animate-pulse" aria-hidden />
-                  ) : holder?.photoUrl ? (
-                    /* Decorative: the name is printed directly underneath, so
-                       announcing the photo too would read the officer out twice.
-                       `object-cover` because a letterboxed face in a black frame
-                       looks like a mistake — and `object-top` because officers
-                       will send whatever their phone took. Cropping a standing
-                       photo to a square from the centre lands on the midriff;
-                       from the top it lands on the face, which is the one part
-                       of the frame that has to survive. */
-                    <img
-                      src={imageSrc(holder.photoUrl)}
-                      alt=""
-                      className="h-full w-full object-cover object-top"
-                    />
-                  ) : (
-                    /* An empty frame rather than no frame: the hatch is the same
-                       "nothing here yet" language the sponsor logos use, and it
-                       keeps the caption on the same line as its neighbours'. */
-                    <span className="bg-hatch text-faint flex h-full w-full items-center justify-center font-mono text-[9px] font-medium tracking-[0.14em]">
-                      [ PHOTO ]
-                    </span>
-                  )}
-                </div>
-
-                <figcaption className="p-4">
-                  <div className="text-primary font-mono text-[10px] font-medium tracking-[0.16em] uppercase">
-                    {seat.label}
-                  </div>
-
-                  {officers.status === 'loading' ? (
-                    <div
-                      className="bg-base-300 mt-2 h-4 w-28 animate-pulse rounded-[2px]"
-                      aria-hidden
-                    />
-                  ) : holder ? (
-                    <div className="mt-1.5 text-base leading-tight font-semibold tracking-[-0.01em]">
-                      {holder.fullName}
-                    </div>
-                  ) : (
-                    <div className="text-faint mt-1.5 text-[13px]">
-                      {officers.status === 'error' ? '—' : 'Seat open'}
-                    </div>
-                  )}
-                </figcaption>
-              </figure>
+      {board.status !== 'error' && !nothing && (
+        <ul className={officerGridClass}>
+          {Array.from({ length: waiting }, (_, index) => (
+            <li key={`waiting-${String(index)}`} className="flex">
+              <OfficerCard seat="" name={null} photoUrl={null} loading />
             </li>
-          )
-        })}
-      </ul>
+          ))}
+
+          {seated.map((officer) => (
+            <li key={officer.id} className="flex">
+              <OfficerCard
+                seat={seatLabel(officer.position)}
+                name={officer.fullName}
+                photoUrl={officer.photoUrl}
+              />
+            </li>
+          ))}
+
+          {empty.map((seat) => (
+            <li key={seat} className="flex">
+              <OfficerCard
+                seat={seatLabel(seat)}
+                name={null}
+                note="Seat open"
+                photoUrl={null}
+              />
+            </li>
+          ))}
+
+          {seatless.map((officer) => (
+            <li key={officer.id} className="flex">
+              <OfficerCard
+                seat={seatLabel(null)}
+                name={officer.fullName}
+                photoUrl={officer.photoUrl}
+              />
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   )
 }

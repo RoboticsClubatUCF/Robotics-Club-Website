@@ -1,11 +1,16 @@
 import { Link } from 'react-router'
-import { FormEyebrow, FormHeading, FormPanel } from '../shared/formChrome'
+import {
+  FormEyebrow,
+  FormHeading,
+  FormPanel,
+  measureClass,
+} from '../shared/formChrome'
 
 /**
  * What somebody sees behind a lock while membership is free for the asking.
  *
  * The third sentence, and the one that did not used to exist. When the summer
- * and the opening fortnight granted access to the whole club whether or not
+ * and the opening weeks granted access to the whole club whether or not
  * anybody claimed anything, there was nothing to say here — the page simply
  * opened. Access is the dues date now, so a member who has not pressed the
  * button is locked out of a club that is charging them nothing, which is a
@@ -31,28 +36,24 @@ export function ClaimFree({
       <FormEyebrow>{eyebrow}</FormEyebrow>
       <FormHeading>{thing} are one press away.</FormHeading>
 
-      <FormPanel tone="accent">
-        <p className="mb-1.5 text-sm font-semibold">
-          Membership is free right now, and you have not switched it on.
-        </p>
-        <p className="text-dim text-sm leading-[1.7] text-pretty">
-          The club charges nothing between one semester and the first fortnight
-          of the next, and the summer sits inside that. It is still something
-          you have to claim, though &mdash; that is how the club knows who is
-          actually around rather than who signed up once.
-        </p>
-        <p className="text-dim mt-3 text-sm leading-[1.7] text-pretty">
+      <div className={measureClass}>
+        <FormPanel tone="accent">
+          <p className="mb-1.5 text-sm font-semibold">
+            Membership is free right now, and you have not switched it on.
+          </p>
           {/* Said plainly, because "activate your membership" reads like a
               step with a form behind it. There is no form and no card. */}
-          One press, no payment, and this opens straight away.
-        </p>
-        <Link
-          to="/dashboard/dues"
-          className="btn btn-primary btn-cta mt-5 px-7 py-[15px] text-[13px] font-semibold"
-        >
-          CLAIM MY MEMBERSHIP
-        </Link>
-      </FormPanel>
+          <p className="text-dim text-sm leading-[1.7] text-pretty">
+            One press, no payment, and this opens straight away.
+          </p>
+          <Link
+            to="/dashboard/dues"
+            className="btn btn-primary btn-cta mt-5 px-7 py-[15px] text-[13px] font-semibold"
+          >
+            CLAIM MY MEMBERSHIP
+          </Link>
+        </FormPanel>
+      </div>
     </>
   )
 }

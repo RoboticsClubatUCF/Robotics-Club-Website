@@ -25,13 +25,16 @@ datasource db {
 /// Three writers, and each owns exactly one edge of the ladder.
 ///
 ///   - **Dues** move people between `MEMBER` and `GUEST`. `membershipUpdateFor`
-///     in `src/routes/dues.ts` promotes a `GUEST` who pays, claims a free window
-///     or is granted a term by an officer; `src/membershipSweep.ts` puts a
+///     in `src/routes/member/dues.ts` promotes a `GUEST` who pays, claims a free window
+///     or is granted a term by an officer; `src/membership/membershipSweep.ts` puts a
 ///     lapsed `MEMBER` back down.
 ///   - **The club's Discord officer role** moves people between `OFFICER` and
-///     whichever of `MEMBER`/`GUEST` their dues say — `src/discordOfficers.ts`,
+///     whichever of `MEMBER`/`GUEST` their dues say — `src/discord/discordOfficers.ts`,
 ///     and only when `DISCORD_OFFICER_ROLE_ID` is configured. The board is
-///     appointed in Discord and the site follows.
+///     appointed in Discord and the site follows. Granting is immediate — at
+///     signup, and at sign-in through `refreshOfficerStanding` — while taking
+///     the role away waits for the ten-minute sweep, which is the only thing
+///     that can see enough of the guild to be sure. That file has the why.
 ///   - **A human**, for `ADMIN`, in Prisma Studio. Nothing in this codebase
 ///     writes or clears `ADMIN`, in either direction, and the sync excludes it
 ///     structurally rather than by a check it could get wrong.
@@ -73,21 +76,31 @@ enum OfficerPosition {
   FACULTY_ADVISOR
 }
 
+/// Who opened an `OfficerTerm`, and so who is allowed to close it.
+///
+/// `DISCORD` is the sync following the club's officer role. `MANUAL` is a
+/// person on the roles desk — which is how the faculty advisor, who sits on the
+/// board carrying no Discord role at all, stays on it.
+enum OfficerTermSource {
+  DISCORD
+  MANUAL
+}
+
 /// Everyone the site knows about: the roster, the people who can sign in, and
 /// anyone who has only signed up.
 ///
 /// `email` and `passwordHash` are optional because most people on the roster
 /// never sign in, and `slug` is optional because an account with no public
 /// profile page has nothing to put in a URL. A null slug is what keeps someone
-/// off the roster — see the members route in `src/routes/content.ts`.
+/// off the roster — see the members route in `src/routes/public/content.ts`.
 model User {
-  id                        String           @id @default(uuid(7))
-  slug                      String?          @unique
-  fullName                  String           @map("full_name")
-  email                     String?          @unique
+  id                        String    @id @default(uuid(7))
+  slug                      String?   @unique
+  fullName                  String    @map("full_name")
+  email                     String?   @unique
   /// Discord handle, not the numeric snowflake id. Unique because it points at
   /// one external account — two people can't both be `@someone`.
-  discordUsername           String?          @unique @map("discord_username")
+  discordUsername           String?   @unique @map("discord_username")
   /// Discord's numeric account id — a snowflake — captured when the handle is
   /// confirmed at signup.
   ///
@@ -98,60 +111,96 @@ model User {
   /// for every row that predates the check — the seed, and anything an officer
   /// entered by hand — so anything reading it has to be able to fall back to
   /// searching the guild by handle.
-  discordId                 String?          @unique @map("discord_id")
-  passwordHash              String?          @map("password_hash")
-  role                      UserRole         @default(GUEST)
+  discordId                 String?   @unique @map("discord_id")
+  passwordHash              String?   @map("password_hash")
+  role                      UserRole  @default(GUEST)
   title                     String? // free-text, e.g. "Software Lead"
-  /// Which officer seat this person currently holds, if any. Unique because
-  /// there is one president at a time and the board is rendered as one card per
-  /// seat — two holders would mean two people in one card. That also makes it
-  /// strictly *current*: a past president keeps the history in `title`
-  /// ("President, 2024-2025") and hands the seat back by going null here.
-  officerPosition           OfficerPosition? @unique @map("officer_position")
-  gradYear                  Int?             @map("grad_year")
+  gradYear                  Int?      @map("grad_year")
   bio                       String?
-  photoUrl                  String?          @map("photo_url")
-  active                    Boolean          @default(true)
-  joinedAt                  DateTime?        @map("joined_at")
+  photoUrl                  String?   @map("photo_url")
+  /// How that photo sits inside the avatar's square frame.
+  ///
+  /// The same three numbers as `ProjectImage`, for the same reasons — the long
+  /// argument is on that model and is not repeated here. In short: framing is
+  /// metadata applied with CSS at display time and never baked into the bytes,
+  /// so the original survives, a crop can be changed a year later without the
+  /// original file, and it works for a `photo_url` the club does not host.
+  ///
+  /// The one difference is the frame. A gallery slide is 16:10; an avatar is
+  /// **square**, because every avatar on this site is — see `Avatar.tsx`, where
+  /// the square is a deliberate design rule rather than a coincidence. Which
+  /// shape the numbers were chosen against therefore differs, and a photo
+  /// framed for one would be framed wrongly in the other. Nothing shares them.
+  ///
+  /// Defaults reproduce a plain centred `object-cover`, so every row that
+  /// predates these columns looks exactly as it did.
+  photoFocalX               Float     @default(50) @map("photo_focal_x")
+  photoFocalY               Float     @default(50) @map("photo_focal_y")
+  photoZoom                 Float     @default(1) @map("photo_zoom")
+  active                    Boolean   @default(true)
+  joinedAt                  DateTime? @map("joined_at")
   /// When this person agreed to the member acknowledgement — the club's safety,
   /// equipment, conduct and dues rules, accepted while creating an account.
   /// Stored rather than merely required because the agreement is the reason the
   /// checkbox exists: an acknowledgement nobody can produce afterwards is a
   /// checkbox, not a record. Nullable, and null means *no record*, not refusal —
   /// every roster entry made by hand or by the seed predates the signup form.
-  acknowledgementAcceptedAt DateTime?        @map("acknowledgement_accepted_at")
+  acknowledgementAcceptedAt DateTime? @map("acknowledgement_accepted_at")
   /// The last moment this person's dues cover them, or null if they have never
   /// paid.
   ///
   /// Deliberately not a membership *flag*, and it must never be read as one.
   /// Summer is free and so are the weeks between semesters, so somebody whose
   /// date ran out in May is in perfectly good standing in June — and the
-  /// two-week trial means a brand new account with a null date is too, for the
-  /// first fortnight of a term. `membershipStanding` in `src/semester.ts` is
+  /// three-week trial means a brand new account with a null date is too, for
+  /// the first weeks of a term. `membershipStanding` in `src/membership/semester.ts` is
   /// the only thing that should be deciding whether someone is covered today;
   /// this is one of its inputs.
-  duesPaidThrough           DateTime?        @map("dues_paid_through")
-  createdAt                 DateTime         @default(now()) @map("created_at")
-  updatedAt                 DateTime         @updatedAt @map("updated_at")
+  duesPaidThrough           DateTime? @map("dues_paid_through")
+  /// When this person finished the one-time member survey, or null if they
+  /// have not. **This is the gate the site checks**, and it ranks above dues:
+  /// `requireSurvey` in `src/auth/authz.ts` refuses everything until it is set, the
+  /// dues page included.
+  ///
+  /// Denormalised from `MemberSurvey`, deliberately. Session resolution reads
+  /// this row and nothing else, so asking through the relation would put a
+  /// query on every authenticated request to learn something that changes once
+  /// in a member's life. `MemberSurvey.userId @unique` is what makes the survey
+  /// one-time in the database; this column is what makes the check free. One
+  /// transaction writes both, and correcting an answer later moves neither.
+  ///
+  /// Null on every row that predates the survey, which is the point rather than
+  /// an oversight — the whole club is asked, not just next year's intake.
+  surveyCompletedAt         DateTime? @map("survey_completed_at")
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
 
   subteamId String?  @map("subteam_id")
   subteam   Subteam? @relation(fields: [subteamId], references: [id], onDelete: SetNull)
 
-  posts           Post[]
-  projects        ProjectMember[]
-  sessions        Session[]
-  duesPayments    DuesPayment[]
-  grantedDues     DuesPayment[]   @relation("grantedDues")
-  trialNotices    TrialNotice[]
-  createdEvents   Event[]         @relation("createdEvents")
-  createdTasks    Task[]          @relation("createdTasks")
-  completedTasks  Task[]          @relation("completedTasks")
-  taskAssignments TaskAssignee[]
-  storedFiles     StoredFile[]
-  printRequests   PrintRequest[]
-  decidedPrints   PrintRequest[]  @relation("decidedPrints")
-  loans           EquipmentLoan[]
-  decidedLoans    EquipmentLoan[] @relation("decidedLoans")
+  posts             Post[]
+  projects          ProjectMember[]
+  sessions          Session[]
+  // Singular, not lists: `userId` is unique on both, so one live link each.
+  passwordReset     PasswordReset?
+  emailChange       EmailChange?
+  memberSurvey      MemberSurvey?
+  duesPayments      DuesPayment[]
+  grantedDues       DuesPayment[]     @relation("grantedDues")
+  trialNotices      TrialNotice[]
+  createdEvents     Event[]           @relation("createdEvents")
+  createdTasks      Task[]            @relation("createdTasks")
+  completedTasks    Task[]            @relation("completedTasks")
+  taskAssignments   TaskAssignee[]
+  storedFiles       StoredFile[]
+  printRequests     PrintRequest[]
+  decidedPrints     PrintRequest[]    @relation("decidedPrints")
+  loans             EquipmentLoan[]
+  decidedLoans      EquipmentLoan[]   @relation("decidedLoans")
+  officerTerms      OfficerTerm[]
+  termOverrides     TermOverride[]    @relation("termOverrides")
+  labChanges        LabStatus[]       @relation("labChanges")
+  documentsAuthored ProjectDocument[] @relation("documentAuthors")
 
   @@index([subteamId])
   @@index([active])
@@ -159,7 +208,97 @@ model User {
   @@index([active, role, fullName])
   // The trial sweep's candidate query: everyone still unpaid as of now.
   @@index([duesPaidThrough])
+  // The officer desk's "who has not answered yet" count.
+  @@index([surveyCompletedAt])
   @@map("users")
+}
+
+/// A seat somebody held in a year that has finished — the club's officer
+/// archive, and everything behind `/officers/past`.
+///
+/// It exists because `User.officerPosition` is `@unique` and therefore strictly
+/// *current*: it can only ever name the eight people sitting on the board
+/// today, and a president who hands over goes null there. Until this table the
+/// club's own history lived in the free-text `title` ("President, 2024-2025"),
+/// which is a sentence rather than something a query can group by a year.
+///
+/// It is also **the answer to "is this person on the board", and the only
+/// one**. `User.role` says what somebody may *do* — and `ADMIN` outranks
+/// `OFFICER` there, so the ladder cannot say "an admin who is also an officer"
+/// at all. This can: an admin holds a term like anybody else while their `role`
+/// stays `ADMIN` and is never written by the sync. Three questions, three
+/// answers, and `.claude/docs/membership.md` is the rule.
+///
+/// **The name is written here rather than read through `user`.** Most past
+/// officers predate this site by years and have no row in `users` at all, so a
+/// required relation would make half the archive impossible to enter — and a
+/// term is the record of who held a seat in a particular year, which must not
+/// change when somebody edits their profile or comes off the roster. `userId`
+/// is the link where there *is* one, and it earns its place by carrying the
+/// headshot: rolling the board over at the end of a year is eight rows pointing
+/// at eight accounts, not eight photographs uploaded a second time. It is
+/// `SetNull`, because losing the link must never lose the term.
+///
+/// **One person per seat at a time is enforced by the route, not by an index.**
+/// Postgres cannot express "unique on `position` among rows where `ended_at` is
+/// null" through Prisma — a partial unique index would live in the database and
+/// not in this file, and the next generated migration would emit a `DROP INDEX`
+/// for it into something unrelated. So the seat route checks and answers 409
+/// naming the incumbent, exactly as the project-lead route does and for exactly
+/// the same reason. Two open terms on one seat is therefore *possible*: both
+/// draw a card, both are visible, either is closable.
+///
+/// Deliberately not unique on `(position, startedAt)` either. Officers resign
+/// and somebody finishes the year for them, and a constraint that makes the
+/// true thing unrecordable is worse than the duplicate it prevents.
+model OfficerTerm {
+  id          String            @id @default(uuid(7))
+  /// Which seat, or null for an officer holding no named one.
+  ///
+  /// Nullable because the two facts arrive separately and from different
+  /// places: Discord decides *that* somebody is on the board, and an officer
+  /// decides *which chair* they sit in, on the roles desk. Somebody promoted by
+  /// the sync five minutes ago genuinely holds no seat yet, and a term that
+  /// could not say so would have to invent one.
+  position    OfficerPosition?
+  /// When this tenure began, and when it ended. **Open — `endedAt` null — is
+  /// what "currently on the board" means**, and it is the only thing that means
+  /// it: there is no boolean beside this and there must never be one.
+  startedAt   DateTime          @map("started_at")
+  endedAt     DateTime?         @map("ended_at")
+  /// Why it ended, in words, for the officer reading the archive later. The
+  /// sync writes "lost the Discord officer role"; the roles desk writes who
+  /// stood them down.
+  endedReason String?           @map("ended_reason")
+  /// Who opened this term, and therefore who may close it.
+  ///
+  /// **The sync only ever closes what the sync opened.** The faculty advisor
+  /// sits on the board as a plain `MEMBER` and carries no Discord role, so a
+  /// loop that closed every term whose holder lacks the role would stand them
+  /// down on its first pass. Same rule, and the same reasoning, as the dues
+  /// sweep only touching rows with a `duesPaidThrough` on them: an appointment
+  /// made outside a loop is not that loop's to undo.
+  source      OfficerTermSource @default(MANUAL)
+  /// Who held it. The record, not a cache of `user.fullName` — see above.
+  fullName    String            @map("full_name")
+  /// A headshot from that year, if the club kept one. The route falls back to
+  /// the linked roster entry's photo, so an officer is shown as they were then
+  /// when there is a picture of it and as they are now when there is not.
+  photoUrl    String?           @map("photo_url")
+
+  userId String? @map("user_id")
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([userId])
+  /// The board: open terms, in seat order. `endedAt` leads because null is what
+  /// the query filters on.
+  @@index([endedAt, position])
+  /// The archive: newest first.
+  @@index([startedAt])
+  @@map("officer_terms")
 }
 
 // ------------------------------------------------------------ club structure
@@ -188,8 +327,8 @@ enum ProjectStatus {
 }
 
 model Project {
-  id          String        @id @default(uuid(7))
-  slug        String        @unique
+  id          String  @id @default(uuid(7))
+  slug        String  @unique
   title       String
   summary     String? // one-liner for cards
   description String? // long form, markdown
@@ -217,8 +356,8 @@ model Project {
   /// No index. `DuesPayment` and `TrialNotice` carry one because they grow a row
   /// per member per term; this table grows a handful a year and Postgres will
   /// sequential-scan it whatever the plan says.
-  termYear    Int           @map("term_year")
-  termSeason  Season        @map("term_season")
+  termYear   Int    @map("term_year")
+  termSeason Season @map("term_season")
 
   // The competition or partner org a project is built for, e.g. "UNIVERSITY
   // ROVER CHALLENGE". Free text rather than a relation: it is a label the site
@@ -231,20 +370,43 @@ model Project {
   startedAt   DateTime?     @map("started_at")
   completedAt DateTime?     @map("completed_at")
 
-  /// The weekly meeting, as "what the lead would say out loud": weekday 0-6
-  /// (Sunday first, matching `Date.getDay()`), a wall-clock time like "18:30",
-  /// and a place. Deliberately not timestamps and not Event rows — "Thursdays
-  /// at 6:30" is a campus-local, DST-proof idea that a UTC instant cannot
-  /// carry, and generated rows would need a sweeper plus dedupe on every edit.
-  /// The dashboard calendar expands these client-side; there is no recurrence
-  /// model, matching the long-standing Event decision.
-  meetingWeekday  Int?    @map("meeting_weekday")
-  meetingTime     String? @map("meeting_time")
-  meetingLocation String? @map("meeting_location")
+  /// The weekly meeting, as "what the lead would say out loud": the weekdays it
+  /// runs on (0-6, Sunday first, matching `Date.getDay()`), wall-clock times
+  /// like "18:00" and "22:00", and a place. Deliberately not timestamps and not
+  /// Event rows — "Tuesdays and Thursdays, 6 till 10" is a campus-local,
+  /// DST-proof idea that a UTC instant cannot carry, and generated rows would
+  /// need a sweeper plus dedupe on every edit.
+  ///
+  /// **`src/projects/meetings.ts` expands these into occurrences, on the server.** It
+  /// used to be done in the browser, for the dashboard only and unbounded; now
+  /// one module answers "when does this project meet" for both calendars, stops
+  /// at the end of the project's own term, and drops finals week. There is
+  /// still no recurrence model on `Event` — this is the only recurring thing on
+  /// the site and it is three columns, not a table.
+  ///
+  /// Nullable, and required by the create route rather than by Postgres. A
+  /// project made after this change cannot be made without a schedule; the rows
+  /// that predate it have no end time, and a `NOT NULL` would mean inventing
+  /// one for them.
+  meetingWeekdays  Int[]   @map("meeting_weekdays")
+  meetingStartTime String? @map("meeting_start_time")
+  meetingEndTime   String? @map("meeting_end_time")
+  meetingLocation  String? @map("meeting_location")
+
+  /// Whether this project's meetings reach the *public* calendar.
+  ///
+  /// The club's line is that the front page is officer-curated — `Event` rows
+  /// are created unpublished and only an officer may publish one. Meetings are
+  /// the deliberate exception, because a prospective member reading the landing
+  /// page is exactly who "we meet Tuesdays at six" is for. This is the switch
+  /// that keeps the exception under the same authority: a lead sets *when* the
+  /// project meets, an officer decides whether that reaches the front page.
+  /// Default on, so a new project shows up without anybody remembering to say so.
+  meetingsPublic Boolean @default(true) @map("meetings_public")
 
   /// The Discord role this project's crew carries, or null for a project the
   /// club does not run a role for. Whoever is a `ProjectMember` here is given
-  /// it and whoever leaves loses it — see `src/discordRoles.ts`.
+  /// it and whoever leaves loses it — see `src/discord/discordRoles.ts`.
   ///
   /// **Deliberately not `@unique`.** A build that runs three semesters is three
   /// rows sharing one role, which is the entire point of duplicating a project
@@ -268,6 +430,7 @@ model Project {
   printRequests PrintRequest[]
   images        ProjectImage[]
   links         ProjectLink[]
+  documents     ProjectDocument[]
 
   @@index([status])
   @@index([featured])
@@ -291,7 +454,7 @@ model Project {
 /// **A project has at most one `PROJECT_LEAD`, and any number of `TEAM_LEAD`s.**
 /// Zero leads is a normal state: the board agrees to run something before it
 /// settles who runs it. The single-lead rule is enforced by the appointment
-/// route in `src/routes/officer.ts` rather than by an index — Prisma cannot
+/// route in `src/routes/officer/officer.ts` rather than by an index — Prisma cannot
 /// express a partial unique index, so one would live in the database and not in
 /// this file, and the next generated migration would drop it.
 enum ProjectMemberRank {
@@ -337,8 +500,8 @@ model Team {
 /// `User.title`, and worth naming that way after `title` spent a while called
 /// `role` beside a `UserRole` it had nothing to do with.
 model ProjectMember {
-  projectId String  @map("project_id")
-  userId    String  @map("user_id")
+  projectId String @map("project_id")
+  userId    String @map("user_id")
 
   /// Display only, like "Software Lead". Grants nothing, checked by nothing.
   title String?
@@ -369,7 +532,7 @@ model ProjectMember {
 ///
 /// `url` is the same two-things-in-one-column every image column here is:
 /// either an external address somebody typed or `/api/files/<id>` for an
-/// upload, and `deleteIfStored` in `src/files.ts` is the only thing that tells
+/// upload, and `deleteIfStored` in `src/files/files.ts` is the only thing that tells
 /// them apart. Deliberately *not* a foreign key to `StoredFile` beside a
 /// nullable URL — that is two ways to say the same thing plus a check
 /// constraint to keep them honest, and it would put the "is this ours" rule in
@@ -385,7 +548,7 @@ model ProjectImage {
   projectId String  @map("project_id")
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  url String
+  url     String
   /// Printed under the slide, and used as the image's `alt` when set.
   caption String?
 
@@ -450,22 +613,112 @@ model ProjectLink {
   @@map("project_links")
 }
 
+/// One document on a project's documentation page — the design review, the
+/// wiring diagram, the competition write-up. Public to read, like the project
+/// page it hangs off; uploaded and replaced by that project's lead.
+///
+/// **The file is a real foreign key here, and it is the only one on this
+/// schema.** Every image column holds two things in one string — an address
+/// somebody typed, or an upload of ours — which is why `deleteIfStored` exists
+/// to tell them apart. A document is only ever ours, so there is nothing to
+/// tell apart and the reference can be a column Postgres understands. That is
+/// `PrintRequest.fileId`'s shape, and it is also why there are no
+/// `fileName`/`fileSize` columns beside it: a print request denormalises those
+/// because the bytes are deleted while the record survives, and here the file
+/// outlives the row by exactly nothing.
+///
+/// `Restrict` rather than `SetNull` because a document with no file is a broken
+/// row on a public page. Every route that removes bytes takes the row first and
+/// the file second, in one transaction — the order `print.ts` uses when
+/// somebody withdraws a request.
+model ProjectDocument {
+  id        String  @id @default(uuid(7))
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  /// What it is called on the index, and `description` is the line under it.
+  /// Neither is the filename: "Rover_FINAL_v3(2).pdf" is what somebody's
+  /// downloads folder called it, not what the club wants printed on a page.
+  title       String
+  description String?
+
+  fileId String     @unique @map("file_id")
+  file   StoredFile @relation(fields: [fileId], references: [id], onDelete: Restrict)
+
+  /// Who wrote it, and the name as it stood when they were credited.
+  ///
+  /// The pair rather than the relation alone, for the reason `OfficerTerm`
+  /// carries `fullName` beside its `userId`: a credit is the record of who did
+  /// the work, and it has to survive the account being deleted. `SetNull` takes
+  /// the link and leaves the name. It is also not the uploader — a lead posts
+  /// the write-up a member spent a term on — and the uploader is not stored
+  /// here at all, because `StoredFile.createdById` already says who sent the
+  /// bytes, and after a replacement that is the more useful answer.
+  authorId   String? @map("author_id")
+  author     User?   @relation("documentAuthors", fields: [authorId], references: [id], onDelete: SetNull)
+  authorName String  @map("author_name")
+
+  /// The two dates the page prints, and they answer different questions.
+  ///
+  /// `uploadedAt` is when this document first appeared and never moves.
+  /// `updatedAt` is when its **file** was last replaced — written by hand, and
+  /// deliberately **not** `@updatedAt`: a lead fixing a typo in a title has not
+  /// published a new version, and somebody deciding whether to re-read forty
+  /// pages needs those to be different events. They are equal until the first
+  /// replacement, which is how the page knows to print one date rather than two.
+  uploadedAt DateTime @default(now()) @map("uploaded_at")
+  updatedAt  DateTime @default(now()) @map("updated_at")
+
+  /// Deliberately no `sortOrder`. The index reads in upload order, which is what
+  /// an append-only sort column would have produced anyway, and a column no
+  /// route ever writes is dead weight pretending to be a feature. Ordering the
+  /// list by hand, if the club ever wants it, is a reorder route shaped like
+  /// `PATCH /projects/:id/images/order` and a migration to carry it.
+  @@index([projectId, uploadedAt])
+  @@index([authorId])
+  @@map("project_documents")
+}
+
 // --------------------------------------------------------------------- tasks
 
-/// Two states, deliberately. Kanban columns, priorities and blocked flags are
-/// process the club does not run; a checklist the team lead writes and the
-/// member ticks is the process it does.
+/// What a task is doing, and **the declaration order is the sort order** — the
+/// board orders by `status: 'asc'` and Postgres sorts an enum by declaration
+/// order, so unsettled work sits above work nobody has to think about again.
+/// Reordering these is a hand-written `CREATE TYPE` swap; see
+/// [database.md](../../.claude/docs/database.md).
+///
+/// It was `OPEN`/`DONE`, and the comment here argued for keeping it that way:
+/// kanban columns and blocked flags are process the club does not run. Most of
+/// that argument still holds — there is no priority column and no board to drag
+/// anything across. What changed is that the bot now asks. A member with a
+/// deadline behind them needs a way to say *which* kind of not-done they are, or
+/// the only honest answer to a chase is silence; `IN_PROGRESS` and `DELAYED`
+/// are that answer. `CANCELED` is the other end of it and belongs to whoever
+/// asked: a task withdrawn is not a task completed, and deleting the row would
+/// take with it the record that anybody ever wanted it done.
 enum TaskStatus {
   OPEN
+  IN_PROGRESS
+  DELAYED
   DONE
+  CANCELED
 }
 
 /// Something a lead wants done, assigned to the members who will do it.
 model Task {
   id String @id @default(uuid(7))
 
-  projectId String  @map("project_id")
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// Null for a task that belongs to a person rather than to a build — "order
+  /// the shirts", which is the club's work and no project's.
+  ///
+  /// **Officers write those and nobody else does**, the same rule
+  /// `routes/projects/eventManage.ts` applies to a club-wide event, and they
+  /// must name an assignee. A task with neither a project nor a person belongs
+  /// to nothing and would appear on no page at all — which Postgres cannot
+  /// check, because it is a count on another table, so
+  /// `routes/projects/tasks.ts` refuses it on the way in.
+  projectId String?  @map("project_id")
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   /// The team whose task it is, or null for a project-wide one. Which teams a
   /// task can belong to is scoped the same way events are: a team lead writes
@@ -488,6 +741,18 @@ model Task {
   completedBy   User?     @relation("completedTasks", fields: [completedById], references: [id], onDelete: SetNull)
   completedAt   DateTime? @map("completed_at")
 
+  /// The `dueAt` the overdue DM has already gone out about.
+  ///
+  /// Not a flag and not a send time: it holds **the deadline the message
+  /// named**, which is the same choice `EquipmentLoan.remindedFor` makes and it
+  /// does the same three jobs. It stops the ten-minute sweep sending twice; it
+  /// survives a restart, being a row rather than something a process remembers;
+  /// and it **re-arms itself for free when a lead moves the due date**, because
+  /// the stored value stops matching. Claimed by a conditional `updateMany`
+  /// before the DM is sent — at-most-once, for the reason `TrialNotice` claims
+  /// first. See `src/discord/taskReminder.ts`.
+  remindedFor DateTime? @map("reminded_for")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -495,6 +760,10 @@ model Task {
 
   @@index([projectId, status])
   @@index([teamId, status])
+  // The reminder sweep's window: unsettled work with a deadline behind it.
+  // Neither index above serves it — both lead with a column the sweep does not
+  // filter on. The analogue of `EquipmentLoan`'s `[status, dueAt]`.
+  @@index([status, dueAt])
   @@map("tasks")
 }
 
@@ -507,6 +776,16 @@ model TaskAssignee {
 
   userId String @map("user_id")
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Whether this person asked for the task on their own calendar.
+  ///
+  /// **Per assignee rather than per task**, which is the whole reason it lives
+  /// here: two people share "CAD the chassis" and only one of them wants it in
+  /// their week. Off by default, because a lead assigning work is not the same
+  /// act as somebody putting it in their calendar — the opt-in is the member's.
+  /// Nothing reads it except that member's own `/api/me/events`: a task is
+  /// never on anybody else's calendar and never on the public one.
+  onCalendar Boolean @default(false) @map("on_calendar")
 
   @@id([taskId, userId])
   @@index([userId])
@@ -576,10 +855,12 @@ model Event {
 
 /// What a stored file is for, which decides who may read it: an IMAGE is
 /// public the way every other site image is, a PRINT_MODEL belongs to whoever
-/// uploaded it and the officers who print it.
+/// uploaded it and the officers who print it, and a DOCUMENT is public like an
+/// image but served as a download or a PDF rather than rendered as a picture.
 enum FileKind {
   IMAGE
   PRINT_MODEL
+  DOCUMENT
 }
 
 /// A file, bytes and all, in Postgres.
@@ -609,7 +890,8 @@ model StoredFile {
 
   createdAt DateTime @default(now()) @map("created_at")
 
-  printRequest PrintRequest?
+  printRequest    PrintRequest?
+  projectDocument ProjectDocument?
 
   @@map("stored_files")
 }
@@ -640,7 +922,7 @@ enum PrintProcess {
 /// `ABS_LIKE_RESIN` and nothing else. One enum rather than two because a
 /// request has exactly one material and a split would need a column per
 /// process, three quarters of which would be null on every row. The route
-/// enforces the pairing — see the discriminated union in `routes/print.ts`.
+/// enforces the pairing — see the discriminated union in `routes/member/print.ts`.
 enum PrintMaterial {
   PLA
   PETG
@@ -674,7 +956,7 @@ enum InfillPattern {
 /// `DONE`, project-less requests stamped with the current term — counted when
 /// asked, exactly the way `EquipmentLoan` counts availability. A column would
 /// be a number that goes wrong quietly, and the per-semester reset would then
-/// be a sweep somebody has to remember to run. See `src/printAllowance.ts`,
+/// be a sweep somebody has to remember to run. See `src/printing/printAllowance.ts`,
 /// which is the only place that arithmetic lives.
 model PrintRequest {
   id String @id @default(uuid(7))
@@ -835,7 +1117,7 @@ model Equipment {
   /// the number. An officer setting a longer `dueAt` on a loan is not checked
   /// against it, because that is a person with authority making a decision
   /// rather than a form being filled in.
-  maxLoanDays Int     @default(7) @map("max_loan_days")
+  maxLoanDays Int @default(7) @map("max_loan_days")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -915,7 +1197,7 @@ model EquipmentLoan {
   /// than something a process remembers; and it re-arms itself for free when
   /// an officer moves the due date, because the stored value no longer matches
   /// the new one. Claimed by a conditional `updateMany` before the DM is sent,
-  /// for the reason `TrialNotice` claims first — see `src/equipmentReminder.ts`.
+  /// for the reason `TrialNotice` claims first — see `src/equipment/equipmentReminder.ts`.
   remindedFor DateTime? @map("reminded_for")
 
   decidedById String? @map("decided_by_id")
@@ -967,6 +1249,20 @@ enum SponsorTier {
   ALUMINUM_ALLY
 }
 
+/// A company or a person backing the club, as the front page's marquee and
+/// `/sponsors` list them.
+///
+/// **`name` is unique and the desk checks it case-insensitively**, because
+/// Postgres does not: "Northgate" and "northgate" are two rows to the database
+/// and one company to the club. Same rule, and the same reason, as `Equipment`.
+///
+/// `logoUrl` holds either an address somebody typed or `/api/files/<id>`, and
+/// only the second is deleted with the row — the storage rule every image column
+/// here follows. See `StoredFile` and `deleteIfStored`.
+///
+/// `active: false` takes a sponsor off both public lists and keeps the row, which
+/// is what a sponsorship that has run out wants: the club's history of who
+/// backed it is not something a lapsed year should erase.
 model Sponsor {
   id         String      @id @default(uuid(7))
   name       String      @unique
@@ -980,6 +1276,168 @@ model Sponsor {
   @@index([tier])
   @@index([active, tier])
   @@map("sponsors")
+}
+
+/// What a level costs and what the club promises for it — one row per tier.
+///
+/// **Keyed by the tier itself.** There is exactly one offer per level and the
+/// enum already ranks them, so `tier` is the primary key: nothing to look up, no
+/// second row for `CIRCUIT_SUPPORTER` to disagree with the first, and ordering
+/// by the key is ordering by the ranking. `Sponsor.tier` deliberately carries no
+/// relation to this — a company is in a tier whether or not anybody has written
+/// that tier's sheet, and a foreign key would make publishing the price list a
+/// precondition for listing a sponsor.
+///
+/// **A missing row means the level is not published, and that is a supported
+/// state.** This copy was four hardcoded objects in
+/// `web/src/content/sponsorship.ts`, every amount and benefit of them spelled
+/// PLACEHOLDER, and the page carried a panel admitting it. Moving it here is
+/// what makes the treasurer's numbers real numbers — which is also why nothing
+/// seeds this table and no default is invented: an unwritten tier is absent from
+/// the price list rather than quoting a figure nobody agreed to. The same rule
+/// `HeroSlide` follows, and for the same reason.
+model SponsorTierOffer {
+  tier SponsorTier @id
+
+  /// Free text, not cents. "$2,500 a season", "$500+", "In kind, by arrangement"
+  /// — what the club asks at a level is negotiated in sentences, and a money
+  /// column would force every one of those into a figure it is not. Nothing
+  /// computes with it; it is printed.
+  amount String
+
+  /// One line on who the tier is for, above the benefits.
+  ///
+  /// **Optional, and it started out required.** The club's actual sheet is an
+  /// amount and a list of what you get, with no sentence between them — so a
+  /// required column here meant somebody inventing four lines of marketing copy
+  /// to satisfy the schema, which is the exact failure the move off
+  /// `content/sponsorship.ts` existed to end. A tier with no blurb prints its
+  /// amount straight above its benefits.
+  blurb String?
+
+  /// What the club gives back, in the order it is printed.
+  ///
+  /// A scalar list rather than a table of its own: these are lines on a card,
+  /// never queried, never linked to, and reordering them is rewriting the array
+  /// in one write. `Project.meetingWeekdays` is the same call for the same
+  /// reason. A row of its own would buy a foreign key and a sort column to hold
+  /// four strings nobody will ever join on.
+  benefits String[]
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("sponsor_tier_offers")
+}
+
+/// The things a sponsor can give that are not money.
+///
+/// Machine time, materials, an engineer for an hour a month — the half of the
+/// sponsorship page a price list cannot carry, and the half officers reword
+/// most often, because it is written to whoever they are currently talking to.
+///
+/// Its own table rather than three more columns on `SponsorTierOffer`: these are
+/// not tiered, there is no fixed number of them, and they are the one part of
+/// the page that has nothing to do with what a sponsorship costs.
+model InKindOffer {
+  id    String @id @default(uuid(7))
+  title String
+  blurb String
+
+  /// Position on the page, dense from 0 and rewritten as a whole block on
+  /// reorder — the same shape as `HeroSlide.sortOrder`, and not unique for the
+  /// same reason: the reorder route writes every row in one transaction. Reads
+  /// tie-break on `createdAt`.
+  sortOrder Int @default(0) @map("sort_order")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([sortOrder])
+  @@map("in_kind_offers")
+}
+
+/// The fine print under the tier grid — **one row, always `current`**.
+///
+/// Footnote markers on a benefit ("Logo on club T-shirts *") need somewhere to
+/// be explained, and the club's sheet ends on a note about the sponsorship being
+/// tax-deductible. Neither belongs to any one tier: the same `*` is cited by two
+/// of them, and the tax note is about all four.
+///
+/// A singleton keyed by a column default, the same shape and the same reasoning
+/// as `LabStatus` — there is exactly one sponsorship page, so an id to look up
+/// would be a lookup with one possible answer. The row may be absent and the
+/// column may be null; both mean the grid prints no fine print, which is what it
+/// did before this table existed.
+///
+/// One free-text block rather than a table of footnotes. They are read as a
+/// paragraph, never referenced by number in code, and marker discipline is the
+/// officer's — a schema that tried to enforce "every `*` in a benefit has a
+/// matching note" would be enforcing prose.
+model SponsorshipSheet {
+  /// Always `current`. See above.
+  id String @id @default("current")
+
+  /// Printed under the tier grid, newlines preserved. Null and empty are the
+  /// same thing to the page.
+  footnotes String?
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("sponsorship_sheet")
+}
+
+// ----------------------------------------------------------- the landing page
+
+/// One photograph in the slideshow beside the landing page's headline.
+///
+/// **The right half of the hero used to be artwork**, and artwork needs no
+/// table: two rings and a wireframe trace of the club mark, drawn in CSS from
+/// an asset in the bundle. Changing it meant a commit. What the officers wanted
+/// there was the club's own photographs — the rover on the field, a build night,
+/// the booth at the expo — which is content, changes a few times a semester, and
+/// is exactly the sort of thing CLAUDE.md's rule sends to the database: if an
+/// officer would want to change it without a deploy, it belongs here.
+///
+/// The artwork is still what shows when this table is empty. That is not a
+/// fallback nobody will see — it is the club's state on day one, and the state
+/// again the moment somebody removes the last photo.
+///
+/// Deliberately shaped like `ProjectImage` rather than sharing it. The two are
+/// the same three questions — which picture, what is it called, how does it sit
+/// in the frame — but a project's gallery is scoped to a project and this is a
+/// single global list, so a shared table would need a nullable `projectId` and
+/// every gallery query would grow a filter that means "not the front page". The
+/// duplication is six columns; the alternative is a filter on every read that is
+/// wrong by omission rather than by commission.
+model HeroSlide {
+  id String @id @default(uuid(7))
+
+  /// An external address or `/api/files/<id>`, the same two-things-in-one-string
+  /// every image column here holds — see `StoredFile` and `deleteIfStored`.
+  url String
+
+  /// Printed under the frame, and the image's `alt` when set. It carries more
+  /// weight here than it does on a project page: this is the first picture on
+  /// the site and often the only one somebody sees.
+  caption String?
+
+  /// Position in the slideshow, dense from 0 and rewritten as a whole block on
+  /// reorder — the same shape as `ProjectImage.sortOrder`, and unique for the
+  /// same reason it is not: the reorder route writes every row in one
+  /// transaction. Reads tie-break on `createdAt`.
+  sortOrder Int @default(0) @map("sort_order")
+
+  /// How the picture sits in the hero's fixed 16:10 frame. Metadata, never
+  /// baked into the bytes — the reasoning is on `ProjectImage`, and it applies
+  /// harder here: the hero frame is wider than most phone photographs are, so
+  /// almost every one of these needs framing.
+  focalX Float @default(50) @map("focal_x")
+  focalY Float @default(50) @map("focal_y")
+  zoom   Float @default(1)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([sortOrder])
+  @@map("hero_slides")
 }
 
 // --------------------------------------------------------------- contact form
@@ -1046,6 +1504,77 @@ model SignupVerification {
   @@map("signup_verifications")
 }
 
+// -------------------------------------------------------- account recovery
+//
+// Two more hashed-token flows, both the same shape as the signup verification
+// above and for the same reasons. They are separate tables rather than one with
+// a `purpose` column because they carry different things and expire into
+// different consequences: one hands somebody a new password, the other moves
+// the address they sign in with.
+
+/// A password reset somebody has asked for and not yet used.
+///
+/// The link *is* the credential, so only its SHA-256 is stored — a dump of this
+/// table must not be a drawer of live account takeovers.
+///
+/// It is also the way in for a roster entry an officer typed by hand: those
+/// have no `passwordHash` at all and cannot sign in, and `/api/auth/password/forgot`
+/// deliberately does not refuse them. That is the case the login page used to
+/// send people to Discord for.
+model PasswordReset {
+  id String @id @default(uuid(7))
+
+  /// Unique, so asking again replaces the pending reset rather than leaving two
+  /// live links for one account — `SignupVerification.email` is unique for the
+  /// same reason, and it is what makes "send it again" safe to press.
+  userId String @unique @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tokenHash String @unique @map("token_hash")
+
+  expiresAt DateTime @map("expires_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Swept on the same timer as the rate-limit windows; see `sweepPasswordResets`.
+  @@index([expiresAt])
+  @@map("password_resets")
+}
+
+/// An email change waiting on proof that somebody can read the new address.
+///
+/// Nothing moves until the link is followed. The address a member signs in with
+/// is the one thing on the profile page that can lock them out of their own
+/// account if it is typed wrong, so it is proved before it is stored — exactly
+/// the reasoning behind signup being two requests with an email in between.
+model EmailChange {
+  id String @id @default(uuid(7))
+
+  /// Unique, so a second attempt replaces the first. Somebody who mistypes an
+  /// address and asks again must not leave a live link pointing at the typo.
+  userId String @unique @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Where the link was sent, and what `User.email` becomes when it is followed.
+  ///
+  /// Deliberately **not** unique. `User.email` is the constraint that means one
+  /// address to one account, and it is checked again at the moment of the write;
+  /// two people may both ask for an address, and the first to confirm gets it.
+  /// A unique index here would instead refuse the second person at the moment
+  /// they asked, which tells them an address they do not own is spoken for.
+  newEmail String @map("new_email")
+
+  tokenHash String @unique @map("token_hash")
+
+  expiresAt DateTime @map("expires_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Swept on the same timer as the rate-limit windows; see `sweepEmailChanges`.
+  @@index([expiresAt])
+  @@map("email_changes")
+}
+
 // ------------------------------------------------------------------ sessions
 
 /// One signed-in browser.
@@ -1098,6 +1627,63 @@ enum Season {
   SPRING
   SUMMER
   FALL
+}
+
+/// A term whose dates the club has set by hand, overriding UCF's calendar.
+///
+/// `src/membership/semester.ts` reads three sources in order — this table, then
+/// calendar.ucf.edu, then the fixed fallbacks in that file — and the first one
+/// with an answer wins. It exists because the feed is somebody else's document:
+/// UCF publishes late, renames the events the parser looks for, and occasionally
+/// omits a term entirely, and until now the only remedy was editing constants
+/// and deploying.
+///
+/// **An override counts as authoritative, not as a fallback.** `Term.fromCalendar`
+/// stays true for one, and that is load-bearing rather than cosmetic:
+/// `membershipSweep` and `standingRole` deliberately stand down on fallback
+/// dates, and a date an officer typed on purpose is *more* trustworthy than the
+/// feed, not less. `Term.overridden` is the separate flag for saying so on a
+/// page.
+///
+/// **Nothing here changes what anybody has already been charged.** A payment
+/// stores its own `coversThrough`, so moving a term's dates moves what the
+/// *next* payment buys and leaves settled ones alone — which is the same
+/// property that makes the fallback dates survivable.
+model TermOverride {
+  id       String   @id @default(uuid(7))
+  year     Int
+  season   Season
+  /// First day of the term, and the last. The route refuses `startsAt >= endsAt`
+  /// — `semester.ts` takes these as-is and normalises them to the start and end
+  /// of their day, exactly as it does the feed's.
+  startsAt DateTime @map("starts_at")
+  endsAt   DateTime @map("ends_at")
+
+  /// The club's own finals week, when it has set one, and the reason projects
+  /// go quiet for a fortnight in December.
+  ///
+  /// Both or neither — the route refuses one without the other, and refuses
+  /// `finalsStartsAt >= finalsEndsAt`. **Null is not "no finals week", it is
+  /// "we have not said"**, and it falls through to UCF's feed the way the term
+  /// dates above do. The two pairs are independent: a term can be overridden
+  /// with the feed still answering for finals, or the other way about.
+  finalsStartsAt DateTime? @map("finals_starts_at")
+  finalsEndsAt   DateTime? @map("finals_ends_at")
+
+  /// Why, for whoever finds it a year later wondering who moved spring.
+  note String?
+
+  setById String? @map("set_by_id")
+  setBy   User?   @relation("termOverrides", fields: [setById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  /// One override per term. Unlike the officer seat this one *can* be an index:
+  /// there is no partial condition on it, and a second row for one term would
+  /// be two answers to a question with one.
+  @@unique([year, season])
+  @@map("term_overrides")
 }
 
 /// What a dues payment buys.
@@ -1231,6 +1817,307 @@ model TrialNotice {
   @@id([userId, termYear, termSeason])
   @@index([termYear, termSeason])
   @@map("trial_notices")
+}
+
+// ----------------------------------------------------------------- the lab
+
+/// Whether the club's lab is open right now, because an officer said so.
+///
+/// **One row, and the id is what makes that true.** It defaults to `current`
+/// and every read and write goes through that key, so this is an upsert rather
+/// than a `findFirst` over a table that could quietly grow a second, contrary
+/// answer. There is no history here on purpose: what the landing page and the
+/// Discord channel show is one boolean, and a log of every evening the lab was
+/// unlocked is a different feature nobody has asked for.
+///
+/// **Closed is the default and has to be.** A row that has never been written —
+/// a fresh database, the minute before the first officer presses anything —
+/// must not tell anybody the lab is open, because the cost of being wrong that
+/// way is somebody walking across campus to a locked door.
+model LabStatus {
+  /// Always `current`. See above.
+  id String @id @default("current")
+
+  open Boolean @default(false)
+
+  /// When it was last flipped, and by whom. Both are for the page, which says
+  /// "Opened by Jordan Ellis, 20 minutes ago" — a status with no time against
+  /// it is one nobody can tell from a stale one. `SetNull`, because deleting an
+  /// account must not take the club's lab status down with it.
+  changedAt   DateTime @default(now()) @map("changed_at")
+  changedById String?  @map("changed_by_id")
+  changedBy   User?    @relation("labChanges", fields: [changedById], references: [id], onDelete: SetNull)
+
+  /// The **one** message the bot keeps in the lab channel, and the channel it
+  /// is in.
+  ///
+  /// **It changes every time the lab opens, and that is the design.** Discord
+  /// notifies on a post and never on an edit, so opening posts a *new* message
+  /// — that post is the `@Members` ping — and deletes the one it replaces.
+  /// Everything else edits this one in place, so the channel holds exactly one
+  /// sign without collecting a message per press.
+  ///
+  /// The channel id is kept beside it because the message id alone is not
+  /// enough to find it again: `DISCORD_LAB_CHANNEL_ID` can be pointed somewhere
+  /// else, and an edit aimed at the wrong channel is a 404 that reads exactly
+  /// like a message somebody deleted.
+  ///
+  /// **Null here is not permission to post.** `DISCORD_LAB_MESSAGE_ID` seeds it
+  /// — a seed only, since this id churns — and failing that the channel is
+  /// searched for a message this bot already posted; only a channel with
+  /// nothing of ours in it gets a new one. See `writeSign` in
+  /// `src/lab/labStatus.ts`.
+  discordChannelId String? @map("discord_channel_id")
+  discordMessageId String? @map("discord_message_id")
+
+  /// False when the last push to Discord did not fully land. The ten-minute
+  /// sweep retries exactly these.
+  ///
+  /// A *press* can no longer leave this false — Discord is the record, so a
+  /// rename it will not take means the flip did not happen and the row is not
+  /// written at all. What still lands here is everything the site decides on
+  /// its own: the curfew closing the lab at ten, which is committed whatever
+  /// Discord says because a green sign over a locked building all night is
+  /// worse than a spent rename budget, and a message edit that failed after the
+  /// name had already changed.
+  ///
+  /// The limit behind all of it: **Discord allows two channel renames per ten
+  /// minutes**, per channel. The sweep's ten-minute tick is the same window the
+  /// limit is measured over, which is why a retry there lands rather than being
+  /// throttled a second time.
+  discordSynced Boolean @default(true) @map("discord_synced")
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("lab_status")
+}
+
+// ------------------------------------------------------------ member survey
+
+/// The shape of one question, which decides what an answer to it may contain.
+///
+/// Four rather than a longer list, and the omissions are deliberate. There is
+/// no `NUMBER` because the only number the club asks for is a graduation year,
+/// and that is `User.gradYear` — a column the profile page edits and the public
+/// roster prints. There is no date and no upload because nothing on this survey
+/// has ever wanted one, and a kind nobody picks is a branch in every reader —
+/// the form, the validator, the tally and the CSV — that nothing exercises.
+enum SurveyQuestionKind {
+  SHORT_TEXT
+  LONG_TEXT
+  SINGLE_CHOICE
+  MULTI_CHOICE
+}
+
+/// A question on the member survey, as a row rather than as a column.
+///
+/// **This table is the survey.** It used to be five typed columns on
+/// `MemberSurvey` and five Postgres enums beside them, which meant the club
+/// could not ask anything new without a migration and a deploy. The officer
+/// desk at `/dashboard/officer/survey/questions` writes these rows now, and the
+/// form is drawn from whatever they say.
+///
+/// The cost of that is the thing worth knowing before editing anything here:
+/// **the schema cannot express "a tick must name an option belonging to the
+/// question it answers", or "`allowNone` is meaningless on a text question"**.
+/// Those are the routes' to enforce — `routes/member/survey.ts` on the way in and
+/// `routes/officer/surveyAdmin.ts` on the way out. What can be a foreign key is one;
+/// the rest are checks, and they are checks in exactly two files on purpose.
+model SurveyQuestion {
+  id String @id @default(uuid(7))
+
+  /// What the member is asked, in the club's own words. It is the field's label
+  /// on the form and the panel heading over the tally, so it reads as a
+  /// question rather than as a column name: "Shirt size", not `shirt_size`.
+  prompt String
+
+  /// The smaller line under the field, and the place the *reason* goes — "we
+  /// ask because the club buys food". That sentence is why the allergy question
+  /// gets answered honestly instead of skipped.
+  help String?
+
+  kind SurveyQuestionKind
+
+  /// Whether a save is refused without it. Checked when somebody writes their
+  /// answers and never against the gate — see `archivedAt`.
+  required Boolean @default(true)
+
+  /// `MULTI_CHOICE` only: offer a NONE box meaning "none of these".
+  ///
+  /// **There is no NONE option row, and there must not be one.** An empty set
+  /// of ticks is how "none" is stored, because a NONE option would be a
+  /// constraint Postgres cannot express — it must never co-occur with anything
+  /// else — and every reader would have to remember that. What this flag buys
+  /// is the difference between an empty set somebody *chose* and a question
+  /// they scrolled past, which on the allergy question is the difference
+  /// between "safe to feed anything" and "we do not know".
+  allowNone Boolean @default(false) @map("allow_none")
+
+  /// The cap on a text answer, for the two text kinds; null means the route's
+  /// own default. Here rather than hardcoded because a one-line "which major"
+  /// and a paragraph about an allergy want very different boxes, and the form
+  /// takes the input's `maxLength` straight from this.
+  maxLength Int? @map("max_length")
+
+  /// Where it sits on the form. Rewritten as a dense 0..n by the reorder route
+  /// rather than kept sparse — the whole list arrives in one request, so gaps
+  /// to insert into buy nothing and are one more thing that can drift.
+  position Int
+
+  /// Removed, but not from the members who already answered it.
+  ///
+  /// **A question with answers on it is archived; one with none is deleted.**
+  /// An officer pressing REMOVE means "stop asking this". They do not mean
+  /// "throw away what forty people told us", and there is nothing at the button
+  /// that could tell the two apart. Archived questions are off the form, out of
+  /// the tallies and out of the CSV, and can be restored.
+  ///
+  /// It is also what keeps the gate honest. `User.surveyCompletedAt` is stamped
+  /// once and never moves, so adding a required question locks nobody out —
+  /// they are asked for it the next time they open the form. A question added
+  /// today is not a question the whole club suddenly owes.
+  archivedAt DateTime? @map("archived_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  options SurveyOption[]
+  answers SurveyAnswer[]
+
+  /// The form's own query: the live ones, in order.
+  @@index([archivedAt, position])
+  @@map("survey_questions")
+}
+
+/// One thing a member can pick or tick.
+model SurveyOption {
+  id         String         @id @default(uuid(7))
+  questionId String         @map("question_id")
+  question   SurveyQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  label String
+
+  /// Picking it asks for a sentence. "Other", and nothing else so far.
+  ///
+  /// An unexplained OTHER is worth nothing to whoever reads the tallies, and on
+  /// the allergy question it is worse than nothing — it is a warning the club
+  /// cannot act on. So the text is required whenever the option carrying this
+  /// is picked, and it is stored on `SurveyAnswer.text`: one box per question
+  /// rather than one per option, because two OTHERs on one question has never
+  /// been a thing anybody asked for.
+  wantsText Boolean @default(false) @map("wants_text")
+
+  position Int
+
+  /// A question's rule, applied to an option, for the same reason: one somebody
+  /// has already picked is retired rather than deleted, so their answer
+  /// survives the club deciding it no longer asks about sesame.
+  ///
+  /// An archived option is not offered on the form. It **is** still counted in
+  /// a tally when anybody picked it, because a count that quietly drops those
+  /// rows is a count that does not add up to the number of people who answered.
+  archivedAt DateTime? @map("archived_at")
+
+  picks SurveyAnswerOption[]
+
+  @@index([questionId, position])
+  @@map("survey_options")
+}
+
+/// One member's answer to one question.
+///
+/// **The row existing is what "answered" means**, which is the whole reason an
+/// empty set of ticks can be a real answer. Nothing here says which kind of
+/// question it belongs to: `text` carries a text answer or an OTHER's
+/// explanation, `picked` carries the ticks, and the question's `kind` decides
+/// which of them is allowed to be set. The route enforces that pairing on every
+/// write, because the schema cannot.
+model SurveyAnswer {
+  id String @id @default(uuid(7))
+
+  surveyId String       @map("survey_id")
+  survey   MemberSurvey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+
+  questionId String         @map("question_id")
+  question   SurveyQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  text String?
+
+  picked SurveyAnswerOption[]
+
+  /// One answer per question per member. Every write replaces the whole set
+  /// inside a transaction, so this is the backstop under two saves racing
+  /// rather than something the ordinary path leans on.
+  @@unique([surveyId, questionId])
+  @@index([questionId])
+  @@map("survey_answers")
+}
+
+/// A tick: this answer named that option.
+///
+/// **A join table rather than a `String[]` of option ids**, and that is the
+/// whole point of it. An array would hold ids Postgres has never heard of the
+/// moment an option went away, and the tallies would count a row nothing can
+/// name. The two enum arrays this replaces did not have that problem, because
+/// an enum value cannot be deleted by somebody holding a mouse; an option can.
+///
+/// `option` restricts rather than cascades, so deleting an option somebody
+/// picked fails loudly instead of quietly taking their answer with it — which
+/// is exactly the case `SurveyOption.archivedAt` exists to handle. Deleting a
+/// member still works: the cascade reaches these through `answer`.
+model SurveyAnswerOption {
+  answerId String       @map("answer_id")
+  answer   SurveyAnswer @relation(fields: [answerId], references: [id], onDelete: Cascade)
+
+  optionId String       @map("option_id")
+  option   SurveyOption @relation(fields: [optionId], references: [id], onDelete: Restrict)
+
+  @@id([answerId, optionId])
+  @@index([optionId])
+  @@map("survey_answer_options")
+}
+
+/// The one-time member survey: one row per member, and the row existing is the
+/// whole answer to "have they filled it in".
+///
+/// **It holds no answers any more.** Those are `SurveyAnswer` rows against
+/// `SurveyQuestion` rows, so that the club can change what it asks without a
+/// migration. What is left is the fact of the response and its two dates, which
+/// is the half that is about the member rather than about the questions.
+///
+/// `userId` is `@unique` rather than the row carrying a `completed` flag, so a
+/// second submission is a constraint violation rather than a duplicate the
+/// officer desk has to spot while it is counting shirts.
+///
+/// The gate the site checks is `User.surveyCompletedAt`, not this row — the
+/// reasoning is on that column. In short: session resolution reads the user and
+/// nothing else, so asking this table on every authenticated request would be a
+/// query per request to learn something that changes once in a member's life.
+///
+/// **Expected graduation year is deliberately not a question.** `User.gradYear`
+/// already holds it, the member already edits it on their profile page, and the
+/// public roster already prints it. A question would be two answers to one
+/// question and the roster would eventually show the stale one — so the form
+/// carries that one field outside the list and writes it where it lives.
+///
+/// Cascades from `User`: a deleted account takes its answers with it, and there
+/// is nothing here worth keeping about somebody who has gone.
+model MemberSurvey {
+  id     String @id @default(uuid(7))
+  userId String @unique @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  answers SurveyAnswer[]
+
+  /// When they answered. Beside `User.surveyCompletedAt` rather than instead of
+  /// it: this is the record, that is the gate, and one transaction writes both.
+  submittedAt DateTime @default(now()) @map("submitted_at")
+  /// Moves when somebody corrects an answer. `submittedAt` never does, and
+  /// neither does the gate — being asked once is the promise, not being unable
+  /// to fix a shirt size.
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("member_surveys")
 }
 
 // ------------------------------------------------------------- infrastructure

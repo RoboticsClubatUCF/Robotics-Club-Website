@@ -2,8 +2,8 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ProjectEditor } from './ProjectEditor'
-import type { ApiProjectDetail, ApiProjectImage } from '../../lib/api'
-import { DEFAULT_FRAMING } from '../../lib/imageFraming'
+import type { ApiProjectDetail, ApiProjectImage } from '../../lib/api/api'
+import { DEFAULT_FRAMING } from '../../lib/media/imageFraming'
 import { urlOf } from '../../test/stubFetch'
 
 const image = (id: string, url = `/api/files/${id}`): ApiProjectImage => ({
@@ -34,6 +34,7 @@ const project = (over: Partial<ApiProjectDetail> = {}): ApiProjectDetail => ({
   members: [],
   images: [],
   links: [],
+  documents: [],
   ...over,
 })
 
@@ -256,7 +257,7 @@ describe('ProjectEditor', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove image 1' }))
     expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(screen.getByText(/deletes the file itself/)).toBeInTheDocument()
+    expect(screen.getByText(/removing it deletes the file/)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'GO BACK' }))
     expect(screen.queryByRole('dialog')).toBeNull()

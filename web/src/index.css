@@ -19,12 +19,17 @@
 
 @import 'tailwindcss';
 
-/* The club palette, replacing the stock light/dark placeholder. The site is
-   committed to one dark theme — there is no second surface colour anywhere in
-   the design — so there is nothing to toggle between and no `--prefersdark`
-   counterpart. `themes: false` keeps DaisyUI's twenty-odd built-ins out of the
-   bundle entirely. If a light theme is ever wanted, add a second
-   `@plugin 'daisyui/theme'` block rather than reaching for the built-ins. */
+/* The club palette, replacing the stock light/dark placeholder. There are two
+   themes now and they are both written out here — `themes: false` still keeps
+   DaisyUI's twenty-odd built-ins out of the bundle, which is what the note that
+   used to sit here said to do if a light theme was ever wanted.
+
+   **A custom theme inherits nothing**, so the light block below is not a diff
+   against the dark one: every token either theme needs appears in both, in the
+   same order, and a value added to one is a value missing from the other. That
+   is the price of not shipping DaisyUI's defaults, and it is worth paying —
+   the alternative is a light mode that is 90% ours and 10% somebody's stock
+   purple. */
 @plugin 'daisyui' {
   themes: false;
 }
@@ -82,6 +87,76 @@
   --noise: 0;
 }
 
+/* The same design on paper rather than on a screen.
+ *
+ * **The gold changes value, and that is the one real concession.** #ffc904 on a
+ * near-white page is about 1.5:1 — it is not a colour text can be set in, and
+ * `text-primary` is an eyebrow, a link and a timeline year all over this site.
+ * The alternative was a second gold token for text only, which would have meant
+ * editing a hundred call sites *and* breaking the rule in `styling.md` that the
+ * design has exactly one accent. So the accent keeps its name, its meaning and
+ * its class, and changes its value the way every other token here does. What it
+ * costs is the bright-gold call-to-action button: in light mode that button is
+ * a deep ochre with white on it rather than UCF gold with black. Everything
+ * else — the eyebrows, the rules, the hovers, the confetti — comes out right
+ * without a component knowing a theme exists.
+ *
+ * Warm off-white rather than #ffffff, and warm near-black rather than #000: a
+ * pure-white page under a gold accent reads as clinical, and the two greys the
+ * hatch is built from need somewhere to sit between the page and the ink.
+ */
+@plugin 'daisyui/theme' {
+  name: 'rccf-light';
+  color-scheme: light;
+
+  /* Off-white, not white — the mirror of the near-black above, and for the same
+     reason: the footer needs somewhere further from the content to go. */
+  --color-base-100: #fbfaf8;
+  --color-base-200: #f4f2ee;
+  --color-base-300: #e9e6e0;
+  --color-base-content: #14130f;
+
+  /* UCF gold, taken down until it can carry text. 4.9:1 on the page, and white
+     rather than near-black sits on it — see the note above. */
+  --color-primary: #8a6a00;
+  --color-primary-content: #ffffff;
+
+  /* Present for the same reason as in the dark block: so a stray
+     `btn-secondary` lands in palette rather than in DaisyUI's stock purple.
+     Both poles swap over, because "the other end from the page" is what they
+     mean. */
+  --color-secondary: #14130f;
+  --color-secondary-content: #fbfaf8;
+  --color-accent: #6b5200;
+  --color-accent-content: #fbfaf8;
+  --color-neutral: #e9e6e0;
+  --color-neutral-content: #14130f;
+
+  /* The same four statuses, re-picked against `--color-base-100` — the dark
+     block's values were chosen to clear 4.5:1 on near-black and every one of
+     them fails on near-white. These clear 5:1, and each takes white content. */
+  --color-info: #0f6cad;
+  --color-info-content: #ffffff;
+  --color-success: #16794a;
+  --color-success-content: #ffffff;
+  --color-warning: #8a5a00;
+  --color-warning-content: #ffffff;
+  --color-error: #bc3520;
+  --color-error-content: #ffffff;
+
+  /* Geometry is not a theme. These are the dark block's values verbatim, and
+     they have to stay that way — a light mode with softer corners would be a
+     different design, not the same one in daylight. */
+  --radius-selector: 2px;
+  --radius-field: 2px;
+  --radius-box: 2px;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
 @theme {
   /* Space Grotesk carries anything read as language; IBM Plex Mono carries
      labels, project codes and metadata — the small, uppercase, wide-tracked
@@ -91,14 +166,34 @@
   --font-sans: 'Space Grotesk Variable', system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 
-  /* Two text tiers below full-strength white, and only two: `dim` for anything
-     still meant to be read as prose, `faint` for labels and metadata. The
-     source design drifted across nine different alphas between .35 and .65 —
-     that was noise, not intent. Resist adding a third. */
+  /* Two text tiers below full strength, and only two: `dim` for anything still
+     meant to be read as prose, `faint` for labels and metadata. The source
+     design drifted across nine different alphas between .35 and .65 — that was
+     noise, not intent. Resist adding a third.
+
+     **These four are alphas over the page, so they are the tokens a theme
+     cannot inherit.** DaisyUI's block sets the palette; these live in Tailwind's
+     `@theme`, which emits once at `:root` and knows nothing about a
+     `data-theme`. The values here are the dark ones — the theme the site opens
+     on — and `@layer base` below re-declares them for light. A utility compiles
+     to `var(--color-dim)` and resolves it on the element, so overriding the
+     variable in a narrower scope is all it takes.
+
+     The light alphas are not the dark ones flipped. Black on white covers
+     faster than white on black at the same alpha, but it also has to clear the
+     same 4.5:1 at 10px, and the two pull in opposite directions; these were
+     picked against the page rather than converted. */
   --color-dim: rgb(255 255 255 / 0.6);
   --color-faint: rgb(255 255 255 / 0.42);
   /* Every hairline on the page: section rules, table rows, borders. */
   --color-rule: rgb(255 255 255 / 0.1);
+
+  /* The plane *below* the page — the footer, and nothing else so far. It cannot
+     be `base-300`: the surface tones step towards the content and this one
+     steps away from it, which in dark means true black under a near-black page
+     and in light means a grey under an off-white one. Same word, opposite
+     direction, which is exactly why it needs a name of its own. */
+  --color-sink: #000000;
 
   /* The hover state for the full-bleed rows and cells. Opaque on purpose,
      rather than a translucent gold: the stat cells sit on top of the strip's
@@ -199,6 +294,19 @@
   }
 }
 
+/* The one variant, for the handful of things a colour token cannot reach.
+ *
+ * `styling.md` used to say there was no `dark:` in use anywhere and there still
+ * isn't — dark is the default, so nothing needs a variant to ask for it. What
+ * needs one is the other direction, and only where the thing being changed is
+ * not a colour: white artwork that has to become black artwork, and a
+ * third-party form that takes hex through JavaScript rather than CSS. **If you
+ * are reaching for this to set a colour, the answer is a token instead.**
+ *
+ * Matches the root element as well as its descendants, because `data-theme`
+ * sits on `<html>` and one day something on `<html>` itself will want it. */
+@custom-variant light (&:where([data-theme='rccf-light'], [data-theme='rccf-light'] *));
+
 @layer base {
   :root {
     /* Written as a variant rather than a hand-rolled media query so the
@@ -208,12 +316,34 @@
     }
   }
 
+  /* The four tokens `@theme` cannot carry across a theme — see the note beside
+     their dark values above. In `@layer base`, which lands after Tailwind's
+     `theme` layer, so this wins on layer order rather than on specificity: it
+     does not matter that `[data-theme]` and `:root` weigh the same. */
+  [data-theme='rccf-light'] {
+    --color-dim: rgb(20 19 15 / 0.68);
+    --color-faint: rgb(20 19 15 / 0.55);
+    /* A hairline needs a little more of itself on white than on black to read
+       as the same line. */
+    --color-rule: rgb(20 19 15 / 0.14);
+    --color-sink: #f0ede6;
+  }
+
   html {
-    /* The type is light-on-dark at small sizes throughout; without this the
-       weights render a step heavier than they were drawn. */
-    -webkit-font-smoothing: antialiased;
     /* The nav links are in-page anchors. */
     scroll-behavior: smooth;
+  }
+
+  /* Light text on a dark ground renders a step heavier than it was drawn, and
+     this is the fix for it. **Only on dark**: the same declaration on dark text
+     over a light ground thins the type instead, and at 10px mono that is the
+     difference between a label and a smudge.
+
+     Written as "not light" rather than "is dark" so it still holds with no
+     `data-theme` on the element at all — which is what a browser with the
+     inline script blocked gets, and that browser gets the dark theme. */
+  :root:not([data-theme='rccf-light']) {
+    -webkit-font-smoothing: antialiased;
   }
 }
 
@@ -241,15 +371,35 @@
 }
 
 /* The fill for a reserved-but-empty image well — a sponsor with no logo, an
-   officer seat with no portrait. The two off-black surface tones on a diagonal,
-   which reads as space held open rather than as a broken image. Registered here
+   officer seat with no portrait. The two surface tones on a diagonal, which
+   reads as space held open rather than as a broken image. Registered here
    because it is the same fill in two components and would otherwise be a
-   ninety-character arbitrary value in both. */
+   ninety-character arbitrary value in both — and because being built from
+   tokens rather than from two greys is what makes it follow the theme without
+   either component knowing there is one. */
 @utility bg-hatch {
   background-image: repeating-linear-gradient(
     135deg,
     var(--color-base-300) 0 12px,
     var(--color-base-200) 12px 24px
+  );
+}
+
+/* As many columns as will fit, rather than a column count per breakpoint.
+   The dashboard is what wanted this. Its rail takes a fixed 15rem off the left
+   of every page in the section, so the content column is never the width the
+   viewport suggests — and `wide:grid-cols-2` there means two 17rem columns on a
+   small laptop and two 35rem ones on a monitor, from the same class. `auto-fit`
+   asks the container how much room there is, which is the question that was
+   actually being asked, and it is the fluid answer `styling.md` prefers to
+   earning a second breakpoint. `--col-min` is the narrowest a column may get
+   before one is dropped, so it is really "how wide does this content need to
+   be"; the `min()` around it is what stops that floor overflowing a phone. */
+@utility grid-fluid {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(min(100%, var(--col-min, 26rem)), 1fr)
   );
 }
 

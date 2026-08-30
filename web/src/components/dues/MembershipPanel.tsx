@@ -1,11 +1,11 @@
-import type { ApiMembership } from '../../lib/api'
+import type { ApiMembership } from '../../lib/api/api'
 import {
   STATUS_CHIP,
   countdown,
   formatDate,
   formatShortDate,
   termLabel,
-} from '../../lib/dues'
+} from '../../lib/dues/dues'
 
 /**
  * Where a member stands, in one panel, on both the dashboard and the dues page.
@@ -49,8 +49,8 @@ export function MembershipPanel({
           detail nobody mentioned. */}
       {!membership.billable.fromCalendar && (
         <p className="text-faint mt-4 text-[13px] leading-[1.5] text-pretty">
-          These dates are our usual ones — UCF's academic calendar could not be
-          reached just now, so they may be a few days out.
+          UCF's academic calendar could not be reached, so these are our
+          usual dates and may be a few days out.
         </p>
       )}
     </div>
@@ -117,10 +117,9 @@ function Explanation({
           {membership.paidThrough
             ? ` to ${formatShortDate(membership.paidThrough)}`
             : ' to the end of the free window'}
-          , two weeks into{' '}
-          <strong className="text-white">{termLabel(membership.billable)}</strong>
-          , and dues start when it closes. You can settle those now if you would
-          rather have it done with.
+          , three weeks into{' '}
+          <strong className="text-base-content">{termLabel(membership.billable)}</strong>
+          , when dues start.
         </p>
       </>
     )
@@ -141,10 +140,10 @@ function Explanation({
         <p className={lead}>Your dues are paid.</p>
         <p className={line}>
           Membership runs through{' '}
-          <strong className="text-white">
+          <strong className="text-base-content">
             {formatDate(membership.paidThrough)}
           </strong>
-          . Summer is free either way, so nothing lapses over the break.
+          . Summer is free either way.
         </p>
       </>
     )
@@ -168,14 +167,13 @@ function Explanation({
           {membership.term.season === 'SUMMER'
             ? 'The club charges nothing over the summer. '
             : 'The club charges nothing between semesters. '}
-          It still has to be switched on, though &mdash; that is what tells us
-          you are around. One press covers you to{' '}
-          <strong className="text-white">
+          It still has to be switched on. One press covers you to{' '}
+          <strong className="text-base-content">
             {membership.freeThrough
               ? formatShortDate(membership.freeThrough)
               : formatShortDate(membership.billable.startsAt)}
           </strong>
-          , two weeks into {termLabel(membership.billable)}, when dues for that
+          , three weeks into {termLabel(membership.billable)}, when dues for that
           term begin.
         </p>
         {/* The deadline as a countdown as well as a date, and only here. A
@@ -185,7 +183,7 @@ function Explanation({
         {membership.freeThrough && (
           <p className={line}>
             The window closes{' '}
-            <strong className="text-white">
+            <strong className="text-base-content">
               {countdown(membership.freeThrough, now)}
             </strong>
             .
@@ -202,9 +200,8 @@ function Explanation({
         {membership.paidThrough
           ? `Membership lapsed on ${formatDate(membership.paidThrough)}. `
           : 'The free window for this semester has closed. '}
-        Paying brings back the lab, the printers and every tool on your projects
-        &mdash; you can still see them meanwhile, you just cannot change
-        anything. {termLabel(membership.billable)} is covered as soon as it goes
+        Paying brings back the lab, the printers and every tool on your
+        projects. {termLabel(membership.billable)} is covered as soon as it goes
         through.
       </p>
     </>

@@ -102,7 +102,7 @@ export function ConfirmDialog({
             ref={dismissRef}
             type="button"
             onClick={onDismiss}
-            className="btn btn-outline h-auto min-h-0 cursor-pointer border-white/28 px-5 py-2.5 text-[11px] font-semibold tracking-[0.04em] text-white hover:border-white hover:bg-white/6 hover:text-white"
+            className="btn btn-outline h-auto min-h-0 cursor-pointer border-base-content/28 px-5 py-2.5 text-[11px] font-semibold tracking-[0.04em] text-base-content hover:border-base-content hover:bg-base-content/6 hover:text-base-content"
           >
             {dismissLabel}
           </button>

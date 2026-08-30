@@ -1,7 +1,7 @@
 import { useId } from 'react'
 import { fieldClass, labelClass } from '../shared/formChrome'
-import type { DraftLink } from '../../lib/projectDraft'
-import { MAX_PROJECT_LINKS } from '../../lib/projectGallery'
+import type { DraftLink } from '../../lib/projects/projectDraft'
+import { MAX_PROJECT_LINKS } from '../../lib/projects/projectGallery'
 
 /**
  * The `/ RESOURCES` link list, as a controlled field.

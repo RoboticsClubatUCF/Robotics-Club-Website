@@ -128,31 +128,48 @@ and down this ladder**, and the loop has two halves:
 
 - **Paying, or claiming the free summer/break, promotes a `GUEST` to `MEMBER`**
   and stamps `joinedAt`, in the same transaction that moves `duesPaidThrough`.
-  Both paths go through `membershipUpdateFor` in `src/routes/dues.ts`, and
+  Both paths go through `membershipUpdateFor` in `src/routes/member/dues.ts`, and
   neither ever overwrites a role an officer chose or invents a `slug`.
 - **A lapsed `MEMBER` goes back to `GUEST`, live.** `demoteIfLapsed` runs inside
   session resolution, so it lands on their next request; `sweepLapsedMembers` on
   the ten-minute timer is the backstop for everybody who has stopped turning up.
   Both: only `MEMBER`, only accounts with a payment on record, and the sweep
   never runs when UCF's calendar could not be read.
-- **And the Discord roles follow, in the other direction.** `src/discordRoles.ts`
+- **An officer gains the role live, and loses it on the sweep.**
+  `refreshOfficerStanding` in `src/discord/discordOfficers.ts` asks Discord about the
+  one account that is signing in, and about the one behind `/api/auth/me` — the
+  read every page of a signed-in browser makes — so somebody handed the officer
+  role in Discord has their desks by their next page load rather than within
+  ten minutes. It **only promotes**: from a single member's role list, a
+  mistyped role id, a deleted role and somebody who was never an officer are
+  identical, so demotion stays with `syncDiscordOfficers`, which sees the whole
+  guild and has four refusals built on exactly that. It costs one member lookup,
+  throttled to one per person every five minutes and skipped outright for anyone
+  already an `OFFICER` or `ADMIN`.
+- **And the Discord roles follow, in the other direction.** `src/discord/discordRoles.ts`
   gives out the Members, Project Leads and Team Leads roles plus each project's
   own — `Project.discordRoleId` — on the same ten-minute tick, chained *after*
   the two sweeps above so Postgres has settled before Discord is told. The
   Officers role goes the opposite way and the site never writes it
-  (`src/discordOfficers.ts`). Each role id is independently optional and unset
+  (`src/discord/discordOfficers.ts`). Each role id is independently optional and unset
   means never touched; a guild member the site cannot match to a `User` row is
   never written to at all; and `DISCORD_ROLE_SYNC_DRY_RUN` names every change
   without making one. The Members role is the literal `duesPaidThrough` date,
   which is now exactly what `membershipStanding().hasAccess` means — this file
   got there first and the rest of the site came to meet it.
 
+**There are two gates, and the survey is the first.** `requireSurvey` is the
+first statement of `requireCurrentDues`, so nothing opens — the dues page
+included — until `User.surveyCompletedAt` is set. `GET /api/dues/status` stays
+readable so the page can say why, and `POST /api/dues/sync` and the Stripe
+webhook stay open because by the time either runs the money has already moved.
+
 **The role is not the gate; the standing is.** What somebody may *do* is decided
 by `membershipStanding` at the moment of the request. With dues owed the
 dashboard is `/api/dues/*` and `/api/me/*` — your payment page and the projects
 you are already on — and everything else is refused: 3D printing, equipment
 borrowing and every management tool. See `requireCurrentDues` and
-`requireDuesForRoute` in `src/authz.ts`. A lapsed lead or officer keeps their
+`requireDuesForRoute` in `src/auth/authz.ts`. A lapsed lead or officer keeps their
 rank and loses the tools. `ADMIN` is exempt, always. `discordUsername` hangs off the same row for the Discord
 integration.
 
@@ -180,7 +197,14 @@ appointing team leads, scheduling, assigning tasks — is decided by
 | -------------- | ---------------------------------------------------------------- |
 | `PROJECT_LEAD` | Everything inside that project: teams, ranks, events, tasks, the project itself |
 | `TEAM_LEAD`    | Their own team's roster, events and tasks — and nothing outside it |
-| `MEMBER`       | Read the project, tick tasks assigned to them                    |
+| `MEMBER`       | Read the project, and move tasks assigned to them between labels |
+
+**A task belongs to a project or to a person, and the second kind is the
+officers'.** `POST /api/tasks` writes one with no `projectId` — the club's own
+work rather than any build's — and refuses everybody below an officer, because
+a lead's authority is derived from a membership row and there is none to read.
+It must name an assignee: with neither a project nor a person a task belongs to
+nothing and appears on no page.
 
 **A project has at most one `PROJECT_LEAD`, and any number of `TEAM_LEAD`s.**
 Zero leads is normal — the board agrees to run something before it settles who
@@ -197,8 +221,8 @@ Who appoints whom: **project leads are appointed by officers and admins only**;
 because `requireProjectLead` returns early for them.
 
 Somebody leading Project S.T.O.R.M. is a plain member on SumoBots and gets a 403
-there. No value of `UserRole` says anything about any project. `src/authz.ts` is
-the only place any of this is decided, and `src/authz.test.ts` is the matrix
+there. No value of `UserRole` says anything about any project. `src/auth/authz.ts` is
+the only place any of this is decided, and `src/auth/authz.test.ts` is the matrix
 that keeps it honest.
 
 `ProjectMember.title` beside it is free text — "Software Lead" — and grants
@@ -230,15 +254,19 @@ sprayed across every account in turn never trips a per-IP limit.
 | `GET /api/stats`         | The landing page's counts — each equals the listing it links to |
 | `GET /api/subteams`      | Includes an active-member count                     |
 | `GET /api/members`       | The roster. `?subteam= &role= &status=active\|alumni\|all` |
-| `GET /api/officers`      | The board, in seat order — see below                |
+| `GET /api/officers`      | `{ seats, officers }` — the seats there are, and who is in one |
+| `GET /api/officers/past` | The archive. `?years=` (default **2**) `&all=1`. Answers `{ terms, older }` |
 | `GET /api/members/:slug` | Adds the member's projects                          |
-| `GET /api/projects`      | `?status= &season= &featured=true`                  |
+| `GET /api/projects`      | `?status= &season= &featured=true &term=current\|other &images=true`. `term` is resolved against the academic calendar rather than named by the caller — a page that hard-coded a term goes quietly empty every August — and **`other` is the negation of `current`, not everything before it**, so a build stamped for a term that has not started lands on the archive rather than on no page at all. `other` comes back newest term first. `images=true` adds the gallery and `description=true` the write-up — both otherwise the detail route's alone, both opt-in because this answers up to a hundred rows, and independent because `/projects` wants pictures and prose for the current term but only prose for the archive. **The write-up is what that page prints**: `summary` is the column the schema calls the one-liner for cards and no project the club has created has ever had one, so a list reading `summary` alone was titles over empty paragraphs |
 | `GET /api/projects/:slug`| Adds description and the credited members           |
-| `GET /api/events`        | `?when=upcoming\|past\|all &type= &from= &to=` — published only |
+| `GET /api/events`        | `?when=upcoming\|past\|all &type= &from= &to=` — published rows only, **plus the project meetings** `src/projects/meetings.ts` expands. Meetings are merged in only when **both** `from` and `to` are given: a recurrence has no answer to "the next 50 events", so a bare `?when=upcoming` still gets stored rows and `limit`/`offset`/`GET /stats` keep meaning what they meant. A meeting shows here only if its project has `meetingsPublic`; it repeats to the end of the project's term and skips finals week. Its `id` is prefixed `meeting:` — **there is no row behind it**, so nothing may `PATCH` or `DELETE` one |
 | `GET /api/events/:slug`  | Published only                                      |
 | `GET /api/posts`         | Published and not future-dated; no body             |
 | `GET /api/posts/:slug`   | Adds the body                                       |
-| `GET /api/sponsors`      | `?tier=` — active only, ordered by tier             |
+| `GET /api/sponsors`      | `?tier=` — active only, ordered by tier. Hidden rows (`active: false`) are a sponsorship that has run out, kept on the officer desk and off both public lists |
+| `GET /api/sponsorship`   | `{ tiers, inKind, footnotes }` — what a level costs, what a sponsor can give that is not money, and the fine print under the grid. **Only the tiers somebody has written**: this was four hardcoded objects in `web/src/content/sponsorship.ts` marked PLACEHOLDER, and an unpriced level is now absent rather than quoting a figure nobody agreed to. `blurb` is null on most of them — the club's sheet is an amount over a list of what you get, with no sentence between. Ordered by the enum, which is the club's ranking. No paging — four levels and at most six of the other thing |
+| `GET /api/hero-slides`   | The photographs beside the landing page's headline, in the order officers set. No paging and no filter — it is one curated list capped at eight, and the browser wants all of it to run the slideshow. **An empty array is a real answer**: the hero draws the rings and the wireframe trace it had before this table existed, so the page never has to tell "none yet" from "the API is down" |
+| `GET /api/lab`           | `{ open, changedAt, buildingOpen }` — is the lab open. `open` is **already masked by the building's hours** (8am–10pm Orlando time), so it is the answer to act on rather than the row; `buildingOpen` is what tells "nobody has opened it" from "nobody can". **Not in the cached half of the API**: it carries its own `s-maxage=30`, because a five-minute-old answer to this is the one that sends somebody across campus for nothing. `changedAt` is null until an officer has flipped it. Never says *who* — that is in the database and in the club's own Discord channel, not on an endpoint anybody can read |
 | `POST /api/contact`      | `{ name, email, subject?, message }` → 201          |
 | `POST /api/signup/start` | `{ email, acknowledged }` → 202, and emails a link   |
 | `POST /api/signup/verify`| `{ token }` → `{ email }`                           |
@@ -247,11 +275,17 @@ sprayed across every account in turn never trips a per-IP limit.
 | `POST /api/auth/login`   | `{ email, password }` → `{ user }`, and sets the session cookie |
 | `POST /api/auth/logout`  | Ends the session; works from a stale cookie too      |
 | `GET /api/auth/me`       | `{ user }` or `{ user: null }` — **200 either way**  |
-| `GET /api/dues/status`   | Signed in. Membership, prices, coverage dates, history |
-| `POST /api/dues/checkout`| Signed in. `{ plan: SEMESTER\|YEAR }` → a Stripe payment intent |
+| `POST /api/auth/password/forgot` | `{ email }` → **202 whatever it finds**. A different answer for an unknown address would make this a membership lookup, one address at a time. Two budgets, and the tighter one is keyed on the *address*, because this endpoint sends mail to somebody else's inbox. Works for a roster entry that has never had a password — that is how one becomes a login |
+| `POST /api/auth/password/reset`  | `{ token, password }` → 200. Expired, unknown and already-spent are one 410. Ends **every** session the account had: whoever is resetting has none to keep, and if somebody else got in, leaving them signed in is what this flow exists to prevent |
+| `GET /api/survey`        | Signed in. **The questions the club is currently asking**, this member's answers or `null`, plus their `User.gradYear` so the form can pre-fill. **Never gated** — it is the page that gets somebody out of the gate. A question's options are the live ones **plus any this member picked before it was retired**, flagged `retired`: a write replaces every answer, so an option the form could not draw would be dropped on the way past |
+| `POST /api/survey`       | Signed in. `{ answers, gradYear }`. Answers it, once. Stamps `User.surveyCompletedAt` and writes `gradYear` in the same transaction; **409** if it is already set. **Sending an entry at all is what "answered" means** — a tick-any question with a NONE box is answered by an *empty* `optionIds`, so a required question that was left out entirely is a **400** naming it |
+| `PUT /api/survey`        | Signed in. Corrects the answers afterwards, from `/dashboard/survey` or the account page's SURVEY panel. Deliberately does **not** move `surveyCompletedAt` — being *asked* once is the promise, not being stuck with a shirt size, and **an officer adding a question does not move it either**. `gradYear` is **optional** here and required on the `POST`: the account page's ABOUT YOU panel owns that field, so the survey panel beside it sends no year, and an absent one means "leave it alone". **409** when there is nothing to leave alone — no year sent and none on file would save a survey with a hole in it, so it is refused with a sentence naming where to set one |
+| `GET /api/dues/status`   | Signed in. Membership, prices, coverage dates, history. Carries `surveyRequired`, which is what the browser locks on |
+| `POST /api/dues/checkout`| Signed in **and past the survey**. `{ plan: SEMESTER\|YEAR }` → a Stripe payment intent |
 | `POST /api/dues/sync`    | Signed in. `{ paymentIntentId }` → asks Stripe how it went |
-| `POST /api/dues/activate`| Signed in. Claims the free summer or between-terms break — promotes a `GUEST` to `MEMBER`, same as paying |
+| `POST /api/dues/activate`| Signed in **and past the survey**, since claiming grants the same access paying does. Claims the free summer or between-terms break — promotes a `GUEST` to `MEMBER`, same as paying |
 | `POST /api/stripe/webhook` | Stripe's own deliveries. Signature-verified, never authenticated |
+| `POST /api/discord/interactions` | Somebody pressing the button under the lab sign — **only when the application has an Interactions Endpoint URL registered.** Without one, presses arrive down the gateway instead (`src/discord/discordGateway.ts`) and this route is never called; the two are mutually exclusive by configuration. Signature-verified (Ed25519 over the raw body, `DISCORD_PUBLIC_KEY`), never authenticated, and **401 on a bad signature is Discord's requirement** — it probes a new endpoint URL with a deliberately invalid one and will not save the URL unless that is the answer. Only officers may press, checked against `DISCORD_OFFICER_ROLE_ID` on the interaction itself or against the site's own role; **dues are deliberately not checked**, unlike `PATCH /api/lab`. Everything it says back is ephemeral — the refusal, the curfew, the rename cooldown. Discord allows three seconds, so a press that needs work is deferred and answered with a private follow-up |
 
 Then the dashboard's own surfaces. Every one of them is signed in, answers
 per-caller, and is mounted **before** the public routes in `src/app.ts` so the
@@ -259,16 +293,27 @@ shared-cache headers never touch them.
 
 | Route                    | Notes                                              |
 | ------------------------ | -------------------------------------------------- |
+| `GET /api/account`       | The editable profile, plus `passwordSet` and `pendingEmail` — two facts the page needs and cannot derive. Never the password hash |
+| `PATCH /api/account/profile` | `{ fullName, bio, gradYear }` → `{ user }`. All three are on the public roster, which is why they are the member's own. `title` and `slug` are not here: a club title is the board's to award, and a slug is what publishes somebody to the roster at all |
+| `POST /api/account/discord-check` | Signup's check with the caller excused — otherwise re-saving your own handle is refused by yourself. Which row to excuse comes from the session, never from the body |
+| `POST /api/account/discord` | `{ discordUsername }` → `{ user }`. Signup's refusals exactly: `not_found` is 422, `unavailable` is 503 rather than a guess. Stores Discord's own spelling and the snowflake when it answered; leaves `discordId` alone when no bot is configured, since renaming does not change the account |
+| `POST /api/account/photo` | Multipart image, sniffed and size-capped like a project cover; replacing deletes the old upload. **Takes `focalX`/`focalY`/`zoom` in the same body**, because the browser frames the picture *before* sending it — an avatar replaces, so a mis-picked file has to cost nothing until somebody has looked at it, and framing arriving as a second request could fail on its own and leave the new photo cropped by the old one's numbers. Framing is written every time, defaults included: a new photo must not inherit a crop chosen against a different picture |
+| `PATCH /api/account/photo` | `{ focalX?, focalY?, zoom? }` — move the crop on the photo already on file, with no bytes sent. The other half of framing being metadata rather than a crop baked in. Each field applies only when sent, so adjusting zoom alone cannot silently re-centre a photo. 409 when there is no photo |
+| `DELETE /api/account/photo` | Removes it and its stored bytes, and resets the framing — those numbers belong to a picture that is gone |
+| `POST /api/account/password` | `{ currentPassword, newPassword }` → 200. Ends every *other* session and keeps this one — signing this browser out would answer "change my password" with a login form |
+| `POST /api/account/email` | `{ password, email }` → 202, and mails the **new** address. Nothing moves until the link is followed: a typo written straight onto an existing account is a member locked out of a site they belong to. No `@ucf.edu` rule, unlike signup — hand-entered roster accounts are real logins on other domains |
+| `POST /api/account/email/confirm` | `{ token }` → `{ user }`. **Deliberately unauthenticated**: the token is the proof and it arrives in an inbox, usually on a phone that has never signed in here |
+| `DELETE /api/account`    | `{ password }` → 200. Refused while club equipment is out, or while an officer term is open — both are cases where deleting leaves the club holding a problem it cannot see. Everything else cascades, and the route deletes the stored files the account still points at by hand, because `StoredFile.createdById` is `SetNull`. Site-managed Discord roles are stripped from the snowflake read *before* the delete, since nothing afterwards can match a row that is gone |
 | `GET /api/me/projects`   | My memberships: project, rank, team                 |
-| `GET /api/me/events`     | `?from= &to=` — published events plus my projects' unpublished ones |
-| `GET /api/me/tasks`      | The open tasks assigned to me, nearest deadline first |
+| `GET /api/me/events`     | `?from= &to=` — published events plus my projects' unpublished ones, plus the project meetings I should see: every public one and every one on a project of mine. Officers get every *event* here and not every *meeting* — an unpublished event is a thing awaiting their decision, a meeting on a project switched off the public calendar is a settled answer. Same window rule as the public route |
+| `GET /api/me/tasks`      | `?scope=mine\|managed\|all &status=open\|all &limit=` — my tasks, the ones I run, or both. `scope=managed` is `manageableTaskFilter` in `routes/projects/tasks.ts`, the same rule `requireTaskManager` enforces per row, so the page cannot offer an EDIT the server then refuses. **`status=open` means not DONE and not CANCELED**, which is what "open" means now there are five labels; the overview card takes the defaults |
 | `GET /api/me/print-requests` | Mine, newest first. `fileId` is null once settled |
 | `GET /api/me/print-allowance` | Grams left for my own prints this term. Counted, never stored |
 | `GET /api/me/loans`      | What I have borrowed and asked for                  |
 | `POST /api/projects/:id/join` | Refused unless `membershipStanding().hasAccess` |
 | `DELETE /api/projects/:id/members/me` | Leave. **Including the only project lead**, which leaves the project leaderless and DMs the officers so somebody knows — the old refusal told them to have an officer appoint another first, which nothing can satisfy now a project has one lead. Writes no roles at all: leaving changes what you run, not what you are |
 | `GET /api/projects/:id/team` | Members-only. Teams and roster, no email addresses |
-| `PATCH /api/projects/:id` | Project lead. Slug and `featured` are not editable. Accepts `discordRoleId`, which is the one field here that changes something outside this site — setting it hands the role to every member of the project and clearing it takes it back, so the route pushes all of them straight away rather than waiting for the sweep. Answers with `managedProjectSelect` **plus `description`** — the editor rebuilds its state from the write rather than re-reading the publicly cached page, so a column this route accepts and does not answer with comes back `undefined` and leaves the form permanently unsaved |
+| `PATCH /api/projects/:id` | Project lead. Slug and `featured` are not editable. Takes the meeting schedule — `meetingWeekdays`, `meetingStartTime`, `meetingEndTime`, `meetingLocation` — and holds the days-and-times-together rule against the **resulting** row, so clearing half of one is a 400; an empty `meetingWeekdays` with both times null clears it outright. `meetingsPublic` is accepted here and **refused from a non-officer**, the same split as `published` on an event: a lead sets when the project meets, an officer decides whether the front page carries it. Accepts `discordRoleId`, which is the one field here that changes something outside this site — setting it hands the role to every member of the project and clearing it takes it back, so the route pushes all of them straight away rather than waiting for the sweep. Answers with `managedProjectSelect` **plus `description`** — the editor rebuilds its state from the write rather than re-reading the publicly cached page, so a column this route accepts and does not answer with comes back `undefined` and leaves the form permanently unsaved |
 | `POST /api/projects/:id/cover` | Project lead. Multipart image; replaces and deletes the old upload |
 | `POST /api/projects/:id/images` · `/images/upload` | Project lead. The public page's gallery, by URL or as a file. Capped at 12 a project; uploads are sniffed and size-capped, and the browser shrinks them first. Both take `focalX`/`focalY`/`zoom` **at add time** — a gallery assembled on the create page is framed before the project exists, and framing arriving separately could fail on its own and leave a photo sitting wrong. The upload reads them off the multipart body, ignoring anything unparseable |
 | `PATCH /api/projects/:id/images/order` | Project lead. The whole order, as a list of ids — refused unless the set matches exactly, which is what stops one tab dropping another's newest photo |
@@ -278,20 +323,39 @@ shared-cache headers never touch them.
 | `POST /api/projects/:id/teams` · `PATCH`/`DELETE /api/teams/:id` | Project lead |
 | `PATCH`/`DELETE /api/projects/:id/members/:userId` | Project lead. Rank up to `TEAM_LEAD` only — and **this is the route officers use to appoint a team lead too**, since `requireProjectLead` waves them through. `title` is the free-text display string, renamed from `role`; zod strips unknown keys, so a caller still sending `role` gets a 200 that stores nothing |
 | `POST`/`DELETE /api/teams/:id/members/:userId` | Team lead, own team, plain members only |
-| `POST /api/events` · `PATCH`/`DELETE /api/events/:id` | Leads. Created unpublished; only officers may publish |
-| `GET`/`POST /api/projects/:id/tasks` · `PATCH`/`DELETE /api/tasks/:id` | Leads, scoped to their team |
-| `POST /api/tasks/:id/status` | Assignees **and** leads — the one looser check      |
+| `POST /api/events` · `PATCH`/`DELETE /api/events/:id` | Leads, and officers. Where the event hangs decides the rank: a team's lead, a project's lead, or — with **no `projectId` at all** — an officer, which is the club's own calendar and what the events desk is largely for. Created unpublished whoever made it, and only officers may publish. `registrationUrl` is settable by anybody who may write the event — it was readable and unsettable for a long time, so the only rows carrying one were the seed’s. Edits cannot move an event between projects: that is a delete and a create, which keeps the permission question one-dimensional |
+| `GET`/`POST /api/projects/:id/tasks` · `PATCH`/`DELETE /api/tasks/:id` | Leads, scoped to their team. **`POST` refuses a project that is not running this semester** — 409 naming both terms, checked before any permission is read, so a lead of last term's build gets the sentence about the calendar rather than one about their rank. `PATCH`, `DELETE` and the status route are unaffected: closing out work already on a finished board is how a semester ends |
+| `POST /api/tasks` | **Officers only.** A task belonging to no project — the club's own work. At least one assignee, refused otherwise on this route *and* on the edit route, since that one can empty a list this one insisted on |
+| `POST /api/tasks/:id/status` | Assignees **and** leads — the one looser check. Five labels now (`OPEN`, `IN_PROGRESS`, `DELAYED`, `DONE`, `CANCELED`), and an assignee may set any of them: somebody asked to do something is entitled to say it is not going to happen, and CANCELED on a row the lead can see is how they say it. Only `DONE` stamps `completedBy`/`completedAt`; every other label clears the pair, cancelling included |
+| `POST /api/tasks/:id/calendar` | `{ onCalendar }`. **Assignees only, and it is per person** — a lead may put work on somebody's list, not in their week. A non-assignee matches no row and gets a 403 rather than a 404 that would confirm the task exists. Opted-in deadlines appear on that member's `/api/me/events` as `task:…` entries and reach no other calendar, public or otherwise |
 | `POST /api/print` · `DELETE /api/print/:id` | **Members only** — a `GUEST` is refused whatever their standing. Multipart `.stl`/`.step`, size-capped, sniffed. Settings paired FDM/SLA; `quantity` 1–50, default 1; `projectId` needs a real membership |
 | `GET /api/equipment`     | **Members only.** The catalogue with a live `available` count and each item's `maxLoanDays` |
 | `POST /api/equipment/:id/loans` · `POST /api/equipment/loans/:id/cancel` | One open loan per person per item. `requestedDueAt` is **required**; `startAt` in the future makes it a booking. The window is refused past the item's `maxLoanDays` |
 | `GET /api/files/:id`     | Images public and immutable; print models owner-or-officer, `no-store` |
-| `POST /api/officer/projects` | Officers only, without limit. `summary` is required; `description` and `repoUrl` are accepted here because they are columns on the project, which is part of what lets the desk fill the whole thing in on one page — pictures and links are held in the browser and sent straight after. `discordRoleId` is the crew's Discord role and is **checked against the guild's real roles** before the write: a mistyped snowflake is not an error at Discord and would match nobody for ever |
+| `POST /api/officer/projects` | Officers only, without limit. `summary` is required; `description` and `repoUrl` are accepted here because they are columns on the project, which is part of what lets the desk fill the whole thing in on one page — pictures and links are held in the browser and sent straight after. `discordRoleId` is the crew's Discord role and is **checked against the guild's real roles** before the write: a mistyped snowflake is not an error at Discord and would match nobody for ever. **The meeting schedule is required here** — `meetingWeekdays` plus both times — unlike everywhere else it is optional: the columns went unfilled for months while this route ignored them, and a project’s meeting time is the one thing a prospective member actually wants. The edit route lets it be cleared |
 | `PATCH /api/officer/projects/:id/members/:userId/rank` | Appoint or stand down a project lead, `PROJECT_LEAD` or `MEMBER`. **409 naming the incumbent** if the project already has a lead — stand them down first; re-appointing the sitting lead is a no-op 200. Writes no roles: appointing yourself as an officer costs you nothing by construction |
+| `GET /api/officer/survey` · `GET /api/officer/survey/export.csv` | The member survey's results, in `routes/officer/surveyAdmin.ts` rather than `officer.ts`. The first is a tally per live question plus a `responded`/`outstanding` count, every option returned **including the zeroes** — a list that omits the sizes nobody picked reads as "we need none of those" — and a retired option too **when anybody picked it**, or the column would not add up. NONE is its own number rather than an option row, because there is no NONE option. The second is the raw rows, one column per question, with names and contact details: `no-store`, and every free-text cell starting `=`, `+`, `-` or `@` is apostrophe-prefixed, because that file gets opened in Excel |
+| `GET`/`POST /api/officer/survey/questions` · `PUT`/`DELETE /api/officer/survey/questions/:id` | What the club asks. `PUT` takes the **whole** question including its ordered option list — options present by `id` are updated and un-retired, absent ones are retired if anybody picked them and deleted otherwise, and an `id` belonging to another question is a 400. **Changing `kind` once anybody has answered is a 409**: forty ticks against a question that now wants a sentence are forty rows nothing can render. `DELETE` answers `{ removed: 'archived' \| 'deleted' }` — archived whenever answers exist, because "stop asking this" is not "throw away what forty people told us" |
+| `POST /api/officer/survey/questions/:id/restore` · `POST /api/officer/survey/reorder` | Restore puts a retired question back at the **end**, since its old position was vacated the moment anything else moved. Reorder takes the whole live set or nothing: a partial list would leave the questions it omits colliding with the ones it names, so a stale one is a **409** rather than a half-applied write |
+| `POST /api/officer/hero-slides` · `POST /api/officer/hero-slides/upload` | The front page's slideshow, in `routes/officer/heroSlides.ts` rather than `officer.ts` — the framing helpers come from `projectManage.ts`, which imports from `officer.ts`, and putting these there would close an import cycle. By link or by file, the same split the gallery makes; framing may be sent **with** the picture, because the desk opens the framing tool the moment one lands. 409 naming the cap once eight are up |
+| `PATCH /api/officer/hero-slides/order` | The whole order as a list of ids, **registered before `/:id`** or a reorder would be answered by the caption route. A list that is not the complete set is a **409**: this is one global list, so the two tabs that guard against are two different officers |
+| `GET /api/officer/sponsors` | The whole sponsor page in one read — `{ sponsors, tiers, inKind }`, in `routes/officer/sponsorsAdmin.ts`. `sponsors` includes the hidden ones, which the public list filters out; **`tiers` carries one entry per level whether or not anybody has written it**, because the row an officer needs in order to publish a tier is exactly the one a filtered list would hide |
+| `POST /api/officer/sponsors` · `PATCH`/`DELETE /api/officer/sponsors/:id` | Name collisions are **case-insensitive** and answered with what to do instead — two rows for one company is how a sponsor gets thanked twice on the front page. The PATCH schema carries **no** defaults, so `{ active: false }` cannot demote a top-tier sponsor on its way past. `active: false` is the ordinary way off the list and keeps the record; `DELETE` is for a typo |
+| `POST`/`DELETE /api/officer/sponsors/:id/logo` | The logo as a file — upload *and* replace in one route, unlike the hero desk's remove-then-add, because a sponsor is a row that has a logo rather than a picture with a name. Same shape as `POST /api/account/photo`. A link goes through the PATCH above, which deletes the upload it replaces |
+| `PUT`/`DELETE /api/officer/sponsors/tiers/:tier` | What a level costs. An upsert keyed on the tier in the path — one row per level, the enum is the key — and `PUT` rather than `PATCH` because a half-written tier is worse on a price list than an absent one, which also means **an omitted `blurb` clears the one that is there**. `DELETE` takes the level off the public sheet; **the row existing is the publication**, so there is no `published` column and no draft state |
+| `PUT /api/officer/sponsors/sheet` | `{ footnotes }` — the fine print under the grid, on the one row there is. No id in the path because there is one sponsorship page: it upserts a row keyed `current` by a column default, the same singleton `PATCH /api/lab` owns. An empty string clears it, and clearing is normal — the grid printed no fine print before the row existed |
+| `POST /api/officer/sponsors/in-kind` · `PATCH`/`DELETE /api/officer/sponsors/in-kind/:id` · `PATCH /api/officer/sponsors/in-kind/order` | The ways to help that are not money, capped at six. The order route takes the whole list and **409**s on a set that is not complete, for the reason the hero desk's does. All of these are registered **before** `/:id`, or `tiers` and `in-kind` are perfectly good holes for the wildcard to fall into |
+| `PATCH`/`DELETE /api/officer/hero-slides/:id` | Caption and framing, each applied only when sent, so the framing tool and the caption box cannot flatten each other. There is no way to change `url` in place — replacing a photo is remove-then-add, which keeps `deleteIfStored` at two call sites. `DELETE` takes the bytes with the row when the photo was uploaded here, and leaves somebody else's hosting alone |
 | `GET /api/officer/members` | `?query=` — the people picker. Matches name, email **and Discord handle**, because an account may carry a handle and no email |
 | `GET /api/officer/print-queue?status=&all=` · `PATCH /api/officer/print/:id` | `all=1` returns every status, for the browser's search. Settling **deletes the uploaded model**. `gramsUsed` required for a personal DONE; `overAllowance` to go past the cap. Moving to `PRINTING` stamps `startedAt`, which is what later tells a cancelled print from a declined request |
 | `GET`/`POST /api/officer/equipment` · `PATCH /api/officer/equipment/:id` | `maxLoanDays` defaults to 7 on create; the PATCH schema carries **no** defaults, so a partial edit cannot reset a field it did not name. Name collisions are **case-insensitive** and answered with what to do instead |
 | `DELETE /api/officer/equipment/:id` | Really deletes, cascading every loan against it. Refused while a unit is out. Retiring (`active: false`) is the reversible one |
 | `GET /api/officer/loans?status=&all=` · `PATCH /api/officer/loans/:id` | `all=1` returns every status. Availability re-checked inside the transaction. **No REQUESTED → CHECKED_OUT**: approval comes first. A move that holds a unit fills `dueAt` in when the officer types none — from the member's date, or the item's cap |
+| `GET /api/officer/terms` · `PATCH /api/officer/terms/seat` | Today's board, seatless officers included. Setting a seat another open term holds is a **409 naming the incumbent** — a partial unique index over open terms is not expressible through Prisma, so the route is what enforces one per seat. `takeOver: true` overrides that: it closes the incumbent's term as `Succeeded by …` and seats the successor **in one transaction**, and answers with `succeeded`. Off by default, because the 409 is the protection. A term created here is `MANUAL` and the Discord sync will not close it. `position: null` clears the seat and leaves them on the board |
+| `DELETE /api/officer/terms/:userId` | Stand somebody down: closes the open term, which is what publishes them to `/officers`. The sync reopens one if they still carry the Discord role, which is correct — this is not a way to overrule the club's own answer |
+| `GET /api/officer/semesters/:year` | The three terms and **which of the three sources dated each**: `override`, `calendar`, `fallback`. Carries `finalsStartAt`/`finalsEndAt`/`finalsSource` beside them — all three null when nobody has said, which is a state the term dates never have because those always fall back |
+| `PATCH /api/lab` | Officers only. `{ open }` → `{ open, changedAt, buildingOpen }`. **Opening is a 409 between 10pm and 8am Orlando time** — closing is always allowed, because an officer realising at 22:05 that they left it open is the last person to argue with; the ten-minute sweep locks up on the club's behalf otherwise. Setting it to the state it is already in is a **200 that writes nothing**. **Discord is written first and the row only if that landed**: the channel is renamed `lab-status-🟢`/`🔴`, and that rename is limited by Discord to **two per ten minutes**, so the third press in a window is a **429 carrying the cooldown** and the lab is left exactly as it was (a refused rename is a 502 naming Manage Channels). The sign is **one message in the channel that still pings**, via post-new-then-delete-old: **opening posts** a fresh message — that post is the `@Members` ping — and deletes the one it replaces, while closing, the curfew and every sweep retry **edit**. Nothing re-announces, so a retry can never ping the club twice for one evening |
+| `PUT`/`DELETE /api/officer/semesters/:year/:season` | The club's own term dates, ahead of UCF's feed. Refuses `startsAt >= endsAt`. Also takes `finalsStartsAt`/`finalsEndsAt` — when the club puts every project on halt — both or neither, refused inverted, and refused outside the term, since a finals window outside its own term matches nothing and would silently do nothing. Null hands finals back to the feed, which counts it as everything after the last day of classes. Flushes the cache in `semester.ts`, which every dues read goes through. Changes what the *next* payment buys and nothing already sold — a payment stores its own `coversThrough` |
 
 ### Files, and when they stop existing
 
@@ -325,7 +389,7 @@ pointing at them and no way to find them again. `files.test.ts` is the tripwire.
 
 ### One gate
 
-`requireCurrentDues` in `src/authz.ts`, and it asks one question:
+`requireCurrentDues` in `src/auth/authz.ts`, and it asks one question:
 `duesPaidThrough > now`. `ADMIN` is the only exemption — officers included.
 Every check in that file ends with it, `requireDuesForRoute` is the same thing
 as middleware, and 3D printing, equipment borrowing and every management tool
@@ -333,7 +397,7 @@ sit behind it equally.
 
 There used to be a second, stricter gate, `requireClubMember`, which also
 refused a `GUEST` outright. It was necessary while the summer, the break between
-terms and the opening fortnight reported `hasAccess: true` for **everyone** —
+terms and the opening weeks reported `hasAccess: true` for **everyone** —
 standing alone would then have let an account created ten minutes ago order
 prints. Access is the dues date now, and nothing sets that date without
 promoting the account in the same transaction, so the role check could never
@@ -353,7 +417,7 @@ prints are uncapped, on the honour system and the officer's discretion.
 **The balance is never stored.** It is the club's figure minus the summed
 `grams_used` of that member's `DONE`, project-less requests stamped with the
 term — counted when asked, exactly the way equipment availability is counted.
-`src/printAllowance.ts` is the only place that arithmetic lives, and a column
+`src/printing/printAllowance.ts` is the only place that arithmetic lives, and a column
 would be a number that goes wrong quietly while the per-semester reset became a
 sweep somebody has to remember to run.
 
@@ -433,8 +497,8 @@ change the number on the row that already exists.
 **Each item caps its own loans.** `equipment.max_loan_days`, a week by default.
 It binds the *member's* ask and not the officer's date: a form being filled in
 is checked, and a person with authority making a decision is not. The window is
-counted in floored whole days by `src/loanWindow.ts`, which the browser mirrors
-in `web/src/lib/borrowing.ts` so the form never offers something the route will
+counted in floored whole days by `src/equipment/loanWindow.ts`, which the browser mirrors
+in `web/src/lib/equipment/borrowing.ts` so the form never offers something the route will
 refuse.
 
 **A reservation holds its unit from approval, not from its start date.** A drill
@@ -444,7 +508,7 @@ windows to work out whether the drill is back in time would promise a physical
 object on the strength of a date somebody typed. The club can lend the same drill
 twice by hand; it cannot un-lend one.
 
-**The bot gives a day's notice.** `src/equipmentReminder.ts` runs on the
+**The bot gives a day's notice.** `src/equipment/equipmentReminder.ts` runs on the
 ten-minute timer and DMs anybody whose checked-out loan falls due inside
 `RETURN_REMINDER_LEAD_HOURS` — 36 by default, because a due date is the *end* of
 the day it names and a flat 24 would fire around midnight. The claim is
@@ -452,6 +516,67 @@ the day it names and a flat 24 would fire around midnight. The claim is
 that one value deduplicates across instances and restarts, and re-arms itself
 when an officer moves the date. Nothing chases an already-overdue loan; that
 needs an officer, not a robot.
+
+## Tasks
+
+A checklist a lead writes and a member works through, at `/dashboard/tasks` and
+on each project's board. `src/routes/projects/tasks.ts` owns who may write what;
+`src/discord/taskReminder.ts` is the bot's half.
+
+**Five labels, and the declaration order is the sort order.** `OPEN`,
+`IN_PROGRESS`, `DELAYED`, `DONE`, `CANCELED` — Postgres sorts an enum by
+declaration order and the board orders on it, so unsettled work sits above work
+nobody has to think about again. It was two labels, and the comment on the enum
+argued for keeping it that way; what changed is that the bot now asks, and a
+member with a deadline behind them needs a way to answer other than silence.
+`CANCELED` is deliberately a label rather than a delete: a task called off is
+still a record that somebody was asked.
+
+**A task belongs to a project or to a person.** The second kind has no
+`projectId`, is the officers' alone, and must name an assignee — see the
+permission table above.
+
+**A new task may only go on a project running this semester.** A project belongs
+to a term and a build that ran three semesters is three rows, so without this a
+lead opening last spring's manage page could add work to a project nobody meets
+for any more — and it would land on somebody's dashboard looking exactly like
+this week's. `requireCurrentProject` is the guard, `isCurrentTerm` against
+`currentTerm()` is the test, and it is **exact equality**: a project stamped for
+a term that has not started is refused too, which is the same thing "current"
+means everywhere else on the site.
+
+Three things it deliberately does not do. It does not touch **editing, ticking
+or deleting** — a board that froze on the last day of term would strand every
+unticked row on it. It does not apply to a **task with no project**, which has
+no term to be out of. And it refuses **officers** as well: this is the calendar,
+not a permission.
+
+**The calendar opt-in is the member's, one at a time.**
+`task_assignees.on_calendar` rather than a column on the task, because two
+people share "CAD the chassis" and only one of them wants it in their week. An
+opted-in deadline appears on that member's `/api/me/events` as a generated
+`task:…` entry — the same convention project meetings use, and for the same
+reason: there is no row behind it, so nothing may offer to edit one. It reaches
+no other calendar and never the public one.
+
+**The bot asks about a deadline that has gone past.**
+`src/discord/taskReminder.ts` runs on the ten-minute timer and DMs everyone
+assigned to an unsettled task whose `dueAt` is more than
+`TASK_OVERDUE_GRACE_MINUTES` old — 30 by default, so a message lands 30 to 40
+minutes past the deadline. `TASK_OVERDUE_LOOKBACK_DAYS` is the floor that stops
+the first sweep after a deploy asking the club about last semester.
+
+Three properties of it are worth keeping:
+
+- **The claim is `tasks.reminded_for`**, holding the deadline the message named
+  — the same choice `equipment_loans.reminded_for` makes. It deduplicates across
+  instances and restarts, and re-arms itself when a lead moves the due date.
+- **Recipients are resolved before the claim**, so a briefly unreachable Discord
+  costs a task nothing: it stays a candidate and the next run tries again.
+- **One message per person, not per task.** Somebody who let three things slip
+  on the same evening has had one bad week, so the loop claims and the sending
+  happens afterwards, grouped. That is why `sent` in the report counts messages
+  while `claimed` counts tasks.
 
 List routes take `?limit=` (max 100) and `?offset=`.
 
@@ -467,6 +592,31 @@ is a plain `MEMBER` — sitting on the board is not a reason to hand somebody th
 print queue — so a role filter would both miss them and sweep up officers who
 hold no named seat. Unfilled seats are simply absent from the response — the site
 draws a card per seat and labels the empty ones itself.
+
+`/officers` and `/officers/past` are **one table split on one column**.
+`officer_terms` holds who sat on the board, in which seat, between which dates;
+an open term — `ended_at` null — is the board, and a closed one is the archive.
+There is no `users.officer_position` any more: a column on a person could only
+ever describe today, and it could not describe an admin who is also an officer
+at all, since `UserRole` has one slot with `ADMIN` above `OFFICER`.
+
+**How many seats there are is the database's answer.** `/officers` sends the
+`OfficerPosition` enum in declaration order alongside the sitting officers, so a
+seat added to the schema reaches the front page with no frontend change — the
+count used to be a list in `web/src/content/home.ts`. The same response carries
+officers holding *no* seat, which the sync creates the moment somebody gains the
+Discord role and which the old fixed board could not draw at all.
+
+A term carries the holder's name itself, because most past officers predate this
+site and have no account; where one does link a roster entry, the route falls
+back to that person's headshot and settles which of the two answered rather than
+leaving it to the browser. Both are unpaginated: eight seats a year against a
+fifty-year club is a list too long to scan, not one too long to send.
+
+Officer *seats* are set on `/api/officer/terms/seat`; officer *roles* come from
+Discord. Neither writes the other. `officer_terms.source` says which put a term
+there, and **the sync only ever closes what the sync opened** — which is what
+keeps the faculty advisor, who carries no Discord role at all, on the board.
 
 Email addresses and password hashes are never returned by the public API, and
 neither are users who aren't on the roster. Post authors expose only a name.
@@ -498,20 +648,22 @@ anywhere.
 
 Dues follow UCF's academic calendar, read from `calendar.ucf.edu` and cached for
 a day, with fixed fallback dates for when it cannot be reached — the club's dues
-year cannot depend on somebody else's uptime. `src/semester.ts` is the whole of
+year cannot depend on somebody else's uptime. `src/membership/semester.ts` is the whole of
 that logic and the rules it encodes:
 
 - **Access is `duesPaidThrough > now`, and nothing else.** The website, this
   API and the Discord bot all ask that one question.
-- **The free window runs from the end of one dues-bearing term to two weeks into
-  the next**, and it is *claimed*, not given. One press covers the gap, all of
-  Summer C, the next gap and the opening fortnight — May to September on one
+- **The free window runs from the end of one dues-bearing term to three weeks
+  into the next**, and it is *claimed*, not given. One press covers the gap, all
+  of Summer C, the next gap and the opening weeks — May to September on one
   claim. Summer is not special-cased; it is free because it sits inside this.
 - $25 covers the term it was bought against; $50 covers that term and the next
   dues-bearing one — fall then spring, or spring then fall.
-- **Past the halfway point of a term, a payment buys the next one**
-  (`purchasableTerm`). The rest of the current term comes along, because
-  coverage is one date running forward rather than a start and an end.
+- **A payment buys the term it is made in and ends with it** (`billableTerm`).
+  There is no rollover: dues paid in week eleven cover weeks eleven to sixteen,
+  not the term after. Between terms there is no current term to buy, so the
+  money goes to the one ahead — which is `currentTerm`'s ordinary behaviour
+  during a break rather than a rule of its own.
 
 Money is only ever credited from Stripe's own account of a payment, never from
 the browser. The webhook and `POST /api/dues/sync` both funnel into one
@@ -560,7 +712,7 @@ address is proved, so an abandoned signup leaves one row in
   equipment, batteries and conduct, so a checkbox nobody kept a record of would
   not have done its job. The text lives in the frontend, at
   `web/src/assets/sample_aknowledgement.txt`.
-- **The email is hand-built HTML** in `src/emails.ts`, themed like the site:
+- **The email is hand-built HTML** in `src/email/emails.ts`, themed like the site:
   tables and inline styles, because Outlook renders through Word. Link tracking
   is turned off explicitly — it would rewrite a token-bearing URL through a
   redirect on the one email asking someone to trust the link.
@@ -569,7 +721,7 @@ address is proved, so an abandoned signup leaves one row in
   development only; in production it refuses to start a signup at all, because
   an address nobody can confirm is an account nobody can finish.
 - **The Discord username is checked against the club's guild** by a bot, over
-  REST — see `src/discord.ts`. It matches `user.username` and never
+  REST — see `src/discord/discord.ts`. It matches `user.username` and never
   `global_name`, because typing the display name is the mistake nearly everyone
   makes. `DISCORD_BOT_TOKEN` and `DISCORD_GUILD_ID` are optional as a set; with
   them unset the handle is stored exactly as typed and the API says so at
@@ -578,7 +730,7 @@ address is proved, so an abandoned signup leaves one row in
   the two was taken. The account is created at the default `GUEST` role with no
   slug, which keeps it off the public roster until an officer promotes it.
 - **Nothing signs in yet.** The password is hashed with scrypt
-  (`src/password.ts`) and stored; there is still no login route to check it
+  (`src/auth/password.ts`) and stored; there is still no login route to check it
   against.
 
 ## Scaling
@@ -595,7 +747,7 @@ replicas never race on the migration table. Replicas publish onto the
 
 What makes more than one instance safe:
 
-- **Rate limit windows live in Postgres**, not process memory (`src/rateLimit.ts`).
+- **Rate limit windows live in Postgres**, not process memory (`src/core/rateLimit.ts`).
   Counting in memory would hand an abuser N times the allowance across N
   replicas and reset the count on every deploy. The counter is a single atomic
   upsert, so simultaneous requests can't lose an increment.
@@ -614,6 +766,17 @@ What makes more than one instance safe:
   in-flight requests, then closes the pool, so rolling deploys don't sever
   writes.
 
+The one thing that is *not* instance-safe, and is deliberately left that way:
+
+- **The lab sign serialises its Discord writes in process.** Two presses a
+  second apart on the same instance queue behind each other, which is what stops
+  them both finding no message and posting one each. Across instances there is
+  no such lock — the backstop is the ten-minute reconcile, which reads the
+  message back, corrects every row to whatever Discord ended up saying, and
+  deletes every message of the bot's that is not the sign. So a duplicate posted
+  by a second instance is cleared within a tick rather than living in the
+  channel; a distributed lock for a light switch is not a trade worth making.
+
 What is deliberately *not* built, because the row counts don't justify it: no
 Redis, no read replicas, no cursor pagination. Members, projects, and events
 stay in the hundreds for a club — `limit`/`offset` is fine there, and swapping
@@ -629,11 +792,61 @@ reaches tens of thousands of rows.
 | `prisma/schema.prisma`| Models                                                        |
 | `prisma/migrations/`  | Migration history — commit these                              |
 | `prisma.config.ts`    | Prisma 7 config; reads `DATABASE_URL` from `.env` via dotenv  |
-| `src/app.ts`          | Middleware chain and route mounting                           |
-| `src/env.ts`          | Validated env — the process refuses to start on a bad `.env`  |
-| `src/rateLimit.ts`    | Postgres-backed limiter shared by every instance              |
-| `src/db.ts`           | The shared `prisma` client — import this, never construct one |
 | `src/generated/prisma`| Generated client. Not committed; run `prisma generate`        |
+
+### `src/` — a folder per thing the club does
+
+Two files stay at the top because they are the way in: `index.ts` starts the
+process — the startup banner, the sweep timers, the Discord gateway — and
+`app.ts` is the middleware chain and the list of what is mounted where. Read
+`app.ts` first; it is the map, and the order it mounts things in is load-bearing.
+
+```
+src/
+├── index.ts          the process: listen, log what is configured, arm the sweeps
+├── app.ts            the middleware chain and every mount, in cache-boundary order
+├── core/             env.ts (validated `.env`), db.ts (the one Prisma client),
+│                     rateLimit.ts (the Postgres-backed limiter)
+├── auth/             session.ts (cookie + middleware), password.ts (hashing),
+│                     authz.ts (who may do what — see membership docs)
+├── discord/          discord.ts (the bot's HTTP surface), discordGateway.ts (the
+│                     WebSocket), discordRoles.ts, discordOfficers.ts,
+│                     discordRecipient.ts, officerNotify.ts
+├── email/            mail.ts (Postmark, optional), emails.ts (the HTML itself)
+├── lab/              labStatus.ts (the sign, the curfew, the sweep),
+│                     labInteraction.ts (what a button press means)
+├── membership/       semester.ts (UCF's terms), membershipSweep.ts, trialNotice.ts
+├── printing/         printAllowance.ts (the per-term balance), printSettings.ts
+├── equipment/        loanWindow.ts (how long a loan runs), equipmentReminder.ts
+├── projects/         meetings.ts (recurrence expanded), projectMeeting.ts,
+│                     projectTerm.ts
+├── files/            files.ts — stored bytes, and the rule about deleting them
+├── payments/         stripe.ts — the client, optional like the other two
+└── routes/           grouped by who is allowed to call them, below
+```
+
+`routes/` splits the same way `app.ts` mounts them, which is by audience rather
+than by feature — the cache boundary and the gates both follow that line, so a
+file's folder tells you what is already true when your handler runs:
+
+| Folder | Who reaches it | Files |
+| --- | --- | --- |
+| `routes/public/` | anybody, unauthenticated | `content.ts`, `forms.ts`, `files.ts`, `lab.ts` |
+| `routes/account/` | somebody managing their own row | `auth.ts`, `signup.ts`, `account.ts` |
+| `routes/member/` | a signed-in member, behind the gates | `me.ts`, `dues.ts`, `survey.ts`, `print.ts`, `equipment.ts` |
+| `routes/projects/` | project members and leads, per project | `projectManage.ts`, `tasks.ts`, `eventManage.ts` |
+| `routes/officer/` | the officer desks | `officer.ts`, `surveyAdmin.ts`, `heroSlides.ts`, `sponsorsAdmin.ts` |
+| `routes/webhooks/` | Stripe and Discord, verified by signature | `stripeWebhook.ts`, `discordInteractions.ts` |
+
+`routes/public/` is about *reachability*, not about writes: `lab.ts` is a public
+read with an officer-only `PATCH` on the same file, and it is mounted ahead of
+the cached block on purpose. See the comments in `app.ts`.
+
+**Tests sit beside what they test**, in the same folder — `authz.test.ts` next to
+`auth/authz.ts`. Vitest's default glob walks the tree, so a new folder needs no
+config change. **They run against the real development database**, so a new one
+namespaces its fixtures and deletes by that prefix; nothing here selects "all
+rows of a kind".
 
 ## Scripts
 
@@ -661,7 +874,7 @@ reaches tens of thousands of rows.
   `PGDATA` override to work around it; that writes to the container layer and the
   data is lost when the container is removed.
 - **Prisma 7 uses driver adapters.** There's no Rust query engine, so `PrismaClient`
-  is constructed with `PrismaPg`. See `src/db.ts`.
+  is constructed with `PrismaPg`. See `src/core/db.ts`.
 - The client generates into `src/generated/prisma`, so run `prisma generate` after
   pulling schema changes.
 - **Enum order is load-bearing for `UserRole`.** Postgres sorts an enum by

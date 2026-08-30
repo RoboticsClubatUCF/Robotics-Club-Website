@@ -1,11 +1,18 @@
+import { Link } from 'react-router'
 import { stats } from '../../content/home'
-import type { ApiStats } from '../../lib/api'
-import { useApi } from '../../lib/useApi'
+import type { ApiStats } from '../../lib/api/api'
+import { useApi } from '../../lib/api/useApi'
 
 /**
  * Full-bleed strip of headline numbers, each cell a link into the page it
  * counts. Three of the four come from `GET /api/stats`; the founding year is a
- * constant. None of the destination pages exist yet — see `src/pages/`.
+ * constant.
+ *
+ * **All four destinations exist now**, so the cells are `<Link>`s rather than
+ * plain anchors — the whole strip used to reload the document into a 404. Each
+ * count is deliberately the number of rows its page shows by default: `/stats`
+ * applies the same filters the listing routes apply, so the number you read
+ * here is the number you find when you land. Change one and change the other.
  *
  * Hand-rolled rather than DaisyUI's `stats`: that component is an `inline-grid`
  * with its own radius, dashed dividers and horizontal scroll, so using it here
@@ -19,9 +26,9 @@ export function StatStrip() {
   return (
     <section className="bg-rule border-rule grid grid-cols-2 gap-px border-y wide:grid-cols-4">
       {stats.map((stat) => (
-        <a
+        <Link
           key={stat.label}
-          href={stat.href}
+          to={stat.href}
           /* Only the first cell aligns to the page gutter; the rest are
              internal to the strip, which runs edge to edge. The focus ring is
              inset because the cell is flush with its neighbours — an outset one
@@ -53,7 +60,7 @@ export function StatStrip() {
           <div className="text-faint mt-2 font-mono text-[10px] font-medium tracking-[0.16em]">
             {stat.label}
           </div>
-        </a>
+        </Link>
       ))}
     </section>
   )

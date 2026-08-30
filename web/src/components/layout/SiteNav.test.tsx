@@ -8,8 +8,8 @@ import type { ReactNode } from 'react'
 import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SiteNav } from './SiteNav'
-import { navLinks } from '../../content/home'
-import { SessionProvider } from '../../lib/auth'
+import { pageLinks, sectionLinks } from '../../content/home'
+import { SessionProvider } from '../../lib/auth/auth'
 import { stubFetch } from '../../test/stubFetch'
 
 /**
@@ -44,12 +44,42 @@ const render = () => {
   })
 }
 
+/** The same bar with `/auth/me` answering, for the two signed-in assertions. */
+const renderSignedIn = () => {
+  vi.stubGlobal(
+    'fetch',
+    stubFetch({
+      '/auth/me': {
+        user: {
+          id: 'u1',
+          fullName: 'Rowan Test',
+          email: 'rowan@ucf.edu',
+          slug: null,
+          role: 'MEMBER',
+          discordUsername: null,
+        },
+      },
+    }),
+  )
+
+  return renderBare(<SiteNav />, {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <MemoryRouter>
+        <SessionProvider>{children}</SessionProvider>
+      </MemoryRouter>
+    ),
+  })
+}
+
 afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-/** The links the signed-out bar carries: the sections, then the way in. */
-const signedOutLinks = [...navLinks, { href: '/login', label: 'Sign in' }]
+/** The pages the signed-out bar carries: the project list, then the way in. */
+const signedOutPages = [...pageLinks, { href: '/login', label: 'Sign in' }]
+
+/** Both lists, in the order the bar puts them. */
+const signedOutLinks = [...sectionLinks, ...signedOutPages]
 
 const toggle = () => screen.getByRole('button', { name: /menu/i })
 
@@ -91,7 +121,7 @@ describe('SiteNav', () => {
    * link to a route replaces the page under it either way.
    */
   it('shuts itself when an anchor inside it is followed', () => {
-    const anchor = navLinks.find((link) => link.href.includes('#'))
+    const anchor = sectionLinks.find((link) => link.href.includes('#'))
     expect(anchor).toBeDefined()
 
     render()
@@ -121,8 +151,41 @@ describe('SiteNav', () => {
   })
 
   /**
-   * The way in has to be reachable on a phone too. It sits with the section
-   * links rather than becoming a second button beside the gold one: the bar is
+   * The links are two lists, not one: the left half scrolls the front page and
+   * the right half leaves it. The rule between them says so to anybody looking
+   * at the bar, and is `aria-hidden` — "vertical line" read out between two
+   * lists says nothing — so the labels are what carry it to everybody else.
+   * Lose those and the split becomes decoration.
+   */
+  it('splits the links into the sections of this page and the pages', () => {
+    render()
+
+    for (const label of ['Sections of this page', 'Other pages']) {
+      // One in the wide row, one in the panel. jsdom applies no CSS, so both
+      // are in the tree here; in a browser `display: none` leaves exactly one.
+      expect(screen.getAllByRole('list', { name: label }), label).toHaveLength(2)
+    }
+
+    const [sections] = screen.getAllByRole('list', {
+      name: 'Sections of this page',
+    })
+    expect(
+      within(sections!)
+        .getAllByRole('link')
+        .map((link) => link.textContent),
+    ).toEqual(sectionLinks.map((link) => link.label))
+
+    const [pages] = screen.getAllByRole('list', { name: 'Other pages' })
+    expect(
+      within(pages!)
+        .getAllByRole('link')
+        .map((link) => link.textContent),
+    ).toEqual(signedOutPages.map((link) => link.label))
+  })
+
+  /**
+   * The way in has to be reachable on a phone too. It sits with the pages
+   * rather than becoming a second button beside the gold one: the bar is
    * already three things wide at 320px, and two buttons means no primary
    * action.
    */
@@ -152,7 +215,8 @@ describe('SiteNav', () => {
   })
 
   /**
-   * Signed in, that button is an avatar instead.
+   * Signed in, that button is an avatar instead, and the last page link becomes
+   * the way to the section rather than the way in.
    *
    * At that point the bar's job is "who am I, and how do I get to my things",
    * and spelling it out as MY DASHBOARD was the widest possible way to say it.
@@ -160,34 +224,50 @@ describe('SiteNav', () => {
    * the destination, and "RT" read out on its own tells nobody anything.
    */
   it('becomes an avatar once somebody is signed in', async () => {
-    vi.stubGlobal(
-      'fetch',
-      stubFetch({
-        '/auth/me': {
-          user: {
-            id: 'u1',
-            fullName: 'Rowan Test',
-            email: 'rowan@ucf.edu',
-            slug: null,
-            role: 'MEMBER',
-            discordUsername: null,
-          },
-        },
-      }),
-    )
-
-    renderBare(<SiteNav />, {
-      wrapper: ({ children }: { children: ReactNode }) => (
-        <MemoryRouter>
-          <SessionProvider>{children}</SessionProvider>
-        </MemoryRouter>
-      ),
-    })
+    renderSignedIn()
 
     const account = await screen.findByRole('link', { name: /your account/i })
     expect(account).toHaveAttribute('href', '/dashboard/profile')
     expect(account).toHaveTextContent('RT')
     expect(screen.queryByText(/my dashboard/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /^join/i })).not.toBeInTheDocument()
+  })
+
+  /**
+   * "Dashboard" takes the slot "Sign in" had — last of the pages, immediately
+   * before the avatar — because it is the link that slot is for: the one route
+   * this visitor can reach that the bar does not otherwise offer. It points at
+   * the section, not at the avatar's own page.
+   *
+   * Signed out it is absent rather than pointing somewhere: `/dashboard`
+   * redirects to `/login`, which is what the link already sitting there says.
+   */
+  it('swaps the way in for the way to the dashboard once signed in', async () => {
+    renderSignedIn()
+
+    // The wide row and the phone panel, as with every other link on the bar.
+    const dashboard = await screen.findAllByRole('link', { name: 'Dashboard' })
+    expect(dashboard).toHaveLength(2)
+    for (const link of dashboard) expect(link).toHaveAttribute('href', '/dashboard')
+
+    // Last of the pages, so the rule still separates the two kinds of link and
+    // the avatar still follows the list.
+    const [pages] = screen.getAllByRole('list', { name: 'Other pages' })
+    expect(
+      within(pages!)
+        .getAllByRole('link')
+        .map((link) => link.textContent),
+    ).toEqual([...pageLinks.map((link) => link.label), 'Dashboard'])
+    expect(screen.queryByRole('link', { name: 'Sign in' })).not.toBeInTheDocument()
+  })
+
+  it('offers no dashboard link while nobody is signed in', () => {
+    // `/dashboard` would redirect to `/login`, which is what the link already
+    // sitting in that slot says.
+    render()
+
+    expect(
+      screen.queryByRole('link', { name: 'Dashboard' }),
+    ).not.toBeInTheDocument()
   })
 })

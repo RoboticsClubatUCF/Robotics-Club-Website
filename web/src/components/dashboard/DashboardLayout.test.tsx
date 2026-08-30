@@ -1,9 +1,9 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DashboardLayout } from './DashboardLayout'
-import { SessionProvider } from '../../lib/auth'
-import type { ApiMembership, ApiMyProject, ApiTerm, ApiUser } from '../../lib/api'
+import { SessionProvider } from '../../lib/auth/auth'
+import type { ApiMembership, ApiMyProject, ApiTerm, ApiUser } from '../../lib/api/api'
 import { stubFetch, stubFetchNetworkError } from '../../test/stubFetch'
 
 /**
@@ -21,6 +21,10 @@ const user = (over: Partial<ApiUser> = {}): ApiUser => ({
   slug: null,
   role: 'MEMBER',
   discordUsername: null,
+  photoUrl: null,
+  photoFocalX: 50,
+  photoFocalY: 50,
+  photoZoom: 1,
   ...over,
 })
 
@@ -44,6 +48,7 @@ const duesStatus = (over: Partial<ApiMembership> = {}) => ({
     billable: term,
     freeActive: false,
     canActivate: false,
+    surveyRequired: false,
     ...over,
   },
   plans: [],
@@ -89,9 +94,11 @@ const myProject = (over: Partial<ApiMyProject> = {}): ApiMyProject => ({
     featured: false,
     startedAt: null,
     completedAt: null,
-    meetingWeekday: null,
-    meetingTime: null,
+    meetingWeekdays: [],
+    meetingStartTime: null,
+    meetingEndTime: null,
     meetingLocation: null,
+    meetingsPublic: true,
   discordRoleId: null,
   },
   ...over,
@@ -454,7 +461,7 @@ describe('when dues lapse', () => {
    * The stricter gate, and the case it exists for.
    *
    * `hasAccess: true` here — over the summer, between terms and inside the
-   * trial fortnight the server says everybody is covered, because that is what
+   * opening weeks the server says everybody is covered, because that is what
    * makes those free. Standing alone would therefore hand the printers and the
    * loan shelf to an account made ten minutes ago, so the two rows that spend
    * club money ask for a member as well.
@@ -477,6 +484,7 @@ describe('when dues lapse', () => {
           hasAccess: false,
           paidThrough: null,
           canActivate: true,
+          surveyRequired: false,
         }),
       ),
     )
@@ -509,6 +517,7 @@ describe('when dues lapse', () => {
           hasAccess: false,
           paidThrough: null,
           canActivate: true,
+          surveyRequired: false,
         }),
       ),
     )
@@ -534,6 +543,7 @@ describe('when dues lapse', () => {
           duesRequired: true,
           paidThrough: null,
           canActivate: false,
+          surveyRequired: false,
         }),
       ),
     )
@@ -590,5 +600,215 @@ describe('when dues lapse', () => {
     expect(screen.getByRole('link', { name: 'PRINT QUEUE' })).toBeInTheDocument()
     expect(screen.queryByText('LOCKED')).not.toBeInTheDocument()
     consoleError.mockRestore()
+  })
+})
+
+/**
+ * The survey lock, which is the one that inverts a rule the rest of this file
+ * is built on.
+ *
+ * Every other lock leaves `/dashboard/dues` open, because that is where each of
+ * them sends people. The survey sits in front of dues on the server, so while
+ * it is owed the dues row is a padlock too and `/dashboard/survey` is the one
+ * page nothing can shut. If a future change re-opens DUES & PAYMENTS here, the
+ * link goes to a page that answers 403 and nothing on screen says why.
+ */
+describe('when the survey is owed', () => {
+  const owed = duesStatus({ surveyRequired: true })
+
+  const withSurvey = (role: ApiUser['role'] = 'MEMBER', dues: unknown = owed) =>
+    stubFetch({
+      '/auth/me': { user: user({ role }) },
+      '/dues/status': dues,
+      '/me/projects': [myProject({ rank: 'PROJECT_LEAD' })],
+    })
+
+  it('locks the dues row and offers the survey instead', async () => {
+    vi.stubGlobal('fetch', withSurvey())
+
+    renderDashboard()
+
+    await screen.findAllByText('LOCKED')
+
+    // Still listed, so the rail does not appear to have lost a row...
+    expect(screen.getByText('DUES & PAYMENTS')).toBeInTheDocument()
+    // ...and no longer a way in, because the server would refuse it.
+    expect(
+      screen.queryByRole('link', { name: 'DUES & PAYMENTS' }),
+    ).not.toBeInTheDocument()
+
+    expect(
+      screen.getByRole('link', { name: 'MEMBER SURVEY' }),
+    ).toHaveAttribute('href', '/dashboard/survey')
+  })
+
+  it('locks everything else with it', async () => {
+    vi.stubGlobal('fetch', withSurvey('OFFICER'))
+
+    renderDashboard()
+
+    await screen.findAllByText('LOCKED')
+
+    for (const label of ['3D PRINTING', 'EQUIPMENT', 'PRINT QUEUE', 'SURVEY']) {
+      expect(
+        screen.queryByRole('link', { name: label }),
+      ).not.toBeInTheDocument()
+    }
+
+    // Their own projects stay, exactly as they do when dues lapse.
+    expect(screen.getByRole('link', { name: 'ROVER' })).toBeInTheDocument()
+  })
+
+  /**
+   * The rail's note is the only thing on screen naming the way through once the
+   * dialog over the top of it has been dismissed, so it is not optional.
+   */
+  it('says why, with a link', async () => {
+    vi.stubGlobal('fetch', withSurvey())
+
+    renderDashboard()
+
+    expect(
+      await screen.findByRole('link', { name: 'FILL IN THE SURVEY' }),
+    ).toHaveAttribute('href', '/dashboard/survey')
+  })
+
+  /**
+   * The row disappears once it is answered — a permanent rail entry for a thing
+   * you do once is dead weight in a list somebody opens daily. The way back to
+   * the answers afterwards is the overview's panel.
+   */
+  it('drops the row once it has been answered', async () => {
+    vi.stubGlobal('fetch', withSurvey('MEMBER', duesStatus()))
+
+    renderDashboard()
+
+    expect(
+      await screen.findByRole('link', { name: 'DUES & PAYMENTS' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: 'MEMBER SURVEY' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('does not lock an admin out of anything', async () => {
+    vi.stubGlobal('fetch', withSurvey('ADMIN'))
+
+    renderDashboard()
+
+    expect(
+      await screen.findByRole('link', { name: 'DUES & PAYMENTS' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('LOCKED')).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * The prompt over the top of it.
+ *
+ * It prompts and does not gate — the locks and the server do that — which is
+ * why it can be dismissed at all. What it must not do is cover the profile
+ * page, because signing out lives there and a prompt with no way past it on
+ * that one route is the version of this that strands somebody.
+ */
+describe('the survey prompt', () => {
+  const renderAt = (path: string) =>
+    render(
+      <MemoryRouter initialEntries={[path]}>
+        <SessionProvider>
+          <Routes>
+            <Route path="/login" element={<p>the login page</p>} />
+            <Route path="/dashboard" element={<DashboardLayout />}>
+              <Route index element={<p>overview marker</p>} />
+              <Route path="survey" element={<p>survey marker</p>} />
+              <Route path="profile" element={<p>profile marker</p>} />
+            </Route>
+          </Routes>
+        </SessionProvider>
+      </MemoryRouter>,
+    )
+
+  const owing = stubFetch({
+    '/auth/me': { user: user() },
+    '/dues/status': duesStatus({ surveyRequired: true }),
+    '/me/projects': [],
+  })
+
+  it('goes up over the overview', async () => {
+    vi.stubGlobal('fetch', owing)
+
+    renderAt('/dashboard')
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'FILL IT IN' }),
+    ).toHaveAttribute('href', '/dashboard/survey')
+  })
+
+  it('stays out of the way on the survey page itself', async () => {
+    vi.stubGlobal('fetch', owing)
+
+    renderAt('/dashboard/survey')
+
+    expect(await screen.findByText('survey marker')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  /** Because signing out is on that page, and this must never sit over it. */
+  it('stays out of the way on the profile page', async () => {
+    vi.stubGlobal('fetch', owing)
+
+    renderAt('/dashboard/profile')
+
+    expect(await screen.findByText('profile marker')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('can be dismissed, and dismissing it unlocks nothing', async () => {
+    vi.stubGlobal('fetch', owing)
+
+    renderAt('/dashboard')
+
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'LATER' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    // The rail is still shut, which is the half that actually enforces.
+    expect(
+      screen.queryByRole('link', { name: 'DUES & PAYMENTS' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('never appears for an admin', async () => {
+    vi.stubGlobal(
+      'fetch',
+      stubFetch({
+        '/auth/me': { user: user({ role: 'ADMIN' }) },
+        '/dues/status': duesStatus({ surveyRequired: true }),
+        '/me/projects': [],
+      }),
+    )
+
+    renderAt('/dashboard')
+
+    expect(await screen.findByText('overview marker')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  /** Nothing flashes at somebody while their standing is still on the wire. */
+  it('waits for the membership before appearing', async () => {
+    vi.stubGlobal(
+      'fetch',
+      stubFetch({
+        '/auth/me': { user: user() },
+        '/dues/status': duesStatus(),
+        '/me/projects': [],
+      }),
+    )
+
+    renderAt('/dashboard')
+
+    await screen.findByText('overview marker')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 })

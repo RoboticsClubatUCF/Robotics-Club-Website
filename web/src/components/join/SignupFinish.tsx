@@ -1,9 +1,9 @@
 import { useId, useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
-import { ApiError, postJson, type ApiSignupCreated } from '../../lib/api'
+import { ApiError, postJson, type ApiSignupCreated } from '../../lib/api/api'
 import { socialLinks } from '../../content/home'
 import { AcknowledgementDialog } from './AcknowledgementDialog'
-import { DiscordUsernameField } from './DiscordUsernameField'
+import { DiscordUsernameField } from '../shared/DiscordUsernameField'
 import {
   FormEyebrow,
   FormHeading,
@@ -129,7 +129,7 @@ export function SignupFinish({
       <FormHeading>Finish setting up your account.</FormHeading>
 
       <p className="text-dim mb-7 text-sm leading-[1.7] text-pretty">
-        Confirmed for <strong className="text-white">{email}</strong>. A couple
+        Confirmed for <strong className="text-base-content">{email}</strong>. A couple
         more things and you are on the roster.
       </p>
 
@@ -190,8 +190,7 @@ export function SignupFinish({
             id={`${id}-password-help`}
             className="text-faint mt-1.5 text-[13px] leading-[1.5]"
           >
-            At least {PASSWORD_MIN} characters. A few words you will remember
-            beats a short one you won't.
+            At least {PASSWORD_MIN} characters.
           </p>
         </div>
 
@@ -216,15 +215,20 @@ export function SignupFinish({
             Make sure you are in the club Discord!
           </p>
           <p className="text-dim mb-5 text-sm leading-[1.7] text-pretty">
-            It is where meeting times, project sign-ups and everything else
-            actually happen. Scan this to join, then give us the username of the
-            account you joined with.
+            Scan to join, then give us the username you joined with.
           </p>
 
           {/* On white, with a margin of it. A QR code needs light modules on a
               dark-enough background and a quiet zone around the outside — on
-              the page's near-black it is a decoration that no phone will read. */}
-          <div className="mb-5 inline-block bg-white p-3">
+              the page's near-black it is a decoration that no phone will read.
+
+              **Literal white in both themes, deliberately.** This is not the
+              page's surface, it is the code's own quiet zone, and a scanner
+              cares about the contrast between the modules and their margin
+              rather than about our palette. It keeps a rule in light mode
+              because an off-white page under a pure-white card otherwise leaves
+              the quiet zone with no edge to it. */}
+          <div className="border-rule mb-5 inline-block border bg-white p-3">
             <img
               src={qrCodeUrl}
               alt="QR code linking to the Robotics Club of Central Florida Discord invite"
@@ -272,8 +276,7 @@ export function SignupFinish({
               htmlFor={`${id}-acknowledgement`}
               className="cursor-pointer"
             >
-              I have read and agree to the RCCF member acknowledgement — the
-              club's safety, equipment, conduct and dues rules.
+              I have read and agree to the RCCF member acknowledgement.
             </label>{' '}
             <button
               type="button"

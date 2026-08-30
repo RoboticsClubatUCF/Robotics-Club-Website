@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { ConfirmDialog } from './ConfirmDialog'
-import { deleteJson } from '../../lib/api'
-import type { ProjectMemberRank } from '../../lib/api'
-import { explainApiError } from '../../lib/apiErrors'
+import { deleteJson } from '../../lib/api/api'
+import type { ProjectMemberRank } from '../../lib/api/api'
+import { explainApiError } from '../../lib/api/apiErrors'
 
 /**
  * Leaving a project, with the consequences said out loud first.
@@ -101,9 +101,8 @@ export function LeaveProjectButton({
               </p>
               {rank === 'PROJECT_LEAD' && (
                 <p>
-                  This project would be left with <strong>no lead</strong>. The
-                  officers are told when that happens, so they can appoint one —
-                  until they do, only an officer can run it.
+                  This project would be left with <strong>no lead</strong>, and
+                  only an officer could run it until one is appointed.
                 </p>
               )}
               <p>
@@ -114,11 +113,9 @@ export function LeaveProjectButton({
           ) : (
             <>
               <p>
-                You'd come off this project's roster, and off any team inside it.
-              </p>
-              <p>
-                Your standing in the club doesn't change, and you can join again
-                while the project is taking people.
+                You'd come off this project's roster, and off any team inside
+                it. Your standing in the club doesn't change, and you can join
+                again while the project is taking people.
               </p>
             </>
           )}

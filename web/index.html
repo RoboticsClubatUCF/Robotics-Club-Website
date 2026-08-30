@@ -4,15 +4,68 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- The site ships one dark theme, so say so before first paint: this is
-         what keeps the browser from flashing white chrome and scrollbars. -->
-    <meta name="color-scheme" content="dark" />
+    <!-- The site ships two themes now, so say so: this is what stops the
+         browser painting light chrome and scrollbars around a dark page, or the
+         other way round, before the stylesheet lands. Each theme block in
+         `index.css` also declares its own `color-scheme`, which takes over the
+         moment `data-theme` is on the element — a line below sees to that
+         before anything is painted at all. -->
+    <meta name="color-scheme" content="dark light" />
+    <!-- Overwritten by `applyTheme` in `src/lib/theme.ts` on every change. The
+         value here is the dark page, because dark is what an unanswered
+         question resolves to everywhere in this feature. -->
     <meta name="theme-color" content="#0b0b0b" />
     <title>Robotics Club of Central Florida</title>
     <meta
       name="description"
       content="Five competition teams at UCF building Mars rovers, electric boats, sumo bots and more. Meetings are open — no experience required."
     />
+    <!--
+      The theme, settled before the first paint.
+
+      This has to be an inline, blocking script in the head, and it has to be
+      here rather than in `src/`: a module is fetched, and by the time it runs
+      the browser has already painted a dark page at somebody who asked for a
+      light one. That flash is the whole reason this exists.
+
+      **It is a hand-kept mirror of `src/lib/theme.ts`** — the storage key, the
+      two theme names, and the order the two sources are consulted in (a stored
+      choice first, the operating system second, dark if neither answers).
+      `src/lib/theme.test.ts` reads this file and pins the pair against each
+      other, because nothing else can: a typo here is invisible until somebody
+      with light mode on loads the site and sees it blink.
+
+      Wrapped in try/catch for the same reason the module is: a browser set to
+      block site data throws on `localStorage` access rather than answering
+      empty, and a theme preference is not worth a blank page.
+    -->
+    <script>
+      ;(function () {
+        var theme
+        try {
+          var stored = localStorage.getItem('rccf-theme')
+          if (stored === 'rccf' || stored === 'rccf-light') theme = stored
+        } catch (error) {
+          /* Storage is unreadable; fall through to the system. */
+        }
+
+        if (!theme) {
+          theme =
+            typeof matchMedia === 'function' &&
+            matchMedia('(prefers-color-scheme: dark)').matches === false
+              ? 'rccf-light'
+              : 'rccf'
+        }
+
+        document.documentElement.dataset.theme = theme
+
+        if (theme === 'rccf-light') {
+          document
+            .querySelector('meta[name="theme-color"]')
+            .setAttribute('content', '#fbfaf8')
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

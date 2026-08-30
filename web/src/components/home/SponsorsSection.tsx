@@ -1,7 +1,9 @@
 import type { CSSProperties } from 'react'
-import type { ApiSponsor, SponsorTier } from '../../lib/api'
-import { imageSrc } from '../../lib/storedFiles'
-import { useApi } from '../../lib/useApi'
+import { Link } from 'react-router'
+import type { ApiSponsor } from '../../lib/api/api'
+import { tierLabel } from '../../lib/sponsorship'
+import { imageSrc } from '../../lib/media/storedFiles'
+import { useApi } from '../../lib/api/useApi'
 
 /**
  * The club's top sponsors, on a strip that scrolls itself.
@@ -39,9 +41,6 @@ const cardClass =
  */
 const itemClass = 'border-rule flex w-[min(20rem,82vw)] shrink-0 border-r'
 
-/** The wire format is the enum name; nobody wants to read the underscore. */
-const tierLabel = (tier: SponsorTier) => tier.replace(/_/g, ' ')
-
 export function SponsorsSection() {
   const sponsors = useApi<ApiSponsor[]>(`/sponsors?limit=${LIMIT}`)
 
@@ -56,12 +55,14 @@ export function SponsorsSection() {
         <h2 className="text-faint font-mono text-[13px] font-bold tracking-[0.2em]">
           / OUR SPONSORS
         </h2>
-        <a
-          href="/sponsors"
+        {/* A real `<Link>` since `/sponsors` became a page — the tiers and the
+            rest of the list are both there. */}
+        <Link
+          to="/sponsors"
           className="text-primary border-primary/40 hover:border-primary border-b pb-0.5 text-xs font-medium transition-colors duration-200"
         >
           Sponsor us
-        </a>
+        </Link>
       </div>
 
       {sponsors.status === 'loading' && <SponsorsSkeleton />}

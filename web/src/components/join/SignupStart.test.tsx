@@ -134,7 +134,7 @@ describe('SignupStart', () => {
     await send()
 
     expect(screen.getByText(/check your spam folder/i)).toBeInTheDocument()
-    expect(screen.getByText(/junk or spam/i)).toBeInTheDocument()
+    expect(screen.getByText(/files our first email as junk/i)).toBeInTheDocument()
   })
 
   /**
@@ -149,7 +149,7 @@ describe('SignupStart', () => {
     await send()
 
     expect(screen.getByText(/you can close this tab/i)).toBeInTheDocument()
-    expect(screen.getByText(/link in your email/i)).toBeInTheDocument()
+    expect(screen.getByText(/carry on from the link/i)).toBeInTheDocument()
   })
 
   /** Someone with several UCF addresses needs to know which one it went to. */

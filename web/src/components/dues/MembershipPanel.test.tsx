@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { MembershipPanel } from './MembershipPanel'
-import type { ApiMembership, ApiTerm, MembershipStatus } from '../../lib/api'
+import type { ApiMembership, ApiTerm, MembershipStatus } from '../../lib/api/api'
 
 /**
  * The four states a member can be in, and the fact that they are four rather
@@ -42,6 +42,7 @@ function membership(over: Partial<ApiMembership> = {}): ApiMembership {
     billable: fall,
     freeActive: false,
     canActivate: false,
+    surveyRequired: false,
     ...over,
   }
 }
@@ -86,8 +87,8 @@ describe('MembershipPanel', () => {
       // It used to be null here, back when claiming only moved somebody to the
       // first day of the term and the blanket trial covered the rest; a
       // fixture with no date is a state that can no longer occur.
-      paidThrough: '2026-09-07T04:00:00.000Z',
-      freeThrough: '2026-09-07T04:00:00.000Z',
+      paidThrough: '2026-09-14T04:00:00.000Z',
+      freeThrough: '2026-09-14T04:00:00.000Z',
       term: summer,
       freeActive: true,
     })
@@ -96,7 +97,7 @@ describe('MembershipPanel', () => {
     expect(screen.getByText(/your membership is active/i)).toBeInTheDocument()
     expect(screen.queryByText(/your dues are paid/i)).not.toBeInTheDocument()
     // And it still names the date the free run ends, like every other state.
-    expect(screen.getByText(/September 7/)).toBeInTheDocument()
+    expect(screen.getByText(/September 14/)).toBeInTheDocument()
   })
 
   /**
@@ -115,9 +116,10 @@ describe('MembershipPanel', () => {
       hasAccess: false,
       duesRequired: false,
       canActivate: true,
+      surveyRequired: false,
       term: summer,
       billable: fall,
-      freeThrough: '2026-09-07T04:00:00.000Z',
+      freeThrough: '2026-09-14T04:00:00.000Z',
     })
 
     // The chip and the lead line deliberately say the same thing, so this asks
@@ -143,19 +145,20 @@ describe('MembershipPanel', () => {
       hasAccess: false,
       duesRequired: false,
       canActivate: true,
+      surveyRequired: false,
       term: summer,
       billable: fall,
-      // Fourteen days from 24 August, and six days after the pinned "now".
-      freeThrough: '2026-09-07T04:00:00.000Z',
+      // Twenty-one days from 24 August, and thirteen days after the pinned "now".
+      freeThrough: '2026-09-14T04:00:00.000Z',
     })
 
-    expect(screen.getByText(/in 6 days/)).toBeInTheDocument()
-    expect(screen.getByText(/September 7/)).toBeInTheDocument()
+    expect(screen.getByText(/in 13 days/)).toBeInTheDocument()
+    expect(screen.getByText(/September 14/)).toBeInTheDocument()
   })
 
   /**
    * The chip is the shortest thing on the panel and the most likely to be read
-   * alone. It said "FREE UNTIL 7 September", which is a sentence about cover
+   * alone. It said "FREE UNTIL 14 September", which is a sentence about cover
    * somebody holds — and in this state they hold none. A deadline, not cover.
    */
   it('gives the free state a deadline rather than a run of cover', () => {
@@ -164,9 +167,10 @@ describe('MembershipPanel', () => {
       hasAccess: false,
       duesRequired: false,
       canActivate: true,
+      surveyRequired: false,
       term: summer,
       billable: fall,
-      freeThrough: '2026-09-07T04:00:00.000Z',
+      freeThrough: '2026-09-14T04:00:00.000Z',
     })
 
     expect(screen.getByText(/^CLAIM BY /)).toBeInTheDocument()

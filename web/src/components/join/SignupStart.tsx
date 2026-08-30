@@ -1,5 +1,5 @@
 import { useEffect, useId, useState, type FormEvent } from 'react'
-import { ApiError, postJson, type ApiSignupStarted } from '../../lib/api'
+import { ApiError, postJson, type ApiSignupStarted } from '../../lib/api/api'
 import {
   FormEyebrow,
   FormHeading,
@@ -145,7 +145,7 @@ export function SignupStart() {
         <FormHeading>Confirm your address.</FormHeading>
 
         <p className="text-dim mb-6 text-sm leading-[1.7] text-pretty">
-          We sent a link to <strong className="text-white">{state.email}</strong>
+          We sent a link to <strong className="text-base-content">{state.email}</strong>
           . Open it and you can finish setting up your account. It is good for{' '}
           {readableExpiry(state.expiresInMinutes)}.
         </p>
@@ -159,9 +159,8 @@ export function SignupStart() {
             Not there? Check your spam folder.
           </p>
           <p className="text-dim text-sm leading-[1.7] text-pretty">
-            UCF's filter often files a first email from us as junk or spam. Give
-            it a minute or two, then look there before asking for another link —
-            and mark it as not spam so the rest of ours reach you.
+            UCF's filter often files our first email as junk. Mark it as not
+            spam so the rest reach you.
           </p>
         </FormPanel>
 
@@ -170,9 +169,7 @@ export function SignupStart() {
             signup hangs off the token in the link, which is what lets them
             finish on their phone after starting on a laptop. */}
         <p className="text-dim mt-6 text-sm leading-[1.7] text-pretty">
-          You can close this tab — nothing more happens here. Carry on from the
-          link in your email to finish setting up your account, on this device
-          or any other.
+          You can close this tab — carry on from the link, on any device.
         </p>
 
         <button
@@ -210,12 +207,32 @@ export function SignupStart() {
           You need to be a current UCF student.
         </p>
         <p className="text-dim text-sm leading-[1.7] text-pretty">
-          Membership is open to currently enrolled UCF students, so signing up
-          takes a working <strong className="text-white">{STUDENT_DOMAIN}</strong>{' '}
-          address that you can open right now — we send a link there to confirm
-          it is yours, and there is no way past that step.
+          Signing up takes a working{' '}
+          <strong className="text-base-content">{STUDENT_DOMAIN}</strong> address you
+          can open right now — we send a confirmation link there.
         </p>
       </FormPanel>
+
+      {/* Directly under the requirement, because this is the line somebody
+          reads the moment they find out it rules them out — a page that says
+          "students only" and stops is a dead end for every school team, mentor
+          and volunteer who came here wanting to build something.
+
+          A plain `<a>`, not a `<Link>`: the target is a section of the front
+          page, and a router navigation would take the hash over and then not
+          scroll to it. Written `/#partners` rather than `#partners` for the
+          same reason the nav's links are — a bare fragment on this route
+          scrolls to nothing. */}
+      <p className="text-faint mt-4 text-[13px] leading-[1.6] text-pretty">
+        Not a UCF student? There are still ways in —{' '}
+        <a
+          href="/#partners"
+          className="text-primary underline decoration-transparent underline-offset-4 transition-[text-decoration-color] duration-200 hover:decoration-current"
+        >
+          see the programs we partner with
+        </a>
+        .
+      </p>
 
       <form onSubmit={send} className="mt-7 flex flex-col gap-5">
         <div>
@@ -252,8 +269,7 @@ export function SignupStart() {
             className="checkbox checkbox-sm border-rule checked:border-primary checked:bg-primary checked:text-primary-content mt-0.5 shrink-0"
           />
           <span className="text-dim text-sm leading-[1.6] text-pretty">
-            I understand — I am a current UCF student and I can read email at
-            the address above.
+            I am a current UCF student and can read email at this address.
           </span>
         </label>
 

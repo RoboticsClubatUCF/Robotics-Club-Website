@@ -1,51 +1,35 @@
 import { render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DashboardCalendar } from './DashboardCalendar'
-import type { ApiMeEvent, ApiMyProject } from '../../lib/api'
-import { stubFetch, urlOf } from '../../test/stubFetch'
+import type { ApiMeEvent, ApiMeetingSeries } from '../../lib/api/api'
+import { stubFetch, stubFetchStatus, urlOf } from '../../test/stubFetch'
 
 /**
- * Pinned to the same fixed "now" the public calendar's suite uses — Wednesday
- * 12 August 2026 — because the thing under test is weekday arithmetic: a
- * Thursday-meeting project must put a chip on every Thursday of the shown
- * month and nowhere else. A test reading the real clock would drift.
+ * Pinned to a fixed "now" — Wednesday 12 August 2026 — the same one the public
+ * calendar's suite uses, because everything here is about which square a thing
+ * lands on and a test reading the real clock would drift.
+ *
+ * **This suite used to prove the weekday arithmetic**: the component expanded
+ * `meetingWeekday` into a chip per matching Thursday, and the test walked
+ * August's Thursdays. That expansion has moved to `server/src/projects/meetings.ts`,
+ * where it can see the term's end and finals week, and is covered by
+ * `server/src/projects/meetings.test.ts`. What is left to prove here is what the
+ * component still does: ask the right endpoint, and draw whatever comes back —
+ * meetings and stored events alike, with no idea which is which.
  */
 const NOW = new Date(2026, 7, 12, 9, 0)
 
-/** August 2026's Thursdays. */
-const THURSDAYS = [6, 13, 20, 27]
-
-const membership = (over: Partial<ApiMyProject['project']> = {}): ApiMyProject => ({
-  rank: 'MEMBER',
-  title: null,
-  team: null,
-  // The dashboard splits MY PROJECTS on this, so every fixture has to say
-  // which side it is on.
-  current: true,
-  project: {
-    id: 'p1',
-    slug: 'rover',
-    title: 'Rover',
-    summary: null,
-    season: null,
-    // Every project carries the term it is built for, and the dashboard
-    // splits on it. Pinned rather than left to today's date.
-    termYear: 2035,
-    termSeason: 'FALL',
-    competition: null,
-    status: 'IN_PROGRESS',
-    coverUrl: null,
-    repoUrl: null,
-    featured: false,
-    startedAt: null,
-    completedAt: null,
-    meetingWeekday: 4,
-    meetingTime: '18:30',
-    meetingLocation: 'ENG2 Lab',
-    discordRoleId: null,
-    ...over,
-  },
-})
+const series: ApiMeetingSeries = {
+  projectSlug: 'rover',
+  projectTitle: 'Rover',
+  weekdays: [2, 4],
+  startTime: '18:00',
+  endTime: '22:00',
+  location: 'ENG2 Lab',
+  untilDate: new Date(2026, 11, 13, 23, 59).toISOString(),
+  skip: null,
+  skipDates: [],
+}
 
 const meEvent = (over: Partial<ApiMeEvent> = {}): ApiMeEvent => ({
   id: 'e1',
@@ -66,6 +50,19 @@ const meEvent = (over: Partial<ApiMeEvent> = {}): ApiMeEvent => ({
   team: null,
   ...over,
 })
+
+/** A generated meeting, shaped the way the server sends one. */
+const meeting = (day: number): ApiMeEvent =>
+  meEvent({
+    id: `meeting:p1:${new Date(2026, 7, day, 18, 0).toISOString()}`,
+    slug: 'rover',
+    title: 'Rover meeting',
+    location: 'ENG2 Lab',
+    startsAt: new Date(2026, 7, day, 18, 0).toISOString(),
+    endsAt: new Date(2026, 7, day, 22, 0).toISOString(),
+    published: true,
+    meeting: series,
+  })
 
 const cellFor = (day: number) =>
   screen.getByText(String(day), { selector: 'td span' }).closest('td')!
@@ -89,62 +86,60 @@ describe('DashboardCalendar', () => {
     const fetchStub = stubFetch({ '/me/events': [] })
     vi.stubGlobal('fetch', fetchStub)
 
-    render(
-      <DashboardCalendar
-        projects={{ status: 'ready', data: [membership()] }}
-      />,
-    )
+    render(<DashboardCalendar />)
     await screen.findByRole('heading', { name: 'August 2026' })
 
     expect(urlOf(fetchStub.mock.calls[0]![0])).toContain('/me/events')
   })
 
-  it('paints the weekly meeting on every matching weekday, and only those', async () => {
-    vi.stubGlobal('fetch', stubFetch({ '/me/events': [] }))
+  it('asks for the month it is showing, both ends of it', async () => {
+    const fetchStub = stubFetch({ '/me/events': [] })
+    vi.stubGlobal('fetch', fetchStub)
 
-    render(
-      <DashboardCalendar
-        projects={{ status: 'ready', data: [membership()] }}
-      />,
-    )
+    render(<DashboardCalendar />)
     await screen.findByRole('heading', { name: 'August 2026' })
 
-    for (const thursday of THURSDAYS) {
-      expect(cellHas(thursday, 'Rover meeting'), `Aug ${thursday}`).toBe(true)
-    }
-    // A Wednesday and a Friday, straddling a meeting day.
-    expect(cellHas(12, 'Rover meeting')).toBe(false)
-    expect(cellHas(14, 'Rover meeting')).toBe(false)
+    // Both bounds, because the server only expands meetings for a window it
+    // can see the far end of — one without a `to` gets stored rows and nothing
+    // else, which would be a calendar with no meetings on it.
+    const asked = urlOf(fetchStub.mock.calls[0]![0])
+    expect(asked).toContain('from=')
+    expect(asked).toContain('to=')
   })
 
-  it('shows real events and synthetic meetings together', async () => {
-    vi.stubGlobal('fetch', stubFetch({ '/me/events': [meEvent()] }))
-
-    render(
-      <DashboardCalendar
-        projects={{ status: 'ready', data: [membership()] }}
-      />,
+  it('draws generated meetings and stored events alike', async () => {
+    vi.stubGlobal(
+      'fetch',
+      stubFetch({ '/me/events': [meEvent(), meeting(20), meeting(25)] }),
     )
+
+    render(<DashboardCalendar />)
     await screen.findByRole('heading', { name: 'August 2026' })
 
-    // The real event on its Friday square, the meeting on its Thursdays.
     expect(cellHas(21, 'Kickoff')).toBe(true)
     expect(cellHas(20, 'Rover meeting')).toBe(true)
+    expect(cellHas(25, 'Rover meeting')).toBe(true)
   })
 
-  it('paints nothing synthetic for a project with no schedule', async () => {
+  it('invents nothing when the server sends no meetings', async () => {
+    // The component has no schedule to expand any more, so an empty response is
+    // an empty calendar. This is the tripwire for anybody reintroducing
+    // client-side expansion: it would start painting chips again.
     vi.stubGlobal('fetch', stubFetch({ '/me/events': [] }))
 
-    render(
-      <DashboardCalendar
-        projects={{
-          status: 'ready',
-          data: [membership({ meetingWeekday: null, meetingTime: null })],
-        }}
-      />,
-    )
+    render(<DashboardCalendar />)
     await screen.findByRole('heading', { name: 'August 2026' })
 
     expect(screen.queryAllByTitle('Rover meeting')).toHaveLength(0)
+  })
+
+  it('says so when the calendar cannot be reached', async () => {
+    vi.stubGlobal('fetch', stubFetchStatus(500))
+
+    render(<DashboardCalendar />)
+
+    expect(
+      await screen.findByText(/couldn't load the calendar/i),
+    ).toBeInTheDocument()
   })
 })

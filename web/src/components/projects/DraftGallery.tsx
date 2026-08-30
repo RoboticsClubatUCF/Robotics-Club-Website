@@ -1,16 +1,16 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { ImageFramer } from './ImageFramer'
+import { ImageFramer } from '../shared/ImageFramer'
 import { fieldClass, labelClass } from '../shared/formChrome'
-import { ACCEPTED_IMAGE_TYPES, downscaleImage } from '../../lib/downscaleImage'
-import { frameStyle } from '../../lib/imageFraming'
+import { ACCEPTED_IMAGE_TYPES, downscaleImage } from '../../lib/media/downscaleImage'
+import { frameStyle } from '../../lib/media/imageFraming'
 import {
   draftFromFile,
   draftFromUrl,
   draftSrc,
   releaseDraftImage,
   type DraftImage,
-} from '../../lib/projectDraft'
-import { MAX_PROJECT_IMAGES, moveItem } from '../../lib/projectGallery'
+} from '../../lib/projects/projectDraft'
+import { MAX_PROJECT_IMAGES, moveItem } from '../../lib/projects/projectGallery'
 
 /**
  * The gallery, before there is a project to attach it to.
@@ -265,13 +265,12 @@ export function DraftGallery({
             type="button"
             onClick={addUrl}
             disabled={disabled || full || url.trim() === ''}
-            className="btn btn-outline mt-2 h-auto min-h-0 border-white/28 px-5 py-2.5 text-[12px] font-semibold text-white hover:border-white hover:bg-white/6 hover:text-white disabled:opacity-50"
+            className="btn btn-outline mt-2 h-auto min-h-0 border-base-content/28 px-5 py-2.5 text-[12px] font-semibold text-base-content hover:border-base-content hover:bg-base-content/6 hover:text-base-content disabled:opacity-50"
           >
             ADD
           </button>
           <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
-            A picture hosted somewhere else. Removing it here never deletes
-            anything at the other end.
+            Removing it here never deletes anything at the other end.
           </p>
         </div>
       </div>

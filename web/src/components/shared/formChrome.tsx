@@ -54,6 +54,19 @@ export function FormPanel({
   )
 }
 
+/**
+ * A reading measure, for a page whose whole content is a sentence.
+ *
+ * The dashboard's own column is as wide as the monitor now — the pages in it
+ * lay themselves out with `grid-fluid` and get their measure from their
+ * columns. The screens that have no columns are the ones that had no layout to
+ * begin with: a desk refusing somebody, a lock, a load that failed. One panel
+ * of prose stretched across 1700px is what that width costs them, so they say
+ * how wide they want to be. Written down once because it is the same number in
+ * a dozen places and a number written twice is a number that drifts.
+ */
+export const measureClass = 'max-w-[46rem]'
+
 export const labelClass =
   'text-faint mb-1.5 block font-mono text-[10px] font-medium tracking-[0.16em]'
 
@@ -65,11 +78,13 @@ export const submitClass =
 /**
  * The quieter of the two buttons — "back to the front page", "cancel".
  *
- * Outlined white rather than gold, because a page with two gold buttons on it
- * has no primary action.
+ * Outlined in the page's own ink rather than in gold, because a page with two
+ * gold buttons on it has no primary action. `base-content` rather than the
+ * `white` this was written as: the intent was always "full-strength text
+ * colour", and only in a one-theme site were those the same thing.
  */
 export const secondaryClass =
-  'btn btn-outline h-auto min-h-0 border-white/28 px-7 py-[15px] text-[13px] font-semibold tracking-[0.04em] text-white transition-[border-color,background-color] duration-200 hover:border-white hover:bg-white/6 hover:text-white'
+  'btn btn-outline h-auto min-h-0 border-base-content/28 px-7 py-[15px] text-[13px] font-semibold tracking-[0.04em] text-base-content transition-[border-color,background-color] duration-200 hover:border-base-content hover:bg-base-content/6 hover:text-base-content'
 
 /**
  * The one column every task page sits in.

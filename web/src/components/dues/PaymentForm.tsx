@@ -6,9 +6,10 @@ import {
 } from '@stripe/react-stripe-js'
 import { useState, type FormEvent } from 'react'
 import { submitClass } from '../shared/formChrome'
-import { formatMoney } from '../../lib/dues'
-import { stripePromise } from '../../lib/stripe'
-import { stripeAppearance } from './stripeAppearance'
+import { formatMoney } from '../../lib/dues/dues'
+import { stripePromise } from '../../lib/dues/stripe'
+import { useTheme } from '../../lib/theme'
+import { stripeAppearanceFor } from './stripeAppearance'
 
 /**
  * The card form, and the confirm that follows it.
@@ -36,6 +37,12 @@ export function PaymentForm({
   onPaid: (paymentIntentId: string) => void
   onCancel: () => void
 }) {
+  /* Read once, when this mounts. `Elements` takes its appearance at mount and
+     the tree is keyed on the client secret, so a theme change mid-payment does
+     not restyle the iframe — deliberately, because re-keying would tear down a
+     card field somebody is typing into. See `stripeAppearance.ts`. */
+  const theme = useTheme()
+
   if (!stripePromise) return null
 
   return (
@@ -46,7 +53,7 @@ export function PaymentForm({
          plan and gets a new intent needs a new tree rather than a re-render
          Stripe would ignore. */
       key={clientSecret}
-      options={{ clientSecret, appearance: stripeAppearance }}
+      options={{ clientSecret, appearance: stripeAppearanceFor(theme) }}
     >
       <ConfirmForm
         amountCents={amountCents}

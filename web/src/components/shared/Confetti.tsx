@@ -26,9 +26,11 @@ const PIECES = 64
     fall, rounded up. The component unmounts itself after this. */
 const LIFETIME_MS = 6_000
 
-/** In palette, because a component is not where a colour gets invented. Gold,
-    white and the darker gold, which is what the rest of the page is made of. */
-const COLOURS = ['bg-primary', 'bg-white', 'bg-accent']
+/** In palette, because a component is not where a colour gets invented. The
+    gold, the ink and the darker gold — which is what the rest of the page is
+    made of, in either theme. `bg-base-content` rather than `bg-white`: white
+    confetti on an off-white page is a burst of nothing. */
+const COLOURS = ['bg-primary', 'bg-base-content', 'bg-accent']
 
 const between = (min: number, max: number) => min + Math.random() * (max - min)
 
