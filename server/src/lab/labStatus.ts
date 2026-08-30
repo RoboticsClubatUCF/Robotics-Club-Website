@@ -992,9 +992,42 @@ export async function reconcileLabStatus(
       `lab status: the sign is ${message.messageId}, which the row did not know about — keeping the site's own state and pushing it`,
     )
 
-    await prisma.labStatus.update({
+    /**
+     * **`upsert`, because on a fresh database there is no row to update.**
+     *
+     * This threw on the club's first deployment, every ten minutes, and the
+     * shape is worth keeping in mind: nothing creates the `lab_status` row.
+     * Not the migration, not the seed, not the legacy import — it appears the
+     * first time somebody flips the lab (`flipLabStatus` upserts) or the first
+     * time this function reaches the `!row` branch further down. But that
+     * branch sits *after* this early return, so a fresh database that already
+     * has a sign in the channel — which is every real deployment, because the
+     * channel outlives the database — lands here, finds no row to update, and
+     * raises P2025 for ever. The reconcile never runs and the sign never syncs.
+     *
+     * The create side says **closed**, and not because closed is likelier.
+     * The guard above is the whole point of this branch: a message the row does
+     * not know about has its id adopted and its *state ignored*, because a
+     * stray from an older design is indistinguishable from a sign somebody just
+     * edited. With no row there is no site state to keep either — so the one
+     * answer that cannot hurt anybody is the closed one. A sign wrongly reading
+     * OPEN sends somebody across campus to a locked door; wrongly CLOSED costs
+     * them a question in Discord. `discordSynced: false` marks the push that
+     * corrects the message as due, which is what actually settles it.
+     */
+    await prisma.labStatus.upsert({
       where: { id: CURRENT },
-      data: {
+      update: {
+        discordChannelId: labChannelId,
+        discordMessageId: message.messageId,
+        discordSynced: false,
+      },
+      create: {
+        id: CURRENT,
+        open: false,
+        changedAt: now,
+        // Nobody here did this, the same reasoning as the adopt below.
+        changedById: null,
         discordChannelId: labChannelId,
         discordMessageId: message.messageId,
         discordSynced: false,
