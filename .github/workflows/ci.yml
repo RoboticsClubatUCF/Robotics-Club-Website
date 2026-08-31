@@ -40,9 +40,14 @@ jobs:
       TRUST_PROXY: 'false'
 
     steps:
-      - uses: actions/checkout@v4
+      # Both pinned to a major that runs on node24. v4 ran on node20, which
+      # the runners now force onto 24 anyway and warn about every run. The
+      # majors in between changed nothing this workflow uses: setup-node v5
+      # only auto-caches when package.json has a `packageManager` field, and
+      # none of the three here does, while `cache: npm` below is explicit.
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
