@@ -92,8 +92,15 @@ jobs:
           fi
           echo "no secret keys in web/dist"
 
+      # `npm --prefix` sets the package prefix but does NOT change the working
+      # directory, so `npm --prefix server exec` ran prisma from the repo root,
+      # where there is no prisma.config.ts and no prisma/schema.prisma. It has
+      # failed on every run this workflow has ever had — and because it sits
+      # ahead of the tests, nothing below it had executed once. `npm --prefix
+      # server run` is unaffected, which is why generate above always worked.
       - name: Apply migrations
-        run: npm --prefix server exec -- prisma migrate deploy
+        working-directory: server
+        run: npx prisma migrate deploy
 
       # The migrations having applied says nothing about whether they build the
       # schema the code was typechecked against. Edit `schema.prisma` without
