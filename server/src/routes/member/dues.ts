@@ -236,7 +236,6 @@ dues.post(
   writes,
   zValidator('json', planSchema),
   async (c) => {
-    const client = requireStripe()
     const user = c.get('user')
     const { plan } = c.req.valid('json')
 
@@ -269,6 +268,13 @@ dues.post(
           'Your membership already runs past anything this would buy, so there is nothing to pay for. Ask an officer if that looks wrong.',
       })
     }
+
+    // Asked for here rather than at the top of the handler: a member who is
+    // already covered gets the 409 above whether or not the club has keys.
+    // Taking the client first turned that refusal into a 503 on any
+    // deployment without Stripe configured, which is the supported state the
+    // club ran in for the whole life of the previous site.
+    const client = requireStripe()
 
     // Everything below is computed, never received. The row is written before
     // the intent so there is a record of what this server intended to charge,
