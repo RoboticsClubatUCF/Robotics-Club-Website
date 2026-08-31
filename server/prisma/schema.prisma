@@ -408,7 +408,13 @@ model Project {
   /// project made after this change cannot be made without a schedule; the rows
   /// that predate it have no end time, and a `NOT NULL` would mean inventing
   /// one for them.
-  meetingWeekdays  Int[]   @map("meeting_weekdays")
+  ///
+  /// The `@default([])` is the `DEFAULT '{}'` that 20260824220000 put on the
+  /// column, written down. Declaring it here rather than dropping it there is
+  /// what stops `migrate diff` offering the same unrelated `DROP DEFAULT` on
+  /// top of every migration generated since — six of them had to strip that
+  /// line by hand, and the CI drift check would have failed on it forever.
+  meetingWeekdays  Int[]   @default([]) @map("meeting_weekdays")
   meetingStartTime String? @map("meeting_start_time")
   meetingEndTime   String? @map("meeting_end_time")
   meetingLocation  String? @map("meeting_location")
