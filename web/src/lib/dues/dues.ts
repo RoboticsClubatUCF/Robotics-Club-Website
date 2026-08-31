@@ -19,6 +19,22 @@ import type { ApiState } from '../api/useApi'
  */
 const LOCALE = 'en-US'
 
+/**
+ * The club's clock, pinned for the same reason `LOCALE` is.
+ *
+ * These dates are end-of-day boundaries in Orlando — `duesPaidThrough` is
+ * 23:59:59 there, which is already the next day in UTC — so the reader's own
+ * timezone must not be what decides which day gets printed. Left to the
+ * browser, a member reading this from anywhere east of Eastern was told their
+ * membership runs a day longer than it does, and the tests agreed with them
+ * only because the machine they were written on is in Eastern.
+ *
+ * Spelled again rather than shared with `lib/events/calendarLinks.ts`, which
+ * names the same zone for a different job: that one is a label an `.ics` file
+ * format demands, this one is a rule about how to read a stored date.
+ */
+const CAMPUS_ZONE = 'America/New_York'
+
 /** "$25", and "$25.50" only if there are cents to show. */
 export function formatMoney(cents: number): string {
   const dollars = cents / 100
@@ -36,6 +52,7 @@ export function formatDate(iso: string): string {
     month: 'long',
     day: 'numeric',
     year: 'numeric',
+    timeZone: CAMPUS_ZONE,
   })
 }
 
@@ -44,6 +61,7 @@ export function formatShortDate(iso: string): string {
   return new Date(iso).toLocaleDateString(LOCALE, {
     month: 'long',
     day: 'numeric',
+    timeZone: CAMPUS_ZONE,
   })
 }
 
