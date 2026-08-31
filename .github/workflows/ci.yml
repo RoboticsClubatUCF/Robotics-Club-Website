@@ -62,13 +62,8 @@ jobs:
       - name: Generate Prisma client
         run: npm --prefix server run generate
 
-      - name: Apply migrations
-        run: npm --prefix server exec -- prisma migrate deploy
-
-      # The server tests assert against seeded rows, so the database has to have
-      # them before the suite runs.
-      - name: Seed
-        run: npm --prefix server run seed
+      # Everything from here to the build needs no database, so it runs first:
+      # a type error should not wait behind Postgres starting and a seed.
 
       - name: Lint
         run: npm run lint
@@ -76,8 +71,76 @@ jobs:
       - name: Typecheck
         run: npm --prefix server run typecheck
 
+      # `web`'s build is `tsc -b && vite build`, so this is the frontend
+      # typecheck as well as the build. It is ahead of the database steps for
+      # that reason.
+      - name: Build
+        run: npm run build
+
+      # Vite inlines every `VITE_`-prefixed variable into the bundle without
+      # asking whether it should, and the result is served to the world. This
+      # is the check that a server-side key never became a public one.
+      #
+      # `pk_live_` is deliberately absent from the pattern: a Stripe
+      # *publishable* key is public by design and is supposed to be in there.
+      # These four are the ones that must never leave the server.
+      - name: Check no secret key reached the bundle
+        run: |
+          if grep -rIEl 'sk_(live|test)_[A-Za-z0-9]{8}|rk_live_[A-Za-z0-9]{8}|whsec_[A-Za-z0-9]{8}' web/dist; then
+            echo "::error::a secret key is in web/dist — look for a VITE_-prefixed secret in web/.env.production"
+            exit 1
+          fi
+          echo "no secret keys in web/dist"
+
+      - name: Apply migrations
+        run: npm --prefix server exec -- prisma migrate deploy
+
+      # The migrations having applied says nothing about whether they build the
+      # schema the code was typechecked against. Edit `schema.prisma` without
+      # generating a migration and every step above still passes — the Prisma
+      # client is generated from the schema, so the types agree with each other
+      # while the database disagrees with both, and the failure lands on deploy.
+      #
+      # This compares the freshly migrated database against `schema.prisma`.
+      # `--exit-code` returns 2 when they differ, which fails the step.
+      - name: Check for migration drift
+        working-directory: server
+        run: |
+          if ! npx prisma migrate diff \
+            --from-config-datasource \
+            --to-schema prisma/schema.prisma \
+            --exit-code; then
+            echo "::error::schema.prisma and the migrations disagree — run 'npm run migrate' in server/ and commit the migration it generates"
+            exit 1
+          fi
+
+      # The server tests assert against seeded rows, so the database has to have
+      # them before the suite runs.
+      - name: Seed
+        run: npm --prefix server run seed
+
       - name: Test
         run: npm test
 
-      - name: Build
-        run: npm run build
+      # The six signature tests in `dues.test.ts` are `it.runIf(webhooksConfigured)`,
+      # and `webhooksConfigured` is `Boolean(STRIPE_SECRET_KEY && STRIPE_WEBHOOK_SECRET)`
+      # in `src/payments/stripe.ts`. Neither is set above, so until now CI had
+      # never once run the security boundary on the one route that takes money —
+      # they reported as passing by not existing.
+      #
+      # The keys below are invented and never leave the runner. Nothing here
+      # reaches Stripe: the suite signs its own deliveries with
+      # `generateTestHeaderString`, which is local HMAC, and the two checkout
+      # tests that run unconditionally refuse at 409 and 400 before any call is
+      # made. `paymentIntents.create` is not on the path.
+      #
+      # It is a second run of the one file rather than keys on the job, because
+      # setting them globally would skip the test that covers *unconfigured*
+      # Stripe — a supported state the club spent its whole previous site in.
+      # The first run covers that; this one covers the signature check.
+      - name: Test the webhook signature boundary
+        working-directory: server
+        env:
+          STRIPE_SECRET_KEY: sk_test_00000000000000000000000000
+          STRIPE_WEBHOOK_SECRET: whsec_0000000000000000000000000000000000
+        run: npx vitest run src/routes/member/dues.test.ts
