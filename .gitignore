@@ -7,6 +7,11 @@ dist-ssr
 *.local
 .vite
 
+# Hand-rolled deploy tarballs of web/dist. The directory is ignored above, so
+# the archive of it should be too — otherwise a `git add -A` commits a stale
+# 750 KB binary that history can never drop.
+*.tar.gz
+
 # Secrets. Only the .env.example files are ever committed.
 # The pre-rewrite history of this repo tracked a real .env for three years;
 # don't let that happen again.
