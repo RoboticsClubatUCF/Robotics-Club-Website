@@ -14,6 +14,13 @@ import { useApi } from '../../lib/api/useApi'
  * applies the same filters the listing routes apply, so the number you read
  * here is the number you find when you land. Change one and change the other.
  *
+ * **ACTIVE MEMBERS is the one cell that breaks that**, and its label is how.
+ * `/members` lists every account, guests included; the count is the club's
+ * active membership. The rule above still holds for the other two, so a cell
+ * that does not match its page has to say so in its label — which is why the
+ * wording lives in `content/home.ts` beside the count it belongs to rather
+ * than being derived here.
+ *
  * Hand-rolled rather than DaisyUI's `stats`: that component is an `inline-grid`
  * with its own radius, dashed dividers and horizontal scroll, so using it here
  * would mean overriding all four. The dividers are the container's background

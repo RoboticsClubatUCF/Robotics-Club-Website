@@ -84,11 +84,32 @@ const members = [
     role: 'MEMBER' as const,
     title: 'Captain, 2023-2024',
     gradYear: 2025,
-    // `active: false` is the *only* thing marking an alumnus now. There was an
-    // `ALUMNUS` role saying it a second time, which is exactly the duplication
-    // this model got rid of — and `?status=alumni` filtered on this flag even
-    // then, so nothing about the roster changed when the role went.
+    // **Both flags, because they are two different facts and this fixture is
+    // what proves the roster can tell them apart.** `officerAlumnus` is what
+    // `?status=alumni` filters on — mirrored off the club's Discord Officer
+    // Alumni role by `syncOfficerAlumni`, which never runs against a seeded
+    // database, so a seed that left it false would make the chip permanently
+    // empty in development and look broken.
+    //
+    // `active: false` is the older flag and still means "not around any more".
+    // It used to be the only thing marking an alumnus and the chip read it,
+    // which could not survive `membershipUpdateFor` setting it back to true on
+    // every payment — see `discord/discordAlumni.ts`.
     active: false,
+    officerAlumnus: true,
+    subteam: null,
+  },
+  {
+    slug: 'devon-marsh',
+    fullName: 'Devon Marsh',
+    role: 'MEMBER' as const,
+    title: 'Treasurer, 2022-2023',
+    gradYear: 2024,
+    // The case one boolean could never say: still turning up, still paying, and
+    // an officer alumnus. One of the twenty-seven people carrying the role in
+    // the club's real guild is in exactly this state.
+    active: true,
+    officerAlumnus: true,
     subteam: null,
   },
 ]

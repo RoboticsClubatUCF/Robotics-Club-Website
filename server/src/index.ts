@@ -6,11 +6,13 @@ import {
   discordConfigured,
   labChannelConfigured,
   memberRoleId,
+  alumniSyncConfigured,
   officerSyncConfigured,
   projectLeadRoleId,
   roleSyncDryRun,
   teamLeadRoleId,
 } from './discord/discord.js'
+import { syncOfficerAlumni } from './discord/discordAlumni.js'
 import { startDiscordGateway, stopDiscordGateway } from './discord/discordGateway.js'
 import { syncDiscordOfficers } from './discord/discordOfficers.js'
 import { sweepDiscordRoles } from './discord/discordRoles.js'
@@ -67,6 +69,14 @@ const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
     officerSyncConfigured
       ? `Discord officer sync → role ${env.DISCORD_OFFICER_ROLE_ID ?? ''}`
       : 'Discord officer sync OFF (no DISCORD_OFFICER_ROLE_ID) — officers are set by hand',
+  )
+  // Same direction, one column, and worth its own line because when it is off
+  // the roster's ALUMNI chip is simply empty — which reads exactly like a page
+  // that is broken rather than a feature nobody switched on.
+  console.log(
+    alumniSyncConfigured
+      ? `Discord alumni sync → role ${env.DISCORD_OFFICER_ALUMNI_ROLE_ID ?? ''}`
+      : 'Discord alumni sync OFF (no DISCORD_OFFICER_ALUMNI_ROLE_ID) — the roster’s ALUMNI chip will be empty',
   )
   // The only thing here that writes to somebody else's service, so it says
   // which of the three club roles it is allowed to touch rather than a bare
@@ -235,6 +245,26 @@ const sweep = setInterval(
       })
       .catch((error: unknown) => {
         console.error('discord officer sync failed', error)
+      })
+      // Who used to run the club, from the same direction — Discord's Officer
+      // Alumni role into `User.officerAlumnus`, which is what the roster's
+      // ALUMNI chip selects on. In this chain rather than beside it because it
+      // is a third full walk of the guild, and three of those fired at once is
+      // exactly the shape Discord throttles. Off unless
+      // `DISCORD_OFFICER_ALUMNI_ROLE_ID` is set; it writes one column and
+      // nothing follows from it. See `src/discord/discordAlumni.ts`.
+      .then(() => syncOfficerAlumni())
+      .then((report) => {
+        // Quiet unless it did something. The club's alumni list changes when a
+        // board rotates, which is twice a year.
+        if (report.marked + report.cleared > 0) {
+          console.log(
+            `discord alumni: ${report.marked} marked, ${report.cleared} cleared`,
+          )
+        }
+      })
+      .catch((error: unknown) => {
+        console.error('discord alumni sync failed', error)
       })
       // And the direction nothing else on this server goes: Postgres out to
       // Discord. Everything above decided what people *are*; this hands out the

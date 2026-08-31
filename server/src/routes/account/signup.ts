@@ -36,11 +36,13 @@ import { consume, rateLimit } from '../../core/rateLimit.js'
  * These are unauthenticated — there is no session to have yet — so, like the
  * contact form, every field is capped and every route is rate limited.
  *
- * The account lands at the default GUEST role with no slug, which is what keeps
- * it off the public roster: signing up is not membership, and an officer
- * promotes from there. Nothing signs in yet; the password is taken now because
- * asking everyone to come back and set one later is how you end up with a
- * roster of accounts nobody can get into.
+ * The account lands at the default GUEST role with no slug. GUEST is what keeps
+ * it out of the club's membership count and out of the Discord Members role —
+ * signing up is not membership, and paying promotes from there. It does *not*
+ * keep the account off `/members`, which lists everybody; the slug is only a
+ * profile page of one's own. Nothing signs in yet; the password is taken now
+ * because asking everyone to come back and set one later is how you end up with
+ * a roster of accounts nobody can get into.
  */
 export const signup = new Hono()
 
@@ -537,8 +539,8 @@ signup.post(
             // `joinedAt` prints a blank year on their public profile. Same rule
             // `membershipUpdateFor` follows when a payment promotes somebody.
             //
-            // Still no slug, for either of them. Publishing a person to the
-            // public roster stays a decision a person makes.
+            // Still no slug, for either of them. Giving somebody a profile page
+            // of their own stays a decision a person makes.
             role: officerByDiscord ? UserRole.OFFICER : UserRole.GUEST,
             joinedAt: officerByDiscord ? acknowledgementAcceptedAt : null,
           },

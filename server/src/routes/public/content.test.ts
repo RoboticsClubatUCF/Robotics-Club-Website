@@ -28,7 +28,16 @@ import { clearCalendarCache } from '../../membership/semester.js'
  * shapes are only as much of each payload as the assertions below touch.
  */
 type Stats = { projects: number; members: number; events: number }
-type Member = { slug: string; role: string; fullName: string }
+/** `slug` is nullable, and is null for almost everybody — it means "has a
+    public profile URL", not "is on the roster". See `rosterSelect`. */
+type Member = {
+  id: string
+  slug: string | null
+  role: string
+  fullName: string
+  active: boolean
+  officerAlumnus: boolean
+}
 /** Both officer routes answer with this — they are one table split on `endedAt`. */
 type OfficerTerm = {
   id: string
@@ -102,24 +111,34 @@ describe('GET /api/stats', () => {
   })
 
   /**
-   * The contract the landing page is built on: every stat cell links to a
-   * listing, and the number on the cell is how many rows that listing has. If
-   * a filter is ever added to one side and not the other, this is what catches
-   * it. `limit` is pushed past the defaults so a large table can't make a
-   * genuine disagreement look like pagination.
+   * The contract the landing page is built on: a stat cell links to a listing,
+   * and the number on the cell is how many rows that listing has. If a filter
+   * is ever added to one side and not the other, this is what catches it.
+   * `limit` is pushed past the defaults so a large table can't make a genuine
+   * disagreement look like pagination.
+   *
+   * **`members` is deliberately not held to it**, which is why the cell is
+   * labelled ACTIVE MEMBERS rather than MEMBERS. The listing is every account;
+   * the count is the club's active membership. All that is asserted here is the
+   * direction — the listing can only ever be the larger of the two — and the
+   * exact figure is pinned by "counts the active membership in /stats" below.
    */
   it('counts exactly what the matching listing lists', async () => {
     const stats = await get<Stats>('/api/stats')
 
     const [projects, members, events] = await Promise.all([
       get<Project[]>('/api/projects?limit=100'),
-      get<Member[]>('/api/members?limit=100'),
+      // `status=all`, not the default. CURRENT excludes officer alumni now, and
+      // an officer alumnus who still pays dues counts towards the stat — so the
+      // default listing is not guaranteed to be the larger of the two and this
+      // assertion would be measuring the wrong pair.
+      get<Member[]>('/api/members?status=all&limit=1000'),
       get<unknown[]>('/api/events?limit=100'),
     ])
 
     expect(projects).toHaveLength(stats.projects)
-    expect(members).toHaveLength(stats.members)
     expect(events).toHaveLength(stats.events)
+    expect(members.length).toBeGreaterThanOrEqual(stats.members)
   })
 })
 
@@ -654,21 +673,42 @@ describe('public routes and private columns', () => {
     }
 
     // Same again for a single profile, which selects a wider set of columns.
-    const [first] = members
-    const profile = await get<Member>(`/api/members/${first!.slug}`)
+    // Whoever *has* a slug rather than whoever came first: the listing is the
+    // whole club now and most of it has no profile URL at all.
+    const withSlug = members.find((member) => member.slug !== null)
+    expect(withSlug, 'no member has a slug to fetch a profile with').toBeDefined()
+
+    const profile = await get<Member>(`/api/members/${withSlug!.slug}`)
     expect(profile).not.toHaveProperty('email')
     expect(profile).not.toHaveProperty('passwordHash')
   })
 
-  it('leaves accounts that are not roster entries out of the listing', async () => {
-    const members = await get<Member[]>('/api/members?status=all&limit=100')
+  /**
+   * The inverse of the test this replaced, which asserted that accounts without
+   * a slug stayed out. That filter is gone — it was the reason the page showed
+   * sixty of six hundred and eighty-eight — and it is exactly the sort of thing
+   * somebody tidying reinstates. Counting against the table is what catches it.
+   */
+  it('lists every account, guests and people with no slug included', async () => {
+    const members = await get<Member[]>('/api/members?status=all&limit=1000')
+    const total = await prisma.user.count()
 
-    // The seed creates an admin and a prospective member, both without a slug,
-    // and a GUEST is someone who has signed up and nothing more.
-    for (const member of members) {
-      expect(member.slug).toBeTruthy()
-      expect(member.role).not.toBe('GUEST')
-    }
+    expect(members).toHaveLength(Math.min(total, 1000))
+    expect(members.some((member) => member.slug === null)).toBe(true)
+  })
+
+  /**
+   * The landing page's cell is the club's membership and the page it links to
+   * is every account, so these two numbers are *supposed* to differ. Pinned
+   * because the obvious "fix" for that gap is to make one match the other.
+   */
+  it('counts the active membership in /stats, not the whole listing', async () => {
+    const { members } = await get<Stats>('/api/stats')
+    const expected = await prisma.user.count({
+      where: { active: true, role: { not: 'GUEST' } },
+    })
+
+    expect(members).toBe(expected)
   })
 
   it('hides unpublished events', async () => {
@@ -808,5 +848,94 @@ describe('GET /api/events with project meetings', () => {
     )
 
     expect(titlesIn(events)).not.toContain('Content typed meeting')
+  })
+})
+
+/**
+ * The roster's three chips, and what ALUMNI means since it stopped meaning
+ * `active: false`.
+ *
+ * It is the club's Discord **Officer Alumni** role, mirrored into
+ * `User.officerAlumnus` by `discord/discordAlumni.ts`. The fixtures make the
+ * two facts different people on purpose, because reading `active` for this is
+ * the mistake the column exists to prevent — `membershipUpdateFor` sets
+ * `active` back to true on every payment, so it can never mean "used to run the
+ * club", and somebody can be both.
+ *
+ * No Discord anywhere near this: the sweep writes the column and these tests
+ * write it directly, which is the boundary worth testing on this side.
+ */
+describe('GET /api/members and the alumni chip', () => {
+  const PREFIX = 'test-content-roster-'
+  const email = (name: string) => `${PREFIX}${name}@ucf.edu`
+
+  const make = (
+    name: string,
+    extra: { active?: boolean; officerAlumnus?: boolean } = {},
+  ) =>
+    prisma.user.create({
+      data: { fullName: `Roster ${name}`, email: email(name), ...extra },
+      select: { id: true },
+    })
+
+  const clearRows = () =>
+    prisma.user.deleteMany({ where: { email: { startsWith: PREFIX } } })
+
+  beforeEach(clearRows)
+  afterAll(clearRows)
+
+  const named = (rows: Member[], name: string) =>
+    rows.some((row) => row.fullName === `Roster ${name}`)
+
+  it('files officer alumni under alumni and nobody else', async () => {
+    await make('past', { officerAlumnus: true })
+    await make('retired', { active: false })
+    await make('current')
+
+    const alumni = await get<Member[]>('/api/members?status=alumni&limit=1000')
+
+    expect(named(alumni, 'past')).toBe(true)
+    // The whole point of the column: a retired account is not an officer
+    // alumnus, and this is the pair that used to be one boolean.
+    expect(named(alumni, 'retired')).toBe(false)
+    expect(named(alumni, 'current')).toBe(false)
+    expect(alumni.every((row) => row.officerAlumnus)).toBe(true)
+  })
+
+  it('keeps officer alumni out of the current list', async () => {
+    await make('past', { officerAlumnus: true })
+    await make('current')
+
+    const current = await get<Member[]>('/api/members?status=active&limit=1000')
+
+    expect(named(current, 'current')).toBe(true)
+    expect(named(current, 'past')).toBe(false)
+  })
+
+  /**
+   * Somebody can hold the Discord role *and* be a paid-up member — one of the
+   * twenty-seven people carrying it in the club's guild is also a sitting
+   * officer — so the chip has to sort them somewhere and it sorts them here.
+   */
+  it('files a current member who is also an officer alumnus under alumni', async () => {
+    await make('both', { officerAlumnus: true, active: true })
+
+    const alumni = await get<Member[]>('/api/members?status=alumni&limit=1000')
+    const current = await get<Member[]>('/api/members?status=active&limit=1000')
+
+    expect(named(alumni, 'both')).toBe(true)
+    expect(named(current, 'both')).toBe(false)
+  })
+
+  it('shows all three under everyone', async () => {
+    await make('past', { officerAlumnus: true })
+    await make('retired', { active: false })
+    await make('current')
+
+    const all = await get<Member[]>('/api/members?status=all&limit=1000')
+
+    for (const name of ['past', 'retired', 'current']) {
+      expect(named(all, name), name).toBe(true)
+    }
   })
 })

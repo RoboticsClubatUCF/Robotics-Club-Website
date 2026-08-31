@@ -165,9 +165,10 @@ describe('ProfilePage', () => {
     expect(screen.getByDisplayValue('Builds things.')).toBeInTheDocument()
     expect(screen.getByDisplayValue('2027')).toBeInTheDocument()
     expect(screen.getByDisplayValue('rowan')).toBeInTheDocument()
-    // A promoted account is not a published one — the roster still wants a slug
-    // an officer sets, and the page says so rather than leaving the row blank.
-    expect(screen.getByText(/not on the public roster/i)).toBeInTheDocument()
+    // An account with no slug has no profile page of its own — it is on
+    // `/members` like everybody else, but there is nothing to link to. The row
+    // says which, rather than being left blank.
+    expect(screen.getByText(/no profile page yet/i)).toBeInTheDocument()
   })
 
   /** Every remote read on this site renders all three of its states. */

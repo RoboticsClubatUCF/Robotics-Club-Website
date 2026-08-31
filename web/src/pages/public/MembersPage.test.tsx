@@ -21,6 +21,7 @@ const member = (over: Partial<ApiMember> = {}): ApiMember => ({
   bio: null,
   photoUrl: null,
   active: true,
+  officerAlumnus: false,
   subteam: { slug: 'software', name: 'Software', color: '#4f8cff' },
   ...over,
 })
@@ -50,29 +51,32 @@ describe('MembersPage', () => {
   })
 
   /**
-   * The distinction the whole page rests on: nobody reading this should think
-   * it lists everybody who has paid dues.
+   * The distinction the whole page rests on, and it now points the other way:
+   * this lists every account, so nobody reading it should take the length of it
+   * for the club's paid-up membership. That number is the landing page's
+   * ACTIVE MEMBERS cell and is a fraction of this.
    */
-  it('says the list is the public roster rather than the membership', async () => {
+  it('says the list is every account rather than the membership', async () => {
     vi.stubGlobal('fetch', stubFetch({ '/members': [member()] }))
 
     render()
     await screen.findByText('Alex Chen')
 
-    expect(screen.getByText(/public roster/i)).toBeInTheDocument()
+    expect(screen.getByText(/everyone with an account/i)).toBeInTheDocument()
+    expect(screen.getByText(/just signed up/i)).toBeInTheDocument()
   })
 
-  it('asks the server for alumni rather than filtering them out here', async () => {
+  it('asks the server for officer alumni rather than filtering them out here', async () => {
     const fetchStub = stubFetch({ '/members': [member()] })
     vi.stubGlobal('fetch', fetchStub)
 
     render()
     await screen.findByText('Alex Chen')
-    fireEvent.click(screen.getByRole('button', { name: 'ALUMNI' }))
+    fireEvent.click(screen.getByRole('button', { name: 'OFFICER ALUMNI' }))
 
-    // `active` is the only column marking an alumnus, so the split has to be a
-    // request — filtering the current roster in the browser would always be an
-    // empty list.
+    // CURRENT and OFFICER ALUMNI are disjoint sets of rows — `officerAlumnus`
+    // false and true — so the split has to be a request. Filtering what CURRENT
+    // already returned would always be an empty list.
     await vi.waitFor(() => {
       expect(
         fetchStub.mock.calls.some(([input]) =>
@@ -80,6 +84,32 @@ describe('MembersPage', () => {
         ),
       ).toBe(true)
     })
+  })
+
+  /**
+   * The reason `officerAlumnus` is its own column. `active: false` and
+   * `officerAlumnus: true` are different people — the badge used to read the
+   * first, and `active` is set back to true by every dues payment — so the
+   * fixture makes them two different cards and only one may be badged.
+   */
+  it('badges officer alumni under EVERYONE, never a merely inactive account', async () => {
+    const retired = member({ id: 'm3', fullName: 'Robin Retired', active: false })
+    const past = member({ id: 'm4', fullName: 'Pat Past', officerAlumnus: true })
+    vi.stubGlobal('fetch', stubFetch({ '/members': [member(), retired, past] }))
+
+    // The chip above carries the same two words, so this asks the card rather
+    // than the page.
+    const cardFor = (name: string) => screen.getByText(name).closest('figure')
+
+    render()
+    await screen.findByText('Alex Chen')
+    fireEvent.click(screen.getByRole('button', { name: 'EVERYONE' }))
+
+    await vi.waitFor(() => {
+      expect(cardFor('Pat Past')?.textContent).toContain('OFFICER ALUMNI')
+    })
+    expect(cardFor('Robin Retired')?.textContent).not.toContain('OFFICER ALUMNI')
+    expect(cardFor('Alex Chen')?.textContent).not.toContain('OFFICER ALUMNI')
   })
 
   /** `/about` links a subteam's member count straight here, and the number a
@@ -121,13 +151,13 @@ describe('MembersPage', () => {
     expect(fetchStub.mock.calls).toHaveLength(before)
   })
 
-  it('says so when nobody is on the roster yet', async () => {
+  it('says so when there are no accounts yet', async () => {
     vi.stubGlobal('fetch', stubFetch({ '/members': [] }))
 
     render()
 
     expect(
-      await screen.findByText(/nobody is on the public roster yet/i),
+      await screen.findByText(/nobody has an account yet/i),
     ).toBeInTheDocument()
   })
 

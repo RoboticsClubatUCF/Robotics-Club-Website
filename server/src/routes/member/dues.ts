@@ -51,9 +51,10 @@ import { stripe, stripeConfigured } from '../../payments/stripe.js'
  *
  * **Paying is what turns a signup into a member.** A first payment moves the
  * account off `GUEST` and stamps `joinedAt`, in the same transaction that moves
- * the date — see `membershipUpdateFor`. It stops well short of publishing
- * anybody: a public roster profile still needs a `slug`, and that stays an
- * officer's decision.
+ * the date — see `membershipUpdateFor`. That is what puts them in the club's
+ * headline count and hands them the Discord Members role; it is not what puts
+ * them on `/members`, which lists every account, guest or not. A profile page
+ * of their own still needs a `slug`, and that stays an officer's decision.
  *
  * **The member survey comes before any of this**, and the split across these
  * four routes is deliberate rather than uniform:
@@ -509,14 +510,16 @@ export interface MembershipUpdate {
  *
  * **`joinedAt` is stamped only alongside that promotion.** This payment is the
  * moment a signup became a member, so today is the right answer for them. For
- * anybody already on the roster a null date means the club never recorded
- * theirs, and today is the wrong answer — it would print a false year on a
- * public profile page.
+ * anybody already a member a null date means the club never recorded theirs,
+ * and today is the wrong answer — it would print a false year on a public
+ * profile page.
  *
- * **No slug is ever generated.** `slug` plus a non-`GUEST` role is what puts a
- * name and a photo on the public roster, and publishing a person because they
- * paid $25 is a decision for a human. Promotion gets somebody their dashboard;
- * an officer still gives them a profile.
+ * **No slug is ever generated.** `slug` is a profile page of one's own, and
+ * giving somebody one because they paid $25 is a decision for a human. It is
+ * no longer what gets their card onto `/members` — that page lists every
+ * account — so the two questions have come apart: promotion gets somebody
+ * their dashboard and their Discord role, and an officer still gives them a
+ * profile URL.
  */
 export function membershipUpdateFor(
   user: { role: UserRole; joinedAt: Date | null; active: boolean },
@@ -653,7 +656,7 @@ export async function claimFreeWindow(
 
   if (changed.role) {
     console.log(
-      `dues: ${user.id} claimed the free break and is now ${changed.role}. Still off the public roster — that needs a slug an officer sets.`,
+      `dues: ${user.id} claimed the free break and is now ${changed.role}.`,
     )
   }
 
@@ -945,7 +948,7 @@ export async function applyPayment(intent: {
     // somebody's role without an officer doing it, and the log is where anyone
     // wondering why goes to look.
     console.log(
-      `dues: ${payment.userId} paid and is now ${outcome.changed.role}. Still off the public roster — that needs a slug an officer sets.`,
+      `dues: ${payment.userId} paid and is now ${outcome.changed.role}.`,
     )
   }
 

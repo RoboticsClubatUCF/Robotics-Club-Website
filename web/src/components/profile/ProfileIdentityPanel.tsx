@@ -16,9 +16,11 @@ import {
  * thought. Somebody updating their year has usually just changed their bio too.
  *
  * All three appear on the public roster, which is why they are the member's own
- * to edit. The two that are *not* here are `title` and `slug`: a club title is
- * the board's to award, and a slug is what publishes somebody to the roster at
- * all. Neither is a fact about themselves that they are best placed to state.
+ * to edit — and since that page lists every account, everybody editing this is
+ * already on it. The two that are *not* here are `title` and `slug`: a club
+ * title is the board's to award, and a slug gives somebody a profile page of
+ * their own. Neither is a fact about themselves that they are best placed to
+ * state.
  */
 export function ProfileIdentityPanel({
   account,

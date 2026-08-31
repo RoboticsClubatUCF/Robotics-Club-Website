@@ -73,6 +73,27 @@ export const officerRoleId = env.DISCORD_OFFICER_ROLE_ID ?? null
 export const officerSyncConfigured = bot !== null && officerRoleId !== null
 
 /**
+ * The club's **Officer Alumni** role — who used to run it.
+ *
+ * Read in the same direction as `officerRoleId` and for the same reason: the
+ * club keeps this list in Discord and has done for years, so the site follows
+ * rather than asking anybody to maintain it twice. It lands in
+ * `User.officerAlumnus`; `discordAlumni.ts` is the sweep.
+ *
+ * **Never put this in `clubRoles()`.** It is read-only here, it sits *below*
+ * the bot in the hierarchy — so unlike the Officers role, nothing stops the bot
+ * writing it — and the moment `discordRoles.ts` counted it as managed, the
+ * first sweep would take it off everybody, because the site never asks anyone
+ * to carry it.
+ */
+export const officerAlumniRoleId =
+  env.DISCORD_OFFICER_ALUMNI_ROLE_ID ?? null
+
+/** Whether the alumni list is read off Discord: needs the bot *and* the role. */
+export const alumniSyncConfigured =
+  bot !== null && officerAlumniRoleId !== null
+
+/**
  * The three roles that go the other way — the site decides them and writes
  * them into the guild. Module constants for the same reason `officerRoleId`
  * is one: `env` is parsed at import, so this is what a suite can override.

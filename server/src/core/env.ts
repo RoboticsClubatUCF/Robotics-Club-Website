@@ -121,8 +121,29 @@ const envSchema = z.object({
     .optional(),
 
   /**
+   * Who used to run the club — the club's **Officer Alumni** role.
+   *
+   * The same direction as the officer role above: Discord is the record and the
+   * site follows it, into `User.officerAlumnus`, which is what the roster's
+   * ALUMNI chip selects on. The club has been marking its alumni in Discord for
+   * years and the site had no way to know; `OfficerTerm` only knows about
+   * people who rotated off since the officer sync started.
+   *
+   * **It must never be added to the three below.** Those are roles the site
+   * *writes*, and this one sits below the bot in the hierarchy — so a copy of
+   * this id in `DISCORD_MEMBER_ROLE_ID`'s company would make `discordRoles.ts`
+   * an owner of it too, and the first sweep would strip twenty-seven people's
+   * alumni role because the site never asked anybody to carry it. Every role
+   * has exactly one owner; that file's header is the argument.
+   */
+  DISCORD_OFFICER_ALUMNI_ROLE_ID: z
+    .string()
+    .regex(/^\d{17,20}$/, 'must be a Discord snowflake (17-20 digits)')
+    .optional(),
+
+  /**
    * The three roles that follow the *site* — the opposite direction from the
-   * officer role above, and the distinction is the whole design.
+   * two roles above, and the distinction is the whole design.
    *
    * Discord appoints the board and the site reads it. The site decides these
    * three and pushes them: whoever has a dues date still running carries
@@ -441,6 +462,7 @@ const envSchema = z.object({
     (parsed) =>
       ![
         parsed.DISCORD_OFFICER_ROLE_ID,
+        parsed.DISCORD_OFFICER_ALUMNI_ROLE_ID,
         parsed.DISCORD_MEMBER_ROLE_ID,
         parsed.DISCORD_PROJECT_LEAD_ROLE_ID,
         parsed.DISCORD_TEAM_LEAD_ROLE_ID,

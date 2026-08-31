@@ -104,10 +104,10 @@ export interface OfficerSyncReport {
  *
  * `MEMBER` for everybody strands the ex-officer with no `duesPaidThrough`:
  * `sweepLapsedMembers` only touches rows that have a date on them, so nothing
- * would ever move them again, and `onRoster` wants a slug and a role above
- * `GUEST` — they would sit on the public members page for ever with no path
- * off it. `GUEST` for everybody takes club membership away from somebody who
- * paid and merely stepped off the board.
+ * would ever move them again — they would count towards the club's active
+ * membership for ever, and carry the Discord Members role with it, having
+ * never paid. `GUEST` for everybody takes club membership away from somebody
+ * who paid and merely stepped off the board.
  *
  * So it asks the question the dues loop asks and hands them straight back to
  * it, which also preserves that loop's own invariant: every `MEMBER` the site

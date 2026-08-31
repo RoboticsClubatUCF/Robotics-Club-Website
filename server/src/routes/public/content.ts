@@ -58,14 +58,62 @@ const listQuery = z.object({
 })
 
 /**
- * Users and roster entries are the same table, so every public query has to say
- * which users are actually on the roster. A slug is what gives someone a public
- * profile URL, and GUEST is the signed-up-but-not-yet-anything default — an
- * account missing either has no business appearing on the site.
+ * What the club means by "an active member", and the landing page's headline
+ * count is now the only thing that asks.
+ *
+ * `role` is the club's ladder rather than a permission label — `membershipSweep`
+ * puts a lapsed MEMBER back down to GUEST and `routes/member/dues.ts` promotes
+ * them again — so "not a GUEST" is dues standing. `active` is the alumni flag.
+ * See `.claude/docs/membership.md`; nothing here is a permission check.
+ *
+ * **This deliberately no longer matches `GET /members`.** The roster used to be
+ * `{ slug: { not: null }, role: { not: 'GUEST' } }`, shared by the listing, the
+ * stat and the subteam counts. A person reached the public page only by being
+ * given a `slug` by hand — and **no route on this site has ever written that
+ * column**. The result was a page headed "who is in the club" listing sixty of
+ * six hundred and eighty-eight accounts, with no way in the product to add the
+ * sixty-first. The listing is everybody now; this count is still the club.
+ *
+ * The strip's cell is labelled ACTIVE MEMBERS for exactly that reason: it is a
+ * count of the club, not a count of the page it links to. That is the one place
+ * the "each stat matches its listing" rule is broken, and it is broken on
+ * purpose — see `web/src/components/home/StatStrip.tsx`.
  */
-const onRoster = { slug: { not: null }, role: { not: 'GUEST' } } as const
+const activeMembers = { active: true, role: { not: 'GUEST' } } as const
 
-/** Contact details stay private — no `email` or `passwordHash` here. */
+/**
+ * What the roster's three chips mean.
+ *
+ * **ALUMNI is the club's Discord *Officer Alumni* role**, mirrored into
+ * `User.officerAlumnus` by `discord/discordAlumni.ts`. It is not `active`,
+ * which the chip used to read and which is a different fact with a different
+ * owner — `membershipUpdateFor` sets `active` back to `true` on every payment,
+ * so it can never be made to mean "used to run the club".
+ *
+ * **The three are not a strict partition, and cannot be.** `active: false` is a
+ * third state: nothing in the product writes it and the legacy import set it on
+ * a handful of rows, so those people appear under EVERYONE alone. That is the
+ * honest answer — they are neither current nor officer alumni — and it is why
+ * this is a lookup rather than the `active: status === 'active'` one-liner it
+ * replaced, which quietly assumed two states.
+ *
+ * An officer alumnus who still pays dues appears under ALUMNI and not CURRENT,
+ * and still counts towards `activeMembers` above. One of the twenty-seven
+ * people carrying the role in the club's guild is also a sitting officer.
+ */
+const rosterStatus = {
+  active: { active: true, officerAlumnus: false },
+  alumni: { officerAlumnus: true },
+  all: {},
+} as const
+
+/**
+ * Contact details stay private — no `email` or `passwordHash` here.
+ *
+ * `slug` is still sent and is still null for almost everybody. It means "has a
+ * public profile URL" and nothing else now: `GET /members/:slug` is the only
+ * reader, and the roster cards link nowhere until that page exists.
+ */
 const rosterSelect = {
   id: true,
   slug: true,
@@ -76,6 +124,10 @@ const rosterSelect = {
   bio: true,
   photoUrl: true,
   active: true,
+  // What the card's ALUMNI badge is drawn from under the EVERYONE chip. Sent
+  // rather than inferred from `active`, which is a different fact — see
+  // `rosterStatus`.
+  officerAlumnus: true,
   subteam: { select: { slug: true, name: true, color: true } },
 } satisfies UserSelect
 
@@ -180,11 +232,18 @@ const past = (now: Date) => ({
 /**
  * Counts for the landing page's headline strip.
  *
- * Each cell up there links to a listing page, so each count applies exactly the
- * filter that listing applies by default — the number you read is the number of
- * rows you find when you land. Change one and change the other. They run in a
- * transaction so the three numbers describe a single snapshot rather than three
- * separate moments, and `count` never loads the rows themselves.
+ * Each cell up there links to a listing page, and two of the three count
+ * exactly what that listing shows by default — the number you read is the
+ * number of rows you find when you land. Change one and change the other.
+ *
+ * **`members` is the deliberate exception.** `GET /members` lists every account
+ * including guests; this counts the club's active membership, which is a much
+ * smaller and much more meaningful number for a front page. The cell is
+ * labelled ACTIVE MEMBERS so the two are not read as the same claim. See
+ * `activeMembers` above for why the roster stopped filtering.
+ *
+ * They run in a transaction so the three numbers describe a single snapshot
+ * rather than three separate moments, and `count` never loads the rows.
  */
 content.get('/stats', async (c) => {
   const now = new Date()
@@ -192,8 +251,8 @@ content.get('/stats', async (c) => {
   const [projects, members, events] = await prisma.$transaction([
     // Matches GET /projects, which does not filter by status by default.
     prisma.project.count(),
-    // Matches GET /members, which defaults to status=active.
-    prisma.user.count({ where: { ...onRoster, active: true } }),
+    // Does *not* match GET /members, on purpose — see above.
+    prisma.user.count({ where: activeMembers }),
     // Matches GET /events, which defaults to when=upcoming.
     prisma.event.count({ where: { published: true, ...upcoming(now) } }),
   ])
@@ -212,7 +271,13 @@ content.get('/subteams', async (c) => {
       name: true,
       description: true,
       color: true,
-      _count: { select: { members: { where: { active: true, ...onRoster } } } },
+      // Matches `GET /members?subteam=…` at its default `status=active`, which
+      // is where `/about` sends a reader who presses this number — hence
+      // `rosterStatus.active` itself rather than a copy of its two conditions.
+      // The two moved together when the roster stopped filtering on `slug`: a
+      // count that still said "has a slug" would now under-report every subteam
+      // on the page, against a list that shows everybody.
+      _count: { select: { members: { where: rosterStatus.active } } },
     },
   })
 
@@ -226,6 +291,24 @@ content.get('/subteams', async (c) => {
 
 // ------------------------------------------------------------------ members
 
+/**
+ * Everybody with an account, guests included.
+ *
+ * **The only filter left is the alumni one**, and that is a `status=` the page
+ * offers rather than something applied behind the reader's back. There is no
+ * roster to be on any more — see `activeMembers` for what this used to be and
+ * why sixty of six hundred and eighty-eight was not a roster anybody could
+ * maintain.
+ *
+ * `limit` is its own ceiling here rather than `listQuery`'s hundred. The page
+ * filters by subteam and by name in the browser on purpose — a club roster is a
+ * list too long to *scan*, not one too long to send — and that only works if
+ * one request carries the whole thing. A thousand rows of these columns is a
+ * few hundred kilobytes before compression, cached at the edge for five
+ * minutes, and read once by anybody who visits `/members`. If the club ever
+ * passes a thousand this becomes real pagination *and* server-side search,
+ * because either without the other is a search box that lies.
+ */
 content.get(
   '/members',
   zValidator(
@@ -233,8 +316,9 @@ content.get(
     listQuery.extend({
       subteam: z.string().optional(),
       role: z.enum(UserRole).optional(),
-      /** Defaults to the current roster; `alumni` and `all` opt out of that. */
+      /** Current people by default; `alumni` and `all` opt out of that. */
       status: z.enum(['active', 'alumni', 'all']).default('active'),
+      limit: z.coerce.number().int().min(1).max(1000).default(1000),
     }),
   ),
   async (c) => {
@@ -242,8 +326,7 @@ content.get(
 
     const members = await prisma.user.findMany({
       where: {
-        ...onRoster,
-        ...(status === 'all' ? {} : { active: status === 'active' }),
+        ...rosterStatus[status],
         ...(subteam ? { subteam: { slug: subteam } } : {}),
         ...(role ? { role } : {}),
       },
@@ -439,9 +522,18 @@ content.get(
   },
 )
 
+/**
+ * One person's profile, for a page that does not exist yet.
+ *
+ * `slug` is the whole condition now. It used to also require not being a GUEST,
+ * which was the roster rule rather than this route's — and with the listing
+ * showing guests, a card whose profile 404s purely because they have not paid
+ * would be the odd one out. A slug is set by hand and by an officer either way,
+ * so having one *is* the decision to publish a profile.
+ */
 content.get('/members/:slug', async (c) => {
   const member = await prisma.user.findFirst({
-    where: { ...onRoster, slug: c.req.param('slug') },
+    where: { slug: c.req.param('slug') },
     select: {
       ...rosterSelect,
       joinedAt: true,

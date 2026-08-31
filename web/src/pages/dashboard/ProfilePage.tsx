@@ -159,8 +159,12 @@ export function ProfilePage() {
             <PanelFact label="ROLE" value={user.role.replace(/_/g, ' ')} />
             <PanelFact
               label="PUBLIC PROFILE"
+              /* "No profile page yet" rather than "not on the public roster":
+                 `/members` lists every account now, so everybody reading this
+                 is already on it. What a slug buys is a page of one's own, and
+                 an officer sets it. */
               value={
-                user.slug ? `/members/${user.slug}` : 'Not on the public roster'
+                user.slug ? `/members/${user.slug}` : 'No profile page yet'
               }
             />
             <PanelFact

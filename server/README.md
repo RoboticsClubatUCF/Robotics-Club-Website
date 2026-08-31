@@ -146,6 +146,16 @@ and down this ladder**, and the loop has two halves:
   guild and has four refusals built on exactly that. It costs one member lookup,
   throttled to one per person every five minutes and skipped outright for anyone
   already an `OFFICER` or `ADMIN`.
+- **Who used to run the club comes off Discord too.** `src/discord/discordAlumni.ts`
+  reads the guild's **Officer Alumni** role into `User.officerAlumnus` on the
+  same tick, which is what `/members?status=alumni` answers with. Deliberately
+  not `active` — that column means "still around" and `membershipUpdateFor`
+  writes it back to true on every payment, so a sweep owning it too would make
+  the two undo each other every ten minutes; and somebody can be a paid-up
+  member *and* an officer alumnus. It refuses in the officer sync's three ways
+  plus a fourth: a sweep that would clear every alumnus and mark nobody stands
+  down. **Never list its id among the roles below** — it sits under the bot in
+  the hierarchy, so unlike Officers nothing at Discord's end would refuse.
 - **And the Discord roles follow, in the other direction.** `src/discord/discordRoles.ts`
   gives out the Members, Project Leads and Team Leads roles plus each project's
   own — `Project.discordRoleId` — on the same ten-minute tick, chained *after*
@@ -178,12 +188,25 @@ Two things follow from that, and both are easy to get wrong:
 - **Declaration order is load-bearing twice.** It is the permission ranking, and
   because Postgres sorts an enum by declaration order it is also the roster
   display order that `orderBy: { role: 'asc' }` depends on.
-- **A slug is what makes someone public.** `slug`, `email` and `passwordHash`
-  are all optional: a roster entry may have no login, and a login may have no
-  roster entry. Public routes list users with a slug whose role isn't `GUEST`;
-  everyone else is invisible to the site. Nothing generates a slug — not even
-  paying dues, which grants the role and stops there. Publishing somebody's name
-  and photo is a decision for a person, and it stays one.
+- **A slug is a profile page, not a place on the roster.** `slug`, `email` and
+  `passwordHash` are all optional: a roster entry may have no login, and a login
+  may have no roster entry. `GET /members` lists **every** user, guests
+  included; the only filter is the ALUMNI one the page offers, which reads
+  `officerAlumnus` — the club's Discord Officer Alumni role, mirrored in by
+  `syncOfficerAlumni`. Deliberately **not** `active`: that column means "still
+  around", `membershipUpdateFor` sets it back to true on every payment, and
+  somebody can be a current member *and* an officer alumnus.
+
+  It used to want a slug *and* a role above `GUEST`, and nothing generates a
+  slug — so the public page listed sixty of six hundred and eighty-eight
+  accounts with no way in the product to add the sixty-first. What a slug still
+  buys is `GET /members/:slug`, and it is still set by hand, because giving
+  somebody a page of their own is a decision for a person.
+
+  **The one query that still narrows people is `activeMembers`** — `active` and
+  not `GUEST` — which is the landing page's headline count. Its cell is labelled
+  ACTIVE MEMBERS rather than MEMBERS precisely because it no longer matches the
+  length of the page it links to.
 
 ### Project roles are the other system
 
@@ -251,9 +274,9 @@ sprayed across every account in turn never trips a per-IP limit.
 | Route                    | Notes                                              |
 | ------------------------ | -------------------------------------------------- |
 | `GET /api/health`        | Also pings the database                             |
-| `GET /api/stats`         | The landing page's counts — each equals the listing it links to |
+| `GET /api/stats`         | The landing page's counts. `projects` and `events` equal the listing they link to; **`members` does not** — it is `activeMembers` (active, not `GUEST`) while `GET /api/members` lists everybody, which is why that cell reads ACTIVE MEMBERS |
 | `GET /api/subteams`      | Includes an active-member count                     |
-| `GET /api/members`       | The roster. `?subteam= &role= &status=active\|alumni\|all` |
+| `GET /api/members`       | **Every account, guests included.** `?subteam= &role= &status=active\|alumni\|all`, where `alumni` is the club's Discord **Officer Alumni** role (`officerAlumnus`) rather than `active`, and `active` excludes them. `limit` runs to 1000 here rather than 100 — the page filters by subteam and name in the browser, which only works if one request carries the whole club |
 | `GET /api/officers`      | `{ seats, officers }` — the seats there are, and who is in one |
 | `GET /api/officers/past` | The archive. `?years=` (default **2**) `&all=1`. Answers `{ terms, older }` |
 | `GET /api/members/:slug` | Adds the member's projects                          |
@@ -294,7 +317,7 @@ shared-cache headers never touch them.
 | Route                    | Notes                                              |
 | ------------------------ | -------------------------------------------------- |
 | `GET /api/account`       | The editable profile, plus `passwordSet` and `pendingEmail` — two facts the page needs and cannot derive. Never the password hash |
-| `PATCH /api/account/profile` | `{ fullName, bio, gradYear }` → `{ user }`. All three are on the public roster, which is why they are the member's own. `title` and `slug` are not here: a club title is the board's to award, and a slug is what publishes somebody to the roster at all |
+| `PATCH /api/account/profile` | `{ fullName, bio, gradYear }` → `{ user }`. All three are on the public roster, which is why they are the member's own. `title` and `slug` are not here: a club title is the board's to award, and a slug gives somebody a profile page of their own |
 | `POST /api/account/discord-check` | Signup's check with the caller excused — otherwise re-saving your own handle is refused by yourself. Which row to excuse comes from the session, never from the body |
 | `POST /api/account/discord` | `{ discordUsername }` → `{ user }`. Signup's refusals exactly: `not_found` is 422, `unavailable` is 503 rather than a guess. Stores Discord's own spelling and the snowflake when it answered; leaves `discordId` alone when no bot is configured, since renaming does not change the account |
 | `POST /api/account/photo` | Multipart image, sniffed and size-capped like a project cover; replacing deletes the old upload. **Takes `focalX`/`focalY`/`zoom` in the same body**, because the browser frames the picture *before* sending it — an avatar replaces, so a mis-picked file has to cost nothing until somebody has looked at it, and framing arriving as a second request could fail on its own and leave the new photo cropped by the old one's numbers. Framing is written every time, defaults included: a new photo must not inherit a crop chosen against a different picture |
@@ -811,7 +834,7 @@ src/
 │                     authz.ts (who may do what — see membership docs)
 ├── discord/          discord.ts (the bot's HTTP surface), discordGateway.ts (the
 │                     WebSocket), discordRoles.ts, discordOfficers.ts,
-│                     discordRecipient.ts, officerNotify.ts
+│                     discordAlumni.ts, discordRecipient.ts, officerNotify.ts
 ├── email/            mail.ts (Postmark, optional), emails.ts (the HTML itself)
 ├── lab/              labStatus.ts (the sign, the curfew, the sweep),
 │                     labInteraction.ts (what a button press means)

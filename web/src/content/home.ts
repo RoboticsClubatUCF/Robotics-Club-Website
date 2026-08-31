@@ -61,7 +61,9 @@ export type Stat = {
   label: string
   /** Each cell links to the page it counts, and all four now exist — the strip
       draws them as `<Link>`s. A count here and the default filter on the page
-      it points at have to stay in step; `GET /stats` is where that is kept. */
+      it points at have to stay in step; `GET /stats` is where that is kept.
+      The members cell is the one exception, and its label carries the
+      difference — see the list below. */
   href: string
   /** Draws the number in gold. Exactly one stat should set this. */
   accent?: boolean
@@ -80,7 +82,13 @@ export type Stat = {
 
 export const stats: Stat[] = [
   { countOf: 'projects', label: 'PROJECTS', href: '/projects' },
-  { countOf: 'members', label: 'MEMBERS', href: '/members' },
+  // **The label is doing real work here.** `/members` lists every account the
+  // club has, guests included; this counts the active membership, which is a
+  // fraction of it. Labelling the cell MEMBERS while sending a reader to a page
+  // three times longer would read as a broken number, so the cell says what it
+  // actually counts. `GET /stats` in `routes/public/content.ts` carries the
+  // matching note.
+  { countOf: 'members', label: 'ACTIVE MEMBERS', href: '/members' },
   // The events page is where opportunities live; the label is the club's word
   // for them, the endpoint is the schema's.
   { countOf: 'events', label: 'OPPORTUNITIES', href: '/events' },

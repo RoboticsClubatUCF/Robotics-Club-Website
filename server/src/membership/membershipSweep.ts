@@ -19,9 +19,16 @@ import { membershipStanding } from './semester.js'
  * Nothing about access hangs on either of them. Access is decided by
  * `membershipStanding` at the moment of the request, so a member whose dues
  * lapsed an hour ago is already locked out of anything gated whether or not
- * this has run. What the role decides is the *roster*: `onRoster` wants a slug
- * and a role above `GUEST`, so this is what stops the public members page
- * listing people who left two years ago.
+ * this has run.
+ *
+ * What the role decides is **who counts as a member**, in the two places that
+ * still ask: the landing page's ACTIVE MEMBERS figure (`activeMembers` in
+ * `routes/public/content.ts`, which is `active` and not `GUEST`) and the club's
+ * Discord Members role (`desiredRoles` in `discord/discordRoles.ts`, which
+ * reads the date rather than the role). It no longer decides who appears on
+ * `/members` — that page lists every account now, guests included — so a
+ * demotion here takes somebody off a count and out of a Discord role, and
+ * leaves their card on the public page where it was.
  *
  * Three things it deliberately will not do.
  *
@@ -105,11 +112,12 @@ export async function demoteIfLapsed(user: {
   // round to claiming. `duesRequired` asks the other question: is anything
   // actually owed, or is the club not charging this week?
   //
-  // Which keeps the *roster* role and *access* apart on purpose. Access went
-  // the day the date did; the role is "have you joined and not drifted away",
-  // and dropping somebody off the public roster during a stretch when the
-  // club is charging nobody would be churn rather than information. The sweep
-  // below turns on exactly the same condition, and the two must not diverge.
+  // Which keeps the *membership* role and *access* apart on purpose. Access
+  // went the day the date did; the role is "have you joined and not drifted
+  // away", and taking somebody out of the club's headline count and its Discord
+  // Members role during a stretch when the club is charging nobody would be
+  // churn rather than information. The sweep below turns on exactly the same
+  // condition, and the two must not diverge.
   const standing = await membershipStanding(user.duesPaidThrough, now)
   if (!standing.duesRequired) return user.role
 

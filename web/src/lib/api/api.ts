@@ -1113,6 +1113,17 @@ export type ApiMember = {
   bio: string | null
   photoUrl: string | null
   active: boolean
+  /**
+   * Whether the club's Discord **Officer Alumni** role says this person used to
+   * run it. What `?status=alumni` selects on and what the card's badge is drawn
+   * from.
+   *
+   * **Not `active`, which is the field above and a different fact.** `active`
+   * is "still around" and is set back to true by every dues payment, so it can
+   * never be made to mean this; somebody can be both. The server's
+   * `rosterStatus` in `routes/public/content.ts` has the full argument.
+   */
+  officerAlumnus: boolean
   subteam: { slug: string; name: string; color: string | null } | null
 }
 

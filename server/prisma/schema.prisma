@@ -138,6 +138,23 @@ model User {
   photoFocalY               Float     @default(50) @map("photo_focal_y")
   photoZoom                 Float     @default(1) @map("photo_zoom")
   active                    Boolean   @default(true)
+  /// Whether the club's Discord **Officer Alumni** role says this person used
+  /// to run the club. It is what `/members?status=alumni` answers with.
+  ///
+  /// **Deliberately not `active`, and the two must never be merged.** `active`
+  /// is "still around", and `membershipUpdateFor` sets it back to `true` every
+  /// time somebody pays — so a Discord sweep writing that column would be a
+  /// second owner of it, and the two would overwrite each other every ten
+  /// minutes with nothing in any log to say so. They are also different facts:
+  /// a former president who still pays dues is a current member *and* an
+  /// officer alumnus, which one boolean cannot say.
+  ///
+  /// **Discord owns it and nothing else writes it** — `syncOfficerAlumni` in
+  /// `src/discord/discordAlumni.ts`, in the same direction as
+  /// `discordOfficers.ts`: the club marks its alumni in Discord and the site
+  /// follows. There is no officer control for it on purpose; a second answer
+  /// would be overwritten within ten minutes.
+  officerAlumnus            Boolean   @default(false) @map("officer_alumnus")
   joinedAt                  DateTime? @map("joined_at")
   /// When this person agreed to the member acknowledgement — the club's safety,
   /// equipment, conduct and dues rules, accepted while creating an account.
@@ -204,6 +221,9 @@ model User {
 
   @@index([subteamId])
   @@index([active])
+  // The alumni chip on `/members` selects on this alone, and it is a couple of
+  // dozen rows out of hundreds — the shape an index is actually for.
+  @@index([officerAlumnus])
   // Matches the default roster query: filter on active, sort by role then name.
   @@index([active, role, fullName])
   // The trial sweep's candidate query: everyone still unpaid as of now.

@@ -8,24 +8,34 @@ import { imageSrc } from '../../lib/media/storedFiles'
 import { useApi } from '../../lib/api/useApi'
 
 /**
- * `/members` — the public roster.
+ * `/members` — everybody with an account.
  *
- * **This is not everybody who has paid dues, and it must not read as though it
- * were.** A row reaches this page by being given a slug by hand — `onRoster` in
- * `server/src/routes/public/content.ts` is "has a slug and is not a GUEST" — so what it
- * shows is the people the club has chosen to put on its website. The lede says
- * so, because a page headed "the members" that lists nine of two hundred is a
- * page that looks broken.
+ * **This is not a list of who has paid, and the lede says so.** It is every
+ * account the club has: members, officers, and people who signed up and have
+ * gone no further. The landing page's ACTIVE MEMBERS cell is the number that
+ * means paid-up standing, and it is a fraction of what is drawn here.
+ *
+ * It used to be the reverse problem. A row reached this page only by an officer
+ * setting `slug` by hand, and no route on the site ever wrote that column — so
+ * a page headed "who is in the club" listed sixty of six hundred and eighty-eight
+ * accounts with no way in the product to add the sixty-first. See `activeMembers`
+ * in `server/src/routes/public/content.ts` for what the filter was.
  *
  * **The cards do not link anywhere.** `GET /api/members/:slug` exists and a
  * profile page does not, and a card that opens a 404 is worse than a card that
  * opens nothing — see the note on unbuilt links in `.claude/docs/frontend.md`.
  * Whoever writes `/members/:slug` turns the card into the link.
  *
+ * **ALUMNI means the club's Discord *Officer Alumni* role**, mirrored into
+ * `User.officerAlumnus` by the server's ten-minute sweep. It is not `active`,
+ * which this chip used to read: `active` is "still around" and every dues
+ * payment sets it back to true, so it could never mean "used to run the club",
+ * and somebody can be both. Nothing on this site sets it — the club marks its
+ * alumni in Discord and the site follows.
+ *
  * **Status refetches; the other two controls narrow what arrived.** Current
- * members and alumni are different rows — `active` is the only column marking
- * an alumnus — so that one is `?status=`, and changing it changes the path
- * `useApi` keys its effect on. Subteam and the search box filter in the browser
+ * people and officer alumni are different rows, so that one is `?status=`, and
+ * changing it changes the path `useApi` keys its effect on. Subteam and the search box filter in the browser
  * for the reason `lib/equipment/catalogue.ts` gives: a club roster is a list too long to
  * *scan*, not one too long to send.
  *
@@ -40,20 +50,31 @@ import { useApi } from '../../lib/api/useApi'
  */
 
 /**
- * The server caps `limit` at 100. If the roster outgrows one page of that this
- * becomes pagination, not a bigger number — the same rule the project list
- * states for the same reason.
+ * The server's own ceiling for this route, and asking for all of it in one go
+ * is what makes the two client-side filters below possible at all — you cannot
+ * search a page you were not sent. A thousand rows of names and bios is a few
+ * hundred kilobytes, cached at the edge.
+ *
+ * Past a thousand this becomes pagination *and* a server-side search, together;
+ * either one alone gives you a search box that quietly misses people. The route
+ * comment in `content.ts` says the same thing from the other side.
  */
-const LIMIT = 100
+const LIMIT = 1000
 
 /** "Don't narrow by this". A subteam slug can never collide with it. */
 const ANY = 'ALL' as const
 
 type RosterStatus = 'active' | 'alumni' | 'all'
 
+/**
+ * The `?status=` values are the server's and are unchanged; only the middle
+ * label moved. `alumni` now means the club's Discord Officer Alumni role rather
+ * than `active: false`, and the chip says which — "ALUMNI" on a club roster
+ * reads as "everyone who has graduated", which is not what this is.
+ */
 const statusOptions = [
   { value: 'active' as const, label: 'CURRENT' },
-  { value: 'alumni' as const, label: 'ALUMNI' },
+  { value: 'alumni' as const, label: 'OFFICER ALUMNI' },
   { value: 'all' as const, label: 'EVERYONE' },
 ]
 
@@ -142,8 +163,9 @@ export function MembersPage() {
         <FormEyebrow>/ MEMBERS</FormEyebrow>
         <FormHeading>Who is in the club.</FormHeading>
         <p className="text-dim max-w-[34rem] text-sm leading-[1.7] text-pretty">
-          The members who appear on the club&rsquo;s public roster, and the
-          alumni who came before them. The officers running it today are{' '}
+          Everyone with an account on the club&rsquo;s site &mdash; paid-up
+          members, officers, and people who have just signed up &mdash; along
+          with the officers who ran it before them. The board sitting today is{' '}
           <a
             href="/#officers"
             className="text-primary border-primary/40 hover:border-primary border-b transition-colors duration-200"
@@ -182,7 +204,7 @@ export function MembersPage() {
             </div>
 
             <FilterChips
-              label="ON THE ROSTER"
+              label="SHOWING"
               options={statusOptions}
               value={status}
               onChange={setStatus}
@@ -204,8 +226,8 @@ export function MembersPage() {
           {members.length === 0 ? (
             <p className="border-rule text-faint border-t py-6.5 text-sm">
               {status === 'alumni'
-                ? 'No alumni are listed yet.'
-                : 'Nobody is on the public roster yet.'}
+                ? 'No officer alumni are listed yet.'
+                : 'Nobody has an account yet.'}
             </p>
           ) : (
             <>
@@ -223,7 +245,7 @@ export function MembersPage() {
 
               {shown.length === 0 ? (
                 <p className="border-rule text-dim border-t py-6.5 text-sm leading-[1.7]">
-                  Nobody on the roster matches that.
+                  Nobody matches that.
                 </p>
               ) : (
                 <ul className={gridClass}>
@@ -231,9 +253,9 @@ export function MembersPage() {
                     <li key={member.id} className="flex">
                       <MemberCard
                         member={member}
-                        /* Only where the list is mixed. Under CURRENT every
-                           card is current and under ALUMNI every card is an
-                           alumnus, so a badge on all of them says nothing the
+                        /* Only where the list is mixed. Under CURRENT no card
+                           is an officer alumnus and under OFFICER ALUMNI every
+                           one is, so a badge in either case says nothing the
                            chip above has not already said. */
                         markAlumni={status === 'all'}
                       />
@@ -268,7 +290,9 @@ function MemberCard({
   member: ApiMember
   markAlumni: boolean
 }) {
-  const alumnus = markAlumni && !member.active
+  // `officerAlumnus`, never `!active`. They are different facts and the second
+  // is set back to true by every dues payment — see `ApiMember`.
+  const alumnus = markAlumni && member.officerAlumnus
 
   return (
     <figure className="bg-base-100 flex h-full w-full flex-col">
@@ -281,6 +305,10 @@ function MemberCard({
           <img
             src={imageSrc(member.photoUrl)}
             alt=""
+            /* The list is the whole club now rather than the handful with a
+               slug, so the cards below the fold are worth not fetching. Most
+               rows have no photograph at all and draw the hatch instead. */
+            loading="lazy"
             className="h-full w-full object-cover object-top"
           />
         ) : (
@@ -327,7 +355,7 @@ function MemberCard({
 
             {alumnus && (
               <span className="text-faint border-rule border px-2 py-0.5 font-mono text-[9px] font-medium tracking-[0.14em]">
-                ALUMNI
+                OFFICER ALUMNI
               </span>
             )}
           </div>

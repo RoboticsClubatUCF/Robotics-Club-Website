@@ -39,7 +39,10 @@ describe('StatStrip', () => {
       screen.getByText(label).closest('a')?.getAttribute('href')
 
     expect(hrefFor('PROJECTS')).toBe('/projects')
-    expect(hrefFor('MEMBERS')).toBe('/members')
+    // ACTIVE MEMBERS rather than MEMBERS: `/members` lists every account and
+    // this counts the paid-up membership, so the label carries the difference.
+    // Asserted on the exact wording because that is the whole mechanism.
+    expect(hrefFor('ACTIVE MEMBERS')).toBe('/members')
     expect(hrefFor('OPPORTUNITIES')).toBe('/events')
     expect(hrefFor('ESTABLISHED')).toBe('/about')
   })
