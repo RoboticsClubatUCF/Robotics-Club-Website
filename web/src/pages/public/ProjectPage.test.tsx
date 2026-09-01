@@ -439,7 +439,7 @@ describe('ProjectPage', () => {
 
     let joined = false
 
-    const fetchMock = vi.fn((input: string | URL | Request, init?: RequestInit) => {
+    const fetchMock = vi.fn((input: string | URL | Request, _init?: RequestInit) => {
       const url = urlOf(input)
 
       if (url.includes('/auth/me')) return json({ user: user('MEMBER') })
