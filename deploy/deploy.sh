@@ -366,8 +366,14 @@ health_check() {
   # path a visitor takes rather than a container talking to itself.
   local deadline=$((SECONDS + HEALTH_TIMEOUT))
 
-  until curl -fsS -o /dev/null --max-time 5 "http://localhost:$WEB_PORT/api/health"; do
-    ((SECONDS < deadline)) || die "the API never answered /api/health"
+  # `-fs` and not `-fsS` in the loop: a refused connection here is the *normal*
+  # first result, because the container it is asking for was recreated seconds
+  # ago. Printing curl's complaint for each attempt puts `curl: (56) Recv
+  # failure: Connection reset by peer` in the journal immediately above
+  # `health checks passed`, which reads like something went wrong when nothing
+  # did. The timeout below is what reports a real failure, in a sentence.
+  until curl -fs -o /dev/null --max-time 5 "http://localhost:$WEB_PORT/api/health"; do
+    ((SECONDS < deadline)) || die "the API never answered /api/health in ${HEALTH_TIMEOUT}s"
     sleep 3
   done
 
