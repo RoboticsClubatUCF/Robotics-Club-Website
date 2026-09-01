@@ -98,6 +98,11 @@ main() {
   need jq
   need rsync
   need docker
+  # The frontend is built here, so node is a hard dependency of this box rather
+  # than of CI. Checked up front, and up front matters: without it the first
+  # sign of a missing node was a failed deploy two minutes into a build, with
+  # the commit already written off as broken.
+  need npm
   # util-linux, so present on any Debian box — but checked here so a missing one
   # fails with a sentence rather than at the redirection below.
   need flock
@@ -239,6 +244,8 @@ classify() {
 deploy_web() {
   local changed=$1
 
+  assert_api_url
+
   # `npm ci` wipes and reinstalls from the lockfile, which takes a minute or so
   # and is only actually needed when the lockfile moved. Most frontend commits
   # do not touch it.
@@ -276,6 +283,41 @@ deploy_web() {
   # failed import. Filenames are content-hashed, so keeping them costs a few
   # hundred kilobytes and nothing else.
   find "$WEB_ROOT/assets" -type f -mtime "+$ASSET_KEEP_DAYS" -delete 2>/dev/null || true
+}
+
+# Refuse to build a bundle that points at the visitor's own machine.
+#
+# `VITE_API_URL` is baked in at build time, and unset it falls back to
+# `http://localhost:4000` — so a build with no env file in place produces a site
+# where every request goes to whatever is on port 4000 of the *reader's*
+# computer. Nothing fails: the build succeeds, the sync succeeds, the health
+# check passes because nginx is serving something, and the site is broken for
+# everybody with a console full of connection refusals.
+#
+# The build already notices and prints a warning. A warning is the wrong shape
+# for this: nobody is watching at two in the morning, and the whole point of
+# this script is that nobody has to be. Same test as `reportApiUrl` in
+# `web/vite.config.ts` — keep the two in step.
+#
+# Vite reads `.env` first and `.env.production` over the top, so the last match
+# in that order is the one that wins.
+assert_api_url() {
+  local url
+  url=$(cat "$REPO_DIR/web/.env" "$REPO_DIR/web/.env.production" 2>/dev/null |
+    grep -E '^[[:space:]]*VITE_API_URL[[:space:]]*=' |
+    tail -1 |
+    cut -d= -f2- |
+    tr -d '"'\''[:space:]' || true)
+
+  # `|| die`, the same shape as every other check in this file, so the failure
+  # propagates through errexit rather than through anything clever.
+  [[ -n $url ]] ||
+    die "VITE_API_URL is not set in $REPO_DIR/web/.env or .env.production — a bundle built now would call the visitor's own machine"
+
+  [[ $url != *localhost* && $url != *127.0.0.1* ]] ||
+    die "VITE_API_URL is $url — that is a local build and must not be deployed"
+
+  log "bundle will call $url"
 }
 
 # ---------------------------------------------------------------- the backend
