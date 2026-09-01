@@ -324,22 +324,39 @@ assert_api_url() {
 
 deploy_api() {
   log "rebuilding the API image and bringing the stack up"
-  # `up -d --build` on the app profile. The compose file makes `api` depend on
-  # `migrate` completing successfully, so `prisma migrate deploy` runs against
-  # the database exactly once, before any API process starts — there is nothing
-  # for this script to sequence and it must not try.
-  compose --profile app up -d --build
+  # The compose file makes `api` depend on `migrate` completing successfully, so
+  # `prisma migrate deploy` runs against the database exactly once, before any
+  # API process starts — there is nothing for this script to sequence and it
+  # must not try.
+  compose up -d --build
 }
 
 deploy_nginx() {
   log "recreating the web container"
   # nginx.conf is a read-only bind mount, so a changed file on disk means
   # nothing until the container is recreated.
-  compose --profile web up -d --force-recreate web
+  compose up -d --force-recreate web
 }
 
+# **Both profiles, on every call, and that is not belt-and-braces.**
+#
+# The stack is split into `app` (postgres, migrate, api) and `web` (nginx), and
+# `web` declares `depends_on: api`. A command naming only one profile therefore
+# describes a project in which the other half's services do not exist, and
+# compose refuses the whole thing rather than ignoring the dangling reference:
+#
+#   service "web" depends on undefined service "api": invalid compose project
+#
+# Which is exactly what `--profile web up -d --force-recreate web` did on the
+# first real deploy. Naming both is the documented way to drive this stack — see
+# the comment above the `web` service — and it costs nothing: `up -d` against a
+# service whose configuration has not changed leaves it alone.
 compose() {
-  docker compose --project-directory "$REPO_DIR/server" -f "$REPO_DIR/server/docker-compose.yml" "$@"
+  docker compose \
+    --project-directory "$REPO_DIR/server" \
+    -f "$REPO_DIR/server/docker-compose.yml" \
+    --profile app --profile web \
+    "$@"
 }
 
 # ------------------------------------------------------------- did it survive

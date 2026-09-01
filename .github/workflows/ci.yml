@@ -116,6 +116,20 @@ jobs:
       - name: Build the API image
         run: docker build -t rccf-api-ci-check server
 
+      # The compose file is only ever exercised on the box, and a project that
+      # does not resolve fails there rather than here — mid-deploy, after the
+      # bundle has already been swapped. `web` depends on `api` across a profile
+      # boundary, so the profiles have to be named together for the project to
+      # be valid at all; this is that assertion.
+      #
+      # The password is required for interpolation and is never used: `config`
+      # renders the project and starts nothing.
+      - name: Check the compose project resolves
+        working-directory: server
+        env:
+          POSTGRES_PASSWORD: ci-not-a-real-password
+        run: docker compose --profile app --profile web config -q
+
       # `npm --prefix` sets the package prefix but does NOT change the working
       # directory, so `npm --prefix server exec` ran prisma from the repo root,
       # where there is no prisma.config.ts and no prisma/schema.prisma. It has
