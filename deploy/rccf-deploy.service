@@ -3,6 +3,10 @@ Description=Deploy the RCCF site from main, if CI is green
 # Docker has to be up before this is worth running: every path through the
 # script either talks to compose or health-checks something compose is serving.
 Requires=docker.service
+# `Wants=` as well as `After=`: network-online.target is not pulled in by
+# anything on its own, so ordering after it without wanting it orders against a
+# target that never activates.
+Wants=network-online.target
 After=docker.service network-online.target
 
 [Service]
@@ -32,5 +36,8 @@ Restart=no
 StandardOutput=journal
 StandardError=journal
 
-[Install]
-WantedBy=multi-user.target
+# **Deliberately no [Install] section.** This is driven by rccf-deploy.timer and
+# started by hand for a one-off; it is not a thing to enable. A `WantedBy=` here
+# would mean `systemctl enable rccf-deploy.service` — an easy thing to type when
+# you meant the timer — silently adds a second trigger at every boot, on top of
+# the timer's own. Enable the timer; it pulls this in.

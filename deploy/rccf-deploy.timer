@@ -14,9 +14,10 @@ OnUnitActiveSec=2min
 # whatever else the machine does on a minute boundary.
 RandomizedDelaySec=30
 
-# If the box was off when a tick was due, run once on the way up rather than
-# waiting for the next interval.
-Persistent=true
+# No Persistent= here: it only applies to OnCalendar= timers, and these two are
+# monotonic. The boot case it would cover is already covered — OnBootSec fires
+# two minutes into every boot, whether or not a tick was missed while the box
+# was off.
 
 Unit=rccf-deploy.service
 
