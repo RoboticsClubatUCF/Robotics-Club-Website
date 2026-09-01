@@ -97,6 +97,81 @@ docker exec -it rccf-v13-postgres psql -U rccf -d rccf
 
 `\dt` lists tables, `\d users` describes one, `\q` quits.
 
+### Pointing these at a deployed database
+
+All three are clients: they need a connection string, not an install on the
+server. `docker-compose.yml` publishes Postgres on the host's `POSTGRES_PORT`,
+so reading a deployed database is a URL and a route to it. Studio takes one on
+the command line, and that is the flag to use:
+
+```bash
+npm run studio -- --url "postgresql://USER:PASSWORD@HOST:5433/rccf?schema=public"
+```
+
+**Never put a deployed URL in `.env` instead.** Prisma takes the datasource from
+`prisma.config.ts`, which reads that file — and so does Vitest. The backend
+suite runs against whatever database it finds, and its sweep tests select every
+*candidate row* rather than a fixture's, so a production URL left in `.env` is
+one `npm test` away from writing to real people. `--url` overrides the datasource
+for a single process and leaves nothing behind to forget about.
+
+**Reach it over an SSH tunnel unless that port is already private.** Publishing
+5433 on `0.0.0.0` means anything that can route to the host may try the password;
+binding it as `127.0.0.1:5433:5432` closes that off and leaves tunnelling
+working.
+
+```bash
+ssh -N -L 5434:localhost:5433 user@host
+```
+
+Then point the URL at `localhost:5434`. **The local end must not be 5433**,
+whatever else it is: 5433 is your own development Postgres, so a tunnel that
+quietly failed to open leaves the identical command connected to seed data,
+which looks close enough to real to edit for a while before anything says
+otherwise.
+
+**Check out the commit the server is running, first.** Studio reads
+`schema.prisma` rather than the database, so a working tree ahead of what is
+deployed asks for columns that do not exist there and every table errors on
+open.
+
+**Take a dump before editing anything.** Studio commits a cell when it loses
+focus: no confirmation, no undo, and nothing recording who changed what.
+
+```bash
+docker exec <postgres-container> pg_dump -U rccf rccf > backup.sql
+```
+
+**Most columns worth reaching for have a machine writer, and it wins.** `role`,
+`active` and `officerAlumnus` are owned by the dues loop and the Discord syncs
+described under [People and roles](#people-and-roles), all of which run on the
+ten-minute timer — so `role` set to `MEMBER` by hand is undone by the next
+sweep, and `duesPaidThrough` is what actually decides. `ADMIN` is the one value
+on that ladder nothing in the codebase writes or clears in either direction,
+which is the edit Studio is genuinely for. Comping a term is the officer roles
+desk rather than a date typed into `duesPaidThrough`: `grantMembership` writes
+the zero-amount payment, the promotion and the record of who granted it, and the
+hand edit writes none of those. Clearing `surveyCompletedAt` locks that account
+out of every gated page, the dues page included.
+
+**When Save appears to do nothing, it is a rejected write rather than a dead
+button** — Studio puts the old value back without surfacing the error. The
+response body of the failing request carries the message; devtools → Network on
+the Studio tab is where to read it. Correcting somebody's address is the common
+case: `email` is `String? @unique`, and a second account the same person made
+already holds it. Clear it there first — the column is nullable and Postgres
+allows any number of NULLs under a unique index.
+
+Two further things about that column. **Store it lowercase**: the unique index
+is case-sensitive `TEXT` while signup, login and the account route all lowercase
+before querying, so a capitalised address is a row nobody can sign in to and
+nothing anywhere reports as wrong. And **a pending `EmailChange` overwrites it**
+when its link is followed, so delete that row when fixing an address by hand.
+
+psql above is the way through a write Studio will not take. `updated_at` is
+`NOT NULL` with no database default — Prisma is what sets it — so a raw `UPDATE`
+has to write `updated_at = now()` itself or leave a timestamp that lies.
+
 ## People and roles
 
 **There are two role systems, and telling them apart is the whole model.**
@@ -757,6 +832,11 @@ mechanism is in [`../deploy/README.md`](../deploy/README.md); what matters here
 is that a change under `server/` restarts the API against the **real database**
 with no human in the loop, so a migration lands the moment its commit does.
 
+Reading or correcting the live data is a connection string rather than anything
+installed on the box — see
+[Pointing these at a deployed database](#pointing-these-at-a-deployed-database),
+and the warning there about never putting that URL in `.env`.
+
 **Name both profiles on any compose command that touches the live stack.** The
 services split into `app` (postgres, migrate, api) and `web` (nginx), and `web`
 declares `depends_on: api` across that boundary — so a command naming only one
@@ -845,7 +925,8 @@ src/
 ├── index.ts          the process: listen, log what is configured, arm the sweeps
 ├── app.ts            the middleware chain and every mount, in cache-boundary order
 ├── core/             env.ts (validated `.env`), db.ts (the one Prisma client),
-│                     rateLimit.ts (the Postgres-backed limiter)
+│                     rateLimit.ts (the Postgres-backed limiter), validate.ts
+│                     (the zod validator every route imports, and `webUrl`)
 ├── auth/             session.ts (cookie + middleware), password.ts (hashing),
 │                     authz.ts (who may do what — see membership docs)
 ├── discord/          discord.ts (the bot's HTTP surface), discordGateway.ts (the
