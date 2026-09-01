@@ -325,9 +325,17 @@ health_check() {
 # Asked of the workflow *file* rather than of the commit's combined status,
 # because a commit can carry check runs from anything and only this one means
 # "the tests ran and the bundle built".
+#
+# **Filtered by branch as well as by commit, and that is not belt-and-braces.**
+# One commit can have several runs: develop on a branch, fast-forward main onto
+# it, and that SHA now has a run against each. Asking only by SHA and taking the
+# newest means the verdict depends on which push happened to land last — so a
+# commit whose run went red on a feature branch and green on main, or the
+# reverse, could be read either way. The question this has to answer is "did CI
+# pass for what is about to be deployed", and that is one branch's run.
 ci_verdict() {
   local sha=$1 url response run
-  url="https://api.github.com/repos/$REPO/actions/workflows/$CI_WORKFLOW/runs?head_sha=$sha&per_page=1"
+  url="https://api.github.com/repos/$REPO/actions/workflows/$CI_WORKFLOW/runs?head_sha=$sha&branch=$BRANCH&per_page=1"
 
   local -a auth=()
   [[ -n $GITHUB_TOKEN ]] && auth=(-H "Authorization: Bearer $GITHUB_TOKEN")
