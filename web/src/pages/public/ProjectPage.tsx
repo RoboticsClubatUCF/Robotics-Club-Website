@@ -12,6 +12,7 @@ import type {
   ApiMyProject,
   ApiProjectDetail,
   ApiUser,
+  ProjectMemberRank,
 } from '../../lib/api/api'
 import { LOCK_COPY, accessLock, coverGap } from '../../lib/dues/dues'
 import { canEditProject, editingAsOfficer, rankOn } from '../../lib/projects/projectEditing'
@@ -254,7 +255,7 @@ function ProjectBody({
           onDirtyChange={setDirty}
         />
       ) : (
-        <ReadView project={project} signedIn={signedIn} />
+        <ReadView project={project} signedIn={signedIn} reload={reload} />
       )}
 
       {dialog}
@@ -270,9 +271,11 @@ const minesOf = (signedIn: SignedIn) =>
 function ReadView({
   project,
   signedIn,
+  reload,
 }: {
   project: ApiProjectDetail
   signedIn: SignedIn | null
+  reload: (fresh?: boolean) => Promise<void>
 }) {
   return (
     <>
@@ -297,7 +300,7 @@ function ReadView({
       {/* The margin lives on the wrapper because the panel renders nothing at
           all for finished projects, and an empty div's margins collapse away. */}
       <div className="mt-10">
-        <JoinPanel project={project} signedIn={signedIn} />
+        <JoinPanel project={project} signedIn={signedIn} reload={reload} />
       </div>
 
       <div className="mt-12">
@@ -522,9 +525,11 @@ function hostOf(url: string): string {
 function JoinPanel({
   project,
   signedIn,
+  reload,
 }: {
   project: ApiProjectDetail
   signedIn: SignedIn | null
+  reload: (fresh?: boolean) => Promise<void>
 }) {
   const { session } = useSession()
   const location = useLocation()
@@ -539,7 +544,10 @@ function JoinPanel({
   // still readable; only the join panel goes quiet.
   if (session.status === 'error') return null
 
-  if (signedIn) return <JoinAction project={project} signedIn={signedIn} />
+  if (signedIn)
+    return (
+      <JoinAction project={project} signedIn={signedIn} reload={reload} />
+    )
 
   return (
     <FormPanel tone="accent">
@@ -565,14 +573,40 @@ function JoinPanel({
 function JoinAction({
   project,
   signedIn: { dues, mine },
+  reload,
 }: {
   project: ApiProjectDetail
   signedIn: SignedIn
+  /**
+   * Joining and leaving both change `/ THE TEAM` directly above this panel, and
+   * that list is part of the *project* read rather than of anything this panel
+   * holds. Without a refetch the roster somebody has just put their name on
+   * still does not carry it, which reads as the join not having worked — the
+   * same failure the editor's `reload` was added for.
+   *
+   * `fresh`, for the reason spelled out on `getJson`: `/projects/:slug` is
+   * public and answers `max-age=60`, so the read taken a second after the write
+   * comes back from the browser's cache with the pre-join copy.
+   */
+  reload: (fresh?: boolean) => Promise<void>
 }) {
   const [state, setState] = useState<
     | { status: 'idle' }
     | { status: 'joining' }
-    | { status: 'joined' }
+    /**
+     * Joined just now, carrying the rank the *server* answered with.
+     *
+     * It has to be carried rather than looked up: `rank` below comes from
+     * `/me/projects`, `useApi` cannot refetch it, and so the snapshot this panel
+     * holds is from before the join and knows nothing about it. That left the
+     * LEAVE THIS PROJECT link absent until a page refresh — somebody had joined,
+     * the panel said so, and the only way back out was to reload the page.
+     *
+     * The join route returns `{ projectId, rank }` for exactly this, so nothing
+     * here has to assume a new member lands on `MEMBER` — which is true today
+     * and is not this component's fact to depend on.
+     */
+    | { status: 'joined'; rank: ProjectMemberRank }
     /** Left just now, so `/me/projects` still says otherwise. */
     | { status: 'left' }
     | { status: 'failed'; message: string }
@@ -593,7 +627,12 @@ function JoinAction({
         mine.data.some((m) => m.project.id === project.id)))
 
   if (alreadyOn) {
-    const rank = rankOn(mine.status === 'ready' ? mine.data : null, project.id)
+    // The join's own answer first, for the same reason `alreadyOn` prefers
+    // `state`: the fetched list is a snapshot from before it happened.
+    const rank =
+      state.status === 'joined'
+        ? state.rank
+        : rankOn(mine.status === 'ready' ? mine.data : null, project.id)
 
     return (
       <FormPanel tone="accent">
@@ -610,9 +649,10 @@ function JoinAction({
 
         {/* Leaving is offered here as well as on the dashboard, because this is
             where somebody who has decided a project is not for them actually
-            is. Absent until the roster read has landed — the warning turns on
-            the rank, and a dialog that guessed it would be worse than a
-            moment's wait. */}
+            is. Absent only while there is genuinely no rank to draw the dialog
+            from — the warning turns on it, and a dialog that guessed would be
+            worse than a moment's wait. Somebody who joined a second ago has one
+            from the join itself, so this no longer waits on `/me/projects`. */}
         {rank && (
           <span className="mt-3 block">
             <LeaveProjectButton
@@ -626,9 +666,12 @@ function JoinAction({
                   : null
               }
               onLeft={() => {
-                // Nothing on this page is stale except the panel itself, and
-                // the honest thing to show now is the join gate again.
+                // The panel goes back to the join gate, and the roster above
+                // has to lose the name in the same beat — leaving a project and
+                // still being listed on it is the same lie as joining one and
+                // not being.
                 setState({ status: 'left' })
+                void reload(true)
               }}
             />
           </span>
@@ -671,9 +714,16 @@ function JoinAction({
 
   const join = () => {
     setState({ status: 'joining' })
-    postJson(`/projects/${project.id}/join`, {})
-      .then(() => {
-        setState({ status: 'joined' })
+    postJson<{ projectId: string; rank: ProjectMemberRank }>(
+      `/projects/${project.id}/join`,
+      {},
+    )
+      .then((membership) => {
+        setState({ status: 'joined', rank: membership.rank })
+        // The panel answers from `state` either way, so the roster is what this
+        // is for. Not awaited: the panel has already flipped, and a slow read
+        // must not leave the button spinning.
+        void reload(true)
       })
       .catch((error: unknown) => {
         setState({

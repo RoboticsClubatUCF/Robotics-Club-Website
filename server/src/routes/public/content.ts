@@ -665,6 +665,12 @@ content.get('/projects/:slug', async (c) => {
       ...projectSelect,
       description: true,
       members: {
+        // Leads first, then alphabetical — the same order `GET /projects/:id/team`
+        // uses, and for a reason the private route does not have: this list is
+        // re-read in place when somebody joins or leaves, and an unordered read
+        // lets the planner reshuffle every name on a refetch that was only ever
+        // meant to add one.
+        orderBy: [{ rank: 'asc' }, { user: { fullName: 'asc' } }],
         // Two `title`s, at two levels, and they are different things: the outer
         // one is what this person is called *on this project* ("Software
         // Lead"), the inner one is their club title. Both are free text and

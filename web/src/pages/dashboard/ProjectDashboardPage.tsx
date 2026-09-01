@@ -373,6 +373,17 @@ function LeaveButton({ membership }: { membership: ApiMyProject }) {
         // — the rail reads that — and the standing had to be re-read with it;
         // nothing about a project writes that column now, so this is one call.
         await reloadProjects()
+        // The public page's roster is the other thing this just changed, and it
+        // is not on screen to re-read itself. `/projects/:slug` answers
+        // `max-age=60`, so without this the browser holds a copy still carrying
+        // the name for up to a minute — and the obvious thing to do after
+        // leaving a project is to go and look at it. A `reload` read replaces
+        // that entry; the body is thrown away, the refreshed cache is the point.
+        await getJson(`/projects/${membership.project.slug}`, undefined, true)
+          .catch(() => {
+            // Best effort. Leaving has already succeeded, and a failed cache
+            // refresh must not turn that into an error on the way out.
+          })
         void navigate('/dashboard')
       }}
     />

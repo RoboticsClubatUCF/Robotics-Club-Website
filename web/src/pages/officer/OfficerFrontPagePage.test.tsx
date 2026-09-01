@@ -13,9 +13,14 @@ import { bodyOf, urlOf } from '../../test/stubFetch'
  * What is worth pinning here is not the form plumbing:
  *
  * **That the read asks for a fresh answer.** The list it edits is the *public*
- * endpoint, and that one is `s-maxage=300` for everybody — so without
- * `cache: 'no-store'` an officer who adds a photograph and reloads is handed the
- * answer from before they did, which looks exactly like a save that failed.
+ * endpoint, and that one is `s-maxage=300` for everybody — so without a
+ * cache-skipping read an officer who adds a photograph and reloads is handed
+ * the answer from before they did, which looks exactly like a save that failed.
+ *
+ * `cache: 'reload'` rather than `'no-store'`, and the desk wants the difference:
+ * both skip the cache on the way out, only `reload` replaces what is in it. With
+ * `no-store` this page would be right while the landing page an officer checks
+ * next still drew the old slideshow from the browser's copy.
  *
  * **That deleting an upload asks first and deleting a link does not.** The bytes
  * are gone for good; a link can be pasted back in. A confirmation on both would
@@ -149,7 +154,7 @@ describe('OfficerFrontPagePage', () => {
     await screen.findByLabelText('Caption for photo 1')
 
     const [, init] = stub.mock.calls[0]
-    expect(init?.cache).toBe('no-store')
+    expect(init?.cache).toBe('reload')
   })
 
   it('adds a photo by link and puts it on the end', async () => {

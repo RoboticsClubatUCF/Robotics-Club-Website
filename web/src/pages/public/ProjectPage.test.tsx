@@ -421,6 +421,138 @@ describe('ProjectPage', () => {
     expect(screen.getByText('1 DOCUMENT ›')).toBeInTheDocument()
   })
 
+  /**
+   * The roster is part of the *project* read, not of the join panel, so a join
+   * that only flips the panel leaves the reader looking at a list of names
+   * their own is missing from — which reads as the join not having gone
+   * through. It has to be a fresh read: `/projects/:slug` answers
+   * `max-age=60`, and the browser would otherwise serve the pre-join copy back.
+   */
+  it('re-reads the roster after joining, past the browser cache', async () => {
+    const roster = (...names: string[]) =>
+      project({
+        members: names.map((fullName) => ({
+          title: null,
+          user: { slug: null, fullName, photoUrl: null, title: null },
+        })),
+      })
+
+    let joined = false
+
+    const fetchMock = vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = urlOf(input)
+
+      if (url.includes('/auth/me')) return json({ user: user('MEMBER') })
+      if (url.includes('/dues/status'))
+        return json({ membership: { hasAccess: true, surveyRequired: false } })
+      if (url.includes('/me/projects')) return json([])
+      if (url.includes('/join')) {
+        joined = true
+        return json({ projectId: 'p1', rank: 'MEMBER' })
+      }
+      if (url.includes('/projects/project-storm')) {
+        return json(joined ? roster('Ada Okafor', 'Rowan Chen') : roster('Ada Okafor'))
+      }
+
+      return Promise.reject(new Error(`no stub for ${url}`))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'JOIN THIS PROJECT' }))
+
+    expect(await screen.findByText('Rowan Chen')).toBeInTheDocument()
+    expect(screen.getByText('Ada Okafor')).toBeInTheDocument()
+
+    const reread = fetchMock.mock.calls.filter(
+      ([input]) => urlOf(input).includes('/projects/project-storm'),
+    )
+    expect(reread).toHaveLength(2)
+    // `reload`, not `no-store`: the stale entry has to be *replaced*, or the
+    // next visit to this page inside the minute serves the pre-join roster.
+    expect(reread[1]?.[1]).toMatchObject({ cache: 'reload' })
+  })
+
+  /**
+   * The way back out has to be there straight away.
+   *
+   * `rank` used to come only from `/me/projects`, which `useApi` cannot refetch,
+   * so the snapshot behind it was always from before the join — and the LEAVE
+   * link stayed missing until somebody reloaded the page. The join's own
+   * response carries the rank; this asserts it is what gets used.
+   */
+  it('offers the way back out straight after joining, with no refresh', async () => {
+    const fetchMock = vi.fn((input: string | URL | Request, _init?: RequestInit) => {
+      const url = urlOf(input)
+
+      if (url.includes('/auth/me')) return json({ user: user('MEMBER') })
+      if (url.includes('/dues/status'))
+        return json({ membership: { hasAccess: true, surveyRequired: false } })
+      // Empty, and it stays empty: the panel must not be waiting on this.
+      if (url.includes('/me/projects')) return json([])
+      if (url.includes('/join')) return json({ projectId: 'p1', rank: 'MEMBER' })
+      if (url.includes('/projects/project-storm')) return json(project())
+
+      return Promise.reject(new Error(`no stub for ${url}`))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'JOIN THIS PROJECT' }))
+
+    expect(
+      await screen.findByRole('button', { name: 'LEAVE THIS PROJECT' }),
+    ).toBeInTheDocument()
+    expect(fetchMock.mock.calls.filter(([i]) => urlOf(i).includes('/me/projects'))).toHaveLength(1)
+  })
+
+  /** And the same in reverse: off the project is off the roster. */
+  it('re-reads the roster after leaving', async () => {
+    let left = false
+
+    const fetchMock = vi.fn((input: string | URL | Request, _init?: RequestInit) => {
+      const url = urlOf(input)
+
+      if (url.includes('/auth/me')) return json({ user: user('MEMBER') })
+      if (url.includes('/dues/status'))
+        return json({ membership: { hasAccess: true, surveyRequired: false } })
+      if (url.includes('/me/projects'))
+        return json([{ rank: 'MEMBER', role: null, team: null, project: { id: 'p1' } }])
+      if (url.includes('/members/me')) {
+        left = true
+        return json({ ok: true })
+      }
+      if (url.includes('/projects/project-storm')) {
+        return json(
+          project({
+            members: (left
+              ? ['Ada Okafor']
+              : ['Ada Okafor', 'Rowan Chen']
+            ).map((fullName) => ({
+              title: null,
+              user: { slug: null, fullName, photoUrl: null, title: null },
+            })),
+          }),
+        )
+      }
+
+      return Promise.reject(new Error(`no stub for ${url}`))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'LEAVE THIS PROJECT' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'LEAVE THE PROJECT' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('Rowan Chen')).toBeNull()
+    })
+    expect(screen.getByText('Ada Okafor')).toBeInTheDocument()
+  })
+
   it('says so when there is no project at the address', async () => {
     vi.stubGlobal(
       'fetch',

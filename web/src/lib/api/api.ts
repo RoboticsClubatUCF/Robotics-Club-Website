@@ -144,6 +144,14 @@ const withCredentials = { credentials: 'include' } as const
  * whole public site pay for one page's editor, and `?t=${Date.now()}` defeats
  * caching for good rather than for one request — including the `immutable`
  * headers on `/api/files/:id`, which the gallery depends on.
+ *
+ * **`reload` rather than `no-store`, and the difference is the whole point.**
+ * Both skip the cache on the way out; only `reload` writes what comes back into
+ * it. With `no-store` the *stale* entry survives the refetch, so the page in
+ * front of somebody is right and the cache behind it is still wrong — leave a
+ * project, navigate away, come back inside the minute, and the roster lists the
+ * person who just left. That looked like leaving having silently failed, which
+ * is the same complaint this flag was added to answer for the editor.
  */
 export async function getJson<T>(
   path: string,
@@ -155,7 +163,7 @@ export async function getJson<T>(
   try {
     response = await fetch(`${baseUrl}/api${path}`, {
       ...withCredentials,
-      ...(fresh ? { cache: 'no-store' as const } : {}),
+      ...(fresh ? { cache: 'reload' as const } : {}),
       signal,
     })
   } catch (cause) {
