@@ -1,0 +1,36 @@
+[Unit]
+Description=Deploy the RCCF site from main, if CI is green
+# Docker has to be up before this is worth running: every path through the
+# script either talks to compose or health-checks something compose is serving.
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+
+# Run the script straight out of the checkout rather than from a copy in
+# /usr/local/bin, so a change to it deploys itself like anything else. The
+# script is written as one function called on its last line precisely so that
+# rewriting the file mid-run is harmless — see the comment at the top of it.
+ExecStart=/bin/bash /srv/rccf/app/deploy/deploy.sh
+
+# Root, because it drives Docker and writes the nginx root. Nothing here is
+# reachable from the network and nothing it runs comes from outside main.
+User=root
+
+# A build is slow and a timer tick must never kill one half-written. Ten
+# minutes is far longer than a full rebuild of both halves and short enough that
+# a genuinely wedged run does not sit there until somebody notices.
+TimeoutStartSec=600
+
+# The script already refuses to retry a commit it has failed on, so systemd
+# restarting it would only ever repeat the no-op.
+Restart=no
+
+# Everything it prints goes to the journal:
+#   journalctl -u rccf-deploy -f
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

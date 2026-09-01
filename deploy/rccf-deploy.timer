@@ -1,0 +1,24 @@
+[Unit]
+Description=Check main for something to deploy, every couple of minutes
+
+[Timer]
+# Two minutes after boot, then every two minutes. The tick is cheap when there
+# is nothing to do — one `git fetch` of a single branch and no GitHub API call
+# at all — so the interval is set by how long somebody should wait after
+# pushing, not by what it costs.
+OnBootSec=2min
+OnUnitActiveSec=2min
+
+# Spread the fire time by up to 30s. Nothing else on the box competes for these
+# resources, but an exactly-on-the-minute schedule is the one that lines up with
+# whatever else the machine does on a minute boundary.
+RandomizedDelaySec=30
+
+# If the box was off when a tick was due, run once on the way up rather than
+# waiting for the next interval.
+Persistent=true
+
+Unit=rccf-deploy.service
+
+[Install]
+WantedBy=timers.target

@@ -97,6 +97,25 @@ jobs:
           fi
           echo "no secret keys in web/dist"
 
+      # The deploy agent runs on the club's box, unattended, as root, and its
+      # only review is this. A syntax error in it does not fail a build — it
+      # fails the thing that does builds, at two in the morning, with the site
+      # already half-swapped. shellcheck is preinstalled on the runners.
+      - name: Check the deploy script
+        run: |
+          # -x so it follows the test's `source` of the script it is testing.
+          shellcheck -x deploy/deploy.sh deploy/classify.test.sh
+          bash deploy/classify.test.sh
+
+      # Nothing above this builds the image the API actually ships in — the
+      # tests run the app in-process, so a broken Dockerfile passes every one of
+      # them. The box would be the first thing to find out, mid-deploy, with the
+      # old container already stopped. A minute here is cheaper than that.
+      #
+      # Build only; nothing is pushed anywhere and nothing runs it.
+      - name: Build the API image
+        run: docker build -t rccf-api-ci-check server
+
       # `npm --prefix` sets the package prefix but does NOT change the working
       # directory, so `npm --prefix server exec` ran prisma from the repo root,
       # where there is no prisma.config.ts and no prisma/schema.prisma. It has
