@@ -143,6 +143,12 @@ const desk = (over: Partial<ApiSponsorDesk> = {}): ApiSponsorDesk => ({
   ...over,
 })
 
+/** A PNG by its magic bytes, small enough that `downscaleImage` leaves it be. */
+const logoFile = () =>
+  new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2, 3])], 'logo.png', {
+    type: 'image/png',
+  })
+
 const json = (body: unknown, status = 200) =>
   Promise.resolve(
     new Response(JSON.stringify(body), {
@@ -325,6 +331,156 @@ describe('OfficerSponsorsPage', () => {
     expect(
       await screen.findByLabelText('LOGO FROM YOUR COMPUTER'),
     ).toBeInTheDocument()
+  })
+
+  /**
+   * The other half of that: a logo settled *before* the add.
+   *
+   * A company arrives as a name and a PNG in one email, and taking only the
+   * name leaves them on the public page as `[ LOGO ]` for as long as it takes
+   * somebody to come back to it. The row still has to exist before the upload
+   * has a path to go to, so this is two requests in one press — what matters is
+   * that the second one happens without being asked for.
+   */
+  it('carries a logo chosen before the add up with the row', async () => {
+    const stub = vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = urlOf(input)
+
+      if (url.includes('/logo')) {
+        return json(
+          sponsor({ id: 's9', name: 'Lakeside Additive', logoUrl: '/api/files/l1' }),
+        )
+      }
+      if (init?.method !== undefined && init.method !== 'GET') {
+        return json(sponsor({ id: 's9', name: 'Lakeside Additive', logoUrl: null }))
+      }
+
+      return json(desk({ sponsors: [] }))
+    })
+    vi.stubGlobal('fetch', stub)
+
+    renderPage()
+    await screen.findByText('[ NOBODY LISTED YET ]')
+
+    fireEvent.change(screen.getByLabelText('NAME'), {
+      target: { value: 'Lakeside Additive' },
+    })
+    fireEvent.change(screen.getByLabelText('LOGO (OPTIONAL)'), {
+      target: { files: [logoFile()] },
+    })
+
+    // Held, not sent: the well shows it and the desk has written nothing.
+    await screen.findByText('The logo goes up with them.')
+    expect(callsOf(stub, 'POST')).toHaveLength(0)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add a sponsor' }))
+
+    await waitFor(() => {
+      expect(callsOf(stub, 'POST')).toHaveLength(2)
+    })
+
+    const [create, upload] = callsOf(stub, 'POST')
+    // The create is the row on its own — a file cannot ride in a JSON body,
+    // and the path the upload needs does not exist until this has answered.
+    expect(bodyOf(create[1])).toEqual({
+      name: 'Lakeside Additive',
+      tier: 'ALUMINUM_ALLY',
+      websiteUrl: null,
+      blurb: null,
+    })
+    expect(urlOf(upload[0])).toContain('/officer/sponsors/s9/logo')
+
+    const sent = upload[1]?.body
+    expect(sent).toBeInstanceOf(FormData)
+    expect((sent as FormData).get('file')).toBeInstanceOf(File)
+
+    // Nothing is asked of the officer afterwards: the sponsor arrived whole, so
+    // the logo box stays shut.
+    expect(screen.queryByLabelText('LOGO FROM YOUR COMPUTER')).not.toBeInTheDocument()
+  })
+
+  /** A link is one of the row's own columns, so it needs no second request. */
+  it('sends a logo link with the create rather than after it', async () => {
+    const stub = stubApi(
+      desk({ sponsors: [] }),
+      sponsor({
+        id: 's9',
+        name: 'Lakeside Additive',
+        logoUrl: 'https://cdn.example.com/l.png',
+      }),
+    )
+    vi.stubGlobal('fetch', stub)
+
+    renderPage()
+    await screen.findByText('[ NOBODY LISTED YET ]')
+
+    fireEvent.change(screen.getByLabelText('NAME'), {
+      target: { value: 'Lakeside Additive' },
+    })
+    fireEvent.change(screen.getByLabelText('Or a link to the logo'), {
+      target: { value: 'https://cdn.example.com/l.png' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add a sponsor' }))
+
+    await waitFor(() => {
+      expect(callsOf(stub, 'POST')).toHaveLength(1)
+    })
+    expect(bodyOf(callsOf(stub, 'POST')[0][1])).toEqual({
+      name: 'Lakeside Additive',
+      tier: 'ALUMINUM_ALLY',
+      websiteUrl: null,
+      blurb: null,
+      logoUrl: 'https://cdn.example.com/l.png',
+    })
+  })
+
+  /**
+   * The failure that would be worst to get wrong: the row is already live when
+   * the upload falls over, so an add that reported the error and threw the
+   * sponsor away would leave an officer pressing ADD again — against a name the
+   * server now refuses as a duplicate.
+   */
+  it('lists the sponsor anyway when the logo upload fails', async () => {
+    const stub = vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = urlOf(input)
+
+      if (url.includes('/logo')) {
+        return json({ error: 'That image is too big — the cap is 8 MB.' }, 413)
+      }
+      if (init?.method !== undefined && init.method !== 'GET') {
+        return json(sponsor({ id: 's9', name: 'Lakeside Additive', logoUrl: null }))
+      }
+
+      return json(desk({ sponsors: [] }))
+    })
+    vi.stubGlobal('fetch', stub)
+
+    renderPage()
+    await screen.findByText('[ NOBODY LISTED YET ]')
+
+    fireEvent.change(screen.getByLabelText('NAME'), {
+      target: { value: 'Lakeside Additive' },
+    })
+    fireEvent.change(screen.getByLabelText('LOGO (OPTIONAL)'), {
+      target: { files: [logoFile()] },
+    })
+    await screen.findByText('The logo goes up with them.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add a sponsor' }))
+
+    // The company is on the list, the failure is named, and the retry is the
+    // panel sitting open on their row.
+    expect(
+      await screen.findByLabelText('Name of Lakeside Additive'),
+    ).toBeInTheDocument()
+    // The server's own sentence, not a generic apology — "too big" is the one
+    // piece of information that tells the officer what to do next.
+    expect(
+      screen.getByText(
+        /the logo did not go up\. That image is too big — the cap is 8 MB\./i,
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText('LOGO FROM YOUR COMPUTER')).toBeInTheDocument()
   })
 
   /**

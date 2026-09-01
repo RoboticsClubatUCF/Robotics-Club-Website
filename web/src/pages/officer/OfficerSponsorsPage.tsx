@@ -188,6 +188,52 @@ function Desk() {
 // -------------------------------------------------------------- the sponsors
 
 /**
+ * A logo chosen before the row it belongs to exists.
+ *
+ * The add form collects one along with the name, because a company that has
+ * just signed arrives as a name *and* a PNG in the same email — and a form that
+ * takes only half of that leaves the other half to a second act somebody has to
+ * remember. Same idea as `DraftImage` on the project create page, and the same
+ * two shapes for the same reason: they become two different requests. An
+ * address is a column on the sponsor and rides in with the row; a file is a
+ * multipart upload against a path that needs the id, so it can only follow.
+ *
+ * A file carries `previewUrl`, an object URL that **must be revoked** — which is
+ * why nothing sets this state without going through the drop below.
+ */
+type DraftLogo =
+  | { kind: 'file'; file: File; previewUrl: string; shrunk: boolean }
+  | { kind: 'url'; url: string }
+
+/**
+ * What the preview shows: the object URL for a file, the address for a link.
+ *
+ * Drawn only once the box holds something that could resolve, or the well
+ * flickers a broken image through every keystroke of "https://" — which reads
+ * as the address being wrong when it is merely half-typed.
+ *
+ * **The missing scheme is filled in here because the server fills it in too.**
+ * `webUrl` in `server/src/core/validate.ts` stores `company.com/logo.png` as
+ * `https://company.com/logo.png`, and a preview that stayed blank until the
+ * `https://` was typed would be the desk arguing with the route that accepts it.
+ */
+const draftLogoSrc = (logo: DraftLogo): string | null => {
+  if (logo.kind === 'file') return logo.previewUrl
+
+  const typed = logo.url.trim()
+  // A root-relative address is one of our own uploads and `imageSrc` owns it;
+  // a scheme in front of that would be a URL pointing at nothing.
+  const address =
+    typed.startsWith('/') || /^[a-z][a-z0-9+.-]*:/i.test(typed)
+      ? typed
+      : `https://${typed}`
+
+  return /^https?:\/\/[^\s/]+\.[^\s/]+/i.test(address) || isStoredUpload(address)
+    ? imageSrc(address)
+    : null
+}
+
+/**
  * The list itself.
  *
  * Rows write on blur rather than behind a save button, the way the lending desk
@@ -205,7 +251,7 @@ function SponsorList({
   onChange: (next: ApiManagedSponsor[]) => void
 }) {
   const id = useId()
-  const { message, busy, run } = useSectionStatus()
+  const { message, busy, run, setMessage } = useSectionStatus()
 
   const [query, setQuery] = useState('')
   const [doomed, setDoomed] = useState<ApiManagedSponsor | null>(null)
@@ -221,6 +267,53 @@ function SponsorList({
   )
   const [website, setWebsite] = useState('')
   const [blurb, setBlurb] = useState('')
+  const [logo, setLogo] = useState<DraftLogo | null>(null)
+
+  /**
+   * Hand the browser back the memory behind a preview.
+   *
+   * An object URL pins the whole file until it is revoked, so a few logos tried
+   * and abandoned while filling the form would otherwise sit in memory for the
+   * life of the tab. Read through a ref so leaving the page revokes whatever is
+   * held then, rather than the cleanup re-running — and revoking the preview
+   * still on screen — every time anything else on this desk changes.
+   */
+  const held = useRef(logo)
+  held.current = logo
+
+  useEffect(
+    () => () => {
+      if (held.current?.kind === 'file') URL.revokeObjectURL(held.current.previewUrl)
+    },
+    [],
+  )
+
+  const dropLogo = () => {
+    if (logo?.kind === 'file') URL.revokeObjectURL(logo.previewUrl)
+    setLogo(null)
+  }
+
+  /**
+   * Shrink the moment a file is picked rather than at send time.
+   *
+   * It is the same work either way, and doing it here means the logo in the
+   * well is the logo that will go up — a file too large to send is found out
+   * about while there is still a form to fix it in. It also takes the race out
+   * of ADD: the section is busy until the picture is ready, so the button
+   * cannot fire against a logo that has not finished being one.
+   */
+  const chooseLogo = (picked: File) =>
+    run(async () => {
+      const { file, downscaled } = await downscaleImage(picked)
+
+      dropLogo()
+      setLogo({
+        kind: 'file',
+        file,
+        previewUrl: URL.createObjectURL(file),
+        shrunk: downscaled,
+      })
+    })
 
   // The same search the lending desk carries, for the same reason on top of the
   // obvious one: it is how an officer checks whether a company is already listed
@@ -245,19 +338,56 @@ function SponsorList({
         tier,
         websiteUrl: website.trim() || null,
         blurb: blurb.trim() || null,
+        // An address is one of this row's own columns, so it goes up in the
+        // create — a sponsor listed by link is one request, and a link the
+        // server refuses takes the whole add down with it rather than leaving
+        // a row behind with a bad URL on it.
+        ...(logo?.kind === 'url' ? { logoUrl: logo.url.trim() } : {}),
       })
 
-      onChange([...sponsors, added])
+      let listed = added
+      let stalled = ''
+
+      if (logo?.kind === 'file') {
+        const body = new FormData()
+        body.append('file', logo.file)
+
+        try {
+          listed = await postForm<ApiManagedSponsor>(
+            `/officer/sponsors/${added.id}/logo`,
+            body,
+          )
+        } catch (error) {
+          // **This cannot throw.** The sponsor exists by now, so a failure that
+          // escaped would leave the row unlisted and the form still full —
+          // and the next press would be the same company a second time, which
+          // the server refuses as a duplicate. The upload is the part that
+          // failed, so the upload is the part that gets retried, in the panel
+          // this opens below.
+          stalled = explainApiError(error)
+        }
+      }
+
+      onChange([...sponsors, listed])
       setName('')
       setWebsite('')
       setBlurb('')
+      dropLogo()
       // The search is cleared too, or a company added while the list is
       // narrowed lands outside it — which looks exactly like an add that did
       // nothing, right up until somebody adds it a second time.
       setQuery('')
-      // Straight into the logo panel: a company that has just been added is a
-      // company whose logo is sitting in somebody's downloads folder.
-      setLogoFor(added.id)
+      // Straight into the logo panel when the row still has no logo: a company
+      // that has just been added is a company whose logo is sitting in
+      // somebody's downloads folder. One that arrived with its logo needs
+      // nothing next, and an opened panel would only say so.
+      setLogoFor(listed.logoUrl === null ? listed.id : null)
+
+      if (stalled !== '') {
+        setMessage(
+          `${listed.name} is listed, but the logo did not go up. ${stalled} The box for it is open below.`,
+        )
+      }
     })
 
   const remove = (sponsor: ApiManagedSponsor) =>
@@ -319,30 +449,9 @@ function SponsorList({
               }`}
             >
               <div className="flex flex-wrap items-center gap-2">
-                {/* The well at desk size, drawn whether or not there is
-                    artwork in it — the same `object-contain` the public card
-                    uses, because a wordmark cropped to fill would look like a
-                    mistake out there and this row is what an officer checks it
-                    against. */}
-                <span
-                  className={`border-rule flex h-12 w-20 shrink-0 items-center justify-center border p-1 ${
-                    sponsor.logoUrl ? 'bg-base-100' : 'bg-hatch'
-                  }`}
-                >
-                  {sponsor.logoUrl ? (
-                    <img
-                      src={imageSrc(sponsor.logoUrl)}
-                      alt=""
-                      loading="lazy"
-                      decoding="async"
-                      className="max-h-full max-w-full object-contain"
-                    />
-                  ) : (
-                    <span className="text-faint font-mono text-[8px] font-medium tracking-[0.14em]">
-                      [ LOGO ]
-                    </span>
-                  )}
-                </span>
+                <LogoWell
+                  src={sponsor.logoUrl === null ? null : imageSrc(sponsor.logoUrl)}
+                />
 
                 <input
                   type="text"
@@ -545,6 +654,18 @@ function SponsorList({
           />
         </div>
 
+        <LogoChoice
+          id={`${id}-logo`}
+          logo={logo}
+          busy={busy}
+          onChoose={(picked) => void chooseLogo(picked)}
+          onType={(url) => {
+            dropLogo()
+            setLogo(url.trim() === '' ? null : { kind: 'url', url })
+          }}
+          onDrop={dropLogo}
+        />
+
         <div>
           {/* Two buttons on this page say ADD and they do different things.
               The visible word stays short — the label above the form is what a
@@ -561,7 +682,9 @@ function SponsorList({
             ADD
           </button>
           <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
-            The logo comes next — adding a sponsor opens the box for it.
+            {logo
+              ? 'The logo goes up with them.'
+              : 'The logo can wait — adding a sponsor opens the box for it.'}
           </p>
         </div>
       </div>
@@ -591,6 +714,154 @@ function SponsorList({
         </ConfirmDialog>
       )}
     </section>
+  )
+}
+
+/**
+ * The logo well, at desk size.
+ *
+ * Drawn whether or not there is artwork in it, and with the same
+ * `object-contain` the public card uses — a wordmark cropped to fill would look
+ * like a mistake out there, and this is what an officer checks it against. The
+ * empty state is the hatch, which is what the public card falls back to as well.
+ *
+ * One component rather than two copies because the second caller is the add
+ * form, and a picture that previewed differently from the way it will be listed
+ * would defeat the point of previewing it.
+ */
+function LogoWell({ src }: { src: string | null }) {
+  return (
+    <span
+      className={`border-rule flex h-12 w-20 shrink-0 items-center justify-center border p-1 ${
+        src ? 'bg-base-100' : 'bg-hatch'
+      }`}
+    >
+      {src ? (
+        <img
+          src={src}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className="max-h-full max-w-full object-contain"
+        />
+      ) : (
+        <span className="text-faint font-mono text-[8px] font-medium tracking-[0.14em]">
+          [ LOGO ]
+        </span>
+      )}
+    </span>
+  )
+}
+
+/**
+ * The line under the picker.
+ *
+ * The branch that earns its place is the empty well: a link the preview cannot
+ * draw is either half-typed or wrong, and without a word about it the well
+ * looks broken rather than waiting. It says what an address looks like rather
+ * than demanding `https://`, because the route no longer does either. A nudge
+ * and not a block — the field is optional and ADD stays live.
+ */
+const hint = (logo: DraftLogo | null): string => {
+  if (logo?.kind === 'url' && draftLogoSrc(logo) === null) {
+    return 'Nothing to preview yet — an address looks like company.com/logo.png'
+  }
+
+  if (logo?.kind === 'file' && logo.shrunk) {
+    return 'Ready — the picture was shrunk on the way. Nothing is sent until ADD.'
+  }
+
+  return 'A transparent PNG sits best — the card behind it changes colour with the theme. Nothing is sent until ADD.'
+}
+
+/**
+ * The logo half of the add form: a picture settled before the company exists.
+ *
+ * The desk used to take the name first and the logo strictly second — the add
+ * created the row and opened `LogoPanel` on it — which is two acts for one
+ * email and leaves a company on the public page with `[ LOGO ]` where their
+ * mark should be for as long as it takes somebody to come back to it.
+ *
+ * **Nothing here sends anything.** A file is shrunk and held; a link is text.
+ * Both land in `add`, which is what makes this a preview rather than a save —
+ * and why the well beside the controls is the same one the rows draw.
+ */
+function LogoChoice({
+  id,
+  logo,
+  busy,
+  onChoose,
+  onType,
+  onDrop,
+}: {
+  id: string
+  logo: DraftLogo | null
+  busy: boolean
+  onChoose: (file: File) => void
+  onType: (url: string) => void
+  onDrop: () => void
+}) {
+  return (
+    <div>
+      <label className={labelClass} htmlFor={id}>
+        LOGO (OPTIONAL)
+      </label>
+
+      <div className="flex flex-wrap items-start gap-3">
+        <LogoWell src={logo === null ? null : draftLogoSrc(logo)} />
+
+        <div className="grid min-w-0 flex-1 basis-60 gap-2">
+          <input
+            id={id}
+            type="file"
+            accept={ACCEPTED_IMAGE_TYPES}
+            disabled={busy}
+            onChange={(event) => {
+              const chosen = event.target.files?.[0]
+              // Cleared before the file is used rather than after, so choosing
+              // the *same* file again still fires a change event — an input
+              // whose value has not moved does not emit one, which is how a
+              // second attempt silently does nothing.
+              event.target.value = ''
+              if (chosen) onChoose(chosen)
+            }}
+            className="file-input border-rule bg-base-200 w-full text-sm"
+          />
+
+          <div className="flex flex-wrap gap-2">
+            <input
+              type="url"
+              // The two ways in are one field: typing an address drops a file
+              // that was chosen, and choosing a file empties this. A sponsor
+              // has one logo, and a form that let both be filled would have to
+              // decide which won without saying so.
+              value={logo?.kind === 'url' ? logo.url : ''}
+              maxLength={500}
+              placeholder="https://… (or a link to one)"
+              aria-label="Or a link to the logo"
+              disabled={busy}
+              onChange={(event) => {
+                onType(event.target.value)
+              }}
+              className="input border-rule bg-base-200 h-9 min-h-0 min-w-0 flex-1 basis-52 text-[13px]"
+            />
+
+            {logo && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={onDrop}
+                className={`${rowAction} text-faint hover:text-error`}
+              >
+                REMOVE
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">{hint(logo)}</p>
+    </div>
   )
 }
 
