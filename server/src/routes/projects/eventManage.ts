@@ -1,8 +1,8 @@
 import { randomBytes } from 'node:crypto'
-import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
+import { validate, webUrl } from '../../core/validate.js'
 import {
   isOfficer,
   requireCurrentDues,
@@ -86,7 +86,7 @@ const eventBody = z.object({
    * seed's. An outreach event whose registration link can be read but not set
    * is a column nobody can use.
    */
-  registrationUrl: z.url().max(500).nullable().optional(),
+  registrationUrl: webUrl().nullable().optional(),
   published: z.boolean().optional(),
 })
 
@@ -129,7 +129,7 @@ eventManage.post(
   originGuard,
   requireAuth,
   writes,
-  zValidator('json', eventBody),
+  validate('json', eventBody),
   async (c) => {
     const user = c.get('user')
     const { projectId, teamId, published, ...data } = c.req.valid('json')
@@ -202,7 +202,7 @@ eventManage.patch(
   originGuard,
   requireAuth,
   writes,
-  zValidator('json', eventPatch),
+  validate('json', eventPatch),
   async (c) => {
     const user = c.get('user')
     const patch = c.req.valid('json')

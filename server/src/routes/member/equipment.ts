@@ -1,7 +1,7 @@
-import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
+import { validate } from '../../core/validate.js'
 import { prisma } from '../../core/db.js'
 import { env } from '../../core/env.js'
 import { LoanStatus } from '../../generated/prisma/enums.js'
@@ -108,7 +108,7 @@ equipment.post(
   requireAuth,
   requireDuesForRoute,
   requests,
-  zValidator(
+  validate(
     'json',
     z.object({
       note: z.string().trim().max(500).nullable().optional(),

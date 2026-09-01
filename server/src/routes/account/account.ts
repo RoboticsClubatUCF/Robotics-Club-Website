@@ -1,9 +1,9 @@
 import { createHash, randomBytes } from 'node:crypto'
-import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
+import { validate } from '../../core/validate.js'
 import { prisma } from '../../core/db.js'
 import { checkDiscordHandle, isHandleShaped, normaliseHandle } from '../../discord/discord.js'
 import { pushRoleStrip, pushRoles } from '../../discord/discordRoles.js'
@@ -173,7 +173,7 @@ account.patch(
   originGuard,
   requireAuth,
   writes,
-  zValidator(
+  validate(
     'json',
     z.object({
       fullName: z.string().trim().min(1).max(100),
@@ -221,7 +221,7 @@ account.post(
   originGuard,
   requireAuth,
   checks,
-  zValidator('json', handleSchema),
+  validate('json', handleSchema),
   async (c) => {
     return c.json(
       await handleStatus(c.req.valid('json').discordUsername, c.get('user').id),
@@ -243,7 +243,7 @@ account.post(
   originGuard,
   requireAuth,
   writes,
-  zValidator('json', handleSchema),
+  validate('json', handleSchema),
   async (c) => {
     const me = c.get('user')
     const handle = normaliseHandle(c.req.valid('json').discordUsername)
@@ -395,7 +395,7 @@ account.patch(
   originGuard,
   requireAuth,
   writes,
-  zValidator('json', z.object(framingFields)),
+  validate('json', z.object(framingFields)),
   async (c) => {
     const me = c.get('user')
     const { focalX, focalY, zoom } = c.req.valid('json')
@@ -448,7 +448,7 @@ account.post(
   originGuard,
   requireAuth,
   writes,
-  zValidator(
+  validate(
     'json',
     z.object({
       currentPassword: z.string().min(1).max(200),
@@ -500,7 +500,7 @@ account.post(
   originGuard,
   requireAuth,
   writes,
-  zValidator(
+  validate(
     'json',
     z.object({
       password: z.string().min(1).max(200),
@@ -597,7 +597,7 @@ account.post(
   '/email/confirm',
   originGuard,
   checks,
-  zValidator('json', z.object({ token: z.string().min(1).max(200) })),
+  validate('json', z.object({ token: z.string().min(1).max(200) })),
   async (c) => {
     const pending = await prisma.emailChange.findUnique({
       where: { tokenHash: hashToken(c.req.valid('json').token) },
@@ -668,7 +668,7 @@ account.delete(
   originGuard,
   requireAuth,
   writes,
-  zValidator('json', z.object({ password: z.string().min(1).max(200) })),
+  validate('json', z.object({ password: z.string().min(1).max(200) })),
   async (c) => {
     const me = c.get('user')
 

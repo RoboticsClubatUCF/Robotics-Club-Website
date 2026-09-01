@@ -1,7 +1,7 @@
-import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
+import { validate } from '../../core/validate.js'
 import { requireOfficer } from '../../auth/authz.js'
 import {
   BUILDING_HOURS_SENTENCE,
@@ -85,7 +85,7 @@ lab.patch(
   requireAuth,
   requireOfficer,
   flips,
-  zValidator('json', z.object({ open: z.boolean() })),
+  validate('json', z.object({ open: z.boolean() })),
   async (c) => {
     const { open } = c.req.valid('json')
     const user = c.get('user')

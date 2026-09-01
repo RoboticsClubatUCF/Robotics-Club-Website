@@ -1,7 +1,7 @@
-import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
+import { validate } from '../../core/validate.js'
 import { prisma } from '../../core/db.js'
 import {
   EventType,
@@ -311,7 +311,7 @@ content.get('/subteams', async (c) => {
  */
 content.get(
   '/members',
-  zValidator(
+  validate(
     'query',
     listQuery.extend({
       subteam: z.string().optional(),
@@ -462,7 +462,7 @@ const ACADEMIC_YEAR = `(EXTRACT(YEAR FROM started_at)::int
  */
 content.get(
   '/officers/past',
-  zValidator(
+  validate(
     'query',
     z.object({
       years: z.coerce.number().int().min(1).max(50).default(2),
@@ -553,7 +553,7 @@ content.get('/members/:slug', async (c) => {
 
 content.get(
   '/projects',
-  zValidator(
+  validate(
     'query',
     listQuery.extend({
       status: z.enum(ProjectStatus).optional(),
@@ -707,7 +707,7 @@ content.get('/projects/:slug', async (c) => {
 
 content.get(
   '/events',
-  zValidator(
+  validate(
     'query',
     listQuery.extend({
       when: z.enum(['upcoming', 'past', 'all']).default('upcoming'),
@@ -815,7 +815,7 @@ content.get('/events/:slug', async (c) => {
 
 // -------------------------------------------------------------------- posts
 
-content.get('/posts', zValidator('query', listQuery), async (c) => {
+content.get('/posts', validate('query', listQuery), async (c) => {
   const { limit, offset } = c.req.valid('query')
 
   const posts = await prisma.post.findMany({
@@ -846,7 +846,7 @@ content.get('/posts/:slug', async (c) => {
 
 content.get(
   '/sponsors',
-  zValidator('query', listQuery.extend({ tier: z.enum(SponsorTier).optional() })),
+  validate('query', listQuery.extend({ tier: z.enum(SponsorTier).optional() })),
   async (c) => {
     const { tier, limit, offset } = c.req.valid('query')
 

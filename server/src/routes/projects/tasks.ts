@@ -1,7 +1,7 @@
-import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
+import { validate } from '../../core/validate.js'
 import { isOfficer, membershipOf, requireProjectMember } from '../../auth/authz.js'
 import { prisma } from '../../core/db.js'
 import { currentTerm } from '../../membership/semester.js'
@@ -382,7 +382,7 @@ tasks.post(
   originGuard,
   requireAuth,
   writes,
-  zValidator('json', taskBody),
+  validate('json', taskBody),
   async (c) => {
     const user = c.get('user')
     const projectId = c.req.param('id')
@@ -426,7 +426,7 @@ tasks.post(
   originGuard,
   requireAuth,
   writes,
-  zValidator('json', directTaskBody),
+  validate('json', directTaskBody),
   async (c) => {
     const user = c.get('user')
     const { assigneeIds, ...data } = c.req.valid('json')
@@ -461,7 +461,7 @@ tasks.patch(
   originGuard,
   requireAuth,
   writes,
-  zValidator('json', taskPatch),
+  validate('json', taskPatch),
   async (c) => {
     const user = c.get('user')
     const { assigneeIds, ...data } = c.req.valid('json')
@@ -507,7 +507,7 @@ tasks.post(
   originGuard,
   requireAuth,
   writes,
-  zValidator('json', z.object({ status: z.enum(TaskStatus) })),
+  validate('json', z.object({ status: z.enum(TaskStatus) })),
   async (c) => {
     const user = c.get('user')
     const { status } = c.req.valid('json')
@@ -559,7 +559,7 @@ tasks.post(
   originGuard,
   requireAuth,
   writes,
-  zValidator('json', z.object({ onCalendar: z.boolean() })),
+  validate('json', z.object({ onCalendar: z.boolean() })),
   async (c) => {
     const taskId = c.req.param('id')
     const { onCalendar } = c.req.valid('json')

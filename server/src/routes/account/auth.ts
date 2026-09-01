@@ -1,9 +1,9 @@
 import { createHash, randomBytes } from 'node:crypto'
-import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { getCookie } from 'hono/cookie'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
+import { validate } from '../../core/validate.js'
 import { prisma } from '../../core/db.js'
 import type { OfficerRefreshReport } from '../../discord/discordOfficers.js'
 import { refreshOfficerStanding } from '../../discord/discordOfficers.js'
@@ -154,7 +154,7 @@ auth.post(
   '/login',
   originGuard,
   attempts,
-  zValidator('json', credentials),
+  validate('json', credentials),
   async (c) => {
     const { email, password } = c.req.valid('json')
 
@@ -387,7 +387,7 @@ auth.post(
   originGuard,
   resetCooldown,
   resetRequests,
-  zValidator('json', z.object({ email: credentials.shape.email })),
+  validate('json', z.object({ email: credentials.shape.email })),
   async (c) => {
     const { email } = c.req.valid('json')
 
@@ -470,7 +470,7 @@ auth.post(
   '/password/reset',
   originGuard,
   resetRequests,
-  zValidator(
+  validate(
     'json',
     z.object({
       token: z.string().min(1).max(200),

@@ -1,7 +1,7 @@
-import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
+import { validate } from '../../core/validate.js'
 import { prisma } from '../../core/db.js'
 import { SurveyQuestionKind } from '../../generated/prisma/enums.js'
 import { rateLimit } from '../../core/rateLimit.js'
@@ -480,7 +480,7 @@ survey.post(
   originGuard,
   requireAuth,
   writes,
-  zValidator('json', surveyBody),
+  validate('json', surveyBody),
   async (c) => {
     const user = c.get('user')
     const { gradYear, answers: sent } = c.req.valid('json')
@@ -527,7 +527,7 @@ survey.put(
   originGuard,
   requireAuth,
   writes,
-  zValidator('json', surveyEdit),
+  validate('json', surveyEdit),
   async (c) => {
     const user = c.get('user')
     const { gradYear, answers: sent } = c.req.valid('json')

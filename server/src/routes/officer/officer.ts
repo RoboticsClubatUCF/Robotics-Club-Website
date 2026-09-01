@@ -1,7 +1,7 @@
-import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
+import { validate, webUrl } from '../../core/validate.js'
 import { requireOfficer } from '../../auth/authz.js'
 import { prisma } from '../../core/db.js'
 import {
@@ -162,7 +162,7 @@ const createProject = z.object({
    * write them.
    */
   description: z.string().trim().max(20_000).optional(),
-  repoUrl: z.url().max(500).optional(),
+  repoUrl: webUrl().optional(),
   ...termFields,
   /**
    * Required, unlike everything else about a project that is not its name.
@@ -189,7 +189,7 @@ officer.post(
   requireAuth,
   requireOfficer,
   writes,
-  zValidator('json', createProject),
+  validate('json', createProject),
   async (c) => {
     const data = c.req.valid('json')
 
@@ -274,7 +274,7 @@ officer.post(
   requireAuth,
   requireOfficer,
   writes,
-  zValidator('json', duplicateProject),
+  validate('json', duplicateProject),
   async (c) => {
     const { slug, title, season, discordRoleId, ...named } =
       c.req.valid('json')
@@ -403,7 +403,7 @@ officer.patch(
   requireAuth,
   requireOfficer,
   writes,
-  zValidator('json', rankBody),
+  validate('json', rankBody),
   async (c) => {
     const projectId = c.req.param('id')
     const userId = c.req.param('userId')
@@ -514,7 +514,7 @@ officer.get(
   '/print-queue',
   requireAuth,
   requireOfficer,
-  zValidator(
+  validate(
     'query',
     scope.extend({ status: z.enum(PrintRequestStatus).optional() }),
   ),
@@ -589,7 +589,7 @@ officer.patch(
   requireAuth,
   requireOfficer,
   writes,
-  zValidator('json', settlePrint),
+  validate('json', settlePrint),
   async (c) => {
     const user = c.get('user')
     const { status, officerNote, gramsUsed, printed, overAllowance } =
@@ -813,7 +813,7 @@ officer.post(
   requireAuth,
   requireOfficer,
   writes,
-  zValidator('json', equipmentBody),
+  validate('json', equipmentBody),
   async (c) => {
     const data = c.req.valid('json')
 
@@ -843,7 +843,7 @@ officer.patch(
   requireAuth,
   requireOfficer,
   writes,
-  zValidator('json', equipmentPatch),
+  validate('json', equipmentPatch),
   async (c) => {
     const id = c.req.param('id')
     const patch = c.req.valid('json')
@@ -946,7 +946,7 @@ officer.get(
   '/loans',
   requireAuth,
   requireOfficer,
-  zValidator('query', scope.extend({ status: z.enum(LoanStatus).optional() })),
+  validate('query', scope.extend({ status: z.enum(LoanStatus).optional() })),
   async (c) => {
     const { status, all } = c.req.valid('query')
     const live = !all && (!status || LIVE_LOANS.includes(status))
@@ -995,7 +995,7 @@ officer.patch(
   requireAuth,
   requireOfficer,
   writes,
-  zValidator(
+  validate(
     'json',
     z.object({
       status: z.enum(LoanStatus),
@@ -1131,7 +1131,7 @@ officer.get(
   '/members',
   requireAuth,
   requireOfficer,
-  zValidator('query', z.object({ query: z.string().trim().min(2).max(100) })),
+  validate('query', z.object({ query: z.string().trim().min(2).max(100) })),
   async (c) => {
     const { query } = c.req.valid('query')
 
@@ -1189,7 +1189,7 @@ officer.post(
   requireAuth,
   requireOfficer,
   writes,
-  zValidator('json', grantBody),
+  validate('json', grantBody),
   async (c) => {
     const member = await prisma.user.findUnique({
       where: { id: c.req.param('id') },
@@ -1293,7 +1293,7 @@ officer.patch(
   requireAuth,
   requireOfficer,
   writes,
-  zValidator('json', seatBody),
+  validate('json', seatBody),
   async (c) => {
     const { userId, position, takeOver } = c.req.valid('json')
 
@@ -1512,7 +1512,7 @@ officer.get(
   '/semesters/:year',
   requireAuth,
   requireOfficer,
-  zValidator('param', z.object({ year: z.coerce.number().int().min(2000).max(2100) })),
+  validate('param', z.object({ year: z.coerce.number().int().min(2000).max(2100) })),
   async (c) => {
     const { year } = c.req.valid('param')
 
@@ -1554,8 +1554,8 @@ officer.put(
   requireAuth,
   requireOfficer,
   writes,
-  zValidator('param', termParams),
-  zValidator('json', overrideBody),
+  validate('param', termParams),
+  validate('json', overrideBody),
   async (c) => {
     const { year, season } = c.req.valid('param')
     const { startsAt, endsAt, finalsStartsAt, finalsEndsAt, note } =
@@ -1595,7 +1595,7 @@ officer.delete(
   requireAuth,
   requireOfficer,
   writes,
-  zValidator('param', termParams),
+  validate('param', termParams),
   async (c) => {
     const { year, season } = c.req.valid('param')
 

@@ -1,8 +1,8 @@
 import { createHash, randomBytes } from 'node:crypto'
-import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
+import { validate } from '../../core/validate.js'
 import { prisma } from '../../core/db.js'
 import {
   type DiscordCheck,
@@ -263,7 +263,7 @@ signup.post(
   '/start',
   startCooldown,
   writes,
-  zValidator('json', startSchema),
+  validate('json', startSchema),
   async (c) => {
     const { email } = c.req.valid('json')
 
@@ -362,7 +362,7 @@ signup.post(
 
 // ------------------------------------------------------------------ verify
 
-signup.post('/verify', checks, zValidator('json', tokenSchema), async (c) => {
+signup.post('/verify', checks, validate('json', tokenSchema), async (c) => {
   const pending = await requirePending(c.req.valid('json').token)
 
   // Only the first time. Re-following a link — a mail app that prefetches, a
@@ -439,7 +439,7 @@ export async function handleStatus(
 signup.post(
   '/discord-check',
   checks,
-  zValidator('json', handleSchema),
+  validate('json', handleSchema),
   async (c) => {
     return c.json(await handleStatus(c.req.valid('json').discordUsername))
   },
@@ -450,7 +450,7 @@ signup.post(
 signup.post(
   '/complete',
   writes,
-  zValidator('json', completeSchema),
+  validate('json', completeSchema),
   async (c) => {
     const { token, firstName, lastName, password, discordUsername } =
       c.req.valid('json')

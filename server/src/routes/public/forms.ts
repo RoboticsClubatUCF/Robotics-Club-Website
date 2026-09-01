@@ -1,7 +1,7 @@
-import { zValidator } from '@hono/zod-validator'
 import { Hono, type Context } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
+import { validate } from '../../core/validate.js'
 import { prisma } from '../../core/db.js'
 import { sendContactNotification } from '../../email/mail.js'
 import { clientAddress, consume, peek, rateLimit } from '../../core/rateLimit.js'
@@ -92,7 +92,7 @@ const contactSchema = z.object({
 forms.post(
   '/contact',
   limit,
-  zValidator('json', contactSchema),
+  validate('json', contactSchema),
   async (c) => {
     const contact = c.req.valid('json')
 

@@ -1,8 +1,8 @@
-import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
+import { validate, webUrl } from '../../core/validate.js'
 import { requireOfficer } from '../../auth/authz.js'
 import { prisma } from '../../core/db.js'
 import { env } from '../../core/env.js'
@@ -85,7 +85,7 @@ const writes = rateLimit('officer', 60)
 const uploads = rateLimit('hero', 20)
 
 const slideFields = {
-  url: z.url().max(500),
+  url: webUrl(),
   caption: z.string().trim().max(160).nullable().optional(),
 }
 
@@ -133,7 +133,7 @@ heroSlides.post(
   requireAuth,
   requireOfficer,
   writes,
-  zValidator('json', addSlide),
+  validate('json', addSlide),
   async (c) => {
     const { url, caption, focalX, focalY, zoom } = c.req.valid('json')
 
@@ -163,7 +163,7 @@ heroSlides.post(
  *
  * Two routes rather than one branching on `Content-Type`, for the reason the
  * gallery's pair documents: the middleware genuinely differs, and
- * `zValidator('json')` cannot sit in front of a multipart request at all.
+ * `validate('json')` cannot sit in front of a multipart request at all.
  */
 heroSlides.post(
   '/upload',
@@ -239,7 +239,7 @@ heroSlides.patch(
   requireAuth,
   requireOfficer,
   writes,
-  zValidator(
+  validate(
     'json',
     z.object({ ids: z.array(z.uuid()).min(1).max(MAX_HERO_SLIDES) }),
   ),
@@ -287,7 +287,7 @@ heroSlides.patch(
   requireAuth,
   requireOfficer,
   writes,
-  zValidator('json', editSlide),
+  validate('json', editSlide),
   async (c) => {
     const slide = await getSlide(c.req.param('id'))
     const { caption, focalX, focalY, zoom } = c.req.valid('json')

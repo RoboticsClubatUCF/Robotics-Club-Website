@@ -1,7 +1,7 @@
-import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
+import { validate } from '../../core/validate.js'
 import { prisma } from '../../core/db.js'
 import { pushRoles } from '../../discord/discordRoles.js'
 import {
@@ -234,7 +234,7 @@ dues.post(
   requireAuth,
   requireSurveyForRoute,
   writes,
-  zValidator('json', planSchema),
+  validate('json', planSchema),
   async (c) => {
     const user = c.get('user')
     const { plan } = c.req.valid('json')
@@ -417,7 +417,7 @@ dues.post(
   originGuard,
   requireAuth,
   checks,
-  zValidator('json', syncSchema),
+  validate('json', syncSchema),
   async (c) => {
     const client = requireStripe()
     const user = c.get('user')

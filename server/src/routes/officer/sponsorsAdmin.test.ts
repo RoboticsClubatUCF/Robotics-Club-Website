@@ -340,6 +340,61 @@ describe('the sponsor desk', () => {
     expect(await again.text()).toContain('already on the list')
   })
 
+  /**
+   * The address bar has not shown `https://` since about 2018, so `example.com`
+   * is what somebody copying a sponsor's website off a business card types —
+   * and `z.url()` refused it, taking the whole add down with it. The scheme is
+   * added rather than demanded, and what is stored is the corrected address, so
+   * the box reads back the way the link will resolve.
+   */
+  it('accepts a website with no scheme and stores it with one', async () => {
+    const sponsor = await addSponsor('northgate', { websiteUrl: 'northgate.example' })
+
+    expect(sponsor.websiteUrl).toBe('https://northgate.example')
+    expect(
+      (await deskOf()).sponsors.find((row) => row.id === sponsor.id)?.websiteUrl,
+    ).toBe('https://northgate.example')
+  })
+
+  /**
+   * `z.url()` on its own calls `javascript:alert(1)` a perfectly good URL, and
+   * this column is printed into an `href` on the front page. Officers are the
+   * only people who can write it, so this is a lock on the inside — but it is
+   * the difference between a stored script in the club's own markup and a 400.
+   */
+  it('refuses a scheme that is not http', async () => {
+    const response = await send('POST', '/api/officer/sponsors', officerCookie, {
+      name: `${PREFIX}injected`,
+      websiteUrl: 'javascript:alert(1)',
+    })
+
+    expect(response.status).toBe(400)
+    expect((await response.json()) as { error: string }).toMatchObject({
+      error: expect.stringContaining('not a web address'),
+    })
+  })
+
+  /**
+   * **The refusal has to be a sentence.** `zValidator` answers a bad body with
+   * `{ success: false, error: <ZodError> }`, and the browser only lifts `error`
+   * when it is a string — so every schema failure on this site reached the
+   * officer as "That change did not go through. Try again in a moment.", which
+   * is advice for a broken server and useless for a typo. `validate` in
+   * `core/validate.ts` is what makes this one name the field it was about.
+   */
+  it('names the field when the body is refused', async () => {
+    const response = await send('POST', '/api/officer/sponsors', officerCookie, {
+      name: `${PREFIX}bad-url`,
+      websiteUrl: 'not an address',
+    })
+
+    expect(response.status).toBe(400)
+
+    const body = (await response.json()) as { error?: unknown; success?: unknown }
+    expect(body.success).toBeUndefined()
+    expect(body.error).toBe('websiteUrl: that is not a web address')
+  })
+
   it('hides a sponsor from the site and keeps it on the desk', async () => {
     const sponsor = await addSponsor('lakeside')
 

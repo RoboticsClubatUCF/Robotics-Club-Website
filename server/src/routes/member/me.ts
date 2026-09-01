@@ -1,6 +1,6 @@
-import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { z } from 'zod'
+import { validate } from '../../core/validate.js'
 import { isOfficer } from '../../auth/authz.js'
 import { prisma } from '../../core/db.js'
 import {
@@ -94,7 +94,7 @@ me.get('/projects', requireAuth, async (c) => {
 me.get(
   '/events',
   requireAuth,
-  zValidator(
+  validate(
     'query',
     z.object({
       from: z.iso.datetime().optional(),
@@ -330,7 +330,7 @@ me.get('/loans', requireAuth, async (c) => {
 me.get(
   '/tasks',
   requireAuth,
-  zValidator(
+  validate(
     'query',
     z.object({
       scope: z.enum(['mine', 'managed', 'all']).default('mine'),

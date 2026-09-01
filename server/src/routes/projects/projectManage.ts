@@ -1,8 +1,8 @@
-import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
+import { validate, webUrl } from '../../core/validate.js'
 import {
   isOfficer,
   membershipOf,
@@ -294,8 +294,8 @@ const editProject = z.object({
   season: z.string().trim().max(40).nullable().optional(),
   competition: z.string().trim().max(160).nullable().optional(),
   status: z.enum(ProjectStatus).optional(),
-  repoUrl: z.url().max(500).nullable().optional(),
-  coverUrl: z.url().max(500).nullable().optional(),
+  repoUrl: webUrl().nullable().optional(),
+  coverUrl: webUrl().nullable().optional(),
   /**
    * When the project meets. Shared with the create route rather than restated —
    * see `projectMeeting.ts` for the pairing rules and why they live in one file.
@@ -338,7 +338,7 @@ projectManage.patch(
   originGuard,
   requireAuth,
   writes,
-  zValidator('json', editProject),
+  validate('json', editProject),
   async (c) => {
     const user = c.get('user')
     const project = await getProject(c.req.param('id'))
@@ -515,7 +515,7 @@ const MAX_PROJECT_DOCUMENTS = 20
 const galleryUploads = rateLimit('gallery', 30)
 
 const imageFields = {
-  url: z.url().max(500),
+  url: webUrl(),
   caption: z.string().trim().max(160).nullable().optional(),
 }
 
@@ -589,7 +589,7 @@ const linksBody = z.object({
     .array(
       z.object({
         label: z.string().trim().min(1).max(60),
-        url: z.url().max(500),
+        url: webUrl(),
       }),
     )
     .max(MAX_PROJECT_LINKS),
@@ -643,7 +643,7 @@ projectManage.post(
   originGuard,
   requireAuth,
   writes,
-  zValidator('json', addImage),
+  validate('json', addImage),
   async (c) => {
     const project = await getProject(c.req.param('id'))
     await requireProjectLead(c.get('user'), project.id)
@@ -675,7 +675,7 @@ projectManage.post(
  *
  * Two routes rather than one that branches on `Content-Type`: the middleware
  * genuinely differs — this one needs `bodyLimit` and the upload budget, the one
- * above is an ordinary small JSON write — and `zValidator('json')` cannot sit
+ * above is an ordinary small JSON write — and `validate('json')` cannot sit
  * in front of a multipart request at all. The same split the cover makes.
  */
 projectManage.post(
@@ -757,7 +757,7 @@ projectManage.patch(
   originGuard,
   requireAuth,
   writes,
-  zValidator(
+  validate(
     'json',
     z.object({ ids: z.array(z.uuid()).min(1).max(MAX_PROJECT_IMAGES) }),
   ),
@@ -814,7 +814,7 @@ projectManage.patch(
   originGuard,
   requireAuth,
   writes,
-  zValidator('json', editImage),
+  validate('json', editImage),
   async (c) => {
     const project = await getProject(c.req.param('id'))
     await requireProjectLead(c.get('user'), project.id)
@@ -875,7 +875,7 @@ projectManage.patch(
   originGuard,
   requireAuth,
   writes,
-  zValidator('json', linksBody),
+  validate('json', linksBody),
   async (c) => {
     const project = await getProject(c.req.param('id'))
     await requireProjectLead(c.get('user'), project.id)
@@ -1148,7 +1148,7 @@ projectManage.patch(
   originGuard,
   requireAuth,
   writes,
-  zValidator('json', documentBody),
+  validate('json', documentBody),
   async (c) => {
     const user = c.get('user')
     const project = await getProject(c.req.param('id'))
@@ -1331,7 +1331,7 @@ projectManage.post(
   originGuard,
   requireAuth,
   writes,
-  zValidator('json', teamBody),
+  validate('json', teamBody),
   async (c) => {
     const project = await getProject(c.req.param('id'))
     await requireProjectLead(c.get('user'), project.id)
@@ -1361,7 +1361,7 @@ projectManage.patch(
   originGuard,
   requireAuth,
   writes,
-  zValidator('json', teamBody.partial()),
+  validate('json', teamBody.partial()),
   async (c) => {
     const team = await getTeam(c.req.param('teamId'))
     await requireProjectLead(c.get('user'), team.projectId)
@@ -1463,7 +1463,7 @@ projectManage.patch(
   originGuard,
   requireAuth,
   writes,
-  zValidator('json', editMember),
+  validate('json', editMember),
   async (c) => {
     const project = await getProject(c.req.param('id'))
     await requireProjectLead(c.get('user'), project.id)

@@ -1,4 +1,3 @@
-import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { HTTPException } from 'hono/http-exception'
@@ -9,6 +8,7 @@ import { env } from '../../core/env.js'
 import { deleteIfStored, looksLikeImage, storeFile } from '../../files/files.js'
 import { FileKind, SponsorTier } from '../../generated/prisma/enums.js'
 import { rateLimit } from '../../core/rateLimit.js'
+import { validate, webUrl } from '../../core/validate.js'
 import { type AuthEnv, originGuard, requireAuth } from '../../auth/session.js'
 
 /**
@@ -154,8 +154,8 @@ const sponsorFields = {
    * and it is how nearly every one of these actually arrives — a company sends
    * a PNG, not a URL that will still resolve next year.
    */
-  logoUrl: z.url().max(500).nullable().optional(),
-  websiteUrl: z.url().max(500).nullable().optional(),
+  logoUrl: webUrl().nullable().optional(),
+  websiteUrl: webUrl().nullable().optional(),
   blurb: z.string().trim().max(300).nullable().optional(),
 }
 
@@ -292,8 +292,8 @@ sponsorsAdmin.put(
   requireAuth,
   requireOfficer,
   writes,
-  zValidator('param', z.object({ tier: z.enum(SponsorTier) })),
-  zValidator('json', tierOffer),
+  validate('param', z.object({ tier: z.enum(SponsorTier) })),
+  validate('json', tierOffer),
   async (c) => {
     const { tier } = c.req.valid('param')
     const { amount, blurb, benefits } = c.req.valid('json')
@@ -330,7 +330,7 @@ sponsorsAdmin.put(
   requireAuth,
   requireOfficer,
   writes,
-  zValidator(
+  validate(
     'json',
     z.object({ footnotes: z.string().trim().max(1000).nullable() }),
   ),
@@ -364,7 +364,7 @@ sponsorsAdmin.delete(
   requireAuth,
   requireOfficer,
   writes,
-  zValidator('param', z.object({ tier: z.enum(SponsorTier) })),
+  validate('param', z.object({ tier: z.enum(SponsorTier) })),
   async (c) => {
     const { tier } = c.req.valid('param')
 
@@ -397,7 +397,7 @@ sponsorsAdmin.post(
   requireAuth,
   requireOfficer,
   writes,
-  zValidator('json', z.object(inKindFields)),
+  validate('json', z.object(inKindFields)),
   async (c) => {
     const data = c.req.valid('json')
 
@@ -434,7 +434,7 @@ sponsorsAdmin.patch(
   requireAuth,
   requireOfficer,
   writes,
-  zValidator('json', z.object({ ids: z.array(z.uuid()).min(1).max(MAX_IN_KIND) })),
+  validate('json', z.object({ ids: z.array(z.uuid()).min(1).max(MAX_IN_KIND) })),
   async (c) => {
     const { ids } = c.req.valid('json')
 
@@ -474,7 +474,7 @@ sponsorsAdmin.patch(
   requireAuth,
   requireOfficer,
   writes,
-  zValidator('json', z.object(inKindFields).partial()),
+  validate('json', z.object(inKindFields).partial()),
   async (c) => {
     const id = c.req.param('id')
     const patch = c.req.valid('json')
@@ -518,7 +518,7 @@ sponsorsAdmin.post(
   requireAuth,
   requireOfficer,
   writes,
-  zValidator('json', createSponsor),
+  validate('json', createSponsor),
   async (c) => {
     const { name, tier, logoUrl, websiteUrl, blurb } = c.req.valid('json')
 
@@ -561,7 +561,7 @@ sponsorsAdmin.patch(
   requireAuth,
   requireOfficer,
   writes,
-  zValidator('json', editSponsor),
+  validate('json', editSponsor),
   async (c) => {
     const sponsor = await getSponsor(c.req.param('id'))
     const { name, tier, logoUrl, websiteUrl, blurb, active } = c.req.valid('json')

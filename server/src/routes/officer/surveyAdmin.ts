@@ -1,7 +1,7 @@
-import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
+import { validate } from '../../core/validate.js'
 import { requireOfficer } from '../../auth/authz.js'
 import { prisma } from '../../core/db.js'
 import { SurveyQuestionKind, UserRole } from '../../generated/prisma/enums.js'
@@ -250,7 +250,7 @@ surveyAdmin.post(
   requireAuth,
   requireOfficer,
   writes,
-  zValidator('json', questionInput),
+  validate('json', questionInput),
   async (c) => {
     const body = c.req.valid('json')
 
@@ -294,8 +294,8 @@ surveyAdmin.put(
   requireAuth,
   requireOfficer,
   writes,
-  zValidator('param', idParam),
-  zValidator('json', questionInput),
+  validate('param', idParam),
+  validate('json', questionInput),
   async (c) => {
     const { id } = c.req.valid('param')
     const body = c.req.valid('json')
@@ -425,7 +425,7 @@ surveyAdmin.delete(
   requireAuth,
   requireOfficer,
   writes,
-  zValidator('param', idParam),
+  validate('param', idParam),
   async (c) => {
     const { id } = c.req.valid('param')
 
@@ -466,7 +466,7 @@ surveyAdmin.post(
   requireAuth,
   requireOfficer,
   writes,
-  zValidator('param', idParam),
+  validate('param', idParam),
   async (c) => {
     const { id } = c.req.valid('param')
 
@@ -503,7 +503,7 @@ surveyAdmin.post(
   requireAuth,
   requireOfficer,
   writes,
-  zValidator('json', z.object({ ids: z.array(z.uuid()).max(100) })),
+  validate('json', z.object({ ids: z.array(z.uuid()).max(100) })),
   async (c) => {
     const { ids } = c.req.valid('json')
 
