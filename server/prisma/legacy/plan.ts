@@ -155,9 +155,9 @@ function handleOf(member: Row): string | null {
  * writing a lapse that never happened into the club's records.
  *
  * Null is the truer value and the schema says so: `duesPaidThrough` null means
- * *never paid*, and both the sweep and the trial notice single it out on
- * purpose. Equality on the millisecond rather than a tolerance, because a
- * default and a payment are never that close by accident.
+ * *never paid*, and the sweep singles it out on purpose. Equality on the
+ * millisecond rather than a tolerance, because a default and a payment are
+ * never that close by accident.
  */
 export function duesPaidThroughOf(member: Row): Date | null {
   if (member.membershipExpDate === member.joinedAt) return null

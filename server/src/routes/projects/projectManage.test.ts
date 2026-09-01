@@ -41,13 +41,12 @@ vi.mock('../../discord/discord.js', async (importOriginal) => ({
  * Project lifecycle, against the live database: officers making projects,
  * leads building teams, members joining behind the dues gate.
  *
- * The clock is pinned to **fall 2035**, for the same reason `trialNotice.test.ts`
- * pins its fixtures there: the join gate runs through `membershipStanding`,
- * whose answer depends on today's date — run against the real clock this suite
- * would pass all summer (summer is free) and start failing the day term
- * starts. The calendar fetch is stubbed to fail, so the fixed fallback dates
- * make every term boundary deterministic. Only `Date` is faked; the timers
- * stay real or every await against Postgres would hang.
+ * The clock is pinned to **fall 2035**, and it has to be: the join gate runs
+ * through `membershipStanding`, whose answer depends on today's date — run
+ * against the real clock this suite would pass all summer (summer is free) and
+ * start failing the day term starts. The calendar fetch is stubbed to fail, so
+ * the fixed fallback dates make every term boundary deterministic. Only `Date`
+ * is faked; the timers stay real or every await against Postgres would hang.
  */
 
 const PREFIX = 'test-projmgmt-'

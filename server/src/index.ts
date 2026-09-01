@@ -29,7 +29,6 @@ import { sweepSignups } from './routes/account/signup.js'
 import { forgetFinishedTerms, primeCalendar } from './membership/semester.js'
 import { sweepSessions } from './auth/session.js'
 import { stripeConfigured, webhooksConfigured } from './payments/stripe.js'
-import { sweepTrialNotices } from './membership/trialNotice.js'
 
 const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
   console.log(`API listening on http://localhost:${info.port}/api`)
@@ -161,11 +160,11 @@ const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
       ? `Dues → Stripe (${(env.DUES_SEMESTER_CENTS / 100).toFixed(2)}/semester, ${(env.DUES_YEAR_CENTS / 100).toFixed(2)}/year)${webhooksConfigured ? '' : ', webhooks OFF'}`
       : 'Dues payments OFF (no STRIPE_SECRET_KEY) — the dues page says so and points at an officer',
   )
-  // The trial notice is a message to a real person, and the sweep below is the
-  // only thing that sends it.
+  // Both sweeps below send a message to a real person, and they are the only
+  // things that do.
   if (!discordConfigured) {
     console.log(
-      'Trial-end messages, equipment return reminders and overdue-task reminders OFF (no DISCORD_BOT_TOKEN)',
+      'Equipment return reminders and overdue-task reminders OFF (no DISCORD_BOT_TOKEN)',
     )
   }
 
@@ -297,24 +296,6 @@ const sweep = setInterval(
         console.error('discord role sync failed', error)
       })
 
-    // Unlike the others this one *sends* something, so it runs on every
-    // instance and is safe to: a notice is claimed by inserting its primary key
-    // before the message goes out, so two instances arriving together means one
-    // insert and one collision. See `src/membership/trialNotice.ts`.
-    void sweepTrialNotices()
-      .then((report) => {
-        // Quiet unless it did something. This fires every ten minutes all year
-        // and the trial ends twice.
-        if (report.claimed > 0) {
-          console.log(
-            `trial notices: ${report.sent} sent, ${report.failed} failed of ${report.claimed} claimed`,
-          )
-        }
-      })
-      .catch((error: unknown) => {
-        console.error('trial notice sweep failed', error)
-      })
-
     // Three jobs on one row. It locks the lab up when the building shuts at ten
     // — the site masks that immediately, but the row and the Discord sign need
     // writing — it **reads the sign back and corrects the row against it**,
@@ -340,9 +321,10 @@ const sweep = setInterval(
         console.error('lab status sweep failed', error)
       })
 
-    // The other thing that sends, and safe from every instance for the same
-    // reason: the reminder is claimed by writing the deadline it is about onto
-    // the loan, conditional on the value that was read a moment earlier. See
+    // Unlike the sweeps above this one *sends* something, and it still runs on
+    // every instance: the reminder is claimed by writing the deadline it is
+    // about onto the loan, conditional on the value read a moment earlier, so
+    // two instances arriving together means one write and one no-op. See
     // `src/equipment/equipmentReminder.ts`.
     void sweepReturnReminders()
       .then((report) => {
@@ -356,7 +338,7 @@ const sweep = setInterval(
         console.error('return reminder sweep failed', error)
       })
 
-    // The third sender, claimed the same way and for the same reason — the
+    // The other sender, claimed the same way and for the same reason — the
     // deadline the message named, written onto the task conditional on the
     // value read a moment earlier. Deliberately *not* chained onto the
     // membership sequence above: that ordering is about Postgres settling

@@ -814,9 +814,9 @@ export function removeGuildRole(
  * `unavailable` are split above: one is Discord answering, the other is Discord
  * not answering. A member whose privacy settings decline messages from server
  * members refuses for ever and there is nothing to retry; a 500 or a timeout
- * says nothing at all. The caller here does not retry either way — see the note
- * on `TrialNotice` — but the log has to be able to tell an officer which of the
- * two happened.
+ * says nothing at all. Neither sweep retries either way — both claim before
+ * they send — but the log has to be able to tell an officer which of the two
+ * happened.
  */
 export type DiscordDelivery =
   | { status: 'sent' }

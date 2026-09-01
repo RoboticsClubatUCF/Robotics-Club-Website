@@ -311,18 +311,6 @@ const envSchema = z.object({
   TRIAL_DAYS: z.coerce.number().int().min(0).max(60).default(21),
 
   /**
-   * How long after a trial ends the sweep will still send the "your trial is
-   * over" message.
-   *
-   * This exists for the day the feature is deployed. Without a floor, the first
-   * sweep after a mid-semester release looks back at a trial that ended in
-   * August and messages every member who never paid — one hundred people
-   * getting a DM about a deadline six weeks past. Anyone missed by a window
-   * this wide was not going to be told anything useful anyway.
-   */
-  TRIAL_NOTICE_GRACE_DAYS: z.coerce.number().int().min(1).max(30).default(3),
-
-  /**
    * How long before a loan falls due the bot says something, in hours.
    *
    * A day and a half rather than a day, and the odd-looking number is the
@@ -352,11 +340,11 @@ const envSchema = z.object({
   /**
    * How far back the overdue-task sweep will look, in days.
    *
-   * The floor `TRIAL_NOTICE_GRACE_DAYS` exists for, and for exactly the same
-   * reason: the first sweep after this feature is deployed would otherwise walk
-   * every task the club has ever left open and DM people about deadlines from
-   * last semester. Three days is "you have just missed this"; anything older
-   * wants a lead having a word, not a robot pointing at a calendar.
+   * A floor, for the day the feature is deployed: without one, the first sweep
+   * after release walks every task the club has ever left open and DMs people
+   * about deadlines from last semester. Three days is "you have just missed
+   * this"; anything older wants a lead having a word, not a robot pointing at
+   * a calendar.
    */
   TASK_OVERDUE_LOOKBACK_DAYS: z.coerce.number().int().min(1).max(90).default(3),
 
@@ -473,10 +461,10 @@ const envSchema = z.object({
     {
       // One-directional, unlike the pair above, because these are not the same
       // kind of dependency. A bot with no ids under it is the club as it stands
-      // — handles are checked, trials are announced, nobody is appointed and
-      // nothing is posted. An id with no bot is a setting that reads exactly
-      // like it is running the board, or keeping the lab sign up to date, and
-      // cannot ask Discord anything.
+      // — handles are checked, nobody is appointed and nothing is posted. An id
+      // with no bot is a setting that reads exactly like it is running the
+      // board, or keeping the lab sign up to date, and cannot ask Discord
+      // anything.
       message:
         'A Discord role or channel id needs DISCORD_BOT_TOKEN and DISCORD_GUILD_ID — without a bot there is nothing to read it from or write it to',
     },

@@ -499,8 +499,7 @@ survey.post(
        * Two submissions racing — a double-tapped button, a retried request —
        * both pass that guard, and one of them would then insert a second row.
        * Only one of these can match, so only one gets as far as the insert, and
-       * the unique index on `user_id` is the backstop under that. Same shape as
-       * `TrialNotice` claiming its row before the message goes out.
+       * the unique index on `user_id` is the backstop under that.
        */
       const claimed = await tx.user.updateMany({
         where: { id: user.id, surveyCompletedAt: null },

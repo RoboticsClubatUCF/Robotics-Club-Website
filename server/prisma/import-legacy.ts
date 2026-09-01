@@ -4,7 +4,6 @@ import {
   ProjectMemberRank,
   Season,
 } from '../src/generated/prisma/enums.js'
-import { billableTerm, trialEndsAt } from '../src/membership/semester.js'
 import { DECISIONS } from './legacy/decisions.js'
 import { parseDump } from './legacy/dump.js'
 import {
@@ -208,8 +207,8 @@ async function clearSeedData(tx: typeof prisma): Promise<Record<string, number>>
   counts.testEvents = (await tx.event.deleteMany({
     where: { slug: { startsWith: 'open-house-' } },
   })).count
-  // Cascades sessions, dues payments, member surveys and their answers, trial
-  // notices, password resets and email changes.
+  // Cascades sessions, dues payments, member surveys and their answers,
+  // password resets and email changes.
   counts.users = (await tx.user.deleteMany({})).count
 
   return counts
@@ -668,59 +667,6 @@ async function writeEverything(
   )
 
   console.log('\nImported:', counts)
-
-  await suppressTrialNotices()
-}
-
-/**
- * Stopping the bot from telling 650 people their trial has expired.
- *
- * `sweepTrialNotices` wakes every ten minutes and DMs anybody active, carrying
- * a Discord handle, whose dues do not cover today — which, five minutes after
- * this import, is most of the club. They would each be told their free window
- * had closed, about a window they were never on, on the club's real guild.
- *
- * The guard is the sweep's own mechanism rather than a flag: a `TrialNotice`
- * row is *claimed before the message is sent*, so a row that already exists is
- * one the sweep skips for ever. Writing them with `deliveredAt` null and a
- * reason is exactly the state a send that failed leaves behind, and that state
- * is deliberately never retried.
- *
- * **This is the one thing the import writes with no equivalent in the old
- * database.** It is a suppression record, and it only suppresses the current
- * term — next spring everybody is asked again, normally.
- */
-async function suppressTrialNotices(): Promise<void> {
-  const term = await billableTerm(NOW)
-  // Null means a summer term, which has no trial because summer is free.
-  // `billableTerm` already maps summer onto the following fall, so this is
-  // unreachable today — it is here because the return type says it can be, and
-  // a suppression that silently skipped would be found the hard way.
-  const endsAt = trialEndsAt(term)
-
-  if (endsAt === null || NOW > endsAt) {
-    console.log('trial notices: no open trial window this term, nothing to suppress')
-    return
-  }
-
-  const people = await prisma.user.findMany({
-    where: { discordUsername: { not: null } },
-    select: { id: true },
-  })
-
-  const { count } = await prisma.trialNotice.createMany({
-    data: people.map((p) => ({
-      userId: p.id,
-      termYear: term.year,
-      termSeason: term.season,
-      failure: 'imported from the old database; never on this term’s trial',
-    })),
-    skipDuplicates: true,
-  })
-
-  console.log(
-    `trial notices: claimed ${count} row(s) for ${term.season} ${term.year}, so the sweep says nothing`,
-  )
 }
 
 main()

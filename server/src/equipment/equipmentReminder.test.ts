@@ -9,11 +9,10 @@ import { LoanStatus, UserRole } from '../generated/prisma/enums.js'
  * deadline.
  *
  * **This sweep is roster-wide.** It takes every checked-out loan falling due
- * inside the lead window, not only the ones these tests made — the same trap
- * `trialNotice.test.ts` documents. The isolation here is the clock: every
- * fixture loan is due in **2035** and every call passes a 2035 `now`, so the
- * window the sweep looks at cannot contain a real loan. Nothing belonging to a
- * real member is claimed, messaged, or written to.
+ * inside the lead window, not only the ones these tests made. The isolation
+ * here is the clock: every fixture loan is due in **2035** and every call
+ * passes a 2035 `now`, so the window the sweep looks at cannot contain a real
+ * loan. Nothing belonging to a real member is claimed, messaged, or written to.
  *
  * Both Discord calls are stubbed for the usual reasons — one would DM a real
  * account, the other would search the club's actual guild — and

@@ -160,9 +160,9 @@ export const DECISIONS: Decisions = {
      * Her old `membershipExpDate` reads **3026**, which is a typo for 2026 —
      * and correcting it to 2026 would lock her out of the site tomorrow, since
      * `requireCurrentDues` reads that column and nothing else. A far-future
-     * date is what `trialNotice.ts` says the advisor should have and for
-     * exactly this reason, so the typo is kept as an intention and tidied to a
-     * year that does not read as corrupt data in every export.
+     * date is what the advisor should have anyway — she is not on dues — so
+     * the typo is kept as an intention and tidied to a year that does not read
+     * as corrupt data in every export.
      *
      * `MEMBER`, not `ADMIN`: the old site gave her the top permission level
      * because it had no way to say "on the board, not an officer". This one

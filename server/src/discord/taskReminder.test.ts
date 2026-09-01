@@ -10,9 +10,9 @@ import { Season, UserRole } from '../generated/prisma/enums.js'
  *
  * **This sweep is roster-wide.** It takes every unsettled task whose deadline
  * has just passed, not only the ones these tests made — the same trap
- * `trialNotice.test.ts` and `equipmentReminder.test.ts` document. The isolation
- * here is the clock: every fixture deadline is in **2035** and every call passes
- * a 2035 `now`, so the window the sweep looks at cannot contain a real task.
+ * `equipmentReminder.test.ts` documents. The isolation here is the clock:
+ * every fixture deadline is in **2035** and every call passes a 2035 `now`, so
+ * the window the sweep looks at cannot contain a real task.
  * Nothing belonging to a real member is claimed, messaged, or written to.
  *
  * Both Discord calls are stubbed for the usual reasons — one would DM a real
@@ -230,7 +230,7 @@ describe('what it leaves alone', () => {
   it('will not reach back past the look-back floor', async () => {
     await seedTask({ dueAt: daysAgo(5) })
 
-    // The floor `TRIAL_NOTICE_GRACE_DAYS` exists for: without it the first
+    // The floor `TASK_OVERDUE_LOOKBACK_DAYS` exists for: without it the first
     // sweep after this deploys would DM the club about last semester.
     const report = await sweepTaskReminders(NOW)
 

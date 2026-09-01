@@ -644,10 +644,10 @@ account.post(
  * Delete the account, and mean it.
  *
  * The cascades take the sessions, the dues payments, the print requests, the
- * loans, the project memberships and the trial notices with the row. Closed
- * officer terms survive with the name already written on them and a null
- * `userId`, which is what `SetNull` on that relation is for — the club's
- * archive is not somebody's to delete by leaving.
+ * loans and the project memberships with the row. Closed officer terms survive
+ * with the name already written on them and a null `userId`, which is what
+ * `SetNull` on that relation is for — the club's archive is not somebody's to
+ * delete by leaving.
  *
  * Two things are refused rather than cascaded, and both are cases where
  * deleting would leave the club holding a problem it cannot see:

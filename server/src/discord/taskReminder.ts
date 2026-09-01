@@ -8,10 +8,9 @@ import { TaskStatus } from '../generated/prisma/enums.js'
 /**
  * Asking somebody about a task whose deadline has gone past.
  *
- * The third of the bot's three DM sweeps, and it borrows its shape from
- * `equipment/equipmentReminder.ts` rather than from `membership/trialNotice.ts`:
- * a task carries its own deadline, so there is no fixed afternoon when the
- * whole club needs messaging at once.
+ * The second of the bot's two DM sweeps, and it borrows its shape from
+ * `equipment/equipmentReminder.ts`: a task carries its own deadline, so there
+ * is no fixed afternoon when the whole club needs messaging at once.
  *
  * Three things about it are worth knowing before changing any of it.
  *

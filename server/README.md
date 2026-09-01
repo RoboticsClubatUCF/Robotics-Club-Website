@@ -693,13 +693,6 @@ the browser. The webhook and `POST /api/dues/sync` both funnel into one
 `applyPayment`, which is idempotent on `dues_payments.stripe_payment_intent_id`
 — the two routinely race on a fast card, and Stripe re-delivers besides.
 
-The "your free trial has ended" message is sent by the Discord bot, once per
-person per term. The sweep claims a row in `trial_notices` — the primary key is
-`(user, year, season)` — *before* sending, so a second API instance collides and
-does nothing. That makes it at-most-once rather than at-least-once, deliberately:
-somebody who hears nothing finds out from the dues page, and somebody who hears
-four times has been annoyed by the club's own robot.
-
 ## Signup
 
 Joining the club is creating an account, and it is two requests with an email in
@@ -861,7 +854,7 @@ src/
 ├── email/            mail.ts (Postmark, optional), emails.ts (the HTML itself)
 ├── lab/              labStatus.ts (the sign, the curfew, the sweep),
 │                     labInteraction.ts (what a button press means)
-├── membership/       semester.ts (UCF's terms), membershipSweep.ts, trialNotice.ts
+├── membership/       semester.ts (UCF's terms), membershipSweep.ts
 ├── printing/         printAllowance.ts (the per-term balance), printSettings.ts
 ├── equipment/        loanWindow.ts (how long a loan runs), equipmentReminder.ts
 ├── projects/         meetings.ts (recurrence expanded), projectMeeting.ts,

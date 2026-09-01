@@ -204,7 +204,6 @@ model User {
   memberSurvey      MemberSurvey?
   duesPayments      DuesPayment[]
   grantedDues       DuesPayment[]     @relation("grantedDues")
-  trialNotices      TrialNotice[]
   createdEvents     Event[]           @relation("createdEvents")
   createdTasks      Task[]            @relation("createdTasks")
   completedTasks    Task[]            @relation("completedTasks")
@@ -362,9 +361,9 @@ model Project {
   /// "Spring 2026", "June 2026", "Season-long" and "Year-round". It prints well
   /// under a title and compares, sorts and filters not at all. **`season`
   /// prints; this pair decides.** Same `(termYear, termSeason)` that
-  /// `DuesPayment` and `TrialNotice` carry, so one `currentTerm()` answers what
-  /// is current across dues, print allowances and projects rather than three
-  /// ideas of the club's year drifting apart.
+  /// `DuesPayment` carries, so one `currentTerm()` answers what is current
+  /// across dues, print allowances and projects rather than three ideas of the
+  /// club's year drifting apart.
   ///
   /// Required, unlike every other descriptive column here, and deliberately so:
   /// a nullable term is a project that silently never reads as current and
@@ -373,9 +372,9 @@ model Project {
   /// re-derives them afterwards — a build that runs on into the next term is
   /// either edited forward or duplicated, and both are decisions a person makes.
   ///
-  /// No index. `DuesPayment` and `TrialNotice` carry one because they grow a row
-  /// per member per term; this table grows a handful a year and Postgres will
-  /// sequential-scan it whatever the plan says.
+  /// No index. `DuesPayment` carries one because it grows a row per member per
+  /// term; this table grows a handful a year and Postgres will sequential-scan
+  /// it whatever the plan says.
   termYear   Int    @map("term_year")
   termSeason Season @map("term_season")
 
@@ -775,8 +774,8 @@ model Task {
   /// survives a restart, being a row rather than something a process remembers;
   /// and it **re-arms itself for free when a lead moves the due date**, because
   /// the stored value stops matching. Claimed by a conditional `updateMany`
-  /// before the DM is sent — at-most-once, for the reason `TrialNotice` claims
-  /// first. See `src/discord/taskReminder.ts`.
+  /// before the DM is sent — at-most-once, because being told nothing is a far
+  /// smaller failure than being told four times. See `src/discord/taskReminder.ts`.
   remindedFor DateTime? @map("reminded_for")
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -1223,7 +1222,8 @@ model EquipmentLoan {
   /// than something a process remembers; and it re-arms itself for free when
   /// an officer moves the due date, because the stored value no longer matches
   /// the new one. Claimed by a conditional `updateMany` before the DM is sent,
-  /// for the reason `TrialNotice` claims first — see `src/equipment/equipmentReminder.ts`.
+  /// so a message that fails is never retried — at-most-once, because the
+  /// failure that matters is sending twice. See `src/equipment/equipmentReminder.ts`.
   remindedFor DateTime? @map("reminded_for")
 
   decidedById String? @map("decided_by_id")
@@ -1806,43 +1806,6 @@ model DuesPayment {
   @@index([userId, createdAt])
   @@index([status])
   @@map("dues_payments")
-}
-
-/// The record that somebody has been told their free trial is over.
-///
-/// The primary key is the entire mechanism, and the reason this is a table
-/// rather than a timestamp on `User`. The trial ends for everyone at once, so
-/// the sweep that notices wakes up on a timer, on every API instance, and may
-/// run again after a crash mid-batch. A row is *claimed* by inserting it before
-/// the message is sent, so a second instance — or the same one ten minutes
-/// later — collides on `(userId, termYear, termSeason)` and does nothing. One
-/// person, one term, one message.
-///
-/// `deliveredAt` and `failure` are written after the attempt and are records,
-/// not gates: a claimed row that failed to send is deliberately never retried,
-/// because the failure that matters here is sending twice.
-model TrialNotice {
-  userId String @map("user_id")
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  termYear   Int    @map("term_year")
-  termSeason Season @map("term_season")
-
-  /// When the sweep took the job, which is *before* Discord was asked.
-  claimedAt DateTime @default(now()) @map("claimed_at")
-
-  /// When Discord accepted the message. Null means it never did — see
-  /// `failure` for what went wrong.
-  deliveredAt DateTime? @map("delivered_at")
-
-  /// Why nothing arrived, in the API's own words. The common one is not a bug:
-  /// a member whose privacy settings refuse DMs from server members answers 403
-  /// forever, and there is nothing the club can do about it from here.
-  failure String?
-
-  @@id([userId, termYear, termSeason])
-  @@index([termYear, termSeason])
-  @@map("trial_notices")
 }
 
 // ----------------------------------------------------------------- the lab

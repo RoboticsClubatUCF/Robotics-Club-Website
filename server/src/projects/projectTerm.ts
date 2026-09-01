@@ -9,8 +9,8 @@ import { currentTerm } from '../membership/semester.js'
  * kind of statement. `season` is free text a lead types — "Spring 2026",
  * "Season-long", "Year-round" all appear in the club's own rows — and it prints
  * under a title and compares to nothing. `(termYear, termSeason)` is the pair
- * `DuesPayment` and `TrialNotice` already carry, and it is the one thing that
- * can answer "is this one of ours *now*". **`season` prints; this decides.**
+ * `DuesPayment` already carries, and it is the one thing that can answer "is
+ * this one of ours *now*". **`season` prints; this decides.**
  *
  * Shared by the create route and the edit route rather than written twice: the
  * pairing rule below is the sort of validation that gets copied once correctly

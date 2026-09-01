@@ -107,8 +107,6 @@ of selling the same weeks twice.
 Term dates come from **UCF's own academic calendar**, not a table somebody has
 to update each August, with fixed fallback dates for when that feed cannot be
 reached — the club's dues year should not depend on somebody else's uptime.
-When a member's free trial runs out, the club's Discord bot sends them one
-message: exactly one, ever, per term.
 
 ---
 
@@ -121,7 +119,7 @@ quietly.
 | Unset | What you lose |
 | ------------------------------- | --------------------------------------------------------------- |
 | `POSTMARK_TOKEN` and friends | Contact messages are stored but not emailed. Signup still works in development — the verification link goes to the API's log — but is refused in production. |
-| `DISCORD_BOT_TOKEN` + guild id | Discord handles are stored exactly as typed, unconfirmed, and no trial-end message is sent. |
+| `DISCORD_BOT_TOKEN` + guild id | Discord handles are stored exactly as typed, unconfirmed, and no reminder DMs are sent. |
 | `STRIPE_SECRET_KEY` | The dues page says card payments aren't switched on and points at an officer, rather than showing a dead button. |
 
 Each set is all-or-nothing: two of Postmark's three values and the server
@@ -241,8 +239,8 @@ weight:
   becomes a way to ask whether a given student is a member;
 - one successful payment credits **one** semester however many times it arrives
   — Stripe retries webhooks, and the member's browser confirms in parallel;
-- the trial-end message is sent at most once per person per term, including when
-  two API instances sweep at the same moment.
+- a reminder DM goes out at most once per deadline, including when two API
+  instances sweep at the same moment.
 
 No test calls Stripe, Discord, Postmark or UCF's calendar. The webhook tests do
 sign their own deliveries with the real signing secret, because signature
