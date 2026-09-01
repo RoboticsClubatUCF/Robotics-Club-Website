@@ -11,8 +11,83 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Three jobs rather than one, and they are split by what they *need* rather
+# than by what they are.
+#
+#   web     node, no database, no Docker
+#   server  node and a real Postgres
+#   deploy  Docker, no node, no database
+#
+# As one job that was 256 seconds of which 137 was `npm test` running the two
+# suites back to back, and everything waited on a Postgres container that only
+# one third of the steps used. Nothing here talks to anything else, so the wall
+# clock is now the slowest job instead of the sum of all of them.
+#
+# The deploy agent on the box gates on this whole workflow's conclusion, which
+# is success only when all three succeed — so splitting them does not weaken
+# what "green" means.
+
 jobs:
-  check:
+  # ------------------------------------------------------------------- web
+  web:
+    name: web
+    runs-on: ubuntu-latest
+
+    steps:
+      # Both pinned to a major that runs on node24. v4 ran on node20, which
+      # the runners now force onto 24 anyway and warn about every run. The
+      # majors in between changed nothing this workflow uses: setup-node v5
+      # only auto-caches when package.json has a `packageManager` field, and
+      # none of the three here does, while `cache: npm` below is explicit.
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      # `npm ci` rather than `install`: it honours the lockfile exactly and
+      # fails if one has drifted from its package.json.
+      #
+      # The root package is not installed here. It holds one devDependency used
+      # to run both halves side by side in development, and its `lint`, `test`
+      # and `build` scripts only delegate — calling this package's own scripts
+      # skips an install that buys nothing.
+      - name: Install
+        run: npm --prefix web ci
+
+      - name: Lint
+        run: npm --prefix web run lint
+
+      # `web`'s build is `tsc -b && vite build`, so this is the frontend
+      # typecheck as well as the build — and it is a stricter one than
+      # `tsc --noEmit -p tsconfig.json`, which does not cover the same set of
+      # projects. If you are checking the frontend by hand, this is the command.
+      - name: Build
+        run: npm --prefix web run build
+
+      # Vite inlines every `VITE_`-prefixed variable into the bundle without
+      # asking whether it should, and the result is served to the world. This
+      # is the check that a server-side key never became a public one.
+      #
+      # `pk_live_` is deliberately absent from the pattern: a Stripe
+      # *publishable* key is public by design and is supposed to be in there.
+      # These four are the ones that must never leave the server.
+      - name: Check no secret key reached the bundle
+        run: |
+          if grep -rIEl 'sk_(live|test)_[A-Za-z0-9]{8}|rk_live_[A-Za-z0-9]{8}|whsec_[A-Za-z0-9]{8}' web/dist; then
+            echo "::error::a secret key is in web/dist — look for a VITE_-prefixed secret in web/.env.production"
+            exit 1
+          fi
+          echo "no secret keys in web/dist"
+
+      - name: Test
+        run: npm --prefix web run test
+
+  # ---------------------------------------------------------------- server
+  server:
+    name: server
     runs-on: ubuntu-latest
 
     # The server tests run against a real database rather than a mock, so CI
@@ -40,102 +115,34 @@ jobs:
       TRUST_PROXY: 'false'
 
     steps:
-      # Both pinned to a major that runs on node24. v4 ran on node20, which
-      # the runners now force onto 24 anyway and warn about every run. The
-      # majors in between changed nothing this workflow uses: setup-node v5
-      # only auto-caches when package.json has a `packageManager` field, and
-      # none of the three here does, while `cache: npm` below is explicit.
       - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            web/package-lock.json
-            server/package-lock.json
+          cache-dependency-path: server/package-lock.json
 
-      # `npm ci` rather than `install`: it honours the lockfile exactly and
-      # fails if one has drifted from its package.json.
       - name: Install
-        run: |
-          npm ci
-          npm --prefix server ci
-          npm --prefix web ci
+        run: npm --prefix server ci
 
       - name: Generate Prisma client
         run: npm --prefix server run generate
 
-      # Everything from here to the build needs no database, so it runs first:
-      # a type error should not wait behind Postgres starting and a seed.
-
+      # These two need no database, so they run first: a type error should not
+      # wait behind a seed.
       - name: Lint
-        run: npm run lint
+        run: npm --prefix server run lint
 
       - name: Typecheck
         run: npm --prefix server run typecheck
 
-      # `web`'s build is `tsc -b && vite build`, so this is the frontend
-      # typecheck as well as the build. It is ahead of the database steps for
-      # that reason.
-      - name: Build
-        run: npm run build
-
-      # Vite inlines every `VITE_`-prefixed variable into the bundle without
-      # asking whether it should, and the result is served to the world. This
-      # is the check that a server-side key never became a public one.
-      #
-      # `pk_live_` is deliberately absent from the pattern: a Stripe
-      # *publishable* key is public by design and is supposed to be in there.
-      # These four are the ones that must never leave the server.
-      - name: Check no secret key reached the bundle
-        run: |
-          if grep -rIEl 'sk_(live|test)_[A-Za-z0-9]{8}|rk_live_[A-Za-z0-9]{8}|whsec_[A-Za-z0-9]{8}' web/dist; then
-            echo "::error::a secret key is in web/dist — look for a VITE_-prefixed secret in web/.env.production"
-            exit 1
-          fi
-          echo "no secret keys in web/dist"
-
-      # The deploy agent runs on the club's box, unattended, as root, and its
-      # only review is this. A syntax error in it does not fail a build — it
-      # fails the thing that does builds, at two in the morning, with the site
-      # already half-swapped. shellcheck is preinstalled on the runners.
-      - name: Check the deploy script
-        run: |
-          # -x so it follows the test's `source` of the script it is testing.
-          shellcheck -x deploy/deploy.sh deploy/classify.test.sh
-          bash deploy/classify.test.sh
-
-      # Nothing above this builds the image the API actually ships in — the
-      # tests run the app in-process, so a broken Dockerfile passes every one of
-      # them. The box would be the first thing to find out, mid-deploy, with the
-      # old container already stopped. A minute here is cheaper than that.
-      #
-      # Build only; nothing is pushed anywhere and nothing runs it.
-      - name: Build the API image
-        run: docker build -t rccf-api-ci-check server
-
-      # The compose file is only ever exercised on the box, and a project that
-      # does not resolve fails there rather than here — mid-deploy, after the
-      # bundle has already been swapped. `web` depends on `api` across a profile
-      # boundary, so the profiles have to be named together for the project to
-      # be valid at all; this is that assertion.
-      #
-      # The password is required for interpolation and is never used: `config`
-      # renders the project and starts nothing.
-      - name: Check the compose project resolves
-        working-directory: server
-        env:
-          POSTGRES_PASSWORD: ci-not-a-real-password
-        run: docker compose --profile app --profile web config -q
-
       # `npm --prefix` sets the package prefix but does NOT change the working
       # directory, so `npm --prefix server exec` ran prisma from the repo root,
       # where there is no prisma.config.ts and no prisma/schema.prisma. It has
-      # failed on every run this workflow has ever had — and because it sits
-      # ahead of the tests, nothing below it had executed once. `npm --prefix
-      # server run` is unaffected, which is why generate above always worked.
+      # failed on every run this workflow ever had — and because it sat ahead of
+      # the tests, nothing below it had executed once. `npm --prefix server run`
+      # is unaffected, which is why generate above always worked.
       - name: Apply migrations
         working-directory: server
         run: npx prisma migrate deploy
@@ -165,13 +172,13 @@ jobs:
         run: npm --prefix server run seed
 
       - name: Test
-        run: npm test
+        run: npm --prefix server run test
 
       # The six signature tests in `dues.test.ts` are `it.runIf(webhooksConfigured)`,
       # and `webhooksConfigured` is `Boolean(STRIPE_SECRET_KEY && STRIPE_WEBHOOK_SECRET)`
-      # in `src/payments/stripe.ts`. Neither is set above, so until now CI had
-      # never once run the security boundary on the one route that takes money —
-      # they reported as passing by not existing.
+      # in `src/payments/stripe.ts`. Neither is set above, so until this existed
+      # CI had never once run the security boundary on the one route that takes
+      # money — they reported as passing by not existing.
       #
       # The keys below are invented and never leave the runner. Nothing here
       # reaches Stripe: the suite signs its own deliveries with
@@ -189,3 +196,33 @@ jobs:
           STRIPE_SECRET_KEY: sk_test_00000000000000000000000000
           STRIPE_WEBHOOK_SECRET: whsec_0000000000000000000000000000000000
         run: npx vitest run src/routes/member/dues.test.ts
+
+  # ---------------------------------------------------------------- deploy
+  #
+  # What ships the site, rather than what the site is. Needs neither node nor a
+  # database, so it no longer waits behind a Postgres container starting.
+  deploy:
+    name: deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # The deploy agent runs on the club's box, unattended, as root, and its
+      # only review is this. A syntax error in it does not fail a build — it
+      # fails the thing that does builds, at two in the morning, with the site
+      # already half-swapped. shellcheck is preinstalled on the runners; -x so
+      # it follows the test's `source` of the script it is testing.
+      - name: Check the deploy script
+        run: |
+          shellcheck -x deploy/deploy.sh deploy/classify.test.sh
+          bash deploy/classify.test.sh
+
+      # Nothing else builds the image the API actually ships in — the tests run
+      # the app in-process, so a broken Dockerfile passes every one of them. The
+      # box would be the first thing to find out, mid-deploy, with the old
+      # container already stopped.
+      #
+      # Build only; nothing is pushed anywhere and nothing runs it.
+      - name: Build the API image
+        run: docker build -t rccf-api-ci-check server

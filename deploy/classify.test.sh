@@ -61,4 +61,34 @@ check 'docs only'                 '0 0 0' $'README.md\n.claude/docs/testing.md'
 check 'the deploy script itself'  '0 0 0' 'deploy/deploy.sh'
 check 'CI workflow'               '0 0 0' '.github/workflows/ci.yml'
 
+# ------------------------------------------------------------------- profiles
+#
+# The one that actually took the site down.
+#
+# The stack is split into `app` (postgres, migrate, api) and `web` (nginx), and
+# `web` declares `depends_on: api` across that boundary. A compose command
+# naming only one profile therefore describes a project in which the other
+# half's services do not exist, and compose rejects the whole thing:
+#
+#   service "web" depends on undefined service "api": invalid compose project
+#
+# which is where the first real deploy stopped — after the bundle had already
+# been swapped. Both profiles live in the `compose` helper now so no call site
+# can get it wrong; this is the assertion that they stay there.
+#
+# `declare -f` reads the function back out of the shell rather than grepping the
+# file, so reformatting the helper cannot quietly break the test.
+printf '\ncompose helper:\n'
+
+helper=$(declare -f compose)
+
+for profile in app web; do
+  if grep -q -- "--profile $profile" <<<"$helper"; then
+    printf '  ok   names the %s profile\n' "$profile"
+  else
+    printf '  FAIL compose() does not name the %s profile\n' "$profile"
+    failed=1
+  fi
+done
+
 exit $failed
