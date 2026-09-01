@@ -174,25 +174,39 @@ main() {
     do_nginx=1
   fi
 
-  if [[ $do_web -eq 0 && $do_api -eq 0 && $do_nginx -eq 0 ]]; then
-    log "${target:0:8} changes nothing that is served; recording it and stopping"
-    [[ $dry -eq 1 ]] || printf '%s\n' "$target" >"$STATE_DIR/deployed"
-    return 0
-  fi
-
-  log "deploying ${target:0:8} — web=$do_web api=$do_api nginx=$do_nginx"
   if [[ $dry -eq 1 ]]; then
+    log "would deploy ${target:0:8} — web=$do_web api=$do_api nginx=$do_nginx"
     log "dry run; stopping here"
     return 0
   fi
 
-  # From here on a failure is recorded against this commit, so the timer does
-  # not spend the rest of the afternoon rebuilding it.
-  trap 'printf "%s\n" "$target" >"$STATE_DIR/failed"; log "DEPLOY FAILED at ${target:0:8}"' ERR
-
+  # **The checkout follows the branch even when nothing needs rebuilding, and
+  # this has to happen before the early return below.**
+  #
+  # It used to sit after it, so a commit that changed only documentation, CI or
+  # *this script* was recorded as deployed while the working tree stayed on the
+  # commit before it — the state file claiming a version the box was not on. The
+  # bite is specific: `deploy/**` classifies as nothing-to-rebuild by design,
+  # because the unit runs this file straight out of the checkout and a changed
+  # script needs no build. Which means an improvement to the deploy agent was
+  # exactly the kind of commit that never reached the disk, and would sit unused
+  # until some unrelated change to web/ or server/ happened to drag it in.
+  #
   # `--hard` and deliberately no `clean -x`: the two .env files are ignored, so
   # they survive this, and they are the only copy of the club's keys on the box.
   git -C "$REPO_DIR" reset --quiet --hard "$target"
+
+  if [[ $do_web -eq 0 && $do_api -eq 0 && $do_nginx -eq 0 ]]; then
+    log "${target:0:8} changes nothing that is served; checkout updated"
+    printf '%s\n' "$target" >"$STATE_DIR/deployed"
+    return 0
+  fi
+
+  log "deploying ${target:0:8} — web=$do_web api=$do_api nginx=$do_nginx"
+
+  # From here on a failure is recorded against this commit, so the timer does
+  # not spend the rest of the afternoon rebuilding it.
+  trap 'printf "%s\n" "$target" >"$STATE_DIR/failed"; log "DEPLOY FAILED at ${target:0:8}"' ERR
 
   [[ $do_web -eq 1 ]] && deploy_web "$changed"
   [[ $do_api -eq 1 ]] && deploy_api
