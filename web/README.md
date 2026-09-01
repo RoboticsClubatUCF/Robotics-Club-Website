@@ -37,6 +37,14 @@ npm run dev     # http://localhost:5173
 | `npm run format`       | Prettier, rewriting files                    |
 | `npm run format:check` | Prettier, reporting only                     |
 
+**`npm run build` is this package's typecheck, and `tsc --noEmit` is not a
+substitute.** The build is `tsc -b && vite build`, and `-b` walks the project
+references — which include the tests. `npx tsc --noEmit -p tsconfig.json` covers
+a smaller set and will report a clean tree that CI then fails on; an unused
+parameter in a test file is how that shows up. There is no separate `typecheck`
+script here for exactly that reason, and the root's `npm run typecheck` runs
+this build rather than a bare `tsc`.
+
 ## Layout
 
 ```
@@ -166,6 +174,16 @@ and only becomes `none` when they genuinely differ, which requires https.
 `VITE_API_URL` is baked in at build time. On the API side, `SITE_URL` is the
 single place this site's address is configured — the CORS allow-list and the
 verification link in every signup email both come from it.
+
+**On the club's own deployment there is no separate API host.** Both halves are
+served from one origin — nginx proxies `/api/` to the API container — so
+`VITE_API_URL` is `https://rccf.club` with nothing in front of it. A bundle
+built with `https://api.rccf.club` loads perfectly and fails every request,
+because that name does not resolve; it has been shipped once and it took the
+site down. Being baked in at build time is why the bundle is built **on the box**
+rather than in CI, and why the deploy agent refuses a build whose `VITE_API_URL`
+is unset or local and logs the value it is about to bake in — see
+[`../deploy/README.md`](../deploy/README.md).
 
 **Over https, `VITE_API_URL` has to be https too.** A secure page may not call
 an insecure one: the browser blocks it as mixed content before the request is

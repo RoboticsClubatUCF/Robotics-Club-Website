@@ -756,12 +756,34 @@ address is proved, so an abandoned signup leaves one row in
   (`src/auth/password.ts`) and stored; there is still no login route to check it
   against.
 
+## Deploying
+
+**A merge to `main` puts this on the live site by itself**, migrations included —
+the box polls the branch and rebuilds the API image once CI is green. The whole
+mechanism is in [`../deploy/README.md`](../deploy/README.md); what matters here
+is that a change under `server/` restarts the API against the **real database**
+with no human in the loop, so a migration lands the moment its commit does.
+
+**Name both profiles on any compose command that touches the live stack.** The
+services split into `app` (postgres, migrate, api) and `web` (nginx), and `web`
+declares `depends_on: api` across that boundary — so a command naming only one
+describes a project in which the other half's services do not exist, and compose
+refuses the whole thing rather than ignoring the dangling reference:
+
+```
+service "web" depends on undefined service "api": invalid compose project
+```
+
+So it is `docker compose --profile app --profile web up -d`, which is also what
+the deploy agent runs. `--profile tools` is separate and additive; pgAdmin
+depends on nothing but Postgres.
+
 ## Scaling
 
 The API holds no state of its own, so it scales by running more copies:
 
 ```bash
-docker compose --profile app up -d --scale api=3
+docker compose --profile app --profile web up -d --scale api=3
 ```
 
 A one-shot `migrate` service applies migrations before any instance starts, so
@@ -810,7 +832,8 @@ reaches tens of thousands of rows.
 
 | Path                  | What it is                                                   |
 | --------------------- | ------------------------------------------------------------ |
-| `docker-compose.yml`  | Postgres on 5433; `app` profile adds migrate + api, `tools` adds pgAdmin |
+| `docker-compose.yml`  | Postgres on 5433; `app` profile adds migrate + api, `web` adds nginx, `tools` adds pgAdmin |
+| `nginx.conf`          | Mounted into the `web` container — the bundle, and `/api/` proxied to this API |
 | `Dockerfile`          | API image; runs `prisma generate` at build so client matches schema |
 | `prisma/schema.prisma`| Models                                                        |
 | `prisma/migrations/`  | Migration history — commit these                              |

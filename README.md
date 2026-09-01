@@ -7,7 +7,8 @@ back.
 .
 ├── package.json     one command to run everything
 ├── web/             frontend  — Vite 8, React 19, Tailwind 4, DaisyUI 5
-└── server/          backend   — Postgres 18, Prisma 7, Hono 4
+├── server/          backend   — Postgres 18, Prisma 7, Hono 4
+└── deploy/          what puts main on the live box
 ```
 
 The public site, plus the members' half: signing up, signing in, and paying dues
@@ -146,7 +147,7 @@ to `cd` anywhere.
 | `npm run setup`     | Install everything, migrate, generate, seed       |
 | `npm test`          | Every test in both packages                       |
 | `npm run build`     | Production build of the site                      |
-| `npm run typecheck` | Typecheck both packages                           |
+| `npm run typecheck` | Typecheck both packages — **see below**           |
 | `npm run lint`      | Oxlint                                            |
 | `npm run format`    | Prettier across both packages                     |
 | `npm run studio`    | Prisma Studio — the content editor — on :5555     |
@@ -157,6 +158,33 @@ to `cd` anywhere.
 To run one side alone: `npm run dev:web` or `npm run dev:api`. Each package also
 has its own scripts — see [`web/README.md`](web/README.md) and
 [`server/README.md`](server/README.md).
+
+**`npm run typecheck` is the server's `tsc --noEmit` plus the web *build*, and
+that second half is deliberate.** `web`'s build is `tsc -b && vite build`, and
+`-b` walks the project references, which include the tests. Running
+`tsc --noEmit -p tsconfig.json` inside `web/` covers a smaller set and will call
+a tree clean that CI then fails on — an unused parameter in a test file is how
+that shows up. Check the frontend with the build.
+
+---
+
+## Deploying
+
+**Pushing to `main` deploys to the live site.** Nothing else to run.
+
+The club's box polls `main` every couple of minutes and, once CI is green on
+that exact commit, rebuilds whichever half the diff touched — `web/**` rebuilds
+the bundle, `server/**` rebuilds the API image and applies migrations. It pulls
+rather than being pushed to because the box has no public address, and because
+this repository is public and a self-hosted runner would execute workflow files
+arriving with a pull request on a machine holding live keys.
+
+CI is three parallel jobs — `web`, `server` and `deploy` — and takes about two
+minutes. Green means all three; that is what the box gates on.
+
+The whole mechanism, the one-time setup and the failure modes are in
+[`deploy/README.md`](deploy/README.md). The short version for anybody sending a
+change: open a pull request, and when it merges it ships.
 
 ---
 
@@ -259,4 +287,5 @@ number needs a real browser.
 Each package's own README carries the rest: [`web/README.md`](web/README.md) for
 the styling system and the frontend's conventions,
 [`server/README.md`](server/README.md) for the API route table, pgAdmin, psql
-and the scaling notes.
+and the scaling notes, and [`deploy/README.md`](deploy/README.md) for how a
+merge to `main` becomes the live site.
