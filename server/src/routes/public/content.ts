@@ -151,8 +151,20 @@ const projectSelect = {
   termSeason: true,
   competition: true,
   status: true,
+  // The cover and how it is framed, plus the switch that says whether either is
+  // read at all. Six small scalars, sent unconditionally: `coverOf` in the
+  // browser is one rule over all of them, and a flag that sent half would make
+  // the listing and the project's own page disagree about the same picture.
   coverUrl: true,
-  repoUrl: true,
+  coverFromGallery: true,
+  coverFocalX: true,
+  coverFocalY: true,
+  coverZoom: true,
+  // What this project calls its sections. Null almost everywhere, and the pages
+  // fall back to the standing label.
+  galleryHeading: true,
+  resourcesHeading: true,
+  teamHeading: true,
   featured: true,
   startedAt: true,
   completedAt: true,
@@ -601,19 +613,36 @@ content.get(
        */
       images: z.enum(['true', 'false']).optional(),
       /**
+       * The one picture a card draws, which is `images` capped at a single row.
+       *
+       * Separate from `images=true` rather than a smarter version of it: this
+       * route answers up to a hundred rows and `/projects` is the only caller
+       * that wants pictures at all, but it wants exactly one per project now
+       * that a card is a still rather than a slideshow. Twelve times the payload
+       * for eleven pictures nothing draws is the thing the flag exists to avoid,
+       * and a caller that genuinely wants whole galleries still has `images`.
+       *
+       * It answers on the same `images` key, so the browser reads
+       * `project.images[0]` either way and `coverOf` needs no second shape.
+       */
+      cover: z.enum(['true', 'false']).optional(),
+      /**
        * The write-up, on the same terms and for the same reason: it is a
        * 20,000-character column and this route answers a hundred rows, so it is
-       * asked for rather than sent. `summary` is the field meant for a list —
-       * "one-liner for cards", says the schema — but **no project the club has
-       * ever created has one**, and every one of them has a write-up, so a
-       * listing that prints only `summary` prints nothing at all.
+       * asked for rather than sent.
+       *
+       * **`/projects` no longer asks for it.** The list prints `summary` and
+       * only `summary` — the field the schema calls the one-liner for cards —
+       * because a card is a cover and a line beside it, and a whole write-up set
+       * under six of them was a page of grey text. The flag stays for any caller
+       * that wants the prose; it simply has none today.
        */
       description: z.enum(['true', 'false']).optional(),
       featured: z.enum(['true', 'false']).optional(),
     }),
   ),
   async (c) => {
-    const { status, season, term, images, description, featured, limit, offset } =
+    const { status, season, term, images, cover, description, featured, limit, offset } =
       c.req.valid('query')
 
     const now = term ? await currentTerm() : null
@@ -645,12 +674,17 @@ content.get(
         term === 'other'
           ? [{ termYear: 'desc' }, { termSeason: 'desc' }, { title: 'asc' }]
           : [{ featured: 'desc' }, { startedAt: 'desc' }, { title: 'asc' }],
-      // The two heavy columns, each only when asked for. Spread rather than
-      // nested ternaries: they are independent, and the archive wants the
-      // write-up without the pictures.
+      // The heavy parts, each only when asked for. Spread rather than nested
+      // ternaries: they are independent of one another.
+      //
+      // `images` wins over `cover` when both are sent, because it is the
+      // superset — a caller that asked for the whole gallery has already been
+      // given the first picture, and taking `take: 1` as the later spread would
+      // silently hand them one row for a flag that promises twelve.
       select: {
         ...projectSelect,
         ...(description === 'true' && { description: true }),
+        ...(cover === 'true' && { images: { ...gallerySelect, take: 1 } }),
         ...(images === 'true' && { images: gallerySelect }),
       },
       take: limit,
@@ -689,15 +723,30 @@ content.get('/projects/:slug', async (c) => {
         // lets the planner reshuffle every name on a refetch that was only ever
         // meant to add one.
         orderBy: [{ rank: 'asc' }, { user: { fullName: 'asc' } }],
-        // Two `title`s, at two levels, and they are different things: the outer
-        // one is what this person is called *on this project* ("Software
-        // Lead"), the inner one is their club title. Both are free text and
-        // neither grants anything.
+        /**
+         * **`rank` is on the wire now, and `User.title` is off it.**
+         *
+         * The roster used to print two free-text columns and no rank at all, so
+         * the person running the build was indistinguishable from anybody else
+         * on it — the ordering above put them first and said nothing about why.
+         * `rank` plus the team's name is what the page draws instead, and it is
+         * the one label here that means something: it is the column every
+         * permission on this project is decided by.
+         *
+         * `User.title` is gone because it is the club-wide title — "Lab
+         * Manager" — written by nothing in the product, only by the seed and the
+         * legacy import. An officer's club seat has no bearing on what they do
+         * on somebody's rover, and printing it beside their name on a project
+         * page said it did.
+         *
+         * `ProjectMember.title` stays: it is the project-scoped one, free text,
+         * grants nothing, and is now written by the page's own editor.
+         */
         select: {
           title: true,
-          user: {
-            select: { slug: true, fullName: true, photoUrl: true, title: true },
-          },
+          rank: true,
+          team: { select: { name: true } },
+          user: { select: { slug: true, fullName: true, photoUrl: true } },
         },
       },
       images: gallerySelect,

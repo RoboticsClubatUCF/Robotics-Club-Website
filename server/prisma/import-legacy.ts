@@ -561,7 +561,13 @@ async function writeEverything(
             season: p.season,
             status: p.status,
             coverUrl: p.coverUrl,
-            repoUrl: p.repoUrl,
+            // The old row's one link, as the resource row it is now rather than
+            // the `repoUrl` column it used to be. Nested so a project and its
+            // link land together, and skipped entirely for the rows with none —
+            // which is what lets `/ RESOURCES` be empty.
+            ...(p.docsUrl
+              ? { links: { create: { label: 'Documentation', url: p.docsUrl } } }
+              : {}),
             createdAt: p.createdAt,
             updatedAt: p.updatedAt,
           },

@@ -50,7 +50,13 @@ const created: ApiManagedProject = {
   competition: null,
   status: 'IN_PROGRESS',
   coverUrl: null,
-  repoUrl: null,
+  coverFromGallery: false,
+  coverFocalX: 50,
+  coverFocalY: 50,
+  coverZoom: 1,
+  galleryHeading: null,
+  resourcesHeading: null,
+  teamHeading: null,
   featured: false,
   startedAt: null,
   completedAt: null,
@@ -296,8 +302,10 @@ describe('OfficerProjectsPage', () => {
     renderPage()
 
     const panel = createPanel()
-    expect(panel.getByLabelText('THE WRITE-UP')).toBeInTheDocument()
-    expect(panel.getByLabelText('SOURCE CODE')).toBeInTheDocument()
+    expect(panel.getByLabelText('DESCRIPTION')).toBeInTheDocument()
+    // No SOURCE CODE box: the repository is an ordinary link now, collected in
+    // the same rows as the rest of them, so this section can be left empty.
+    expect(panel.queryByLabelText('SOURCE CODE')).toBeNull()
     expect(panel.getByText('/ RESOURCES')).toBeInTheDocument()
     expect(panel.getByText('+ ADD A LINK')).toBeInTheDocument()
     expect(panel.getByText('/ GALLERY')).toBeInTheDocument()
@@ -306,37 +314,34 @@ describe('OfficerProjectsPage', () => {
   })
 
   /**
-   * Neither of these needs an id, so neither waits for one — that is what makes
-   * the gate narrow enough to be honest. `POST /officer/projects` takes both.
+   * The write-up is a column on the project and needs no id, so it does not wait
+   * for one — that is what makes the gate narrow enough to be honest. The
+   * repository used to go up in this same request and is a resource link now,
+   * held in the draft with the others.
    */
-  it('sends the write-up and the repository with the project itself', async () => {
+  it('sends the write-up with the project itself', async () => {
     const fetchMock = stubDesk()
     vi.stubGlobal('fetch', fetchMock)
     renderPage()
 
     const panel = createPanel()
-    fireEvent.change(panel.getByLabelText('THE WRITE-UP'), {
+    fireEvent.change(panel.getByLabelText('DESCRIPTION'), {
       target: { value: 'Two years of chassis work.' },
-    })
-    fireEvent.change(panel.getByLabelText('SOURCE CODE'), {
-      target: { value: 'https://github.com/rccf/rover' },
     })
 
     await createProject()
 
-    const posted = fetchMock.mock.calls.find(
-      ([, init]) => init?.method === 'POST',
-    )
-    expect(JSON.parse(posted![1]!.body as string)).toMatchObject({
-      description: 'Two years of chassis work.',
-      repoUrl: 'https://github.com/rccf/rover',
-    })
+    const posted = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')
+    const sent = JSON.parse(posted![1]!.body as string) as Record<string, unknown>
+    expect(sent).toMatchObject({ description: 'Two years of chassis work.' })
+    // The column is gone, so the create route no longer takes it — and zod
+    // strips what it does not declare, which would turn re-adding this field
+    // into a silent no-op rather than an error somebody sees.
+    expect(sent).not.toHaveProperty('repoUrl')
 
     // And it is still there afterwards, rather than blank because the create
     // response does not carry it.
-    expect(screen.getByLabelText('THE WRITE-UP')).toHaveValue(
-      'Two years of chassis work.',
-    )
+    expect(screen.getByLabelText('DESCRIPTION')).toHaveValue('Two years of chassis work.')
     expect(screen.queryByText('Unsaved changes.')).toBeNull()
   })
 
@@ -469,7 +474,7 @@ describe('OfficerProjectsPage', () => {
     expect(screen.getByText('SET UP · MARS ROVER')).toBeInTheDocument()
     // The editor itself, not a second copy of it.
     expect(screen.getByText('/ GALLERY')).toBeInTheDocument()
-    expect(screen.getByLabelText('THE WRITE-UP')).toBeInTheDocument()
+    expect(screen.getByLabelText('DESCRIPTION')).toBeInTheDocument()
     expect(screen.getByText('+ ADD A LINK')).toBeInTheDocument()
   })
 
@@ -561,7 +566,7 @@ describe('OfficerProjectsPage', () => {
 
     await createProject()
 
-    fireEvent.change(screen.getByLabelText('THE WRITE-UP'), {
+    fireEvent.change(screen.getByLabelText('DESCRIPTION'), {
       target: { value: 'Half a sentence' },
     })
 

@@ -27,7 +27,13 @@ const project = (over: Partial<ApiProjectDetail> = {}): ApiProjectDetail => ({
   competition: null,
   status: 'IN_PROGRESS',
   coverUrl: null,
-  repoUrl: null,
+  coverFromGallery: true,
+  coverFocalX: 50,
+  coverFocalY: 50,
+  coverZoom: 1,
+  galleryHeading: null,
+  resourcesHeading: null,
+  teamHeading: null,
   featured: false,
   startedAt: null,
   completedAt: null,
@@ -37,6 +43,21 @@ const project = (over: Partial<ApiProjectDetail> = {}): ApiProjectDetail => ({
   documents: [],
   ...over,
 })
+
+/**
+ * Every mount of the editor reads the project's roster once — the team section
+ * cannot draw a row without it, and the credit picker shares the same read.
+ *
+ * It is answered here rather than left to fail so the tests are not full of
+ * caught errors, and `writesOf` is what keeps the call-counting assertions about
+ * the thing each test is actually asserting on.
+ */
+const isRoster = (input: string | URL | Request) => urlOf(input).includes('/team')
+
+const writesOf = (mock: { mock: { calls: [string | URL | Request, RequestInit?][] } }) =>
+  mock.mock.calls.filter(([input]) => !isRoster(input))
+
+const emptyRoster = () => json({ project: {}, teams: [], members: [] })
 
 const json = (body: unknown, status = 200) =>
   Promise.resolve(
@@ -104,9 +125,11 @@ describe('ProjectEditor', () => {
    */
   it('uploads the moment a file is chosen, with no second press', async () => {
     const fetchMock = vi.fn((input: string | URL | Request, _init?: RequestInit) =>
-      urlOf(input).includes('/images/upload')
-        ? json(image('new', '/api/files/new'), 201)
-        : Promise.reject(new Error(`no stub for ${urlOf(input)}`)),
+      isRoster(input)
+        ? emptyRoster()
+        : urlOf(input).includes('/images/upload')
+          ? json(image('new', '/api/files/new'), 201)
+          : Promise.reject(new Error(`no stub for ${urlOf(input)}`)),
     )
     vi.stubGlobal('fetch', fetchMock)
 
@@ -124,8 +147,8 @@ describe('ProjectEditor', () => {
       })
     })
 
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    const [, init] = fetchMock.mock.calls[0]
+    expect(writesOf(fetchMock)).toHaveLength(1)
+    const [, init] = writesOf(fetchMock)[0]
     const body = init?.body
     // Asserted rather than cast through: if the body is missing, "no file was
     // sent" is the finding, and a cast would report it as a null dereference
@@ -236,8 +259,8 @@ describe('ProjectEditor', () => {
       await vi.advanceTimersByTimeAsync(600)
     })
 
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(urlOf(fetchMock.mock.calls[0][0])).toContain('/images/order')
+    expect(writesOf(fetchMock)).toHaveLength(1)
+    expect(urlOf(writesOf(fetchMock)[0][0])).toContain('/images/order')
   })
 
   /**
@@ -261,36 +284,38 @@ describe('ProjectEditor', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'GO BACK' }))
     expect(screen.queryByRole('dialog')).toBeNull()
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(writesOf(fetchMock)).toHaveLength(0)
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Remove image 2' }))
     })
 
     expect(screen.queryByRole('dialog')).toBeNull()
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(writesOf(fetchMock)).toHaveLength(1)
   })
 
+  /**
+   * **The title and the summary are not in this patch any more.** They moved to
+   * the title section, which carries its own SAVE — a button at the foot of the
+   * page cannot honestly cover fields at the top of it. What is left here is the
+   * writing proper and the links, in two requests under one press.
+   */
   it('saves the writing and the links together, and clears blanks to null', async () => {
     const fetchMock = vi.fn((input: string | URL | Request, _init?: RequestInit) =>
-      urlOf(input).endsWith('/links')
-        ? json([])
-        : json({
-            title: 'Renamed',
-            summary: null,
-            season: '2026-2027',
-            competition: null,
-            description: null,
-            repoUrl: null,
-          }),
+      isRoster(input)
+        ? emptyRoster()
+        : urlOf(input).endsWith('/links')
+          ? json([])
+          : json({
+              season: '2026-2027',
+              competition: null,
+              description: null,
+            }),
     )
     vi.stubGlobal('fetch', fetchMock)
 
     renderEditor()
 
-    fireEvent.change(screen.getByLabelText('TITLE'), {
-      target: { value: 'Renamed' },
-    })
     // Season and competition were create-only fields until the desk needed
     // them editable — they go up in the same patch as the rest of the writing.
     fireEvent.change(screen.getByLabelText('SEASON'), {
@@ -301,16 +326,13 @@ describe('ProjectEditor', () => {
       fireEvent.click(screen.getByRole('button', { name: 'SAVE CHANGES' }))
     })
 
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(writesOf(fetchMock)).toHaveLength(2)
 
-    const [, projectInit] = fetchMock.mock.calls[0]
+    const [, projectInit] = writesOf(fetchMock)[0]
     expect(JSON.parse(projectInit?.body as string)).toEqual({
-      title: 'Renamed',
-      summary: null,
       season: '2026-2027',
       competition: null,
       description: null,
-      repoUrl: null,
     })
 
     expect(screen.getByText('Saved.')).toBeInTheDocument()
@@ -333,16 +355,11 @@ describe('ProjectEditor', () => {
   it('keeps the write-up and settles to SAVED after a save', async () => {
     const written = 'Two years of chassis work.'
     const fetchMock = vi.fn((input: string | URL | Request, _init?: RequestInit) =>
-      urlOf(input).endsWith('/links')
-        ? json([])
-        : json({
-            title: 'Project S.T.O.R.M.',
-            summary: null,
-            season: null,
-            competition: null,
-            description: written,
-            repoUrl: null,
-          }),
+      isRoster(input)
+        ? emptyRoster()
+        : urlOf(input).endsWith('/links')
+          ? json([])
+          : json({ season: null, competition: null, description: written }),
     )
     vi.stubGlobal('fetch', fetchMock)
 
@@ -358,13 +375,13 @@ describe('ProjectEditor', () => {
       fireEvent.click(screen.getByRole('button', { name: 'SAVE CHANGES' }))
     })
 
-    const [, projectInit] = fetchMock.mock.calls[0]
+    const [, projectInit] = writesOf(fetchMock)[0]
     expect(JSON.parse(projectInit?.body as string)).toMatchObject({
       competition: null,
       description: written,
     })
 
-    expect(screen.getByLabelText('THE WRITE-UP')).toHaveValue(written)
+    expect(screen.getByLabelText('DESCRIPTION')).toHaveValue(written)
     expect(screen.queryByText('Unsaved changes.')).toBeNull()
     expect(screen.getByRole('button', { name: 'SAVED' })).toBeInTheDocument()
     expect(screen.getByText('Saved.')).toBeInTheDocument()
@@ -440,8 +457,8 @@ describe('ProjectEditor', () => {
       fireEvent.click(screen.getByRole('button', { name: 'DONE' }))
     })
 
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    const [, init] = fetchMock.mock.calls[0]
+    expect(writesOf(fetchMock)).toHaveLength(1)
+    const [, init] = writesOf(fetchMock)[0]
     expect(JSON.parse(init?.body as string)).toEqual({
       focalX: 50,
       focalY: 50,

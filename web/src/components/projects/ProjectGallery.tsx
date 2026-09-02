@@ -26,6 +26,7 @@ export function ProjectGallery({
   compact = false,
   priority = true,
   label = 'Project images',
+  heading = 'GALLERY',
 }: {
   slides: ApiProjectImage[]
   /**
@@ -52,6 +53,11 @@ export function ProjectGallery({
   /** The image group's accessible name. The list names the project, because
       "Project images" repeated down a page says nothing about any of them. */
   label?: string
+  /**
+   * The eyebrow's words, without the `/ ` — a project may call this section
+   * whatever it likes. Ignored under `compact`, which draws no eyebrow at all.
+   */
+  heading?: string
 }) {
   const [index, setIndex] = useState(0)
   // Where a drag started. Null between drags, and reset on cancel so a pointer
@@ -92,8 +98,8 @@ export function ProjectGallery({
       className={compact ? undefined : 'mb-8'}
     >
       {!compact && (
-        <p className="text-faint mb-4 font-mono text-[13px] font-bold tracking-[0.2em]">
-          / GALLERY
+        <p className="mb-4 font-mono text-[13px] font-bold tracking-[0.2em] text-faint uppercase">
+          / {heading}
         </p>
       )}
 
@@ -194,10 +200,8 @@ export function ProjectGallery({
                 onClick={() => {
                   go(position)
                 }}
-                className={`bg-base-100 block h-14 w-20 cursor-pointer overflow-hidden transition-opacity duration-200 ${
-                  position === current
-                    ? 'opacity-100'
-                    : 'opacity-45 hover:opacity-80'
+                className={`block h-14 w-20 cursor-pointer overflow-hidden bg-base-100 transition-opacity duration-200 ${
+                  position === current ? 'opacity-100' : 'opacity-45 hover:opacity-80'
                 }`}
               >
                 {/* Framed like the slide it stands for, or the strip would

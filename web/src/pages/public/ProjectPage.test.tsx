@@ -18,7 +18,13 @@ const project = (over: Partial<ApiProjectDetail> = {}): ApiProjectDetail => ({
   competition: 'UNIVERSITY ROVER CHALLENGE',
   status: 'IN_PROGRESS',
   coverUrl: null,
-  repoUrl: null,
+  coverFromGallery: false,
+  coverFocalX: 50,
+  coverFocalY: 50,
+  coverZoom: 1,
+  galleryHeading: null,
+  resourcesHeading: null,
+  teamHeading: null,
   featured: true,
   startedAt: null,
   completedAt: null,
@@ -316,7 +322,7 @@ describe('ProjectPage', () => {
     renderPage()
     fireEvent.click(await screen.findByRole('button', { name: 'EDIT PAGE' }))
 
-    fireEvent.change(screen.getByLabelText('THE WRITE-UP'), {
+    fireEvent.change(screen.getByLabelText('DESCRIPTION'), {
       target: { value: 'Half a sentence' },
     })
     expect(screen.getByText('Unsaved changes.')).toBeInTheDocument()
@@ -326,7 +332,7 @@ describe('ProjectPage', () => {
       fireEvent.click(screen.getAllByRole('button', { name: 'DONE EDITING' })[which])
       expect(screen.getByText('Leave without saving?')).toBeInTheDocument()
       fireEvent.click(screen.getByRole('button', { name: 'KEEP EDITING' }))
-      expect(screen.getByLabelText('THE WRITE-UP')).toHaveValue('Half a sentence')
+      expect(screen.getByLabelText('DESCRIPTION')).toHaveValue('Half a sentence')
     }
 
     fireEvent.click(screen.getAllByRole('button', { name: 'DONE EDITING' })[0])
@@ -359,15 +365,41 @@ describe('ProjectPage', () => {
     ).toBeInTheDocument()
   })
 
-  it('folds the repository into the resources list', async () => {
+  /**
+   * **The roster says who runs the build, and stops saying what they do in the
+   * club.**
+   *
+   * It printed `User.title` beside the name — the club-wide title, written by
+   * nothing in the product and set only by the seed and the legacy import — so
+   * an officer's "Lab Manager" turned up on a rover page meaning nothing there.
+   * And it printed no rank at all: `rank` sorted the lead to the top of the list
+   * and said nothing about why they were there.
+   */
+  it('names the lead and the team lead, and not a club title', async () => {
     vi.stubGlobal(
       'fetch',
       stubRoutes({
         '/auth/me': { user: null },
         '/projects/project-storm': project({
-          repoUrl: 'https://github.com/rccf/storm',
-          links: [
-            { id: 'l1', label: 'Design doc', url: 'https://www.notion.so/doc' },
+          members: [
+            {
+              title: null,
+              rank: 'PROJECT_LEAD' as const,
+              team: null,
+              user: { slug: null, fullName: 'Grace Hopper', photoUrl: null },
+            },
+            {
+              title: null,
+              rank: 'TEAM_LEAD' as const,
+              team: { name: 'Chassis' },
+              user: { slug: null, fullName: 'Ada Lovelace', photoUrl: null },
+            },
+            {
+              title: 'Software Lead',
+              rank: 'MEMBER' as const,
+              team: null,
+              user: { slug: null, fullName: 'Rowan Chen', photoUrl: null },
+            },
           ],
         }),
       }),
@@ -375,13 +407,77 @@ describe('ProjectPage', () => {
 
     renderPage()
 
-    expect(await screen.findByText('SOURCE CODE')).toBeInTheDocument()
-    expect(screen.getByText('Design doc')).toBeInTheDocument()
+    expect(await screen.findByText('PROJECT LEAD')).toBeInTheDocument()
+    expect(screen.getByText('TEAM LEAD — Chassis')).toBeInTheDocument()
+    // A plain member keeps whatever they were called on this project.
+    expect(screen.getByText('Software Lead')).toBeInTheDocument()
+    expect(screen.getByText('Rowan Chen')).toBeInTheDocument()
+  })
+
+  /** A project may rename its own sections, and the `/ ` and the capitals are
+      the page's. Blank means the standing word. */
+  it('takes its section headings from the project', async () => {
+    vi.stubGlobal(
+      'fetch',
+      stubRoutes({
+        '/auth/me': { user: null },
+        '/projects/project-storm': project({
+          teamHeading: 'WHO IS ON IT',
+          resourcesHeading: 'FILES',
+          links: [{ id: 'l1', label: 'Design doc', url: 'https://notion.so/d' }],
+        }),
+      }),
+    )
+
+    renderPage()
+
+    expect(await screen.findByText('/ WHO IS ON IT')).toBeInTheDocument()
+    expect(screen.getByText('/ FILES')).toBeInTheDocument()
+    expect(screen.queryByText('/ THE TEAM')).toBeNull()
+  })
+
+  it('lists the resource links, host and all', async () => {
+    vi.stubGlobal(
+      'fetch',
+      stubRoutes({
+        '/auth/me': { user: null },
+        '/projects/project-storm': project({
+          links: [{ id: 'l1', label: 'Design doc', url: 'https://www.notion.so/doc' }],
+        }),
+      }),
+    )
+
+    renderPage()
+
+    expect(await screen.findByText('Design doc')).toBeInTheDocument()
     // The host, not the whole URL, and without the `www.`
     expect(screen.getByText(/notion\.so ↗/)).toBeInTheDocument()
     // Nothing published, so no documentation row — the list must not grow an
     // entry that leads to an empty page.
     expect(screen.queryByText('DOCUMENTATION')).toBeNull()
+  })
+
+  /**
+   * `repoUrl` was a column of its own that printed as a fixed SOURCE CODE row
+   * here and drew a fixed box in the editor, so this section could never be
+   * empty on a site where most of what the club builds has no repository. It is
+   * an ordinary link now, and a project with nothing to point at draws no
+   * section at all.
+   */
+  it('draws no resources section when there is nothing to link', async () => {
+    vi.stubGlobal(
+      'fetch',
+      stubRoutes({
+        '/auth/me': { user: null },
+        '/projects/project-storm': project({ links: [], documents: [] }),
+      }),
+    )
+
+    renderPage()
+    await screen.findByText('Project S.T.O.R.M.')
+
+    expect(screen.queryByText('/ RESOURCES')).toBeNull()
+    expect(screen.queryByText('SOURCE CODE')).toBeNull()
   })
 
   it('leads the resources with documentation, in-app, once there is any', async () => {
@@ -390,7 +486,6 @@ describe('ProjectPage', () => {
       stubRoutes({
         '/auth/me': { user: null },
         '/projects/project-storm': project({
-          repoUrl: 'https://github.com/rccf/storm',
           documents: [
             {
               id: 'd1',
@@ -433,7 +528,9 @@ describe('ProjectPage', () => {
       project({
         members: names.map((fullName) => ({
           title: null,
-          user: { slug: null, fullName, photoUrl: null, title: null },
+          rank: 'MEMBER' as const,
+          team: null,
+          user: { slug: null, fullName, photoUrl: null },
         })),
       })
 
@@ -527,13 +624,14 @@ describe('ProjectPage', () => {
       if (url.includes('/projects/project-storm')) {
         return json(
           project({
-            members: (left
-              ? ['Ada Okafor']
-              : ['Ada Okafor', 'Rowan Chen']
-            ).map((fullName) => ({
-              title: null,
-              user: { slug: null, fullName, photoUrl: null, title: null },
-            })),
+            members: (left ? ['Ada Okafor'] : ['Ada Okafor', 'Rowan Chen']).map(
+              (fullName) => ({
+                title: null,
+                rank: 'MEMBER' as const,
+                team: null,
+                user: { slug: null, fullName, photoUrl: null },
+              }),
+            ),
           }),
         )
       }

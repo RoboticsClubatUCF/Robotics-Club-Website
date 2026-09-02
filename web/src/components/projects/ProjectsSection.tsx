@@ -6,12 +6,11 @@ import type {
   ApiProject,
   Season,
 } from '../../lib/api/api'
-import { slidesOf } from '../../lib/projects/projectGallery'
-import { proseExcerpt } from '../../lib/projects/projectProse'
+import { frameStyle } from '../../lib/media/imageFraming'
+import { imageSrc } from '../../lib/media/storedFiles'
+import { coverOf } from '../../lib/projects/projectCover'
 import { useApi } from '../../lib/api/useApi'
 import { FormEyebrow, FormHeading } from '../shared/formChrome'
-import { ProjectGallery } from './ProjectGallery'
-import { ProjectProse } from './ProjectProse'
 
 /**
  * The server caps `limit` at 100, and one page of that is every project the
@@ -21,28 +20,30 @@ import { ProjectProse } from './ProjectProse'
 const LIMIT = 100
 
 /**
- * This semester's builds, with their pictures and their writing. `term=current`
- * is computed on the server — the browser has no way of knowing which term it
- * is, and a page that guessed would go quietly empty every August.
+ * This semester's builds, with the one picture each of them shows here.
+ * `term=current` is computed on the server — the browser has no way of knowing
+ * which term it is, and a page that guessed would go quietly empty every August.
  *
- * **Both heavy columns are asked for by name.** `images=true` is the one place
- * the listing carries galleries, and it is safe here precisely because of the
- * term filter: this is a handful of projects and every one of them is drawn.
- * `description=true` is the write-up — see `PROSE` below for why the page reads
- * that rather than `summary`.
+ * **`cover=true` rather than `images=true`.** A card is a still now, not a
+ * slideshow, so it wants one picture per project and the flag caps the gallery
+ * at one row. Twelve times the payload for eleven pictures nothing draws is
+ * exactly what the flag exists to avoid.
+ *
+ * **And no `description=true`.** The list prints `summary` — see `PROSE`.
  */
-const CURRENT = `/projects?term=current&images=true&description=true&limit=${LIMIT}`
+const CURRENT = `/projects?term=current&cover=true&limit=${LIMIT}`
 
-/** Everything that is not this semester, newest term first. The writing, but no
-    pictures: forty galleries is not a list anybody scrolls. */
-const ARCHIVE = `/projects?term=other&description=true&limit=${LIMIT}`
+/** Everything that is not this semester, newest term first. No pictures and no
+    write-up: forty galleries is not a list anybody scrolls, and the archive's
+    third column has always been one blurb wide. */
+const ARCHIVE = `/projects?term=other&limit=${LIMIT}`
 
 const rowClass =
   'border-rule grid grid-cols-[2.75rem_1fr] items-start gap-3.5 border-t py-6.5 pr-2 wide:grid-cols-[70px_1.1fr_2fr_140px] wide:gap-7 wide:pl-2'
 
 /**
- * How wide a card's slideshow is allowed to get: 22rem, so 352 × 220 at the
- * frame's 16:10.
+ * How wide a card's cover is allowed to get: 22rem, so 352 × 220 at the frame's
+ * 16:10.
  *
  * The pictures cannot be trusted to be big. Half a gallery is external
  * addresses somebody pasted — the club's covers today include a Google
@@ -81,15 +82,17 @@ const CARD_CLASS =
   'border-rule grid-fluid items-start gap-5 border-t py-8 [--col-min:15rem]'
 
 /**
- * How a card sets the write-up. On every paragraph rather than between them, so
- * the first is also spaced off whatever it follows — see `ProjectProse`.
+ * How a card sets its one line of prose.
  *
- * **The page prints `description`, and `summary` is why it has to.** `summary`
- * is the column the schema calls the one-liner for cards, and it is the one
- * this list printed for as long as it existed — but no project the club has
- * ever created has filled one in, so every card and every archive row was a
- * title above an empty paragraph. Both are drawn now, in the order a project's
- * own page draws them, and in practice only the second one has anything in it.
+ * **The page prints `summary` and only `summary`.** It printed the write-up as
+ * well for a while, and had to: `summary` is the column the schema calls the
+ * one-liner for cards, and no project the club had ever created had filled one
+ * in, so every card was a title above an empty paragraph. The migration that
+ * added the cover seeded them from each project's own first paragraph, and the
+ * editor's title section is where a lead writes a better one — so the fallback
+ * has stopped earning its place. A whole write-up under six cards was a page of
+ * grey text either way; the long form is on the project's own page, which is
+ * what the card is a door to.
  */
 const PROSE = 'text-dim mt-3 text-sm leading-[1.6] text-pretty'
 
@@ -113,11 +116,11 @@ const termLabel = (project: Pick<ApiProject, 'termYear' | 'termSeason'>) =>
  * is the page, and the rest is one press away at the bottom.
  *
  * **The two lists deliberately do not look alike.** This term's projects are
- * cards with their slideshow in them, because a prospective member is here to
- * see robots and the summary alone was a page of grey text. The archive stays
- * the original rules-and-columns rows — you can read down the term column and
- * the competition column separately, which is what an archive is for, and forty
- * galleries is not a list anybody scrolls.
+ * cards with a cover in them, because a prospective member is here to see robots
+ * and a column of summaries is a page of grey text. The archive stays the
+ * original rules-and-columns rows — you can read down the term column and the
+ * competition column separately, which is what an archive is for, and forty
+ * pictures is not a list anybody scrolls.
  *
  * **The archive is not fetched until it is asked for.** Its component mounts on
  * the press and `useApi` runs then, the same trick `ProjectPage` uses for the
@@ -217,17 +220,24 @@ export function ProjectsSection() {
 }
 
 /**
- * One of this semester's projects: its slideshow beside what the list has
- * always printed.
+ * One of this semester's projects: its cover beside the line its lead wrote.
+ *
+ * **One still, not a slideshow.** The card carried a compact `ProjectGallery`
+ * for a while, which meant six sets of arrows and six counters down a page whose
+ * job is to get somebody into a project — and it made "which picture represents
+ * this build" a question nobody could answer, because it was whichever happened
+ * to be first. `coverOf` answers it from the project's own columns, and the
+ * slideshow is where it reads properly: the project's own page.
  *
  * **The card is not a link, and the title is.** The row used to be one `<Link>`
- * wrapping everything, which the gallery ends: arrows and a thumbnail inside an
- * anchor is a control inside a link, and the browser resolves that by giving
- * the reader neither. So the two things worth pressing say so themselves.
+ * wrapping everything, which the gallery ended: arrows and a thumbnail inside an
+ * anchor is a control inside a link, and the browser resolves that by giving the
+ * reader neither. The controls are gone, but the two things worth pressing still
+ * say so themselves — a whole card as one anchor reads out as one enormous link.
  *
- * **No pictures means no frame.** A project with an empty gallery gets the text
- * across the full width rather than an empty hatched box, which on a public
- * page reads as an image that failed to load.
+ * **No cover means no frame.** A project with nothing to show gets its text
+ * across the full width rather than an empty hatched box, which on a public page
+ * reads as an image that failed to load.
  */
 function ProjectCard({
   project,
@@ -235,20 +245,28 @@ function ProjectCard({
 }: {
   project: ApiCardProject
   /** Whether this card holds the picture the page will be judged on painting.
-      True for the first card only — see `priority` on `ProjectGallery`. */
+      True for the first card only: `fetchPriority="high"` on six covers is the
+      same as it on none. */
   lcp: boolean
 }) {
-  const slides = slidesOf(project)
+  const cover = coverOf(project)
 
   return (
     <article className={CARD_CLASS}>
-      {slides.length > 0 && (
+      {cover && (
         <div className={GALLERY_WIDTH}>
-          <ProjectGallery
-            slides={slides}
-            compact
-            priority={lcp}
-            label={`${project.title} images`}
+          {/* The frame owns the aspect ratio, so the box is its final size
+              before a byte arrives and does not move when one does. The hatch
+              shows through until the picture lands, and keeps showing if it
+              never does. */}
+          <img
+            src={imageSrc(cover.url)}
+            alt=""
+            loading={lcp ? 'eager' : 'lazy'}
+            fetchPriority={lcp ? 'high' : undefined}
+            decoding="async"
+            style={frameStyle(cover)}
+            className="aspect-[16/10] w-full border border-rule bg-hatch"
           />
         </div>
       )}
@@ -270,8 +288,6 @@ function ProjectCard({
         )}
 
         {project.summary && <p className={PROSE}>{project.summary}</p>}
-
-        <ProjectProse description={project.description} className={PROSE} />
 
         <div className="mt-5 flex flex-wrap items-baseline gap-x-5 gap-y-2">
           <Link
@@ -332,7 +348,7 @@ function Archive() {
         <Link
           key={project.slug}
           to={`/projects/${project.slug}`}
-          className={`${rowClass} hover:bg-wash transition-[background-color,padding-left] duration-250 wide:hover:pl-4.5`}
+          className={`${rowClass} transition-[background-color,padding-left] duration-250 hover:bg-wash wide:hover:pl-4.5`}
         >
           <div className="text-primary pt-1.5 font-mono text-xs font-medium">
             {String(index + 1).padStart(2, '0')}
@@ -352,13 +368,14 @@ function Archive() {
           {/* Below the breakpoint the grid drops to two columns and these two
               stack under the name rather than beside it.
 
-              Clamped, and an excerpt rather than `ProjectProse`'s paragraphs:
-              this column has always been one blurb wide, and a write-up set out
-              properly in it would break the row rhythm the archive is read by.
-              `summary` first because that is the field meant for exactly this —
-              it is simply that nobody has ever filled one in. */}
-          <p className="text-dim col-start-2 line-clamp-3 pt-0.5 text-sm leading-[1.6] text-pretty wide:col-start-auto">
-            {project.summary ?? proseExcerpt(project.description)}
+              `summary`, and no fallback to an excerpt of the write-up any more:
+              this column has always been one blurb wide, that is the field meant
+              for exactly this, and every project has one now. Still clamped,
+              because a summary may run to 500 characters and the archive is read
+              by its row rhythm. The clamp is CSS, so the whole string stays in
+              the DOM and nothing is hidden from a screen reader. */}
+          <p className="col-start-2 line-clamp-3 pt-0.5 text-sm leading-[1.6] text-pretty text-dim wide:col-start-auto">
+            {project.summary}
           </p>
           {/* The term rather than the free-text `season` this column used to
               print. The same build run three years running is three rows with
@@ -377,13 +394,7 @@ function Archive() {
 }
 
 /** The one control on the page, drawn the same way in both of its states. */
-function ArchiveButton({
-  children,
-  onClick,
-}: {
-  children: string
-  onClick: () => void
-}) {
+function ArchiveButton({ children, onClick }: { children: string; onClick: () => void }) {
   return (
     <button
       type="button"
@@ -406,7 +417,7 @@ function CurrentSkeleton() {
       {Array.from({ length: 2 }, (_, index) => (
         <div key={index} className={CARD_CLASS}>
           <div
-            className={`bg-base-300 aspect-[16/10] animate-pulse rounded-[2px] ${GALLERY_WIDTH}`}
+            className={`aspect-[16/10] animate-pulse rounded-[2px] bg-base-300 ${GALLERY_WIDTH}`}
           />
           <div className="space-y-3">
             <div className="bg-base-300 h-6 w-48 animate-pulse rounded-[2px]" />

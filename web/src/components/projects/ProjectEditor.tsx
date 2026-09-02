@@ -1,8 +1,11 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { DocumentsEditor } from './DocumentsEditor'
 import { ImageFramer } from '../shared/ImageFramer'
 import { LinkRows } from './LinkRows'
 import { Status } from '../shared/Status'
+import { TeamEditor } from './TeamEditor'
+import { TitleSection } from './TitleSection'
+import { useProjectRoster } from '../../lib/projects/useProjectRoster'
 import { useSectionStatus } from '../../lib/useSectionStatus'
 import { ConfirmDialog } from '../shared/ConfirmDialog'
 import { fieldClass, labelClass, submitClass } from '../shared/formChrome'
@@ -82,17 +85,77 @@ export function ProjectEditor({
    */
   writingFirst?: boolean
 }) {
+  /**
+   * **Two deferred-save sections now, so dirtiness is two flags.**
+   *
+   * `ProseAndLinks` used to be the only thing on this page that waited for a
+   * button, so it could report straight upward. The title section waits too, and
+   * a guard that heard from only one of them is a guard somebody walks past
+   * carrying an unsaved summary. Reported as the OR, which is all either exit
+   * needs to know.
+   */
+  const [dirty, setDirty] = useState({ title: false, writing: false })
+
+  useEffect(() => {
+    onDirtyChange?.(dirty.title || dirty.writing)
+  }, [dirty, onDirtyChange])
+
+  const titleDirty = useCallback((value: boolean) => {
+    setDirty((current) =>
+      current.title === value ? current : { ...current, title: value },
+    )
+  }, [])
+
+  const writingDirty = useCallback((value: boolean) => {
+    setDirty((current) =>
+      current.writing === value ? current : { ...current, writing: value },
+    )
+  }, [])
+
+  /**
+   * One roster read for the whole editor, rather than one per section that wants
+   * it. The public payload carries no user ids on purpose, and both the credit
+   * picker and the team section write by id.
+   *
+   * The documents section used to defer this until its own form opened, which
+   * was worth doing while it was the only consumer and stopped being worth doing
+   * the moment a section that cannot draw a row without it appeared beside it.
+   */
+  const roster = useProjectRoster(project.id)
+
+  const titleSection = (
+    <TitleSection
+      key="title"
+      project={project}
+      apply={apply}
+      onDirtyChange={titleDirty}
+    />
+  )
   const gallery = <GalleryEditor key="gallery" project={project} apply={apply} />
   const writing = (
     <ProseAndLinks
       key="writing"
       project={project}
       apply={apply}
-      onDirtyChange={onDirtyChange ?? noop}
+      onDirtyChange={writingDirty}
     />
   )
   const documents = (
-    <DocumentsEditor key="documents" project={project} me={me} apply={apply} />
+    <DocumentsEditor
+      key="documents"
+      project={project}
+      me={me}
+      roster={roster}
+      apply={apply}
+    />
+  )
+  const team = (
+    <TeamEditor
+      key="team"
+      project={project}
+      roster={roster}
+      heading={project.teamHeading ?? 'THE TEAM'}
+    />
   )
 
   return (
@@ -105,16 +168,24 @@ export function ProjectEditor({
         </p>
       )}
 
-      {/* Documentation sits beside the gallery, never after the writing, and
-          that ordering is load-bearing rather than taste. `ProseAndLinks` ends
-          in SAVE CHANGES, and anything below it reads as being *covered* by
-          that button — which is exactly wrong here, because documents save the
-          moment they change and SAVE has nothing to do with them. Grouping the
-          two immediate-save sections together leaves the one deferred-save
-          section last, holding the only button on the page that waits. */}
+      {/* The title section is always first, because it is the top of the page
+          it edits and because the two things on it — the cover and the summary —
+          are the whole of what a stranger sees before deciding to open the
+          project at all.
+
+          After it, documentation still sits beside the gallery and never after
+          the writing, and that ordering is load-bearing rather than taste.
+          `ProseAndLinks` ends in SAVE CHANGES, and anything below it reads as
+          being *covered* by that button — which is exactly wrong for documents,
+          which save the moment they change. Grouping the immediate-save sections
+          together leaves the deferred one holding the last button on the page.
+
+          The team section is last because that is where the public page puts it,
+          and because it is the only section about people rather than about the
+          page. */}
       {writingFirst
-        ? [writing, gallery, documents]
-        : [gallery, documents, writing]}
+        ? [titleSection, writing, gallery, documents, team]
+        : [titleSection, gallery, documents, writing, team]}
 
       {/* The way out, again, at the end of the page — the header's copy is the
           one somebody remembers, this one is the one they reach by scrolling.
@@ -281,8 +352,8 @@ function GalleryEditor({
 
   return (
     <section>
-      <p className="text-faint mb-4 font-mono text-[13px] font-bold tracking-[0.2em]">
-        / GALLERY
+      <p className="mb-4 font-mono text-[13px] font-bold tracking-[0.2em] text-faint uppercase">
+        / {project.galleryHeading ?? 'GALLERY'}
       </p>
 
       {images.length === 0 ? (
@@ -530,12 +601,9 @@ function ProseAndLinks({
   const { message, busy, run } = useSectionStatus()
   const [saved, setSaved] = useState(false)
 
-  const [title, setTitle] = useState(project.title)
-  const [summary, setSummary] = useState(project.summary ?? '')
   const [season, setSeason] = useState(project.season ?? '')
   const [competition, setCompetition] = useState(project.competition ?? '')
   const [description, setDescription] = useState(project.description ?? '')
-  const [repoUrl, setRepoUrl] = useState(project.repoUrl ?? '')
   const [links, setLinks] = useState<DraftLink[]>(
     project.links.map((link) => ({ ...link })),
   )
@@ -547,16 +615,14 @@ function ProseAndLinks({
    * because `apply` writes the saved values back into it — so after a save the
    * two agree by construction, and there is no second copy to keep in step.
    *
-   * This section is the only part of the editor that waits for a button.
-   * Pictures save as they are changed, so they can never be pending.
+   * One of the two parts of the editor that wait for a button — the title
+   * section is the other. Pictures and documents save as they are changed, so
+   * they can never be pending.
    */
   const dirty =
-    title !== project.title ||
-    summary !== (project.summary ?? '') ||
     season !== (project.season ?? '') ||
     competition !== (project.competition ?? '') ||
     description !== (project.description ?? '') ||
-    repoUrl !== (project.repoUrl ?? '') ||
     links.length !== project.links.length ||
     links.some(
       (link, index) =>
@@ -573,23 +639,17 @@ function ProseAndLinks({
       setSaved(false)
 
       // Blank fields clear the column rather than storing an empty string —
-      // `summary === ''` and `summary === null` would otherwise both exist and
+      // `season === ''` and `season === null` would otherwise both exist and
       // render identically, which is a difference nobody can see and every
       // query has to handle.
       const patched = await patchJson<{
-        title: string
-        summary: string | null
         season: string | null
         competition: string | null
         description: string | null
-        repoUrl: string | null
       }>(`/projects/${project.id}`, {
-        title: title.trim(),
-        summary: summary.trim() || null,
         season: season.trim() || null,
         competition: competition.trim() || null,
         description: description.trim() || null,
-        repoUrl: repoUrl.trim() || null,
       })
 
       const savedLinks = await patchJson<ApiProjectLink[]>(
@@ -599,12 +659,9 @@ function ProseAndLinks({
 
       apply({
         ...project,
-        title: patched.title,
-        summary: patched.summary,
         season: patched.season,
         competition: patched.competition,
         description: patched.description,
-        repoUrl: patched.repoUrl,
         links: savedLinks,
       })
       setLinks(savedLinks.map((link) => ({ ...link })))
@@ -618,44 +675,10 @@ function ProseAndLinks({
       </p>
 
       <div className="space-y-4">
-        <div>
-          <label className={labelClass} htmlFor={`${id}-title`}>
-            TITLE
-          </label>
-          <input
-            id={`${id}-title`}
-            type="text"
-            value={title}
-            maxLength={160}
-            disabled={busy}
-            onChange={(event) => {
-              setTitle(event.target.value)
-              setSaved(false)
-            }}
-            className={fieldClass}
-          />
-        </div>
-
-        <div>
-          <label className={labelClass} htmlFor={`${id}-summary`}>
-            SUMMARY
-          </label>
-          <textarea
-            id={`${id}-summary`}
-            value={summary}
-            maxLength={500}
-            rows={2}
-            disabled={busy}
-            onChange={(event) => {
-              setSummary(event.target.value)
-              setSaved(false)
-            }}
-            className="textarea border-rule bg-base-200 w-full text-sm"
-          />
-          <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
-            The one line that appears on the projects list.
-          </p>
-        </div>
+        {/* The title and the summary used to be here and are the title
+            section's now — they are what the projects list prints beside the
+            cover, and the three belong together on the form for the same reason
+            they belong together on the card. */}
 
         {/* Set when the project is created and never editable afterwards until
             now, which meant a season rolling over was a job for Prisma Studio.
@@ -709,7 +732,7 @@ function ProseAndLinks({
 
         <div>
           <label className={labelClass} htmlFor={`${id}-description`}>
-            THE WRITE-UP
+            DESCRIPTION
           </label>
           <textarea
             id={`${id}-description`}
@@ -723,36 +746,24 @@ function ProseAndLinks({
             }}
             className="textarea border-rule bg-base-200 w-full text-sm"
           />
-          <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
-            Leave a blank line between paragraphs. No markdown yet.
+          <p className="mt-1.5 text-[11px] leading-[1.5] text-faint">
+            The long form, on this project&rsquo;s own page. Leave a blank line between
+            paragraphs. No markdown yet.
           </p>
         </div>
       </div>
 
-      <p className="text-faint mt-8 mb-4 font-mono text-[13px] font-bold tracking-[0.2em]">
-        / RESOURCES
+      <p className="mt-8 mb-4 font-mono text-[13px] font-bold tracking-[0.2em] text-faint uppercase">
+        / {project.resourcesHeading ?? 'RESOURCES'}
       </p>
 
+      {/* **There is no SOURCE CODE box here any more, and that is the point.**
+          `repoUrl` was a column of its own and drew a fixed field above this
+          list, so every project was asked for a repository and most of what the
+          club builds does not have one — an empty box nobody could remove. It is
+          an ordinary row now, and this section is genuinely blank until somebody
+          adds something. */}
       <div className="space-y-4">
-        <div>
-          <label className={labelClass} htmlFor={`${id}-repo`}>
-            SOURCE CODE
-          </label>
-          <input
-            id={`${id}-repo`}
-            type="url"
-            value={repoUrl}
-            maxLength={500}
-            placeholder="https://github.com/…"
-            disabled={busy}
-            onChange={(event) => {
-              setRepoUrl(event.target.value)
-              setSaved(false)
-            }}
-            className={fieldClass}
-          />
-        </div>
-
         {/* The same rows the create page collects links in, so the two states
             of that page cannot drift apart. */}
         <LinkRows
@@ -763,13 +774,17 @@ function ProseAndLinks({
             setSaved(false)
           }}
         />
+        <p className="text-[11px] leading-[1.5] text-pretty text-faint">
+          Anything this project points at — the design doc, the CAD, the rules, the
+          repository. Leave it empty if there is nothing to link.
+        </p>
       </div>
 
       <div className="mt-6">
         <button
           type="button"
           onClick={() => void save()}
-          disabled={busy || title.trim() === ''}
+          disabled={busy}
           className={submitClass}
         >
           {busy ? 'SAVING…' : dirty ? 'SAVE CHANGES' : 'SAVED'}
@@ -789,6 +804,3 @@ function ProseAndLinks({
     </section>
   )
 }
-
-/** A stable no-op, so the effect reporting dirtiness is not re-run every render. */
-const noop = () => {}

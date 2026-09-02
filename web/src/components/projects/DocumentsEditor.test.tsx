@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DocumentsEditor } from './DocumentsEditor'
 import type { ApiProjectDetail, ApiProjectDocument } from '../../lib/api/api'
+import type { ProjectRoster } from '../../lib/projects/useProjectRoster'
 import { bodyOf, urlOf } from '../../test/stubFetch'
 
 const document = (
@@ -34,7 +35,13 @@ const project = (documents: ApiProjectDocument[]): ApiProjectDetail => ({
   competition: null,
   status: 'IN_PROGRESS',
   coverUrl: null,
-  repoUrl: null,
+  coverFromGallery: false,
+  coverFocalX: 50,
+  coverFocalY: 50,
+  coverZoom: 1,
+  galleryHeading: null,
+  resourcesHeading: null,
+  teamHeading: null,
   featured: false,
   startedAt: null,
   completedAt: null,
@@ -58,39 +65,13 @@ const json = (body: unknown, status = 200) =>
 /** Every call the component makes, so a test can assert on what did not happen. */
 type Watcher = (url: string, init?: RequestInit) => void
 
-/**
- * The roster read the credit picker makes. Any write a test cares about is
- * added on top.
- */
+/** Only the writes now. **The roster is a prop rather than a fetch**: it is read
+    once by `ProjectEditor` and shared with the team section beside this one, so
+    this component no longer asks for anything on its own. */
 function stub(extra: Record<string, unknown> = {}, spy?: Watcher) {
   return vi.fn((input: string | URL | Request, init?: RequestInit) => {
     const url = urlOf(input)
     spy?.(url, init)
-
-    if (url.includes('/team')) {
-      return json({
-        project: {},
-        teams: [],
-        members: [
-          {
-            userId: 'u1',
-            fullName: 'Grace Hopper',
-            photoUrl: null,
-            title: null,
-            rank: 'PROJECT_LEAD',
-            teamId: null,
-          },
-          {
-            userId: 'u2',
-            fullName: 'Ada Lovelace',
-            photoUrl: null,
-            title: null,
-            rank: 'MEMBER',
-            teamId: null,
-          },
-        ],
-      })
-    }
 
     const match = Object.keys(extra).find((path) => url.includes(path))
     if (match) return json(extra[match])
@@ -99,16 +80,39 @@ function stub(extra: Record<string, unknown> = {}, spy?: Watcher) {
   })
 }
 
+/** The roster as `useProjectRoster` hands it over, landed. */
+const ROSTER: ProjectRoster = {
+  teams: [],
+  ready: true,
+  members: [
+    {
+      userId: 'u1',
+      fullName: 'Grace Hopper',
+      photoUrl: null,
+      title: null,
+      rank: 'PROJECT_LEAD',
+      teamId: null,
+    },
+    {
+      userId: 'u2',
+      fullName: 'Ada Lovelace',
+      photoUrl: null,
+      title: null,
+      rank: 'MEMBER',
+      teamId: null,
+    },
+  ],
+}
+
 /** Holds the project in state, the way the editor's parent does. */
 function Harness({ initial }: { initial: ApiProjectDetail }) {
   const [current, setCurrent] = useState(initial)
-  return <DocumentsEditor project={current} me={me} apply={setCurrent} />
+  return <DocumentsEditor project={current} me={me} roster={ROSTER} apply={setCurrent} />
 }
 
 const show = (documents: ApiProjectDocument[] = []) =>
   render(<Harness initial={project(documents)} />)
 
-/** Opens the publish form, which is what asks the server for the roster. */
 const openAddForm = async () => {
   fireEvent.click(screen.getByRole('button', { name: '+ PUBLISH A DOCUMENT' }))
   await screen.findByLabelText('TITLE')
@@ -140,23 +144,20 @@ describe('DocumentsEditor', () => {
   })
 
   /**
-   * Most visits to the editor are somebody fixing a sentence in the write-up.
-   * None of them should cost a request for a roster nobody is going to read.
+   * This section used to fetch the roster itself, deferred until a form opened,
+   * so that somebody fixing a typo did not pay for a list nobody read. The team
+   * section beside it cannot draw a row without the same list, so the read moved
+   * up to `ProjectEditor` and happens once — which leaves this component asking
+   * for nothing at all until somebody actually publishes something.
    */
-  it('asks for nothing until a form is opened', async () => {
+  it('asks for nothing until something is published', async () => {
     const seen = vi.fn<Watcher>()
     vi.stubGlobal('fetch', stub({}, seen))
 
     show([document()])
-
-    expect(seen).not.toHaveBeenCalled()
-
     await openAddForm()
 
-    await waitFor(() => {
-      expect(seen).toHaveBeenCalled()
-    })
-    expect(String(seen.mock.calls[0]?.[0])).toContain('/projects/p1/team')
+    expect(seen).not.toHaveBeenCalled()
   })
 
   it('offers the project roster as the credit, defaulting to me', async () => {

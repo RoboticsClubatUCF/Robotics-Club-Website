@@ -1,16 +1,13 @@
-import { useEffect, useId, useState } from 'react'
+import { useId, useState } from 'react'
 import { Status } from '../shared/Status'
 import { useSectionStatus } from '../../lib/useSectionStatus'
 import { ConfirmDialog } from '../shared/ConfirmDialog'
 import { fieldClass, labelClass } from '../shared/formChrome'
-import { deleteJson, getJson, patchJson, postForm } from '../../lib/api/api'
-import type {
-  ApiProjectDetail,
-  ApiProjectDocument,
-  ApiProjectTeamView,
-} from '../../lib/api/api'
+import { deleteJson, patchJson, postForm } from '../../lib/api/api'
+import type { ApiProjectDetail, ApiProjectDocument } from '../../lib/api/api'
 import { fileSize, longDate } from '../../lib/format/formats'
 import { MAX_PROJECT_DOCUMENTS } from '../../lib/projects/projectGallery'
+import type { ProjectRoster } from '../../lib/projects/useProjectRoster'
 
 /** Somebody this project can credit: a member, or the officer editing it. */
 type Person = { userId: string; fullName: string }
@@ -34,6 +31,7 @@ type Person = { userId: string; fullName: string }
 export function DocumentsEditor({
   project,
   me,
+  roster,
   apply,
 }: {
   project: ApiProjectDetail
@@ -44,6 +42,16 @@ export function DocumentsEditor({
    * provider in behind it.
    */
   me?: { id: string; fullName: string }
+  /**
+   * Who this project can credit, read once by `ProjectEditor` and handed down.
+   *
+   * **This section used to fetch it itself, deferred until a form opened**, on
+   * the grounds that most visits to the editor are somebody fixing a sentence
+   * and should not pay for a roster nobody reads. That was right while this was
+   * the only consumer; the team section beside it cannot draw a single row
+   * without the same list, so deferring here now only means asking twice.
+   */
+  roster: ProjectRoster
   apply: (project: ApiProjectDetail) => void
 }) {
   const id = useId()
@@ -52,55 +60,9 @@ export function DocumentsEditor({
   const documents = project.documents
   const full = documents.length >= MAX_PROJECT_DOCUMENTS
 
-  const [roster, setRoster] = useState<Person[]>([])
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<string | null>(null)
   const [doomed, setDoomed] = useState<ApiProjectDocument | null>(null)
-
-  // Only a form that is actually open needs a list of people to credit.
-  const crediting = adding || editing !== null
-
-  /**
-   * The people this project can credit.
-   *
-   * Read here rather than taken from `project.members`, which the public detail
-   * route deliberately answers without user ids — a credit is written by id, and
-   * widening a public payload so an editor can have one would be paying for it
-   * on every anonymous page view. This route wants a membership or an officer's
-   * standing, which everybody who can see this section already has.
-   *
-   * Deferred until a form is open, and that is the point: most visits to the
-   * editor are somebody fixing a sentence in the write-up, and none of them
-   * should cost a request for a roster nobody is going to look at.
-   *
-   * A failure is silent on purpose. The picker still offers whoever is signed
-   * in, which is the common case anyway, and a red line about a roster nobody
-   * asked for would be a strange thing to meet on opening a form.
-   */
-  useEffect(() => {
-    if (!crediting) return
-
-    let live = true
-
-    getJson<ApiProjectTeamView>(`/projects/${project.id}/team`)
-      .then((view) => {
-        if (live) {
-          setRoster(
-            view.members.map((member) => ({
-              userId: member.userId,
-              fullName: member.fullName,
-            })),
-          )
-        }
-      })
-      .catch((error: unknown) => {
-        console.error(error)
-      })
-
-    return () => {
-      live = false
-    }
-  }, [project.id, crediting])
 
   /**
    * The roster, plus whoever is editing if they are not on it.
@@ -110,10 +72,16 @@ export function DocumentsEditor({
    * happily — so leaving them out would make them the one person who cannot be
    * named as the author of the thing they just wrote.
    */
-  const people: Person[] =
-    me && !roster.some((person) => person.userId === me.id)
-      ? [...roster, { userId: me.id, fullName: me.fullName }]
-      : roster
+  const people: Person[] = (() => {
+    const listed = roster.members.map((member) => ({
+      userId: member.userId,
+      fullName: member.fullName,
+    }))
+
+    return me && !listed.some((person) => person.userId === me.id)
+      ? [...listed, { userId: me.id, fullName: me.fullName }]
+      : listed
+  })()
 
   const write = (documents: ApiProjectDocument[]) => {
     apply({ ...project, documents })
@@ -176,10 +144,12 @@ export function DocumentsEditor({
         / DOCUMENTATION
       </p>
 
-      <p className="text-faint mb-4 text-[12px] leading-[1.6] text-pretty">
-        PDFs and Word documents, on a page of their own, reached from the{' '}
-        <span className="font-mono tracking-[0.06em]">/ RESOURCES</span> list on
-        the project page. Anyone can read them.
+      {/* The section it points at can be renamed per project now, so this
+          sentence stops naming it — a blurb that says "/ RESOURCES" on a page
+          whose heading reads "/ FILES" is worse than one that says neither. */}
+      <p className="mb-4 text-[12px] leading-[1.6] text-pretty text-faint">
+        PDFs and Word documents, on a page of their own, reached from the resources list
+        on the project page. Anyone can read them.
       </p>
 
       {documents.length === 0 ? (
@@ -244,7 +214,7 @@ export function DocumentsEditor({
                   <label
                     htmlFor={`${id}-replace-${document.id}`}
                     aria-disabled={busy}
-                    className={`text-faint hover:text-primary cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 ${
+                    className={`cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] text-faint transition-colors duration-200 hover:text-primary ${
                       busy ? 'pointer-events-none opacity-50' : ''
                     }`}
                   >

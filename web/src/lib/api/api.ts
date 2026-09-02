@@ -384,8 +384,30 @@ export type ApiProject = {
   termSeason: Season
   competition: string | null
   status: ProjectStatus
+  /**
+   * The one picture that stands for this project in a list, and what `/projects`
+   * draws. Either an external address or `/api/files/<id>`, so it goes through
+   * `imageSrc` like every other image column.
+   */
   coverUrl: string | null
-  repoUrl: string | null
+  /**
+   * Whether the cover is simply the gallery's first picture. Neither side falls
+   * back to the other — see `coverOf` in `lib/projects/projectCover.ts`, which is
+   * the one place these four fields are read together.
+   */
+  coverFromGallery: boolean
+  /** How the cover sits in the card's 16:10 frame. `frameStyle`'s three numbers,
+      on the project rather than on a gallery row. */
+  coverFocalX: number
+  coverFocalY: number
+  coverZoom: number
+  /**
+   * What this project calls its own sections, or null for the standing label.
+   * The `/ ` and the mono capitals are the page's; these are the words after it.
+   */
+  galleryHeading: string | null
+  resourcesHeading: string | null
+  teamHeading: string | null
   featured: boolean
   startedAt: string | null
   completedAt: string | null
@@ -394,17 +416,28 @@ export type ApiProject = {
 /**
  * One person on a project, as `GET /api/projects/:slug` lists them.
  *
- * Two `title`s at two levels, and they are different things: the outer one is
- * what this person is called *on this project* ("Software Lead"), the inner one
- * is their club title. Both are free text and neither grants anything.
+ * **`rank` is the one label here that means anything** — it is the column every
+ * permission on this project is decided by, and the roster prints it. `title` is
+ * free text somebody typed against this project ("Software Lead") and grants
+ * nothing; it is what the row falls back to for a plain member.
+ *
+ * The club-wide `User.title` used to ride along beside them and is deliberately
+ * gone: it is written by nothing in the product, and an officer's club seat
+ * ("Lab Manager") says nothing about what they do on somebody's rover.
+ *
+ * No user ids, on purpose — this is an anonymous payload. Anything that needs
+ * one reads `GET /projects/:id/team`, which is what `useProjectRoster` is for.
  */
 export type ApiProjectMember = {
   title: string | null
+  rank: ProjectMemberRank
+  /** The project team they sit on, when they sit on one. Printed beside
+      TEAM LEAD, which is meaningless without it. */
+  team: { name: string } | null
   user: {
     slug: string | null
     fullName: string
     photoUrl: string | null
-    title: string | null
   }
 }
 
@@ -485,20 +518,24 @@ export type ApiProjectDetail = ApiProject & {
 /**
  * A listing row that asked for the write-up — `GET /api/projects?description=true`.
  *
- * Both heavy columns are opt-in on that route, on purpose: it answers up to a
- * hundred rows and most callers want neither. `/projects` is the caller that
- * does, and it prints the write-up because `summary` — the field the schema
- * calls the one-liner for cards — has never been filled in on any project the
- * club has created.
+ * The heavy columns are opt-in on that route because it answers up to a hundred
+ * rows. **`/projects` no longer asks for this one**: the list prints `summary`
+ * and only `summary`, which is the field the schema means for a card. The type
+ * stays because the flag does.
  */
 export type ApiListedProject = ApiProject & { description: string | null }
 
 /**
- * And one that asked for its gallery as well — `&images=true`, which only the
- * current-term half of `/projects` does, because it is the only list that draws
- * every picture it is sent.
+ * A card's row — `GET /api/projects?cover=true`, which is the gallery capped at
+ * one picture.
+ *
+ * It answers on `images` rather than a `cover` key of its own, so `coverOf` reads
+ * the same field here as it does on a project's own detail payload and there is
+ * one shape to know. At most one element; a project whose cover is `coverUrl`
+ * rather than the gallery may still have one, and `coverOf` is what decides
+ * between them.
  */
-export type ApiCardProject = ApiListedProject & { images: ApiProjectImage[] }
+export type ApiCardProject = ApiProject & { images: ApiProjectImage[] }
 
 /**
  * Somebody's project role, mirroring `ProjectMemberRank` in `schema.prisma`.
@@ -680,13 +717,7 @@ export type PrintProcess = 'FDM' | 'SLA'
 export type PrintMaterial = 'PLA' | 'PETG' | 'ABS_LIKE_RESIN'
 
 export type InfillPattern =
-  | 'GRID'
-  | 'GYROID'
-  | 'LINES'
-  | 'TRIANGLES'
-  | 'CUBIC'
-  | 'HONEYCOMB'
-  | 'CONCENTRIC'
+  'GRID' | 'GYROID' | 'LINES' | 'TRIANGLES' | 'CUBIC' | 'HONEYCOMB' | 'CONCENTRIC'
 
 /** A print request as its owner sees it, from `GET /api/me/print-requests`. */
 export type ApiPrintRequest = {
@@ -777,12 +808,7 @@ export type ApiPrintQueueItem = ApiPrintRequest & {
  * which is the rule the availability count turns on.
  */
 export type LoanStatus =
-  | 'REQUESTED'
-  | 'APPROVED'
-  | 'CHECKED_OUT'
-  | 'RETURNED'
-  | 'DENIED'
-  | 'CANCELED'
+  'REQUESTED' | 'APPROVED' | 'CHECKED_OUT' | 'RETURNED' | 'DENIED' | 'CANCELED'
 
 /** One borrowable thing, with a live count of how many are free right now. */
 export type ApiEquipment = {
@@ -845,12 +871,7 @@ export type ApiOfficerLoan = ApiLoan & {
  * order rows come back in** — Postgres sorts an enum by declaration order and
  * the server orders on it, so this list is not alphabetised and must not be.
  */
-export type TaskStatus =
-  | 'OPEN'
-  | 'IN_PROGRESS'
-  | 'DELAYED'
-  | 'DONE'
-  | 'CANCELED'
+export type TaskStatus = 'OPEN' | 'IN_PROGRESS' | 'DELAYED' | 'DONE' | 'CANCELED'
 
 /** The two labels that mean a task is settled: off the calendar, off the
     overview card, and never chased by the bot. */
@@ -906,12 +927,7 @@ export type ApiMeEvent = ApiEvent & {
 }
 
 export type EventType =
-  | 'MEETING'
-  | 'COMPETITION'
-  | 'OUTREACH'
-  | 'WORKSHOP'
-  | 'FUNDRAISER'
-  | 'SOCIAL'
+  'MEETING' | 'COMPETITION' | 'OUTREACH' | 'WORKSHOP' | 'FUNDRAISER' | 'SOCIAL'
 
 /**
  * A project's whole meeting series, carried on each of its occurrences.
@@ -983,10 +999,7 @@ export type ApiEvent = {
  * The wire format is the enum name; the underscores come out for display.
  */
 export type SponsorTier =
-  | 'PROCESSOR_PATRON'
-  | 'CIRCUIT_SUPPORTER'
-  | 'BOLT_BACKER'
-  | 'ALUMINUM_ALLY'
+  'PROCESSOR_PATRON' | 'CIRCUIT_SUPPORTER' | 'BOLT_BACKER' | 'ALUMINUM_ALLY'
 
 export type ApiSponsor = {
   id: string
@@ -1541,10 +1554,7 @@ export type ApiDuesSync = {
  * only fixed thing left is the *shape* of one — which is what `kind` names.
  */
 export type SurveyQuestionKind =
-  | 'SHORT_TEXT'
-  | 'LONG_TEXT'
-  | 'SINGLE_CHOICE'
-  | 'MULTI_CHOICE'
+  'SHORT_TEXT' | 'LONG_TEXT' | 'SINGLE_CHOICE' | 'MULTI_CHOICE'
 
 export type ApiSurveyOption = {
   id: string

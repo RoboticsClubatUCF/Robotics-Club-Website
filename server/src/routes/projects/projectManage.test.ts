@@ -313,12 +313,18 @@ describe('the officer desk', () => {
   })
 
   /**
-   * The write-up and the repository go up *with* the project, because neither
-   * needs it to exist first — unlike a gallery picture or a resource link,
-   * which hang off its id. That is what lets the desk put the whole form on one
-   * page and gate only the two things that genuinely cannot be filled in yet.
+   * The write-up goes up *with* the project, because it is a column and needs
+   * nothing to exist first — unlike a gallery picture or a resource link, which
+   * hang off its id. That is what lets the desk put the whole form on one page
+   * and gate only the two things that genuinely cannot be filled in yet.
+   *
+   * **The repository used to ride along here and is a resource link now.** The
+   * column is gone, and zod strips what it does not declare — so an old client
+   * still sending `repoUrl` gets a 201 and a project without one, which is the
+   * failure worth pinning: re-adding the field silently would restore a second
+   * way to write a resource.
    */
-  it('stores the write-up and the repository given at creation', async () => {
+  it('stores the write-up given at creation, and ignores a repository', async () => {
     const response = await request('POST', '/api/officer/projects', officerCookie, {
       ...MEETING,
       slug: `${PREFIX}written`,
@@ -335,7 +341,8 @@ describe('the officer desk', () => {
     expect(stored?.description).toBe(
       'Two years of chassis work.\n\nAnd a second paragraph.',
     )
-    expect(stored?.repoUrl).toBe('https://github.com/rccf/rover')
+    expect(stored).not.toHaveProperty('repoUrl')
+    expect(await prisma.projectLink.count({ where: { projectId: project.id } })).toBe(0)
   })
 
   /**
@@ -560,6 +567,164 @@ describe('one project lead per project', () => {
       where: { projectId_userId: { projectId, userId: leadId } },
     })
     expect(stillLeads?.rank).toBe(ProjectMemberRank.PROJECT_LEAD)
+  })
+
+  /**
+   * **The rule the row lock in `projects/projectLead.ts` exists for.**
+   *
+   * This used to be check-then-act in the route handler: read the incumbent,
+   * then upsert. Two officers appointing different people in the same instant
+   * both passed the read and both wrote, and the project ended up with two
+   * leads — a state the schema says cannot exist. The comment on the route said
+   * so and left it there.
+   *
+   * Both requests go out before either is awaited, which is as close to the same
+   * instant as this suite can get. One of them has to lose.
+   */
+  it('cannot be raced into two leads', async () => {
+    // Clear the seat first, so both requests below are appointing into an empty
+    // project rather than one of them hitting the ordinary incumbent 409.
+    await request(
+      'PATCH',
+      `/api/officer/projects/${projectId}/members/${leadId}/rank`,
+      officerCookie,
+      { rank: 'MEMBER' },
+    )
+
+    const [first, second] = await Promise.all([
+      request(
+        'PATCH',
+        `/api/officer/projects/${projectId}/members/${paidId}/rank`,
+        officerCookie,
+        { rank: 'PROJECT_LEAD' },
+      ),
+      request(
+        'PATCH',
+        `/api/officer/projects/${projectId}/members/${officerId}/rank`,
+        officerCookie,
+        { rank: 'PROJECT_LEAD' },
+      ),
+    ])
+
+    // Exactly one winner, and the loser gets the same 409 it would have got had
+    // it simply arrived second.
+    const codes = [first.status, second.status].sort((a, b) => a - b)
+    expect(codes).toEqual([200, 409])
+
+    expect(
+      await prisma.projectMember.count({
+        where: { projectId, rank: ProjectMemberRank.PROJECT_LEAD },
+      }),
+    ).toBe(1)
+  })
+
+  /**
+   * The cap is on `PROJECT_LEAD` alone. A project has as many team leads as it
+   * has teams, they are granted through a different route against a team, and
+   * nothing about the one-lead rule touches them.
+   */
+  it('does not cap team leads', async () => {
+    const teams = await prisma.team.createManyAndReturn({
+      data: [
+        { projectId, name: 'Chassis' },
+        { projectId, name: 'Software' },
+      ],
+      select: { id: true },
+    })
+
+    for (const [index, userId] of [paidId, officerId].entries()) {
+      await prisma.projectMember.upsert({
+        where: { projectId_userId: { projectId, userId } },
+        create: { projectId, userId, rank: ProjectMemberRank.MEMBER },
+        update: { rank: ProjectMemberRank.MEMBER },
+      })
+
+      const response = await request(
+        'PATCH',
+        `/api/projects/${projectId}/members/${userId}`,
+        leadCookie,
+        { teamId: teams[index].id, rank: 'TEAM_LEAD' },
+      )
+      expect(response.status).toBe(200)
+    }
+
+    expect(
+      await prisma.projectMember.count({
+        where: { projectId, rank: ProjectMemberRank.TEAM_LEAD },
+      }),
+    ).toBe(2)
+    // And the project's one lead is untouched by any of it.
+    expect(
+      await prisma.projectMember.count({
+        where: { projectId, rank: ProjectMemberRank.PROJECT_LEAD },
+      }),
+    ).toBe(1)
+  })
+})
+
+/**
+ * The cover a project shows on `/projects`, what it calls its own sections, and
+ * the switch between the two ways of choosing a cover.
+ */
+describe('the cover and the section headings', () => {
+  it('writes the cover switch, its framing and the headings', async () => {
+    const response = await request('PATCH', `/api/projects/${projectId}`, leadCookie, {
+      coverUrl: 'https://example.test/rover.png',
+      coverFromGallery: false,
+      coverFocalX: 20,
+      coverFocalY: 80,
+      coverZoom: 2,
+      galleryHeading: 'THE BUILD',
+      resourcesHeading: 'FILES',
+      teamHeading: 'WHO IS ON IT',
+    })
+
+    expect(response.status).toBe(200)
+
+    const stored = await prisma.project.findUnique({ where: { id: projectId } })
+    expect(stored).toMatchObject({
+      coverUrl: 'https://example.test/rover.png',
+      coverFromGallery: false,
+      coverFocalX: 20,
+      coverFocalY: 80,
+      coverZoom: 2,
+      galleryHeading: 'THE BUILD',
+      resourcesHeading: 'FILES',
+      teamHeading: 'WHO IS ON IT',
+    })
+  })
+
+  /** Blank clears the column, so there is one spelling of "no heading" and the
+      pages fall back to the standing word. */
+  it('clears a heading to null', async () => {
+    await request('PATCH', `/api/projects/${projectId}`, leadCookie, {
+      galleryHeading: 'THE BUILD',
+    })
+
+    const response = await request('PATCH', `/api/projects/${projectId}`, leadCookie, {
+      galleryHeading: null,
+    })
+    expect(response.status).toBe(200)
+
+    const stored = await prisma.project.findUnique({ where: { id: projectId } })
+    expect(stored?.galleryHeading).toBeNull()
+  })
+
+  /** The framing is bounded the same way a gallery picture's is — these numbers
+      go straight into a CSS transform. */
+  it('refuses framing outside the bounds', async () => {
+    const response = await request('PATCH', `/api/projects/${projectId}`, leadCookie, {
+      coverZoom: 9,
+    })
+    expect(response.status).toBe(400)
+  })
+
+  /** A lead's, like the rest of this route. Nobody else's. */
+  it('is refused to somebody who does not lead the project', async () => {
+    const response = await request('PATCH', `/api/projects/${projectId}`, paidCookie, {
+      teamHeading: 'MINE NOW',
+    })
+    expect(response.status).toBe(403)
   })
 })
 
@@ -1457,7 +1622,7 @@ describe('editing the writing', () => {
       description: 'Two years of chassis work.\n\nAnd a second paragraph.',
       season: '2035-2036',
       competition: 'UNIVERSITY ROVER CHALLENGE',
-      repoUrl: 'https://github.com/rccf/rover',
+      galleryHeading: 'THE BUILD',
     })
 
     expect(response.status).toBe(200)
@@ -1470,7 +1635,7 @@ describe('editing the writing', () => {
       description: 'Two years of chassis work.\n\nAnd a second paragraph.',
       season: '2035-2036',
       competition: 'UNIVERSITY ROVER CHALLENGE',
-      repoUrl: 'https://github.com/rccf/rover',
+      galleryHeading: 'THE BUILD',
     })
   })
 
@@ -1669,7 +1834,7 @@ describe('creating a project needs a schedule', () => {
  * nothing at all: a stale browser bundle against a new server would look like
  * display titles that simply stopped working. That is the second test here.
  */
-describe('a member\'s display title', () => {
+describe("a member's display title", () => {
   const patch = (body: unknown) =>
     request(
       'PATCH',
@@ -1767,13 +1932,25 @@ describe('duplicating a project', () => {
         summary: 'A rover',
         description: 'The long write-up',
         competition: 'UNIVERSITY ROVER CHALLENGE',
-        repoUrl: 'https://example.com/repo',
+        // What this project calls its own sections travels with the writing:
+        // the same build next semester calls them the same things.
+        galleryHeading: 'THE BUILD',
+        coverUrl: 'https://example.com/cover.png',
+        coverFromGallery: false,
+        coverFocalX: 25,
+        coverFocalY: 75,
+        coverZoom: 2,
         meetingWeekdays: [2, 4],
         meetingStartTime: '18:00',
         meetingEndTime: '22:00',
         meetingLocation: 'ENG2 Lab',
         links: {
-          create: { label: 'Docs', url: 'https://example.com', sortOrder: 0 },
+          create: [
+            { label: 'Docs', url: 'https://example.com', sortOrder: 0 },
+            // The repository, which is an ordinary resource row now rather than
+            // a column of its own.
+            { label: 'Source code', url: 'https://example.com/repo', sortOrder: 1 },
+          ],
         },
       },
     })
@@ -1792,7 +1969,14 @@ describe('duplicating a project', () => {
       title: 'PM Rover',
       summary: 'A rover',
       competition: 'UNIVERSITY ROVER CHALLENGE',
-      repoUrl: 'https://example.com/repo',
+      galleryHeading: 'THE BUILD',
+      // The cover's framing comes across with the bytes. Copying the picture
+      // and leaving these behind would recentre the one image the copy shows on
+      // `/projects` — the same failure as copying gallery rows without theirs.
+      coverFromGallery: false,
+      coverFocalX: 25,
+      coverFocalY: 75,
+      coverZoom: 2,
       meetingWeekdays: [2, 4],
       meetingStartTime: '18:00',
       meetingEndTime: '22:00',
@@ -1825,11 +2009,18 @@ describe('duplicating a project', () => {
 
     const links = await prisma.projectLink.findMany({
       where: { projectId: copy.id },
+      orderBy: { sortOrder: 'asc' },
     })
-    expect(links).toHaveLength(1)
+    // Both of them, the repository included — it is one of these rows now
+    // rather than a column, so "copies the writing" has to carry it here.
+    expect(links).toHaveLength(2)
     expect(links[0]).toMatchObject({
       label: 'Docs',
       url: 'https://example.com',
+    })
+    expect(links[1]).toMatchObject({
+      label: 'Source code',
+      url: 'https://example.com/repo',
     })
   })
 

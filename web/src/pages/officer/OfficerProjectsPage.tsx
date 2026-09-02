@@ -76,7 +76,12 @@ export function OfficerProjectsPage() {
   }
 
   if (!isOfficer(user.role)) {
-    return <OfficerOnly eyebrow="/ MANAGE · PROJECTS" why="Deciding which projects the club runs is board business." />
+    return (
+      <OfficerOnly
+        eyebrow="/ MANAGE · PROJECTS"
+        why="Deciding which projects the club runs is board business."
+      />
+    )
   }
 
   return (
@@ -108,11 +113,15 @@ export function OfficerProjectsPage() {
  *
  * So the split is drawn as narrowly as that constraint actually is, rather than
  * around the whole form. Everything typeable before the project exists is on the
- * page from the start and goes up *with* it — the write-up and the repository
- * included, which is why `POST /officer/projects` takes those two columns. Only
- * the gallery and the resource links are gated, they are drawn in place under
- * their own eyebrows while they wait, and each says in one line what it is
- * waiting for. Pressing CREATE unlocks them where they already are.
+ * page from the start and goes up *with* it — the description included, which is
+ * why `POST /officer/projects` takes that column. Only the gallery and the
+ * resource links are gated, they are drawn in place under their own eyebrows
+ * while they wait, and each says in one line what it is waiting for. Pressing
+ * CREATE unlocks them where they already are.
+ *
+ * **The repository is one of those links now** rather than a column of its own,
+ * so it is collected in the draft with the rest of them instead of having a box
+ * to itself above the list.
  *
  * The panel after that is `ProjectEditor` — the same editor the public page
  * carries, not a second copy — laid out in the same order under the same
@@ -220,7 +229,6 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
       season: value('season'),
       competition: value('competition'),
       description,
-      repoUrl: value('repoUrl'),
       discordRoleId: value('discordRoleId'),
       // Required by the route, unlike everything above it but the title, slug
       // and summary. A project's meeting time is the one thing a prospective
@@ -382,7 +390,7 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
                 return (
                   <label
                     key={short}
-                    className={`focus-within:outline-primary flex min-h-11 cursor-pointer items-center border px-3 font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 focus-within:outline-2 focus-within:outline-offset-2 wide:min-h-9 ${
+                    className={`flex min-h-11 cursor-pointer items-center border px-3 font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary wide:min-h-9 ${
                       on
                         ? 'border-primary bg-primary/10 text-primary'
                         : 'border-rule text-dim hover:border-primary hover:text-primary'
@@ -465,7 +473,7 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
 
         <div>
           <label htmlFor={`${id}-description`} className={labelClass}>
-            THE WRITE-UP
+            DESCRIPTION
           </label>
           <textarea
             id={`${id}-description`}
@@ -478,27 +486,6 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
           <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
             Leave a blank line between paragraphs. No markdown yet.
           </p>
-        </div>
-
-        {/* Same eyebrow the editor uses, in the same place, so this section does
-            not appear to arrive from somewhere else once the project exists. */}
-        <p className="text-faint pt-2 font-mono text-[13px] font-bold tracking-[0.2em]">
-          / RESOURCES
-        </p>
-
-        <div>
-          <label htmlFor={`${id}-repo`} className={labelClass}>
-            SOURCE CODE
-          </label>
-          <input
-            id={`${id}-repo`}
-            name="repoUrl"
-            type="url"
-            maxLength={500}
-            placeholder="https://github.com/…"
-            className={fieldClass}
-            disabled={sending}
-          />
         </div>
 
         <div>
@@ -525,6 +512,15 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
             role and Copy Role ID.
           </p>
         </div>
+
+        {/* Same eyebrow the editor uses, over the same list, so this section
+            does not appear to arrive from somewhere else once the project
+            exists. It sat above a SOURCE CODE box until the repository stopped
+            being a column of its own; the links are the whole section now, and
+            leaving it empty is an ordinary answer. */}
+        <p className="pt-2 font-mono text-[13px] font-bold tracking-[0.2em] text-faint">
+          / RESOURCES
+        </p>
 
         <LinkRows links={links} disabled={sending} onChange={setLinks} />
 
@@ -857,8 +853,7 @@ function DuplicateForm({
             {projects.status === 'ready' &&
               projects.data.map((project) => (
                 <option key={project.id} value={project.id}>
-                  {project.title} — {SEASON_LABEL[project.termSeason]}{' '}
-                  {project.termYear}
+                  {project.title} — {SEASON_LABEL[project.termSeason]} {project.termYear}
                 </option>
               ))}
           </select>
@@ -1168,13 +1163,7 @@ function ProjectRows({
 
 /** Drawn the same way in both of its states, like the archive control on
     `/projects` that this borrows its wording from. */
-function PastButton({
-  children,
-  onClick,
-}: {
-  children: string
-  onClick: () => void
-}) {
+function PastButton({ children, onClick }: { children: string; onClick: () => void }) {
   return (
     <button
       type="button"

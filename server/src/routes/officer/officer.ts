@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
-import { validate, webUrl } from '../../core/validate.js'
+import { validate } from '../../core/validate.js'
 import { requireOfficer } from '../../auth/authz.js'
 import { prisma } from '../../core/db.js'
 import {
@@ -10,6 +10,7 @@ import {
   pushRoles,
 } from '../../discord/discordRoles.js'
 import { copyIfStored } from '../../files/files.js'
+import { appointLead } from '../../projects/projectLead.js'
 import {
   DuesPlan,
   LoanStatus,
@@ -117,8 +118,17 @@ export const managedProjectSelect = {
   termSeason: true,
   competition: true,
   status: true,
+  // The cover, how it is framed, and whether either is read — the editor
+  // prefills all four from this shape, so a missing one is a control that opens
+  // on the wrong answer.
   coverUrl: true,
-  repoUrl: true,
+  coverFromGallery: true,
+  coverFocalX: true,
+  coverFocalY: true,
+  coverZoom: true,
+  galleryHeading: true,
+  resourcesHeading: true,
+  teamHeading: true,
   featured: true,
   startedAt: true,
   completedAt: true,
@@ -133,53 +143,56 @@ export const managedProjectSelect = {
   discordRoleId: true,
 } as const
 
-const createProject = z.object({
-  slug: z
-    .string()
-    .trim()
-    .toLowerCase()
-    .regex(
-      /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
-      'Slugs are lowercase words joined by hyphens, like "mars-rover".',
-    )
-    .max(60),
-  title: z.string().trim().min(1).max(160),
-  /**
-   * Required, unlike the two below it. This is the one line the projects list
-   * prints under the title, and a project without one reads there as an empty
-   * row — which is the first thing anybody deciding whether to join sees.
-   */
-  summary: z.string().trim().min(1).max(500),
-  season: z.string().trim().max(40).optional(),
-  competition: z.string().trim().max(160).optional(),
-  /**
-   * The write-up and the repository, accepted at creation because they *can*
-   * be. Neither needs the project to exist first, unlike a gallery picture or a
-   * resource link — both of which hang off a project id — and the desk shows
-   * every field on one page, so anything typeable before the project exists has
-   * to be storable with it. The same two columns stay editable afterwards
-   * through `PATCH /projects/:id`; this is the first write, not a second way to
-   * write them.
-   */
-  description: z.string().trim().max(20_000).optional(),
-  repoUrl: webUrl().optional(),
-  ...termFields,
-  /**
-   * Required, unlike everything else about a project that is not its name.
-   *
-   * A build's meeting time is the one thing a prospective member needs and the
-   * one thing nobody remembers to fill in afterwards — the columns existed for
-   * months and the create form never touched them, so every project on the site
-   * had to have its schedule added by hand later or go without. Asking here is
-   * asking at the one moment somebody is definitely thinking about it.
-   *
-   * The *edit* route lets it be cleared. Starting a build without knowing when
-   * it meets is not a real case; finishing one and wanting the Tuesday off the
-   * front page is.
-   */
-  ...meetingFields,
-  ...discordRoleField,
-})
+const createProject = z
+  .object({
+    slug: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .regex(
+        /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+        'Slugs are lowercase words joined by hyphens, like "mars-rover".',
+      )
+      .max(60),
+    title: z.string().trim().min(1).max(160),
+    /**
+     * Required, unlike the two below it. This is the one line the projects list
+     * prints under the title, and a project without one reads there as an empty
+     * row — which is the first thing anybody deciding whether to join sees.
+     */
+    summary: z.string().trim().min(1).max(500),
+    season: z.string().trim().max(40).optional(),
+    competition: z.string().trim().max(160).optional(),
+    /**
+     * The write-up, accepted at creation because it *can* be: it is a column on
+     * the project and needs nothing to exist first, unlike a gallery picture or a
+     * resource link, both of which hang off a project id. The desk shows every
+     * field on one page, so anything typeable before the project exists has to be
+     * storable with it. It stays editable afterwards through `PATCH /projects/:id`;
+     * this is the first write, not a second way to write it.
+     *
+     * **The repository used to be here beside it** and is not a column any more —
+     * it is an ordinary resource link, so it is collected the way the other links
+     * are, held in the draft and published after the create.
+     */
+    description: z.string().trim().max(20_000).optional(),
+    ...termFields,
+    /**
+     * Required, unlike everything else about a project that is not its name.
+     *
+     * A build's meeting time is the one thing a prospective member needs and the
+     * one thing nobody remembers to fill in afterwards — the columns existed for
+     * months and the create form never touched them, so every project on the site
+     * had to have its schedule added by hand later or go without. Asking here is
+     * asking at the one moment somebody is definitely thinking about it.
+     *
+     * The *edit* route lets it be cleared. Starting a build without knowing when
+     * it meets is not a real case; finishing one and wanting the Tuesday off the
+     * front page is.
+     */
+    ...meetingFields,
+    ...discordRoleField,
+  })
   .refine(termsAgree, TERM_PAIRED)
   .refine(meetingRunsForward, MEETING_ORDER)
 
@@ -288,7 +301,19 @@ officer.post(
         season: true,
         competition: true,
         coverUrl: true,
-        repoUrl: true,
+        // The framing travels with the cover, the way a gallery picture's does
+        // below. Copying the bytes and leaving these behind would recentre the
+        // one picture the copy shows on `/projects` — the same failure as
+        // copying `ProjectImage` rows without their focal points.
+        coverFromGallery: true,
+        coverFocalX: true,
+        coverFocalY: true,
+        coverZoom: true,
+        // A lead's wording for their own sections is writing like the rest of
+        // it, and the same build next semester calls them the same things.
+        galleryHeading: true,
+        resourcesHeading: true,
+        teamHeading: true,
         discordRoleId: true,
         meetingWeekdays: true,
         meetingStartTime: true,
@@ -379,8 +404,13 @@ officer.post(
  * something the site should decide by inferring it from a click: the officer
  * stands the incumbent down first, with the button directly beside this one,
  * and then appoints. Re-appointing the person already sitting there is not a
- * conflict with anybody and answers 200, which is what the `userId: { not: … }`
- * below is for.
+ * conflict with anybody and answers 200.
+ *
+ * The rule itself is `projects/projectLead.ts`, not this handler — it needs a
+ * row lock to be true under two officers pressing at once, and that is worth one
+ * function rather than a transaction opened in a route that otherwise has no use
+ * for one. This route keeps its own 404s, because "no such project" is about the
+ * request and not about who leads what.
  *
  * `TEAM_LEAD` is deliberately not an option here, and its absence is not an
  * omission to fix: team leads are appointed against a *team*, through
@@ -417,42 +447,11 @@ officer.patch(
     if (!project) throw new HTTPException(404, { message: 'No such project' })
     if (!user) throw new HTTPException(404, { message: 'No such member' })
 
-    if (rank === ProjectMemberRank.PROJECT_LEAD) {
-      // Excluding the person being appointed, so re-appointing the sitting lead
-      // is idempotent rather than a conflict with themselves.
-      const incumbent = await prisma.projectMember.findFirst({
-        where: {
-          projectId,
-          rank: ProjectMemberRank.PROJECT_LEAD,
-          userId: { not: userId },
-        },
-        select: { user: { select: { fullName: true } } },
-      })
-
-      // Specific enough to act on, which the shared 403 deliberately is not —
-      // the sentence names the incumbent because the next step is standing that
-      // particular person down. Check-then-act, so two officers appointing
-      // different people in the same instant can both win; the result is two
-      // lead rows, both visible on the manage page and either one demotable. A
-      // partial unique index would close it and would not survive the next
-      // generated migration, which is the trade written down in schema.prisma.
-      if (incumbent) {
-        throw new HTTPException(409, {
-          message: `${incumbent.user.fullName} already leads this project. Stand them down first — a project has one lead.`,
-        })
-      }
-    }
-
-    // Upsert, because the person an officer appoints lead has often not joined
-    // through the site — appointing them *is* how they land on the project.
-    const membership = await prisma.projectMember.upsert({
-      where: { projectId_userId: { projectId, userId } },
-      create: { projectId, userId, rank },
-      // Demotion also clears any team-lead seat: a rank set here is the whole
-      // answer, not a layer over the old one.
-      update: { rank },
-      select: { projectId: true, userId: true, rank: true, teamId: true },
-    })
+    // The one-lead rule, the 409 that names the incumbent and the upsert all
+    // live in `projects/projectLead.ts` — one function so there is one place
+    // that sentence is true, and because closing the race it used to have needs
+    // a transaction this handler has no other reason to open.
+    const membership = await appointLead(projectId, userId, rank)
 
     pushRoles(
       userId,

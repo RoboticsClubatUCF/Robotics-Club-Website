@@ -398,11 +398,52 @@ model Project {
   // prints, nothing joins on it, and a club project may have no competition.
   competition String?
   status      ProjectStatus @default(IN_PROGRESS)
-  coverUrl    String?       @map("cover_url")
-  repoUrl     String?       @map("repo_url")
-  featured    Boolean       @default(false)
-  startedAt   DateTime?     @map("started_at")
-  completedAt DateTime?     @map("completed_at")
+
+  /// The one picture that stands for this project in a *list*, and the only
+  /// image `/projects` draws. Same two-things-in-one-column deal as
+  /// `ProjectImage.url` — an external address or `/api/files/<id>` — so every
+  /// route that replaces or clears it calls `deleteIfStored` by hand.
+  coverUrl String? @map("cover_url")
+
+  /// Whether the cover is simply the first picture in the gallery.
+  ///
+  /// On, a lead who has arranged a gallery has already chosen the listing image
+  /// and is not asked a second time. Off, `coverUrl` is the answer, and the
+  /// gallery's order cannot silently change what `/projects` shows — which is
+  /// the reason that column survived beside the gallery in the first place.
+  ///
+  /// **Neither side falls back to the other.** The checkbox says exactly what
+  /// happens, and a project with the box ticked and no pictures draws no frame
+  /// on its card — the same thing an empty gallery has always drawn. A quiet
+  /// fallback would make "why is the wrong photo on the list" unanswerable from
+  /// the form that set it.
+  ///
+  /// Defaults on because that is the right answer for a project made from here;
+  /// the migration turns it *off* for the club's existing rows, every one of
+  /// which already has a cover somebody chose.
+  coverFromGallery Boolean @default(true) @map("cover_from_gallery")
+
+  /// How the cover sits in the card's 16:10 frame — the `ProjectImage` trio,
+  /// same units, same `frameStyle`, and framing is metadata here too rather
+  /// than baked into the bytes. Unread while `coverFromGallery` is on, because
+  /// the gallery row carries its own.
+  coverFocalX Float @default(50) @map("cover_focal_x")
+  coverFocalY Float @default(50) @map("cover_focal_y")
+  coverZoom   Float @default(1) @map("cover_zoom")
+
+  /// What this project calls its own sections, or null for the standing label.
+  ///
+  /// The `/ ` and the mono capitals are layout; these are the words after it. A
+  /// build whose gallery is really a test log should be able to say so, and the
+  /// alternative — one wording for fifty projects — is the thing that made the
+  /// page feel like a form rather than the club's.
+  galleryHeading   String? @map("gallery_heading")
+  resourcesHeading String? @map("resources_heading")
+  teamHeading      String? @map("team_heading")
+
+  featured    Boolean   @default(false)
+  startedAt   DateTime? @map("started_at")
+  completedAt DateTime? @map("completed_at")
 
   /// The weekly meeting, as "what the lead would say out loud": the weekdays it
   /// runs on (0-6, Sunday first, matching `Date.getDay()`), wall-clock times
@@ -493,10 +534,15 @@ model Project {
 ///
 /// **A project has at most one `PROJECT_LEAD`, and any number of `TEAM_LEAD`s.**
 /// Zero leads is a normal state: the board agrees to run something before it
-/// settles who runs it. The single-lead rule is enforced by the appointment
-/// route in `src/routes/officer/officer.ts` rather than by an index — Prisma cannot
-/// express a partial unique index, so one would live in the database and not in
-/// this file, and the next generated migration would drop it.
+/// settles who runs it.
+///
+/// The single-lead rule is enforced by `src/projects/projectLead.ts` rather than
+/// by an index — Prisma cannot express a partial unique index, so one would live
+/// in the database and not in this file, and the next generated migration would
+/// drop it. It used to be check-then-act in a route handler, which two officers
+/// appointing different people in the same instant could both win; it is one
+/// `Serializable` transaction now, so Postgres refuses the second. `OfficerTerm`
+/// above has the same shape of rule and has not been moved.
 enum ProjectMemberRank {
   PROJECT_LEAD
   TEAM_LEAD
@@ -639,6 +685,12 @@ model ProjectImage {
 /// array makes every edit a read-modify-write that two leads can lose to each
 /// other. Nothing owns bytes here, which is why the route replaces the whole
 /// set rather than editing rows the way images have to be.
+///
+/// **The repository is one of these now.** `Project.repoUrl` was a column of its
+/// own and printed as a fixed `SOURCE CODE` row above this list, which meant the
+/// editor always drew a box for it and `/ RESOURCES` could never be empty — on a
+/// site where most of what the club builds has no repository. The migration
+/// folded every value into a row here and dropped the column.
 model ProjectLink {
   id        String  @id @default(uuid(7))
   projectId String  @map("project_id")

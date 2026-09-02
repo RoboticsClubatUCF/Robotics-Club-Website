@@ -265,16 +265,64 @@ projectManage.get('/projects/:id/team', requireAuth, async (c) => {
   // Listed by name rather than spread, which means `managedProjectSelect`
   // growing a field does *not* reach this response — add it in both places or
   // the manage page's editor prefills that field with nothing.
-  const { id, slug, title, summary, season, termYear, termSeason, competition,
-    status, coverUrl, repoUrl, featured, startedAt, completedAt,
-    meetingWeekdays, meetingStartTime, meetingEndTime, meetingLocation,
-    meetingsPublic, discordRoleId } = project
+  const {
+    id,
+    slug,
+    title,
+    summary,
+    season,
+    termYear,
+    termSeason,
+    competition,
+    status,
+    coverUrl,
+    coverFromGallery,
+    coverFocalX,
+    coverFocalY,
+    coverZoom,
+    galleryHeading,
+    resourcesHeading,
+    teamHeading,
+    featured,
+    startedAt,
+    completedAt,
+    meetingWeekdays,
+    meetingStartTime,
+    meetingEndTime,
+    meetingLocation,
+    meetingsPublic,
+    discordRoleId,
+  } = project
 
   return c.json({
-    project: { id, slug, title, summary, season, termYear, termSeason,
-      competition, status, coverUrl, repoUrl, featured, startedAt, completedAt,
-      meetingWeekdays, meetingStartTime, meetingEndTime, meetingLocation,
-      meetingsPublic, discordRoleId },
+    project: {
+      id,
+      slug,
+      title,
+      summary,
+      season,
+      termYear,
+      termSeason,
+      competition,
+      status,
+      coverUrl,
+      coverFromGallery,
+      coverFocalX,
+      coverFocalY,
+      coverZoom,
+      galleryHeading,
+      resourcesHeading,
+      teamHeading,
+      featured,
+      startedAt,
+      completedAt,
+      meetingWeekdays,
+      meetingStartTime,
+      meetingEndTime,
+      meetingLocation,
+      meetingsPublic,
+      discordRoleId,
+    },
     teams,
     members: members.map(({ user, ...member }) => ({ ...member, ...user })),
   })
@@ -287,48 +335,72 @@ projectManage.get('/projects/:id/team', requireAuth, async (c) => {
  * public URL, and renaming those is officer-grade breakage. `featured` is
  * absent too: the landing page's shortlist is curation, not self-promotion.
  */
-const editProject = z.object({
-  title: z.string().trim().min(1).max(160).optional(),
-  summary: z.string().trim().max(500).nullable().optional(),
-  description: z.string().trim().max(20_000).nullable().optional(),
-  season: z.string().trim().max(40).nullable().optional(),
-  competition: z.string().trim().max(160).nullable().optional(),
-  status: z.enum(ProjectStatus).optional(),
-  repoUrl: webUrl().nullable().optional(),
-  coverUrl: webUrl().nullable().optional(),
-  /**
-   * When the project meets. Shared with the create route rather than restated —
-   * see `projectMeeting.ts` for the pairing rules and why they live in one file.
-   *
-   * Optional here and required there, and an empty `meetingWeekdays` clears the
-   * schedule outright. Nobody starts a build without knowing when it meets;
-   * finishing one and wanting the Tuesday off the front page is a real case.
-   */
-  ...meetingPatchFields,
-  /**
-   * Whether the meetings reach the *public* calendar — **officers only**, and
-   * checked in the handler rather than here because zod cannot see who is
-   * asking. Same split as `published` on an event: a lead decides when the
-   * project meets, an officer decides whether the front page carries it.
-   */
-  meetingsPublic: z.boolean().optional(),
-  /**
-   * The term, editable by the lead and not just by officers — unlike `slug` and
-   * `featured` above. Rolling a build into the next semester only regroups the
-   * dashboards of the people already on it, and the person who knows the build
-   * is still running is the one running it. Duplicating it instead, so last
-   * term's write-up stays where it was, is the officers' call on their desk.
-   */
-  ...termFields,
-  /**
-   * The crew's Discord role, editable by the lead for the same reason the term
-   * is: they are the one who knows which channel the build actually lives in.
-   * Setting it hands the role to everybody already on the project within ten
-   * minutes, and clearing it takes it off them — so it is a real action, not a
-   * label.
-   */
-  ...discordRoleField,
-})
+const editProject = z
+  .object({
+    title: z.string().trim().min(1).max(160).optional(),
+    summary: z.string().trim().max(500).nullable().optional(),
+    description: z.string().trim().max(20_000).nullable().optional(),
+    season: z.string().trim().max(40).nullable().optional(),
+    competition: z.string().trim().max(160).nullable().optional(),
+    status: z.enum(ProjectStatus).optional(),
+    coverUrl: webUrl().nullable().optional(),
+    /**
+     * Whether the cover is the gallery's first picture rather than `coverUrl`.
+     *
+     * A lead's, not an officer's: it decides what this project looks like on
+     * `/projects` and nothing else, which is squarely the thing this route is for.
+     */
+    coverFromGallery: z.boolean().optional(),
+    /**
+     * How the cover sits in the card's frame. The same three numbers and the same
+     * bounds as a gallery picture's — `framingFields` below — but under their own
+     * names, because they live on `Project` rather than on a `ProjectImage` row
+     * and a shared spread would put `focalX` on both and make the PATCH ambiguous.
+     */
+    coverFocalX: z.number().min(0).max(100).optional(),
+    coverFocalY: z.number().min(0).max(100).optional(),
+    coverZoom: z.number().min(1).max(4).optional(),
+    /**
+     * What this project calls its own sections. Short, because they are set in
+     * mono capitals under a `/ ` on a line of their own — 40 characters is
+     * already twice the longest of the standing three.
+     */
+    galleryHeading: z.string().trim().max(40).nullable().optional(),
+    resourcesHeading: z.string().trim().max(40).nullable().optional(),
+    teamHeading: z.string().trim().max(40).nullable().optional(),
+    /**
+     * When the project meets. Shared with the create route rather than restated —
+     * see `projectMeeting.ts` for the pairing rules and why they live in one file.
+     *
+     * Optional here and required there, and an empty `meetingWeekdays` clears the
+     * schedule outright. Nobody starts a build without knowing when it meets;
+     * finishing one and wanting the Tuesday off the front page is a real case.
+     */
+    ...meetingPatchFields,
+    /**
+     * Whether the meetings reach the *public* calendar — **officers only**, and
+     * checked in the handler rather than here because zod cannot see who is
+     * asking. Same split as `published` on an event: a lead decides when the
+     * project meets, an officer decides whether the front page carries it.
+     */
+    meetingsPublic: z.boolean().optional(),
+    /**
+     * The term, editable by the lead and not just by officers — unlike `slug` and
+     * `featured` above. Rolling a build into the next semester only regroups the
+     * dashboards of the people already on it, and the person who knows the build
+     * is still running is the one running it. Duplicating it instead, so last
+     * term's write-up stays where it was, is the officers' call on their desk.
+     */
+    ...termFields,
+    /**
+     * The crew's Discord role, editable by the lead for the same reason the term
+     * is: they are the one who knows which channel the build actually lives in.
+     * Setting it hands the role to everybody already on the project within ten
+     * minutes, and clearing it takes it off them — so it is a real action, not a
+     * label.
+     */
+    ...discordRoleField,
+  })
   .refine(termsAgree, TERM_PAIRED)
   .refine(meetingRunsForward, MEETING_ORDER)
   .refine(meetingIsWhole, MEETING_WHOLE)
@@ -1260,64 +1332,63 @@ projectManage.delete(
     // An uploaded cover goes with the project — nothing would reference it.
     await deleteIfStored(project.coverUrl)
 
-    // And so does every uploaded gallery picture. The `ProjectImage` cascade
-    // takes the *rows*; nothing in Postgres knows that a string starting
-    // `/api/files/` is a reference, so the bytes have to be swept by hand or
-    // they sit in `stored_files` forever with nothing pointing at them.
-    const images = await prisma.projectImage.findMany({
+  // And so does every uploaded gallery picture. The `ProjectImage` cascade
+  // takes the *rows*; nothing in Postgres knows that a string starting
+  // `/api/files/` is a reference, so the bytes have to be swept by hand or
+  // they sit in `stored_files` forever with nothing pointing at them.
+  const images = await prisma.projectImage.findMany({
+    where: { projectId: project.id },
+    select: { url: true },
+  })
+  for (const image of images) {
+    await deleteIfStored(image.url)
+  }
+
+  // And every published document. This one is a real foreign key rather than
+  // a URL in a string column, so it needs sweeping for the opposite reason:
+  // `ProjectDocument` cascades away with the project, which drops the
+  // reference and leaves the `stored_files` row behind holding megabytes that
+  // nothing can now reach. Read the ids before the cascade eats the rows.
+  const documents = await prisma.projectDocument.findMany({
+    where: { projectId: project.id },
+    select: { fileId: true },
+  })
+
+  // Read the roster before the cascade eats it. `ProjectMember` goes with the
+  // project through `onDelete: Cascade`, silently and with no per-row code
+  // path, so this is the last moment anything can know whose Discord roles
+  // just stopped being justified.
+  const roster = await prisma.projectMember.findMany({
+    where: { projectId: project.id },
+    select: { userId: true },
+  })
+
+  // Members detach before their teams go: the (teamId, projectId) foreign
+  // key is RESTRICT, so deleting teams out from under seated members is a
+  // constraint violation by design.
+  await prisma.$transaction([
+    prisma.projectMember.updateMany({
       where: { projectId: project.id },
-      select: { url: true },
+      data: { teamId: null },
+    }),
+    prisma.project.delete({ where: { id: project.id } }),
+  ])
+
+  // After the cascade, because until then the RESTRICT on `project_documents`
+  // is exactly what stops this from running.
+  if (documents.length > 0) {
+    await prisma.storedFile.deleteMany({
+      where: { id: { in: documents.map((document) => document.fileId) } },
     })
-    for (const image of images) {
-      await deleteIfStored(image.url)
-    }
+  }
 
-    // And every published document. This one is a real foreign key rather than
-    // a URL in a string column, so it needs sweeping for the opposite reason:
-    // `ProjectDocument` cascades away with the project, which drops the
-    // reference and leaves the `stored_files` row behind holding megabytes that
-    // nothing can now reach. Read the ids before the cascade eats the rows.
-    const documents = await prisma.projectDocument.findMany({
-      where: { projectId: project.id },
-      select: { fileId: true },
-    })
+  pushRolesFor(
+    roster.map((member) => member.userId),
+    `${project.title} was deleted`,
+  )
 
-    // Read the roster before the cascade eats it. `ProjectMember` goes with the
-    // project through `onDelete: Cascade`, silently and with no per-row code
-    // path, so this is the last moment anything can know whose Discord roles
-    // just stopped being justified.
-    const roster = await prisma.projectMember.findMany({
-      where: { projectId: project.id },
-      select: { userId: true },
-    })
-
-    // Members detach before their teams go: the (teamId, projectId) foreign
-    // key is RESTRICT, so deleting teams out from under seated members is a
-    // constraint violation by design.
-    await prisma.$transaction([
-      prisma.projectMember.updateMany({
-        where: { projectId: project.id },
-        data: { teamId: null },
-      }),
-      prisma.project.delete({ where: { id: project.id } }),
-    ])
-
-    // After the cascade, because until then the RESTRICT on `project_documents`
-    // is exactly what stops this from running.
-    if (documents.length > 0) {
-      await prisma.storedFile.deleteMany({
-        where: { id: { in: documents.map((document) => document.fileId) } },
-      })
-    }
-
-    pushRolesFor(
-      roster.map((member) => member.userId),
-      `${project.title} was deleted`,
-    )
-
-    return c.json({ deleted: true })
-  },
-)
+  return c.json({ deleted: true })
+})
 
 // -------------------------------------------------------------------- teams
 
@@ -1397,44 +1468,43 @@ projectManage.delete(
     const team = await getTeam(c.req.param('teamId'))
     await requireProjectLead(c.get('user'), team.projectId)
 
-    // Who is about to be demoted, read before the bulk update makes it
-    // unknowable — `updateMany` answers with a count and no identities.
-    const demoted = await prisma.projectMember.findMany({
+  // Who is about to be demoted, read before the bulk update makes it
+  // unknowable — `updateMany` answers with a count and no identities.
+  const demoted = await prisma.projectMember.findMany({
+    where: {
+      projectId: team.projectId,
+      teamId: team.id,
+      rank: ProjectMemberRank.TEAM_LEAD,
+    },
+    select: { userId: true },
+  })
+
+  // Three steps, one transaction. The demotion is the subtle one: a
+  // TEAM_LEAD rank means nothing without a team under it, and leaving the
+  // rank behind would hand its holder the next team they happened to join.
+  await prisma.$transaction([
+    prisma.projectMember.updateMany({
       where: {
         projectId: team.projectId,
         teamId: team.id,
         rank: ProjectMemberRank.TEAM_LEAD,
       },
-      select: { userId: true },
-    })
+      data: { rank: ProjectMemberRank.MEMBER },
+    }),
+    prisma.projectMember.updateMany({
+      where: { projectId: team.projectId, teamId: team.id },
+      data: { teamId: null },
+    }),
+    prisma.team.delete({ where: { id: team.id } }),
+  ])
 
-    // Three steps, one transaction. The demotion is the subtle one: a
-    // TEAM_LEAD rank means nothing without a team under it, and leaving the
-    // rank behind would hand its holder the next team they happened to join.
-    await prisma.$transaction([
-      prisma.projectMember.updateMany({
-        where: {
-          projectId: team.projectId,
-          teamId: team.id,
-          rank: ProjectMemberRank.TEAM_LEAD,
-        },
-        data: { rank: ProjectMemberRank.MEMBER },
-      }),
-      prisma.projectMember.updateMany({
-        where: { projectId: team.projectId, teamId: team.id },
-        data: { teamId: null },
-      }),
-      prisma.team.delete({ where: { id: team.id } }),
-    ])
+  pushRolesFor(
+    demoted.map((member) => member.userId),
+    `${team.name} was deleted`,
+  )
 
-    pushRolesFor(
-      demoted.map((member) => member.userId),
-      `${team.name} was deleted`,
-    )
-
-    return c.json({ deleted: true })
-  },
-)
+  return c.json({ deleted: true })
+})
 
 // ------------------------------------------------- members, as a lead sees them
 

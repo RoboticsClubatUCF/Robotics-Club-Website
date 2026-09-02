@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ProjectsSection } from './ProjectsSection'
@@ -15,11 +15,10 @@ const project = (over: Partial<ApiCardProject> = {}): ApiCardProject => ({
   id: 'p1',
   slug: 'project-storm',
   title: 'Project S.T.O.R.M.',
-  // Null, because that is what it is on all 53 of the club's projects — the
-  // column meant for a list has never once been filled in, and the page has to
-  // read right in the state the data is actually in.
-  summary: null,
-  description: 'Research, design, build and test a Mars rover.',
+  // The line the card prints, and the only prose it prints. Every project has
+  // one: the migration that added the cover seeded them from each project's own
+  // first paragraph, because the column had never once been filled in by hand.
+  summary: 'Research, design, build and test a Mars rover.',
   season: 'June 2026',
   // Every project carries the term it is built for, and this page splits on
   // it. Pinned rather than left to today's date.
@@ -28,7 +27,13 @@ const project = (over: Partial<ApiCardProject> = {}): ApiCardProject => ({
   competition: 'UNIVERSITY ROVER CHALLENGE',
   status: 'IN_PROGRESS',
   coverUrl: null,
-  repoUrl: null,
+  coverFromGallery: false,
+  coverFocalX: 50,
+  coverFocalY: 50,
+  coverZoom: 1,
+  galleryHeading: null,
+  resourcesHeading: null,
+  teamHeading: null,
   featured: true,
   startedAt: null,
   completedAt: null,
@@ -57,6 +62,16 @@ const renderSection = () =>
       <ProjectsSection />
     </MemoryRouter>,
   )
+
+/**
+ * The covers on the page.
+ *
+ * Queried out of the DOM rather than by role: a cover is decorative and carries
+ * `alt=""`, because the title beside it is what names the project and a second
+ * announcement of "Project S.T.O.R.M." helps nobody. An `alt=""` image has no
+ * `img` role, which is exactly the point.
+ */
+const covers = (container: HTMLElement) => Array.from(container.querySelectorAll('img'))
 
 const showPast = () => {
   fireEvent.click(screen.getByRole('button', { name: /show past projects/i }))
@@ -104,23 +119,28 @@ describe('ProjectsSection', () => {
 
     const url = urlOf(fetchStub.mock.calls[0]![0])
     expect(url).toContain('term=current')
-    expect(url).toContain('images=true')
-    expect(url).toContain('description=true')
+    // One picture per project, not the whole gallery — a card is a still now.
+    expect(url).toContain('cover=true')
+    expect(url).not.toContain('images=true')
+    // And no write-up: the card prints the summary and nothing else.
+    expect(url).not.toContain('description=true')
     expect(url).toContain('limit=100')
 
     expect(screen.getByText('Fall 2035')).toBeInTheDocument()
   })
 
   /**
-   * The gallery is why the listing carries images at all. A project with
-   * pictures gets the slideshow; one without gets its text and no empty frame.
+   * A card is one still and no controls. It carried a compact slideshow for a
+   * while, which put six sets of arrows and six counters down a page whose job
+   * is to get somebody into a project.
    */
-  it('draws a slideshow for a project with pictures', async () => {
+  it('draws the cover, and no slideshow controls', async () => {
     vi.stubGlobal(
       'fetch',
       stubFetch({
         [CURRENT]: [
           project({
+            coverFromGallery: true,
             images: [
               { id: 'i1', url: '/api/files/i1', caption: 'Chassis', ...DEFAULT_FRAMING },
               { id: 'i2', url: '/api/files/i2', caption: 'Arm', ...DEFAULT_FRAMING },
@@ -130,67 +150,77 @@ describe('ProjectsSection', () => {
       }),
     )
 
-    renderSection()
+    const { container } = renderSection()
     await screen.findByText('Project S.T.O.R.M.')
 
-    // Named for the project, not "Project images" — the page draws one of these
-    // per project and identical names tell a reader nothing apart.
-    const frame = screen.getByRole('group', {
-      name: 'Project S.T.O.R.M. images',
-    })
-    expect(within(frame).queryAllByRole('img', { hidden: true })).toHaveLength(2)
-    expect(
-      screen.getByRole('button', { name: 'Next image' }),
-    ).toBeInTheDocument()
+    // The first picture, once, and nothing to press.
+    const shown = covers(container)
+    expect(shown).toHaveLength(1)
+    expect(shown[0]).toHaveAttribute('src', expect.stringContaining('/api/files/i1'))
+    expect(screen.queryByRole('button', { name: 'Next image' })).not.toBeInTheDocument()
   })
 
   /**
-   * The club has no summaries — the column meant for a list has never been
-   * filled in on any project — so the write-up is the only prose a card has,
-   * and a page that printed `summary` alone printed a title over nothing.
+   * The checkbox is the whole of the rule, and neither side falls back to the
+   * other — reordering a gallery must not silently change the listing image,
+   * which is why `coverUrl` survives beside it.
    */
-  it('prints the write-up on a card, a paragraph at a time', async () => {
+  it('draws the chosen cover rather than the gallery when the box is off', async () => {
     vi.stubGlobal(
       'fetch',
       stubFetch({
         [CURRENT]: [
           project({
-            description: 'First paragraph.\n\nSecond paragraph.',
+            coverFromGallery: false,
+            coverUrl: 'https://example.test/chosen.png',
+            images: [
+              { id: 'i1', url: '/api/files/i1', caption: null, ...DEFAULT_FRAMING },
+            ],
           }),
         ],
       }),
     )
 
-    renderSection()
+    const { container } = renderSection()
+    await screen.findByText('Project S.T.O.R.M.')
 
-    expect(await screen.findByText('First paragraph.')).toBeInTheDocument()
-    expect(screen.getByText('Second paragraph.')).toBeInTheDocument()
+    const shown = covers(container)
+    expect(shown).toHaveLength(1)
+    expect(shown[0]).toHaveAttribute('src', 'https://example.test/chosen.png')
   })
 
-  /** Both, in the order a project's own page draws them, if a summary ever
-      does get written. */
-  it('prints a summary above the write-up when there is one', async () => {
+  it('prints the summary on a card', async () => {
     vi.stubGlobal(
       'fetch',
-      stubFetch({
-        [CURRENT]: [
-          project({ summary: 'A one-liner.', description: 'The long form.' }),
-        ],
-      }),
+      stubFetch({ [CURRENT]: [project({ summary: 'A one-liner.' })] }),
     )
 
     renderSection()
 
     expect(await screen.findByText('A one-liner.')).toBeInTheDocument()
-    expect(screen.getByText('The long form.')).toBeInTheDocument()
   })
 
   /**
-   * The archive's third column is one blurb wide, so it runs the paragraphs
-   * together and clamps in CSS — nothing is dropped from the DOM, which is what
-   * keeps the whole write-up available to a screen reader.
+   * The long form belongs on the project's own page, which the card is a door
+   * to. Six write-ups down this one was a page of grey text.
    */
-  it('runs the write-up together into one blurb on an archived row', async () => {
+  it('does not print the write-up on a card', async () => {
+    vi.stubGlobal(
+      'fetch',
+      stubFetch({ [CURRENT]: [project({ summary: 'A one-liner.' })] }),
+    )
+
+    renderSection()
+    await screen.findByText('A one-liner.')
+
+    expect(screen.queryByText(/Research, design, build/)).not.toBeInTheDocument()
+  })
+
+  /**
+   * The archive's third column is one blurb wide and clamps in CSS, so the whole
+   * summary stays in the DOM and nothing is hidden from a screen reader.
+   */
+  it('prints the summary on an archived row', async () => {
     vi.stubGlobal(
       'fetch',
       stubFetch({
@@ -200,7 +230,7 @@ describe('ProjectsSection', () => {
             id: 'old',
             slug: 'rover-24',
             title: 'Rover 24',
-            description: 'First paragraph.\n\nSecond paragraph.',
+            summary: 'A rover, three years ago.',
           }),
         ],
       }),
@@ -209,12 +239,12 @@ describe('ProjectsSection', () => {
     renderSection()
     showPast()
 
-    expect(
-      await screen.findByText('First paragraph. Second paragraph.'),
-    ).toBeInTheDocument()
+    expect(await screen.findByText('A rover, three years ago.')).toBeInTheDocument()
   })
 
-  it('asks the archive for the write-up too', async () => {
+  /** Neither pictures nor prose: forty galleries is not a list anybody scrolls,
+      and the write-up has never been what this column printed. */
+  it('asks the archive for neither pictures nor the write-up', async () => {
     const fetchStub = stubFetch({ [CURRENT]: [], [ARCHIVE]: [] })
     vi.stubGlobal('fetch', fetchStub)
 
@@ -222,16 +252,22 @@ describe('ProjectsSection', () => {
     showPast()
     await screen.findByText(/nothing here yet/i)
 
-    expect(urlOf(fetchStub.mock.calls[1]![0])).toContain('description=true')
+    const url = urlOf(fetchStub.mock.calls[1]![0])
+    expect(url).toContain('term=other')
+    expect(url).not.toContain('description=true')
+    expect(url).not.toContain('cover=true')
+    expect(url).not.toContain('images=true')
   })
 
-  it('draws no frame for a project with no pictures', async () => {
+  /** An empty hatched box on a public page reads as an image that failed to
+      load, so a project with nothing to show gets its text full-width. */
+  it('draws no frame for a project with no cover', async () => {
     vi.stubGlobal('fetch', stubFetch({ [CURRENT]: [project()] }))
 
-    renderSection()
+    const { container } = renderSection()
     await screen.findByText('Project S.T.O.R.M.')
 
-    expect(screen.queryByRole('group')).not.toBeInTheDocument()
+    expect(covers(container)).toHaveLength(0)
   })
 
   /** One request per visit. The archive costs nothing until somebody asks. */

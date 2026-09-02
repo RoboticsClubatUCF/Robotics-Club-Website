@@ -15,7 +15,12 @@ import type {
   ProjectMemberRank,
 } from '../../lib/api/api'
 import { LOCK_COPY, accessLock, coverGap } from '../../lib/dues/dues'
-import { canEditProject, editingAsOfficer, rankOn } from '../../lib/projects/projectEditing'
+import {
+  canEditProject,
+  editingAsOfficer,
+  rankOn,
+} from '../../lib/projects/projectEditing'
+import { memberLabel } from '../../lib/projects/projectRoles'
 import { slidesOf } from '../../lib/projects/projectGallery'
 import { useSession } from '../../lib/auth/session'
 import type { ApiState } from '../../lib/api/useApi'
@@ -284,7 +289,10 @@ function ReadView({
           picture is what makes somebody read the paragraph. The spacing lives
           inside the component, which renders nothing at all for a project with
           no pictures. */}
-      <ProjectGallery slides={slidesOf(project)} />
+      <ProjectGallery
+        slides={slidesOf(project)}
+        heading={project.galleryHeading ?? 'GALLERY'}
+      />
 
       {project.summary && (
         <p className="text-base leading-[1.7] text-pretty">{project.summary}</p>
@@ -304,8 +312,8 @@ function ReadView({
       </div>
 
       <div className="mt-12">
-        <p className="text-faint mb-4 font-mono text-[13px] font-bold tracking-[0.2em]">
-          / THE TEAM
+        <p className="mb-4 font-mono text-[13px] font-bold tracking-[0.2em] text-faint uppercase">
+          / {project.teamHeading ?? 'THE TEAM'}
         </p>
 
         {project.members.length === 0 ? (
@@ -313,27 +321,33 @@ function ReadView({
             Nobody is listed on this project yet.
           </p>
         ) : (
-          <ul className="border-rule divide-rule divide-y border">
-            {project.members.map((member) => (
-              <li
-                key={`${member.user.fullName}-${member.user.slug ?? ''}`}
-                className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-3.5"
-              >
-                <span className="text-sm font-medium">
-                  {member.user.fullName}
-                  {member.user.title && (
-                    <span className="text-faint ml-2 text-[13px] font-normal">
-                      {member.user.title}
+          <ul className="divide-y divide-rule border border-rule">
+            {project.members.map((member) => {
+              /* **Rank, then whatever they typed — and never the club title.**
+                 This row used to print `User.title` beside the name, which is
+                 the club-wide one nothing in the product writes, so an officer's
+                 "Lab Manager" turned up on a rover roster meaning nothing. It
+                 printed no rank at all, so the person running the build was
+                 indistinguishable from everybody else on it — `rank` only sorted
+                 them to the top and said nothing about why. `memberLabel` is the
+                 one place that order of preference lives; the dashboard reads
+                 the same function. */
+              const label = memberLabel(member)
+
+              return (
+                <li
+                  key={`${member.user.fullName}-${member.user.slug ?? ''}`}
+                  className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-3.5"
+                >
+                  <span className="text-sm font-medium">{member.user.fullName}</span>
+                  {label && (
+                    <span className="font-mono text-[10px] font-medium tracking-[0.14em] text-faint uppercase">
+                      {label}
                     </span>
                   )}
-                </span>
-                {member.title && (
-                  <span className="text-faint font-mono text-[10px] font-medium tracking-[0.14em] uppercase">
-                    {member.title}
-                  </span>
-                )}
-              </li>
-            ))}
+                </li>
+              )
+            })}
           </ul>
         )}
       </div>
@@ -423,15 +437,17 @@ function EditAffordance({
  * tab, and carries the bare host and a `↗`. A reader deciding whether to follow
  * a link is asking where it goes, and those two answers are not the same shape.
  *
- * `repoUrl` is folded in as an external row rather than keeping the outline
- * button it used to have. A lone "View the code" above a list of
- * identical-looking links is two vocabularies for one idea, and the repository
- * is a resource like the rest of them — it just happens to have its own column
- * because it predates this list.
+ * **There is no `SOURCE CODE` row any more, and nothing was lost.** `repoUrl`
+ * was a column of its own, printed here as a fixed row and asked for by a fixed
+ * box in the editor — on a site where most of what the club builds has no
+ * repository, so the section could never be empty and the box could never be
+ * removed. Every value moved into an ordinary `ProjectLink` and the column went
+ * with the migration; a repository is a resource like the rest of them, labelled
+ * by whoever added it.
  *
- * Documentation goes first because it is the only row that stays here, and
- * because a project that has written something down would rather be read than
- * cloned.
+ * Documentation goes first because it is the only row that stays on the site,
+ * and because a project that has written something down would rather be read
+ * than cloned. Its label is not a project's to rename — it names a route.
  */
 function Resources({ project }: { project: ApiProjectDetail }) {
   const rows: ResourceRow[] = [
@@ -445,9 +461,6 @@ function Resources({ project }: { project: ApiProjectDetail }) {
           } as const,
         ]
       : []),
-    ...(project.repoUrl
-      ? [{ id: 'repo', label: 'SOURCE CODE', url: project.repoUrl }]
-      : []),
     ...project.links,
   ]
 
@@ -458,8 +471,8 @@ function Resources({ project }: { project: ApiProjectDetail }) {
 
   return (
     <div className="mt-10">
-      <p className="text-faint mb-4 font-mono text-[13px] font-bold tracking-[0.2em]">
-        / RESOURCES
+      <p className="mb-4 font-mono text-[13px] font-bold tracking-[0.2em] text-faint uppercase">
+        / {project.resourcesHeading ?? 'RESOURCES'}
       </p>
 
       <ul className="border-rule divide-rule divide-y border">
@@ -536,18 +549,14 @@ function JoinPanel({
 
   if (project.status !== 'IN_PROGRESS') return null
   if (session.status === 'loading') {
-    return (
-      <div aria-busy="true" className="border-rule bg-base-200 mt-10 h-24 border" />
-    )
+    return <div aria-busy="true" className="mt-10 h-24 border border-rule bg-base-200" />
   }
   // The page itself loaded, so the API is up — this is a blip. The project is
   // still readable; only the join panel goes quiet.
   if (session.status === 'error') return null
 
   if (signedIn)
-    return (
-      <JoinAction project={project} signedIn={signedIn} reload={reload} />
-    )
+    return <JoinAction project={project} signedIn={signedIn} reload={reload} />
 
   return (
     <FormPanel tone="accent">
@@ -613,9 +622,7 @@ function JoinAction({
   >({ status: 'idle' })
 
   if (dues.status === 'loading' || mine.status === 'loading') {
-    return (
-      <div aria-busy="true" className="border-rule bg-base-200 mt-10 h-24 border" />
-    )
+    return <div aria-busy="true" className="mt-10 h-24 border border-rule bg-base-200" />
   }
 
   // `state` wins over the fetched list in both directions: `/me/projects` has

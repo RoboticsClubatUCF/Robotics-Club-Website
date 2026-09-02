@@ -430,7 +430,16 @@ export interface MappedProject {
   season: string
   status: ProjectStatus
   coverUrl: string | null
-  repoUrl: string | null
+  /**
+   * The old `docsLink`, as the one resource row it becomes.
+   *
+   * It used to map to a `Project.repoUrl` column, which the site does not have
+   * any more: the repository printed as a fixed row above the resource list and
+   * drew a fixed box in the editor, so `/ RESOURCES` could never be empty on a
+   * club where most builds have no repository. It is an ordinary `ProjectLink`
+   * now, and this is null for the rows that carried no link at all.
+   */
+  docsUrl: string | null
   createdAt: Date
   updatedAt: Date
 }
@@ -479,9 +488,9 @@ export function mapProject(project: Row, pictures: Map<string, Row>, now: Date):
     // Every one of the 48 old pictures is an external URL, so there is nothing
     // to upload and `imageSrc` passes them straight through.
     coverUrl: picture?.data ?? null,
-    // The old `docsLink` is the club's wiki, which is the nearest thing it has
-    // to a repository link and the only other URL on the row.
-    repoUrl: project.docsLink === '' ? null : project.docsLink,
+    // The old `docsLink` is the club's wiki, and the only other URL on the row.
+    // It lands as a resource link rather than a column — see `docsUrl`.
+    docsUrl: project.docsLink === '' ? null : project.docsLink,
     createdAt: created,
     updatedAt: parseTimestamp(project.updatedAt) ?? created,
   }

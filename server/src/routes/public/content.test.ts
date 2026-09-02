@@ -62,6 +62,12 @@ type ProjectDetail = {
     zoom: number
   }[]
   links: { id: string; label: string; url: string }[]
+  members: {
+    title: string | null
+    rank: string
+    team: { name: string } | null
+    user: { slug: string | null; fullName: string; photoUrl: string | null }
+  }[]
 }
 type Event = { slug: string; startsAt: string; endsAt: string | null }
 type Sponsor = { name: string; tier: string }
@@ -236,10 +242,11 @@ describe('GET /api/projects', () => {
   })
 
   /**
-   * The write-up is what `/projects` actually prints. `summary` is the column
-   * the schema calls the one-liner for cards and **no project the club has
-   * created has one** — a list that read only `summary` was a list of titles
-   * over empty paragraphs, which is what this flag exists to fix.
+   * `summary` is the column the schema calls the one-liner for cards, and it is
+   * what `/projects` prints now — it went unfilled on every project the club had
+   * created until the migration seeded it, which is why the list printed the
+   * write-up instead for a while. The flag stays for any caller that wants the
+   * prose; it simply has none today.
    */
   it('carries the write-up when the list asks for it, and no pictures with it', async () => {
     const listed = await get<Record<string, unknown>[]>(
@@ -249,6 +256,103 @@ describe('GET /api/projects', () => {
     for (const project of listed) {
       expect(project, `project ${project.slug}`).toHaveProperty('description')
       expect(project, `project ${project.slug}`).not.toHaveProperty('images')
+    }
+  })
+
+  /**
+   * **`cover=true` is `images=true` capped at one row.** A card draws one still
+   * rather than a slideshow, so twelve times the payload for eleven pictures
+   * nothing renders is what the separate flag exists to avoid. It answers on the
+   * same `images` key so the browser has one shape to read either way.
+   */
+  it('carries at most one picture when the list asks for a cover', async () => {
+    const listed = await get<Record<string, unknown>[]>(
+      '/api/projects?cover=true&limit=100',
+    )
+
+    for (const project of listed) {
+      expect(project, `project ${project.slug}`).toHaveProperty('images')
+      const images = project.images as unknown[]
+      expect(images.length, `project ${project.slug}`).toBeLessThanOrEqual(1)
+      expect(project, `project ${project.slug}`).not.toHaveProperty('description')
+    }
+  })
+
+  /** The superset wins when both are sent: a caller who asked for the whole
+      gallery has already been given the first picture, and answering `take: 1`
+      would quietly break a promise of twelve. */
+  it('gives the whole gallery when both flags are sent', async () => {
+    const [withCover, withImages] = await Promise.all([
+      get<Record<string, unknown>[]>('/api/projects?cover=true&images=true&limit=100'),
+      get<Record<string, unknown>[]>('/api/projects?images=true&limit=100'),
+    ])
+
+    const count = (rows: Record<string, unknown>[]) =>
+      rows.reduce((total, row) => total + (row.images as unknown[]).length, 0)
+
+    expect(count(withCover)).toBe(count(withImages))
+  })
+
+  /**
+   * The cover is four columns read as one rule (`coverOf` in the browser), so
+   * all four have to be on every row of both lists — a flag that sent half would
+   * make the listing and a project's own page disagree about the same picture.
+   */
+  it('always carries the cover columns and the section headings', async () => {
+    const listed = await get<Record<string, unknown>[]>('/api/projects?limit=100')
+
+    for (const project of listed) {
+      for (const field of [
+        'coverUrl',
+        'coverFromGallery',
+        'coverFocalX',
+        'coverFocalY',
+        'coverZoom',
+        'galleryHeading',
+        'resourcesHeading',
+        'teamHeading',
+      ]) {
+        expect(project, `project ${project.slug}`).toHaveProperty(field)
+      }
+    }
+  })
+
+  /**
+   * **The repository is not a column any more.** It printed as a fixed SOURCE
+   * CODE row above the resource list and drew a fixed box in the editor, so the
+   * section could never be empty on a site where most of what the club builds
+   * has no repository. The migration folded every value into a `ProjectLink`.
+   */
+  it('no longer carries a repository column', async () => {
+    const [first] = await get<Project[]>('/api/projects?limit=1')
+    if (!first) return
+
+    expect(first).not.toHaveProperty('repoUrl')
+    expect(await get<ProjectDetail>(`/api/projects/${first.slug}`)).not.toHaveProperty(
+      'repoUrl',
+    )
+  })
+
+  /**
+   * **The roster says who leads, and not what they do in the club.**
+   *
+   * `rank` is the column every permission on a project is decided by, and the
+   * page prints it. `User.title` used to ride along beside it — the club-wide
+   * title, written by nothing in the product, which is how an officer's "Lab
+   * Manager" ended up on somebody's rover page meaning nothing there.
+   */
+  it('carries a member rank and team, and not their club title', async () => {
+    const [first] = await get<Project[]>('/api/projects?limit=1')
+    if (!first) return
+
+    const detail = await get<ProjectDetail>(`/api/projects/${first.slug}`)
+
+    for (const member of detail.members) {
+      expect(Object.keys(member).sort()).toEqual(['rank', 'team', 'title', 'user'])
+      expect(['PROJECT_LEAD', 'TEAM_LEAD', 'MEMBER']).toContain(member.rank)
+      // No user ids either — this is an anonymous payload, and anything that
+      // writes by id reads `GET /projects/:id/team` instead.
+      expect(Object.keys(member.user).sort()).toEqual(['fullName', 'photoUrl', 'slug'])
     }
   })
 
