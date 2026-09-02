@@ -3,7 +3,7 @@ import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
-import { validate } from '../../core/validate.js'
+import { socialUrl, validate } from '../../core/validate.js'
 import { prisma } from '../../core/db.js'
 import { checkDiscordHandle, isHandleShaped, normaliseHandle } from '../../discord/discord.js'
 import { pushRoleStrip, pushRoles } from '../../discord/discordRoles.js'
@@ -30,6 +30,7 @@ import { DISCORD_TAKEN, handleStatus, uniqueConflict } from './signup.js'
  *
  *   GET    /api/account                -> the editable profile
  *   PATCH  /api/account/profile        { fullName?, bio?, gradYear? }
+ *   PATCH  /api/account/profile-link   { profileUrl }       -> { profileUrl }
  *   POST   /api/account/discord-check  { discordUsername }  -> { status }
  *   POST   /api/account/discord        { discordUsername }  -> { user }
  *   POST   /api/account/photo          multipart + framing  -> { user }
@@ -123,6 +124,7 @@ const profileSelect = {
   photoZoom: true,
   bio: true,
   gradYear: true,
+  profileUrl: true,
   acknowledgementAcceptedAt: true,
 } as const
 
@@ -199,6 +201,43 @@ account.patch(
     })
 
     return c.json({ user: shape(user) })
+  },
+)
+
+/**
+ * Where this member's photograph points, or nothing.
+ *
+ * **Its own route rather than a fourth field on `/profile`**, and the account
+ * page's rule is why: a panel is one decision with one save, and putting a link
+ * to somebody's LinkedIn in the same press as their name and bio is the shape
+ * that makes people careful about pressing anything. It is also the one field
+ * here that can be *refused* on its content, so it wants an answer line of its
+ * own to be refused on.
+ *
+ * `socialUrl` is the whole check and the reasoning is on it: an allowlist,
+ * because this is the only column an ordinary member writes that ends up in an
+ * `href` on a public page. `null` clears it — the panel sends that for an empty
+ * box rather than `''`, same as every other nullable address on this API.
+ *
+ * The answer is the stored address and not `shape(user)`, which is deliberate.
+ * Nothing on the session draws this — the nav bar's avatar goes to the
+ * dashboard and always will — so putting it there would mean every page load in
+ * the club carrying a field two public pages use.
+ */
+account.patch(
+  '/profile-link',
+  originGuard,
+  requireAuth,
+  writes,
+  validate('json', z.object({ profileUrl: socialUrl().nullable() })),
+  async (c) => {
+    const { profileUrl } = await prisma.user.update({
+      where: { id: c.get('user').id },
+      data: c.req.valid('json'),
+      select: { profileUrl: true },
+    })
+
+    return c.json({ profileUrl })
   },
 )
 

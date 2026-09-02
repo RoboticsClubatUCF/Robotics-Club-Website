@@ -260,6 +260,81 @@ describe('PATCH /api/account/profile', () => {
   })
 })
 
+/**
+ * The one field on this page that can be refused on its *content*. What is
+ * being pinned is the pair: that a real profile address is stored normalised,
+ * and that the refusals in `core/validate.test.ts` still refuse once they are
+ * behind a route and a session.
+ */
+describe('PATCH /api/account/profile-link', () => {
+  it('stores the address the server normalised, not the one typed', async () => {
+    const response = await json('PATCH', '/api/account/profile-link', {
+      profileUrl: 'linkedin.com/in/test-account',
+    })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      profileUrl: 'https://linkedin.com/in/test-account',
+    })
+
+    const row = await prisma.user.findUniqueOrThrow({ where: { id: myId } })
+    expect(row.profileUrl).toBe('https://linkedin.com/in/test-account')
+  })
+
+  /** The panel sends null for an empty box — the same convention every other
+      nullable address on this API follows. */
+  it('clears it on null', async () => {
+    await json('PATCH', '/api/account/profile-link', {
+      profileUrl: 'github.com/test-account',
+    })
+    const response = await json('PATCH', '/api/account/profile-link', {
+      profileUrl: null,
+    })
+
+    expect(response.status).toBe(200)
+
+    const row = await prisma.user.findUniqueOrThrow({ where: { id: myId } })
+    expect(row.profileUrl).toBeNull()
+  })
+
+  /**
+   * A 400 with a sentence, and nothing written. Both halves matter: this is the
+   * only column an ordinary member writes that is printed into an `href` on a
+   * public page, so a refusal that still saved would be the whole point missed.
+   */
+  it('refuses an address the allowlist does not know', async () => {
+    const response = await json('PATCH', '/api/account/profile-link', {
+      profileUrl: 'https://free-robux.example/claim',
+    })
+
+    expect(response.status).toBe(400)
+
+    const row = await prisma.user.findUniqueOrThrow({ where: { id: myId } })
+    expect(row.profileUrl).toBeNull()
+  })
+
+  it('refuses a javascript: address', async () => {
+    const response = await json('PATCH', '/api/account/profile-link', {
+      profileUrl: 'javascript:alert(1)',
+    })
+
+    expect(response.status).toBe(400)
+
+    const row = await prisma.user.findUniqueOrThrow({ where: { id: myId } })
+    expect(row.profileUrl).toBeNull()
+  })
+
+  it('refuses anybody not signed in', async () => {
+    const response = await app.request('/api/account/profile-link', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profileUrl: 'https://github.com/someone' }),
+    })
+
+    expect(response.status).toBe(401)
+  })
+})
+
 describe('POST /api/account/discord-check', () => {
   /**
    * The whole reason this route exists rather than reusing signup's. Signup

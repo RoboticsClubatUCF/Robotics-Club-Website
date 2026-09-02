@@ -1,3 +1,4 @@
+import { ProfileFrame } from './ProfileFrame'
 import { imageSrc } from '../../lib/media/storedFiles'
 
 /**
@@ -25,6 +26,10 @@ import { imageSrc } from '../../lib/media/storedFiles'
  *   - **The caption is the seat and the name and nothing else.** A title, a
  *     subteam or a grad year printed on whichever cards happen to have one
  *     turns a board into a table of exceptions.
+ *   - **The photograph is the link.** Where the officer has given a profile
+ *     address the frame is an anchor to it, drawn by `ProfileFrame` so the
+ *     roster's cards behave identically. The caption is not a second link: one
+ *     card, one destination.
  */
 
 /**
@@ -46,6 +51,7 @@ export function OfficerCard({
   note,
   note2,
   photoUrl,
+  profileUrl = null,
   loading = false,
 }: {
   /** The seat, in the gold mono line. */
@@ -60,6 +66,12 @@ export function OfficerCard({
   note?: string
   photoUrl: string | null
   /**
+   * Where the photograph points, off the linked account. Null for an empty
+   * seat, for a term with nobody behind it, and for every officer who has not
+   * given one — which is the common case, so it defaults.
+   */
+  profileUrl?: string | null
+  /**
    * A third line under the name, for the archive's served range.
    *
    * The board deliberately prints nothing here. Its comment above says why —
@@ -73,7 +85,13 @@ export function OfficerCard({
 }) {
   return (
     <figure className={cardClass}>
-      <div className={frameClass}>
+      {/* Never a link while loading and never one on an empty seat: the first
+          has no address yet and the second has nobody to point at. */}
+      <ProfileFrame
+        profileUrl={loading || name === null ? null : profileUrl}
+        name={name ?? ''}
+        className={frameClass}
+      >
         {loading ? (
           <div className="bg-base-300 h-full w-full animate-pulse" aria-hidden />
         ) : photoUrl ? (
@@ -97,7 +115,7 @@ export function OfficerCard({
             [ PHOTO ]
           </span>
         )}
-      </div>
+      </ProfileFrame>
 
       <figcaption className="p-4">
         {/* The board knows its eight seats before the fetch and names them

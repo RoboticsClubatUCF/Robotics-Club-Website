@@ -137,6 +137,21 @@ model User {
   photoFocalX               Float     @default(50) @map("photo_focal_x")
   photoFocalY               Float     @default(50) @map("photo_focal_y")
   photoZoom                 Float     @default(1) @map("photo_zoom")
+  /// Where this person's photograph points: their own LinkedIn, GitHub or the
+  /// like, or null for the great majority who have not given one.
+  ///
+  /// **The member writes this and an allowlist decides what it may be.** It is
+  /// the one column on this table whose value is typed by its subject and then
+  /// printed into an `href` on a public page, so it is checked against a list
+  /// of known platforms rather than merely parsed — `socialUrl` in
+  /// `src/core/validate.ts` is the rule and the reasoning. What is stored is
+  /// always an `https:` address that passed that check, never what was typed.
+  ///
+  /// It replaced the roster card's dead end. A card carried a face and linked
+  /// nowhere, because `/members/:slug` is still unbuilt and a slug is an
+  /// officer's to set; this is the member's own answer to "where can people
+  /// find me", and it needs nobody's permission.
+  profileUrl                String?   @map("profile_url")
   active                    Boolean   @default(true)
   /// Whether the club's Discord **Officer Alumni** role says this person used
   /// to run the club. It is what `/members?status=alumni` answers with.

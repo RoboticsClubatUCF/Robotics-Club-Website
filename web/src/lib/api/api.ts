@@ -1120,6 +1120,20 @@ export type ApiMember = {
   gradYear: number | null
   bio: string | null
   photoUrl: string | null
+  /**
+   * Where this person's photograph points — their LinkedIn, GitHub or the like
+   * — or null for the great majority who have not given one.
+   *
+   * **The member writes it themselves and the server decides what it may be**:
+   * an allowlist of known platforms, in `server/src/core/validate.ts`. That is
+   * why a card can put it straight in an `href`; nothing else on this page is a
+   * public address typed by an ordinary member.
+   *
+   * Not `slug`, which is the field above and a different thing. A slug buys a
+   * profile page *on this site* and is an officer's to set; this is the
+   * member's own answer to "where can people find me".
+   */
+  profileUrl: string | null
   active: boolean
   /**
    * Whether the club's Discord **Officer Alumni** role says this person used to
@@ -1149,9 +1163,12 @@ export type ApiMember = {
  * decides *which chair*, so there is a gap between the two.
  *
  * `photoUrl` has already been resolved server-side against the linked roster
- * entry, so the page has one field to draw rather than a fallback to work out.
- * Dates are ISO strings; `academicYear` in `lib/officerTerms.ts` turns them into
- * the heading the archive groups by.
+ * entry, so the page has one field to draw rather than a fallback to work out —
+ * and the **account's** photograph is the one that wins, so an officer who
+ * changes their picture changes it on the board. `profileUrl` comes off the
+ * same account and is null for every term with nobody behind it, which is most
+ * of the archive. Dates are ISO strings; `academicYear` in
+ * `lib/officerTerms.ts` turns them into the heading the archive groups by.
  */
 export type ApiOfficerTerm = {
   id: string
@@ -1160,6 +1177,7 @@ export type ApiOfficerTerm = {
   endedAt: string | null
   fullName: string
   photoUrl: string | null
+  profileUrl: string | null
 }
 
 /**
@@ -1318,6 +1336,13 @@ export type ApiSession = { user: ApiUser | null }
 export type ApiAccount = ApiUser & {
   bio: string | null
   gradYear: number | null
+  /**
+   * Where their photograph points on the public pages, or null. Here and not on
+   * the session for the reason `bio` is not: the nav bar's avatar goes to the
+   * dashboard and always will, so nothing outside this page and the two public
+   * rosters has any use for it.
+   */
+  profileUrl: string | null
   /** When the member agreement was accepted, or null for every roster entry
       that predates the signup form. */
   acknowledgementAcceptedAt: string | null
@@ -1335,6 +1360,17 @@ export type ApiAccount = ApiUser & {
 /** What every account write answers with, so the page can adopt it straight
     into the session rather than making a second round trip. */
 export type ApiAccountUser = { user: ApiUser }
+
+/**
+ * `PATCH /api/account/profile-link` — the stored address, or null once cleared.
+ *
+ * The one account write that does not answer with a user, and deliberately: it
+ * touches nothing the session draws, so there is nothing to adopt. What comes
+ * back is the address **as the server normalised it** — a scheme added, `http`
+ * upgraded — which is why the panel takes this rather than keeping what was
+ * typed.
+ */
+export type ApiProfileLink = { profileUrl: string | null }
 
 /** `POST /api/account/email` — the link is out and nothing has moved yet. */
 export type ApiEmailChangeStarted = {

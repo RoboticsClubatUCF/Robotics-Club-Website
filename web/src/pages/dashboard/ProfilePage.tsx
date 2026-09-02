@@ -5,6 +5,7 @@ import { DeleteAccountPanel } from '../../components/profile/DeleteAccountPanel'
 import { ProfileDiscordPanel } from '../../components/profile/ProfileDiscordPanel'
 import { ProfileEmailPanel } from '../../components/profile/ProfileEmailPanel'
 import { ProfileIdentityPanel } from '../../components/profile/ProfileIdentityPanel'
+import { ProfileLinkPanel } from '../../components/profile/ProfileLinkPanel'
 import { ProfilePasswordPanel } from '../../components/profile/ProfilePasswordPanel'
 import { ProfilePhotoPanel } from '../../components/profile/ProfilePhotoPanel'
 import { ProfileSurveyPanel } from '../../components/profile/ProfileSurveyPanel'
@@ -158,16 +159,6 @@ export function ProfilePage() {
           <dl className="divide-rule divide-y">
             <PanelFact label="ROLE" value={user.role.replace(/_/g, ' ')} />
             <PanelFact
-              label="PUBLIC PROFILE"
-              /* "No profile page yet" rather than "not on the public roster":
-                 `/members` lists every account now, so everybody reading this
-                 is already on it. What a slug buys is a page of one's own, and
-                 an officer sets it. */
-              value={
-                user.slug ? `/members/${user.slug}` : 'No profile page yet'
-              }
-            />
-            <PanelFact
               label="MEMBER AGREEMENT"
               value={
                 account.status === 'ready'
@@ -178,8 +169,18 @@ export function ProfilePage() {
               }
             />
           </dl>
+          {/* PUBLIC PROFILE used to be the third row here, printing a
+              `/members/:slug` address or "No profile page yet". It said the
+              second to almost everybody and could say nothing else — a slug is
+              an officer's to set and that page is still unbuilt — so it was a
+              row nobody could act on. PROFILE LINK, below, is what it asked
+              for: the member's own address, which needs nobody's permission. */}
+          {/* Two rows, two different origins, so the line names them rather
+              than covering both with "an officer sets these" — which is now
+              half wrong: nobody set the agreement, it was accepted. */}
           <p className={`${noteClass} mt-3`}>
-            An officer sets these.
+            An officer sets your role. The agreement is the one you accepted
+            when you signed up.
           </p>
         </FormPanel>
 
@@ -204,6 +205,8 @@ export function ProfilePage() {
           <>
             <ProfileIdentityPanel account={account.data} onSaved={merge} />
             <ProfilePhotoPanel account={account.data} onSaved={merge} />
+            {/* Straight after the photo, because it is what the photo does. */}
+            <ProfileLinkPanel account={account.data} onSaved={merge} />
             <ProfileDiscordPanel account={account.data} onSaved={merge} />
             <ProfileEmailPanel account={account.data} onSaved={merge} />
             <ProfilePasswordPanel />

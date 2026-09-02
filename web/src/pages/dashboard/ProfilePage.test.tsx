@@ -45,6 +45,7 @@ const account: ApiAccount = {
   ...user,
   bio: 'Builds things.',
   gradYear: 2027,
+  profileUrl: null,
   acknowledgementAcceptedAt: '2026-08-01T12:00:00.000Z',
   passwordSet: true,
   pendingEmail: null,
@@ -122,6 +123,9 @@ function stubApi(
     }
 
     if (url.includes('/auth/me')) return json({ user: signedIn ? user : null })
+    // Before the account read: this path contains it, and the link panel's
+    // answer is the stored address rather than a user.
+    if (url.includes('/account/profile-link')) return json({ profileUrl: null })
     if (url.includes('/api/account')) return json(account)
     // The survey panel's own read. Answered, so it draws its summary — the
     // states it has of its own are covered in its own suite; here it only has
@@ -165,10 +169,13 @@ describe('ProfilePage', () => {
     expect(screen.getByDisplayValue('Builds things.')).toBeInTheDocument()
     expect(screen.getByDisplayValue('2027')).toBeInTheDocument()
     expect(screen.getByDisplayValue('rowan')).toBeInTheDocument()
-    // An account with no slug has no profile page of its own — it is on
-    // `/members` like everybody else, but there is nothing to link to. The row
-    // says which, rather than being left blank.
-    expect(screen.getByText(/no profile page yet/i)).toBeInTheDocument()
+    // PROFILE LINK replaced the PUBLIC PROFILE row that used to sit in YOUR
+    // STANDING. That row printed "No profile page yet" to almost everybody and
+    // could print nothing else — a slug is an officer's to set and
+    // `/members/:slug` is unbuilt — so what is asserted now is the field that
+    // took its place, empty for an account that has given no link.
+    expect(screen.queryByText(/no profile page yet/i)).not.toBeInTheDocument()
+    expect(screen.getByLabelText('YOUR LINK')).toHaveValue('')
   })
 
   /** Every remote read on this site renders all three of its states. */

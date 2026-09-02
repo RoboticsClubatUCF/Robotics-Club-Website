@@ -201,6 +201,7 @@ export function PastOfficersPage() {
                           // exception.
                           note2={servedRange(term.startedAt, term.endedAt)}
                           photoUrl={term.photoUrl}
+                          profileUrl={term.profileUrl}
                         />
                       </li>
                     ))}

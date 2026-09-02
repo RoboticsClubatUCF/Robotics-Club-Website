@@ -1,6 +1,7 @@
 import { useId, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { FilterChips } from '../../components/shared/FilterChips'
+import { ProfileFrame } from '../../components/shared/ProfileFrame'
 import { FormEyebrow, FormHeading, fieldClass } from '../../components/shared/formChrome'
 import type { ApiMember } from '../../lib/api/api'
 import { hits } from '../../lib/equipment/catalogue'
@@ -21,10 +22,13 @@ import { useApi } from '../../lib/api/useApi'
  * accounts with no way in the product to add the sixty-first. See `activeMembers`
  * in `server/src/routes/public/content.ts` for what the filter was.
  *
- * **The cards do not link anywhere.** `GET /api/members/:slug` exists and a
- * profile page does not, and a card that opens a 404 is worse than a card that
- * opens nothing — see the note on unbuilt links in `.claude/docs/frontend.md`.
- * Whoever writes `/members/:slug` turns the card into the link.
+ * **A card links where its owner said and nowhere else.** The photograph is an
+ * anchor to `profileUrl` — their LinkedIn, their GitHub — and a plain frame for
+ * everybody who has not given one, which is most of the page. The *card* still
+ * links nowhere: `GET /api/members/:slug` exists and a profile page does not,
+ * and a card that opens a 404 is worse than a card that opens nothing (see the
+ * note on unbuilt links in `.claude/docs/frontend.md`). Whoever writes
+ * `/members/:slug` gets the caption; the face is already spoken for.
  *
  * **ALUMNI means the club's Discord *Officer Alumni* role**, mirrored into
  * `User.officerAlumnus` by the server's ten-minute sweep. It is not `active`,
@@ -296,7 +300,11 @@ function MemberCard({
 
   return (
     <figure className="bg-base-100 flex h-full w-full flex-col">
-      <div className="bg-base-200 flex aspect-square w-full items-center justify-center overflow-hidden">
+      <ProfileFrame
+        profileUrl={member.profileUrl}
+        name={member.fullName}
+        className="bg-base-200 flex aspect-square w-full items-center justify-center overflow-hidden"
+      >
         {member.photoUrl ? (
           /* Decorative: the name is printed directly underneath, so announcing
              the photo too reads the person out twice. Through `imageSrc`,
@@ -316,7 +324,7 @@ function MemberCard({
             [ PHOTO ]
           </span>
         )}
-      </div>
+      </ProfileFrame>
 
       <figcaption className="flex flex-1 flex-col p-4">
         <div className="text-base leading-tight font-semibold tracking-[-0.01em]">

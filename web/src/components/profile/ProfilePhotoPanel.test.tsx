@@ -28,6 +28,7 @@ const account: ApiAccount = {
   photoFocalX: 50,
   photoFocalY: 50,
   photoZoom: 1,
+  profileUrl: null,
   bio: null,
   gradYear: null,
   acknowledgementAcceptedAt: null,

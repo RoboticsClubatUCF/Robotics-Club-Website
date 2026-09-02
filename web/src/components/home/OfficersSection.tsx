@@ -109,6 +109,7 @@ export function OfficersSection() {
                 seat={seatLabel(officer.position)}
                 name={officer.fullName}
                 photoUrl={officer.photoUrl}
+                profileUrl={officer.profileUrl}
               />
             </li>
           ))}
@@ -130,6 +131,7 @@ export function OfficersSection() {
                 seat={seatLabel(null)}
                 name={officer.fullName}
                 photoUrl={officer.photoUrl}
+                profileUrl={officer.profileUrl}
               />
             </li>
           ))}

@@ -112,7 +112,13 @@ const rosterStatus = {
  *
  * `slug` is still sent and is still null for almost everybody. It means "has a
  * public profile URL" and nothing else now: `GET /members/:slug` is the only
- * reader, and the roster cards link nowhere until that page exists.
+ * reader, and it is an officer's to set.
+ *
+ * `profileUrl` is the member's own answer to the same question and needs
+ * nobody's permission — the roster card's photograph is a link to it where
+ * there is one. It has already been through the allowlist in
+ * `src/core/validate.ts` by the time it is stored, which is what makes it safe
+ * to print into an `href` on a page with several hundred faces on it.
  */
 const rosterSelect = {
   id: true,
@@ -123,6 +129,7 @@ const rosterSelect = {
   gradYear: true,
   bio: true,
   photoUrl: true,
+  profileUrl: true,
   active: true,
   // What the card's ALUMNI badge is drawn from under the EVERYONE chip. Sent
   // rather than inferred from `active`, which is a different fact — see
@@ -357,11 +364,21 @@ content.get(
  * was: the faculty advisor sits on the board as a plain `MEMBER`, so a role
  * filter would both miss them and sweep up officers holding no named seat.
  *
- * **The photo is coalesced here rather than left to the page.** A term may
- * carry a headshot from its own year, and where it does not, the linked roster
- * entry's current one is the next best thing — but which of the two answered is
- * not a decision the browser should be making, so this settles it and sends one
- * field. Nothing else about the linked user comes back.
+ * **The photo is coalesced here rather than left to the page, and the account's
+ * own photograph is what wins.** A term may also carry a headshot stored on the
+ * row, and that used to be preferred — an officer was shown as they were in the
+ * year they served. It is the fallback now, because a photograph filed against
+ * one term is a copy that nothing keeps up to date: somebody who replaces the
+ * picture on their account expects the board to follow, and no page on this
+ * site has ever written `officer_terms.photo_url`, so in practice the winner
+ * was a column only an import could fill. The stored one still answers for
+ * every term with no account behind it, which is most of the archive.
+ *
+ * `profileUrl` rides along from the same place for the same reason the roster
+ * sends it: the card's photograph is a link where the officer has given one.
+ * There is no per-term copy of *that* and there should not be — a link is a
+ * live address rather than a record of a year. Nothing else about the linked
+ * user comes back.
  *
  * Both are unpaginated, deliberately. The whole archive is eight seats a year
  * against a fifty-year club; the page searches and filters it in the browser for
@@ -376,17 +393,18 @@ const termSelect = {
   endedAt: true,
   fullName: true,
   photoUrl: true,
-  user: { select: { photoUrl: true } },
+  user: { select: { photoUrl: true, profileUrl: true } },
 } satisfies OfficerTermSelect
 
 type SelectedTerm = {
   photoUrl: string | null
-  user: { photoUrl: string | null } | null
+  user: { photoUrl: string | null; profileUrl: string | null } | null
 }
 
 const asOfficer = <T extends SelectedTerm>({ user, photoUrl, ...term }: T) => ({
   ...term,
-  photoUrl: photoUrl ?? user?.photoUrl ?? null,
+  photoUrl: user?.photoUrl ?? photoUrl,
+  profileUrl: user?.profileUrl ?? null,
 })
 
 /**

@@ -46,6 +46,7 @@ type OfficerTerm = {
   endedAt: string | null
   fullName: string
   photoUrl: string | null
+  profileUrl: string | null
 }
 type Project = { slug: string }
 /** What the term filters are asserted on — the pair, plus the slug that
@@ -542,6 +543,7 @@ describe('GET /api/officers/past', () => {
         'id',
         'photoUrl',
         'position',
+        'profileUrl',
         'startedAt',
       ])
       // A term nobody held, one still open, or one that ended before it began
@@ -559,25 +561,23 @@ describe('GET /api/officers/past', () => {
     for (const term of terms) {
       expect(term).not.toHaveProperty('email')
       expect(term).not.toHaveProperty('passwordHash')
-      // The linked roster entry is read for its headshot and for nothing else.
+      // The linked roster entry is read for a headshot and a profile link, and
+      // for nothing else.
       expect(term).not.toHaveProperty('user')
       expect(term).not.toHaveProperty('userId')
     }
   })
 
   /**
-   * The route settles which of the two photos answered so the browser never
-   * has to. A term with a headshot of its own keeps it; one without borrows the
-   * linked roster entry's, which is what makes rolling the board over at the
-   * end of a year eight rows rather than eight uploads.
+   * The route settles which of the two photos answered so the browser never has
+   * to, **and the account's is the one that wins**. A photograph filed against
+   * one term is a copy nothing keeps up to date; the account's is the picture
+   * its owner can change. The term's own is the fallback, which is what still
+   * answers for the archive rows with nobody behind them.
    */
-  it('falls back to the headshot on the linked roster entry', async () => {
+  it('prefers the linked account photo over the one stored on the term', async () => {
     const linked = await prisma.officerTerm.findFirst({
-      where: {
-        photoUrl: null,
-        endedAt: { not: null },
-        user: { photoUrl: { not: null } },
-      },
+      where: { endedAt: { not: null }, user: { photoUrl: { not: null } } },
       select: { id: true, user: { select: { photoUrl: true } } },
     })
 
@@ -589,6 +589,27 @@ describe('GET /api/officers/past', () => {
     const term = archive.find((row) => row.id === linked.id)
 
     expect(term?.photoUrl).toBe(linked.user?.photoUrl)
+  })
+
+  /** A term with no account behind it keeps whatever headshot the row carries,
+      which is most of the archive and the whole reason the column survives. */
+  it('keeps the term headshot where no account is linked', async () => {
+    const unlinked = await prisma.officerTerm.findFirst({
+      where: { endedAt: { not: null }, userId: null, photoUrl: { not: null } },
+      select: { id: true, photoUrl: true },
+    })
+
+    if (!unlinked) return
+
+    const { terms: archive } = await get<Archive>('/api/officers/past?all=1')
+    const term = archive.find((row) => row.id === unlinked.id)
+
+    expect(term?.photoUrl).toBe(unlinked.photoUrl)
+    // Nowhere for it to come from: a link belongs to an account, and a term
+    // with no account behind it has none. Never the term's own column — there
+    // is no such column and there should not be one, because a link is a live
+    // address rather than a record of a year.
+    expect(term?.profileUrl).toBeNull()
   })
 })
 

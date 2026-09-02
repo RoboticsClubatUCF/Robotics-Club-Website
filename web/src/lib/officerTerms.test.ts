@@ -32,6 +32,7 @@ const term = (
       : `${String(startYear)}-12-31T00:00:00.000Z`,
   fullName,
   photoUrl: null,
+  profileUrl: null,
 })
 
 /** In the order the server sends it: newest start first, board order inside. */

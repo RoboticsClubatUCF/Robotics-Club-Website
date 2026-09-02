@@ -119,3 +119,150 @@ export const webUrl = (max = 500) =>
       })
       .max(max),
   )
+
+/**
+ * The platforms somebody may point their own photograph at.
+ *
+ * **This is an allowlist because the alternative is a link farm.** `profileUrl`
+ * on `User` is the only column on this site whose value is typed by an ordinary
+ * member and then printed straight into an `href` on a public page, and the
+ * roster is a public page with several hundred faces on it. A field that took
+ * any address at all is somewhere to park a phishing page or a referral link
+ * and have the club host the anchor for it, and nothing about a well-formed URL
+ * distinguishes those from a LinkedIn profile.
+ *
+ * A subdomain of an entry counts, which is what lets `uk.linkedin.com`,
+ * `www.github.com` and somebody's own `name.medium.com` through. That is safe
+ * for exactly as long as the list holds only hosts whose subdomains belong to
+ * the platform or to one of its users — so **do not add a host that hands out
+ * arbitrary pages under arbitrary names** (`github.io`, `pages.dev`,
+ * `vercel.app`), which would put the allowlist back where it started.
+ *
+ * Two deliberate absences. **The fediverse cannot be allowlisted** — a Mastodon
+ * account lives on whichever of a thousand instances its owner picked — so the
+ * flagship one is here and the rest are refused, which is the honest failure.
+ * And **Discord is not on it**: the club already stores a handle in a column of
+ * its own, checked against the real guild, and a second unverified copy of the
+ * same fact is worse than none.
+ */
+export const PROFILE_HOSTS = [
+  'linkedin.com',
+  'github.com',
+  'gitlab.com',
+  'bitbucket.org',
+  'stackoverflow.com',
+  'codepen.io',
+  'kaggle.com',
+  'huggingface.co',
+  'devpost.com',
+  'hackster.io',
+  'instructables.com',
+  'orcid.org',
+  'scholar.google.com',
+  'behance.net',
+  'dribbble.com',
+  'medium.com',
+  'substack.com',
+  'instagram.com',
+  'facebook.com',
+  'x.com',
+  'twitter.com',
+  'threads.net',
+  'threads.com',
+  'bsky.app',
+  'mastodon.social',
+  'youtube.com',
+  'tiktok.com',
+  'twitch.tv',
+  'reddit.com',
+  'ucf.edu',
+] as const
+
+/** The sentence a refused address gets back. Three names and an honest "or
+    another" — printing all thirty into a one-line status strip is not a help. */
+export const NOT_A_PROFILE =
+  'link to a profile on LinkedIn, GitHub, Instagram or another well-known site'
+
+const onAllowedHost = (hostname: string) => {
+  const host = hostname.toLowerCase()
+
+  return PROFILE_HOSTS.some(
+    (allowed) => host === allowed || host.endsWith(`.${allowed}`),
+  )
+}
+
+/**
+ * A social profile address, as somebody pastes it, or null if it is not one.
+ *
+ * Exported for its own test rather than for a second caller: everything this
+ * refuses is a thing that has to keep being refused, and asserting on a zod
+ * error is a worse way to say so.
+ *
+ * The steps are each answering something specific:
+ *
+ *   - **The scheme is added when it is missing**, same as `webUrl` above and
+ *     for the same reason — `linkedin.com/in/someone` is what people paste out
+ *     of a browser that has not shown a scheme since 2018.
+ *   - **`http` is accepted and upgraded rather than refused.** Every host on the
+ *     list has been https-only for years, so a typed `http://` is a habit and
+ *     not a statement about the site; storing it would only mean an insecure
+ *     link on a public page that redirects anyway.
+ *   - **Anything else — `javascript:`, `data:`, `mailto:` — is refused**, which
+ *     is the half of this that is about the club's own markup rather than about
+ *     where the link goes.
+ *   - **Credentials and a port are refused.** `https://linkedin.com@evil.example/`
+ *     is a link to `evil.example` that reads as LinkedIn to anybody checking by
+ *     eye; `new URL` sees through it and the host check would refuse it anyway,
+ *     but a stored address that *displays* as something it is not has no honest
+ *     use here.
+ *   - **The host is checked last, against the list.** A unicode lookalike is
+ *     punycode by the time it gets here — `xn--linkedn-…` matches nothing —
+ *     which is the case the list would otherwise miss.
+ *
+ * What comes back is the parsed address, never the typed one, so what is stored
+ * is already normalised and nothing has to re-derive it on the way out.
+ */
+export const profileAddress = (typed: string): string | null => {
+  const withScheme = /^[a-z][a-z0-9+.-]*:/i.test(typed) ? typed : `https://${typed}`
+
+  let url: URL
+
+  try {
+    url = new URL(withScheme)
+  } catch {
+    return null
+  }
+
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return null
+  if (url.username !== '' || url.password !== '') return null
+  if (url.port !== '') return null
+  if (!onAllowedHost(url.hostname)) return null
+
+  url.protocol = 'https:'
+
+  return url.href
+}
+
+/**
+ * The zod side of the above: refuse in the API's voice, store what came back.
+ *
+ * Shorter than `webUrl`'s cap on purpose. A profile address is a handle on the
+ * end of a path, and three hundred characters is already far more than any
+ * platform on the list produces — the ones that run long are tracking
+ * parameters, which nobody needs to keep.
+ */
+export const socialUrl = (max = 300) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .transform((typed, ctx) => {
+      const url = profileAddress(typed)
+
+      if (url === null) {
+        ctx.addIssue({ code: 'custom', message: NOT_A_PROFILE })
+        return z.NEVER
+      }
+
+      return url
+    })

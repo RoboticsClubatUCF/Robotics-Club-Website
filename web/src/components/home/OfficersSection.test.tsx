@@ -49,6 +49,7 @@ const officer = (
   endedAt: null,
   fullName: 'Jordan Ellis',
   photoUrl: null,
+  profileUrl: null,
   ...over,
 })
 
@@ -239,6 +240,35 @@ describe('OfficersSection', () => {
     expect(container.querySelectorAll('img')).toHaveLength(1)
     expect(screen.getAllByText('[ PHOTO ]')).toHaveLength(7)
     expect(container.querySelectorAll('.aspect-square')).toHaveLength(8)
+  })
+
+  /**
+   * The photograph is the link, and only for an officer who has given one. The
+   * empty chairs never are: a seat nobody is in has nobody to point at, and an
+   * anchor on it would be a link with no name.
+   */
+  it('links a headshot to the officer’s profile', async () => {
+    stub(
+      [
+        officer('PRESIDENT', {
+          photoUrl: 'https://example.com/jordan.jpg',
+          profileUrl: 'https://github.com/jordan',
+        }),
+        officer('TREASURER', { fullName: 'Owen Castellanos' }),
+      ],
+      SEATS,
+    )
+
+    render(<OfficersSection />)
+    await screen.findByText('Jordan Ellis')
+
+    const link = screen.getByRole('link', { name: 'Jordan Ellis on GitHub' })
+    expect(link).toHaveAttribute('href', 'https://github.com/jordan')
+
+    // Seven empty chairs and an officer who gave no link: no other anchor in
+    // the grid. The section's own header link to the archive is outside it.
+    expect(screen.queryByRole('link', { name: /Owen Castellanos/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Seat open/ })).not.toBeInTheDocument()
   })
 
   /**

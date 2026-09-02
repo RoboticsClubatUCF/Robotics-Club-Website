@@ -20,6 +20,7 @@ const member = (over: Partial<ApiMember> = {}): ApiMember => ({
   gradYear: 2027,
   bio: null,
   photoUrl: null,
+  profileUrl: null,
   active: true,
   officerAlumnus: false,
   subteam: { slug: 'software', name: 'Software', color: '#4f8cff' },
@@ -48,6 +49,50 @@ describe('MembersPage', () => {
     expect(await screen.findByText('Alex Chen')).toBeInTheDocument()
     expect(screen.getByText('Sam Okafor')).toBeInTheDocument()
     expect(screen.getByText('CLASS OF 2027')).toBeInTheDocument()
+  })
+
+  /**
+   * The card's photograph is the one thing on this page that links anywhere,
+   * and only where its owner said so. The address has already been through the
+   * server's allowlist, which is what makes it safe to print into an `href` on
+   * a page of several hundred faces.
+   */
+  it('makes a photo with a profile link an anchor to it', async () => {
+    vi.stubGlobal(
+      'fetch',
+      stubFetch({
+        '/members': [
+          member({ profileUrl: 'https://www.linkedin.com/in/alex-chen' }),
+          sam,
+        ],
+      }),
+    )
+
+    render()
+
+    // Named after the person and the site: the image itself is `alt=""`, so
+    // without this the link's whole accessible name would be the empty string.
+    const link = await screen.findByRole('link', {
+      name: 'Alex Chen on LinkedIn',
+    })
+
+    expect(link).toHaveAttribute('href', 'https://www.linkedin.com/in/alex-chen')
+    // The destination is a member's choice rather than the club's, and `rel`
+    // says so as well as protecting the tab it opens from.
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(link.getAttribute('rel')).toContain('noopener')
+    expect(link.getAttribute('rel')).toContain('nofollow')
+  })
+
+  /** Which is nearly everybody. A card with no link is the frame it always
+      was, not an anchor to nowhere. */
+  it('leaves a photo with no profile link unlinked', async () => {
+    vi.stubGlobal('fetch', stubFetch({ '/members': [member(), sam] }))
+
+    render()
+
+    expect(await screen.findByText('Alex Chen')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Alex Chen/ })).not.toBeInTheDocument()
   })
 
   /**
