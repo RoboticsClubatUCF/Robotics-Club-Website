@@ -448,3 +448,51 @@ describe('a project lead editing teams', () => {
     })
   })
 })
+
+/**
+ * The one control on this page that destroys something no copy exists of.
+ *
+ * It was the word DANGER in grey over a text-link button that turned red only
+ * on hover — the same weight the page gives REMOVE on a single task. It is
+ * drawn as the destructive panel it is now, matching `DeleteAccountPanel`.
+ */
+describe('deleting a project', () => {
+  const openPage = async () => {
+    renderPage(stubDesk())
+    await screen.findByText('DISCORD ROLE')
+  }
+
+  it('says who it affects, and that it cannot be undone', async () => {
+    await openPage()
+
+    expect(screen.getByText(/deletes Rover for/i)).toBeInTheDocument()
+    expect(screen.getByText('everyone on it')).toBeInTheDocument()
+    expect(screen.getByText(/cannot be undone/i)).toBeInTheDocument()
+  })
+
+  /* Named one by one rather than summarised: a lead is entitled to delete all
+     of this and is not entitled to be surprised by it. The files are the line
+     that matters — those bytes have no other copy. */
+  it('names what goes with it, the files included', async () => {
+    await openPage()
+
+    expect(screen.getByText(/its roster and its teams/i)).toBeInTheDocument()
+    expect(screen.getByText(/every event it has scheduled/i)).toBeInTheDocument()
+    expect(screen.getByText(/keeps no\s+other copy of those files/i)).toBeInTheDocument()
+  })
+
+  /** The way out for the common case, which is a build that has simply ended. */
+  it('points at archiving instead', async () => {
+    await openPage()
+
+    expect(screen.getByText('ARCHIVED')).toBeInTheDocument()
+  })
+
+  it('says the confirmation is coming before the press', async () => {
+    await openPage()
+
+    expect(
+      screen.getByText(/asked to type the project’s name/i),
+    ).toBeInTheDocument()
+  })
+})

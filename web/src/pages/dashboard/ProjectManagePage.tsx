@@ -626,7 +626,7 @@ function TeamsSection({
             name="name"
             required
             maxLength={60}
-            placeholder="Chassis"
+            placeholder="Name"
             className={fieldClass}
             disabled={busy}
           />
@@ -635,7 +635,7 @@ function TeamsSection({
           aria-label="New team description"
           name="description"
           maxLength={500}
-          placeholder="Frame, drivetrain, welding (optional)"
+          placeholder="Short Description"
           className={fieldClass}
           disabled={busy}
         />
@@ -1644,23 +1644,67 @@ function DangerSection({
       void navigate('/dashboard')
     })
 
+  /**
+   * Drawn as the destructive panel it is, matching `DeleteAccountPanel` — the
+   * other place on the site where somebody can delete something that does not
+   * come back. It used to be the word DANGER in grey over a text-link button
+   * that only turned red on hover, which is the same weight the page gives
+   * REMOVE on a single task.
+   */
   return (
-    <FormPanel>
-      <p className="text-faint mb-3 font-mono text-[10px] font-medium tracking-[0.16em]">
-        DANGER
+    <div className="border-error/40 bg-error/5 border p-5">
+      <p className="text-error mb-3 font-mono text-[10px] font-medium tracking-[0.16em]">
+        DELETE THIS PROJECT
       </p>
+
+      <p className="text-dim mb-3 text-[13px] leading-[1.7] text-pretty">
+        This deletes {title} for <strong>everyone on it</strong>, not just for
+        you, and it cannot be undone.
+      </p>
+
+      <p className="text-faint mb-2 text-[12px] leading-[1.6]">What goes with it:</p>
+
+      {/* Named one by one rather than summarised, the same rule the account
+          panel follows: a lead is entitled to delete all of this and is not
+          entitled to be surprised by it. Every line is something the delete
+          route actually destroys — the two file sweeps in particular, which are
+          bytes no other copy exists of. */}
+      <ul className="text-faint mb-3 list-disc space-y-1 pl-5 text-[12px] leading-[1.6]">
+        <li>its roster and its teams, and every task on them</li>
+        <li>every event it has scheduled, on every calendar they appear on</li>
+        <li>
+          its gallery, its cover and every published document — the club keeps no
+          other copy of those files
+        </li>
+        <li>its write-up, its resource links and its page on the public site</li>
+      </ul>
+
+      <p className="text-faint mb-4 text-[12px] leading-[1.6] text-pretty">
+        Everyone on it loses the project&rsquo;s Discord role. If the build is
+        simply over, set its status to <strong>COMPLETED</strong> or{' '}
+        <strong>ARCHIVED</strong> instead — that keeps the page and takes it off
+        this term&rsquo;s list.
+      </p>
+
       <button
         type="button"
         disabled={busy}
-        className={dangerButton}
+        className="btn btn-outline border-error/40 text-error hover:border-error hover:bg-error/10 hover:text-error h-auto min-h-0 cursor-pointer px-5 py-2.5 text-[11px] font-semibold tracking-[0.04em] disabled:opacity-50"
         onClick={() => void destroy()}
       >
         DELETE THIS PROJECT
       </button>
+
+      {/* Said before the press as well as during it. The prompt is the guard;
+          this is what stops somebody meeting it by surprise. */}
+      <p className="text-faint mt-2 text-[12px] leading-[1.6]">
+        You will be asked to type the project&rsquo;s name to confirm.
+      </p>
+
       <p role="status" className="text-error mt-2 min-h-4 text-[12px]">
         {message}
       </p>
-    </FormPanel>
+    </div>
   )
 }
 
