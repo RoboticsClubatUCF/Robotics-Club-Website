@@ -25,6 +25,7 @@ import type {
   ApiProjectTeamMember,
   ApiProjectTeamView,
   ApiTask,
+  ApiTeam,
   EventType,
   ProjectMemberRank,
 } from '../../lib/api/api'
@@ -452,17 +453,50 @@ function TeamsSection({
   reload: () => Promise<void>
 }) {
   const { message, busy, run } = useSectionStatus()
+  const [editing, setEditing] = useState<ApiTeam | null>(null)
   const nameId = useId()
+
+  // Both forms carry the same two fields, so they read them the same way.
+  // Narrowed rather than coerced, like every other form on this page:
+  // `FormData.get` can hand back a `File`, and `String()` on one is the
+  // literal text '[object File]'.
+  const fields = (form: HTMLFormElement) => {
+    const data = new FormData(form)
+    const text = (name: string) => {
+      const raw = data.get(name)
+      return typeof raw === 'string' ? raw.trim() : ''
+    }
+    return { name: text('name'), description: text('description') }
+  }
 
   const create = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const form = event.currentTarget
-    const name = new FormData(form).get('name')
-    if (typeof name !== 'string' || !name.trim()) return
+    const { name, description } = fields(form)
+    if (!name) return
 
     void run(async () => {
-      await postJson(`/projects/${projectId}/teams`, { name: name.trim() })
+      await postJson(`/projects/${projectId}/teams`, {
+        name,
+        description: description || null,
+      })
       form.reset()
+      await reload()
+    })
+  }
+
+  const save = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!editing) return
+    const { name, description } = fields(event.currentTarget)
+    if (!name) return
+
+    void run(async () => {
+      await patchJson(`/teams/${editing.id}`, {
+        name,
+        description: description || null,
+      })
+      setEditing(null)
       await reload()
     })
   }
@@ -476,6 +510,9 @@ function TeamsSection({
       )
         return
       await deleteJson(`/teams/${teamId}`)
+      // The row being edited is the row that just went: leaving `editing` set
+      // would reopen the form against a team that no longer exists.
+      if (editing?.id === teamId) setEditing(null)
       await reload()
     })
 
@@ -489,17 +526,82 @@ function TeamsSection({
         <ul className="divide-rule mb-4 divide-y">
           {teams.map((team) => {
             const count = members.filter((m) => m.teamId === team.id).length
+
+            // The row *becomes* the form rather than growing one underneath
+            // the list: a lead editing "Chassis" is looking at the line that
+            // says Chassis, and putting the fields anywhere else loses that
+            // thread. Mounting on press is also what lets the inputs stay
+            // uncontrolled — they pick the team up as their defaults.
+            if (editing?.id === team.id) {
+              return (
+                <li key={team.id} className="py-3">
+                  <form onSubmit={save} className="space-y-2">
+                    <input
+                      aria-label={`Name for ${team.name}`}
+                      name="name"
+                      required
+                      maxLength={60}
+                      defaultValue={team.name}
+                      className={fieldClass}
+                      disabled={busy}
+                    />
+                    <input
+                      aria-label={`Description for ${team.name}`}
+                      name="description"
+                      maxLength={500}
+                      placeholder="What this team does (optional)"
+                      defaultValue={team.description ?? ''}
+                      className={fieldClass}
+                      disabled={busy}
+                    />
+                    <div className="flex items-center gap-3">
+                      <button type="submit" disabled={busy} className={smallButton}>
+                        SAVE
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        className={smallButton}
+                        onClick={() => {
+                          setEditing(null)
+                        }}
+                      >
+                        CANCEL
+                      </button>
+                    </div>
+                  </form>
+                </li>
+              )
+            }
+
             return (
               <li
                 key={team.id}
-                className="flex items-center justify-between gap-4 py-2.5"
+                className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2.5"
               >
-                <span className="text-sm font-medium">
-                  {team.name}
-                  <span className="text-faint ml-2 font-mono text-[10px]">
-                    {count} {count === 1 ? 'MEMBER' : 'MEMBERS'}
-                  </span>
-                </span>
+                <div className="min-w-0 flex-1 basis-40">
+                  <p className="truncate text-sm font-medium">
+                    {team.name}
+                    <span className="text-faint ml-2 font-mono text-[10px]">
+                      {count} {count === 1 ? 'MEMBER' : 'MEMBERS'}
+                    </span>
+                  </p>
+                  {team.description && (
+                    <p className="text-faint truncate text-[12px]">
+                      {team.description}
+                    </p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  disabled={busy}
+                  className={smallButton}
+                  onClick={() => {
+                    setEditing(team)
+                  }}
+                >
+                  EDIT
+                </button>
                 <button
                   type="button"
                   disabled={busy}
@@ -514,8 +616,8 @@ function TeamsSection({
         </ul>
       )}
 
-      <form onSubmit={create} className="flex items-end gap-3">
-        <div className="flex-1">
+      <form onSubmit={create} className="space-y-3">
+        <div>
           <label htmlFor={nameId} className={labelClass}>
             NEW TEAM
           </label>
@@ -526,8 +628,17 @@ function TeamsSection({
             maxLength={60}
             placeholder="Chassis"
             className={fieldClass}
+            disabled={busy}
           />
         </div>
+        <input
+          aria-label="New team description"
+          name="description"
+          maxLength={500}
+          placeholder="Frame, drivetrain, welding (optional)"
+          className={fieldClass}
+          disabled={busy}
+        />
         <button
           type="submit"
           disabled={busy}

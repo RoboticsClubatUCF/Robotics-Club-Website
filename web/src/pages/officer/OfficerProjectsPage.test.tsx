@@ -829,3 +829,73 @@ describe('the project Discord role', () => {
     expect(screen.getByLabelText('NEW DISCORD ROLE')).toBeInTheDocument()
   })
 })
+
+
+/**
+ * The way into managing a project the officer is not on.
+ *
+ * The rail lists the projects you are a member of and draws MANAGE under a
+ * lead's rank, so an officer who is on nothing had no link to
+ * `/dashboard/projects/:slug/manage` at all — the page has always accepted
+ * them, and the only way to reach it was to type the address. These cover the
+ * link, and that it points at the lead's own URL rather than an officer-only
+ * copy of the page.
+ */
+describe('reaching any project from the desk', () => {
+  /** This semester's build. Handed to the stub *second* so the ordering
+      assertion below is about the sort rather than about the input. */
+  const running: ApiManagedProject = {
+    ...created,
+    id: 'p-now',
+    slug: 'rover-now',
+    title: 'Rover Now',
+    termYear: term.year,
+    termSeason: term.season,
+  }
+
+  const everyPanel = () =>
+    within(screen.getByText('EVERY PROJECT').closest('div')!)
+
+  it('links each project at the page its own lead opens', async () => {
+    vi.stubGlobal('fetch', stubDesk({ projects: [existing, running] }))
+    renderPage()
+    await act(async () => {})
+
+    const links = everyPanel().getAllByRole('link', { name: 'MANAGE' })
+
+    // `/dashboard/projects/...`, never `/dashboard/officer/...`: an `officer`
+    // segment in a URL a lead is entitled to would be a lie in the address bar.
+    expect(links.map((link) => link.getAttribute('href'))).toEqual([
+      '/dashboard/projects/rover-now/manage',
+      '/dashboard/projects/rover-one/manage',
+    ])
+  })
+
+  it('puts this semester first and names the term on every row', async () => {
+    vi.stubGlobal('fetch', stubDesk({ projects: [existing, running] }))
+    renderPage()
+    await act(async () => {})
+
+    const panel = everyPanel()
+    expect(panel.getByText(/Fall 2026 · This term/)).toBeInTheDocument()
+    // The older one is still listed, and still says which term it was.
+    expect(panel.getByText('Spring 2034')).toBeInTheDocument()
+  })
+
+  it('says so rather than emptying the panel when the list will not load', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string | URL | Request) =>
+        urlOf(input).includes('/projects?')
+          ? json({ error: 'nope' }, 500)
+          : json({}),
+      ),
+    )
+    renderPage()
+    await act(async () => {})
+
+    expect(
+      everyPanel().getByText(/couldn’t load the projects just now/i),
+    ).toBeInTheDocument()
+  })
+})

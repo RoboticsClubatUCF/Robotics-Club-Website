@@ -284,3 +284,161 @@ describe('a finished build takes no new tasks', () => {
     ).not.toBeInTheDocument()
   })
 })
+
+
+/**
+ * The desk with two teams on it.
+ *
+ * **The method is checked before the path, and that ordering is the whole
+ * trick.** `/api/teams/t1` contains `/team`, so the path-only match the rest of
+ * this file uses would answer a team write with the roster and the assertion
+ * would be about the wrong request.
+ */
+const stubTeams = () =>
+  vi.fn((input: string | URL | Request, init?: RequestInit) => {
+    const url = urlOf(input)
+
+    if (init?.method === 'PATCH' || init?.method === 'POST') {
+      return json({ id: 't1', name: 'Chassis', description: null })
+    }
+    if (url.includes('/projects/p1/team')) {
+      return json({
+        project,
+        teams: [
+          { id: 't1', name: 'Chassis', description: 'Frame and drivetrain.' },
+          { id: 't2', name: 'Software', description: null },
+        ],
+        members: [],
+      })
+    }
+
+    return json([])
+  })
+
+const teams = () => within(screen.getByText('TEAMS').closest('div')!)
+
+const wrote = (fetchMock: ReturnType<typeof stubTeams>, method: string) =>
+  fetchMock.mock.calls.find(([, init]) => init?.method === method)
+
+/**
+ * Teams, which a project lead makes and unmakes.
+ *
+ * The rename and the description are what these cover, because they are what
+ * the page could not do at all: `PATCH /api/teams/:id` has always existed and
+ * nothing in the browser called it, so `Team.description` was a column the site
+ * displayed on the project dashboard and could never write. Creating and
+ * deleting are older and are covered on the server.
+ */
+describe('a project lead editing teams', () => {
+  it('opens a team with the name and description it is carrying', async () => {
+    renderPage(stubTeams())
+    await act(async () => {})
+
+    const panel = teams()
+    fireEvent.click(panel.getAllByRole('button', { name: 'EDIT' })[0]!)
+
+    expect(panel.getByLabelText('Name for Chassis')).toHaveValue('Chassis')
+    expect(panel.getByLabelText('Description for Chassis')).toHaveValue(
+      'Frame and drivetrain.',
+    )
+  })
+
+  it('saves a rename and a description together', async () => {
+    const fetchMock = stubTeams()
+    renderPage(fetchMock)
+    await act(async () => {})
+
+    const panel = teams()
+    fireEvent.click(panel.getAllByRole('button', { name: 'EDIT' })[0]!)
+    fireEvent.change(panel.getByLabelText('Name for Chassis'), {
+      target: { value: 'Chassis & Drive' },
+    })
+    fireEvent.change(panel.getByLabelText('Description for Chassis'), {
+      target: { value: 'Frame, drivetrain, welding.' },
+    })
+
+    await act(async () => {
+      fireEvent.submit(
+        panel.getByRole('button', { name: 'SAVE' }).closest('form')!,
+      )
+    })
+
+    const call = wrote(fetchMock, 'PATCH')
+    expect(call).toBeDefined()
+    expect(urlOf(call![0])).toContain('/teams/t1')
+    expect(JSON.parse(call![1]!.body as string)).toEqual({
+      name: 'Chassis & Drive',
+      description: 'Frame, drivetrain, welding.',
+    })
+  })
+
+  it('sends null rather than an empty string for a cleared description', async () => {
+    const fetchMock = stubTeams()
+    renderPage(fetchMock)
+    await act(async () => {})
+
+    const panel = teams()
+    fireEvent.click(panel.getAllByRole('button', { name: 'EDIT' })[0]!)
+    fireEvent.change(panel.getByLabelText('Description for Chassis'), {
+      target: { value: '   ' },
+    })
+
+    await act(async () => {
+      fireEvent.submit(
+        panel.getByRole('button', { name: 'SAVE' }).closest('form')!,
+      )
+    })
+
+    // Same reasoning as the Discord role above: '' and null would be two
+    // spellings of "no description" and only one of them means it.
+    expect(JSON.parse(wrote(fetchMock, 'PATCH')![1]!.body as string)).toEqual({
+      name: 'Chassis',
+      description: null,
+    })
+  })
+
+  it('cancels back to the row without writing anything', async () => {
+    const fetchMock = stubTeams()
+    renderPage(fetchMock)
+    await act(async () => {})
+
+    const panel = teams()
+    fireEvent.click(panel.getAllByRole('button', { name: 'EDIT' })[0]!)
+    fireEvent.change(panel.getByLabelText('Name for Chassis'), {
+      target: { value: 'Nonsense' },
+    })
+    fireEvent.click(panel.getByRole('button', { name: 'CANCEL' }))
+
+    expect(panel.queryByLabelText('Name for Chassis')).not.toBeInTheDocument()
+    expect(panel.getAllByRole('button', { name: 'EDIT' })).toHaveLength(2)
+    expect(wrote(fetchMock, 'PATCH')).toBeUndefined()
+  })
+
+  it('creates a team with the description typed beside it', async () => {
+    const fetchMock = stubTeams()
+    renderPage(fetchMock)
+    await act(async () => {})
+
+    const panel = teams()
+    fireEvent.change(panel.getByLabelText('NEW TEAM'), {
+      target: { value: 'Outreach' },
+    })
+    fireEvent.change(panel.getByLabelText('New team description'), {
+      target: { value: 'Schools, demos, and the tent at Spark.' },
+    })
+
+    await act(async () => {
+      fireEvent.submit(
+        panel.getByRole('button', { name: 'CREATE' }).closest('form')!,
+      )
+    })
+
+    const call = wrote(fetchMock, 'POST')
+    expect(call).toBeDefined()
+    expect(urlOf(call![0])).toContain('/projects/p1/teams')
+    expect(JSON.parse(call![1]!.body as string)).toEqual({
+      name: 'Outreach',
+      description: 'Schools, demos, and the tent at Spark.',
+    })
+  })
+})

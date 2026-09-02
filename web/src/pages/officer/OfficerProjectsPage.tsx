@@ -36,7 +36,8 @@ import {
 import { useApi } from '../../lib/api/useApi'
 
 /**
- * The projects desk: starting one, and running last term's again.
+ * The projects desk: starting one, running last term's again, and reaching the
+ * management page of any of them.
  *
  * Both live here rather than on a project's own manage page because both are
  * decisions that stay with the board — which projects the club runs. Everything
@@ -92,6 +93,7 @@ export function OfficerProjectsPage() {
       <div className="grid-fluid items-start gap-5 [--col-min:34rem]">
         <CreateProject />
         <DuplicateProject />
+        <EveryProject />
       </div>
     </>
   )
@@ -997,6 +999,103 @@ function DuplicateForm({
           )}
         </p>
       </form>
+    </FormPanel>
+  )
+}
+
+// ---------------------------------------------------------- every project
+
+/** Calendar order, for sorting. `Season` is declared in this order on the
+    server, so a term sorts chronologically as `(termYear, SEASON_ORDER)`. */
+const SEASON_ORDER = { SPRING: 0, SUMMER: 1, FALL: 2 }
+
+/**
+ * Every project the club has, and the way into managing one.
+ *
+ * The rail lists the projects you are *on* and draws MANAGE under a lead's
+ * rank — and an officer is routinely on none of them. So
+ * `/dashboard/projects/:slug/manage` has always handled an officer with no
+ * membership row, and until this panel there was no link to it: the only way
+ * in was to type the address. This is that link.
+ *
+ * It points at the lead's own URL rather than an officer-only copy of the page.
+ * The board reaches the same page the project's lead reaches, because they are
+ * doing the same thing to the same project — and an `officer` segment in a URL
+ * a lead is entitled to would be a lie in the address bar.
+ *
+ * Sorted with this term's builds first, since those are the ones an officer is
+ * nearly always after. The term is printed on every row regardless: "MANAGE"
+ * beside a title says nothing about which semester's rover it is, and the club
+ * runs the same build for years as one row per term.
+ */
+function EveryProject() {
+  const { membership } = useOutletContext<DashboardContext>()
+  const projects = useApi<ApiProject[]>('/projects?limit=100')
+
+  // Off the layout's standing rather than a request of its own — the rail has
+  // already paid for it. Null while it is in flight, which costs the grouping
+  // and nothing else: every row still prints its own term.
+  const term = membership.status === 'ready' ? membership.data.term : null
+  const current = (project: ApiProject) =>
+    term !== null &&
+    project.termYear === term.year &&
+    project.termSeason === term.season
+
+  const ordered =
+    projects.status === 'ready'
+      ? [...projects.data].sort(
+          (a, b) =>
+            Number(current(b)) - Number(current(a)) ||
+            b.termYear - a.termYear ||
+            SEASON_ORDER[b.termSeason] - SEASON_ORDER[a.termSeason] ||
+            a.title.localeCompare(b.title),
+        )
+      : []
+
+  return (
+    <FormPanel>
+      <p className="text-faint mb-4 font-mono text-[10px] font-medium tracking-[0.16em]">
+        EVERY PROJECT
+      </p>
+      <p className="text-dim mb-4 text-[13px] leading-[1.6] text-pretty">
+        Teams, members, events and the meeting schedule, on any project &mdash;
+        including the ones you are not on. The lead sees the same page.
+      </p>
+
+      {projects.status === 'loading' ? (
+        <div aria-busy="true" className="bg-base-300 h-24 animate-pulse" />
+      ) : projects.status === 'error' ? (
+        <p className="text-dim text-sm leading-[1.7]">
+          We couldn&rsquo;t load the projects just now. Try again in a moment.
+        </p>
+      ) : ordered.length === 0 ? (
+        <p className="text-dim text-sm leading-[1.7] text-pretty">
+          There are no projects yet. Start one with the panel above.
+        </p>
+      ) : (
+        <ul className="divide-rule divide-y">
+          {ordered.map((project) => (
+            <li
+              key={project.id}
+              className="flex items-center justify-between gap-4 py-2.5"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{project.title}</p>
+                <p className="text-faint font-mono text-[10px] font-medium tracking-[0.14em] uppercase">
+                  {SEASON_LABEL[project.termSeason]} {project.termYear}
+                  {current(project) && ' · This term'}
+                </p>
+              </div>
+              <Link
+                to={`/dashboard/projects/${project.slug}/manage`}
+                className="text-faint hover:text-primary shrink-0 font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200"
+              >
+                MANAGE
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
     </FormPanel>
   )
 }

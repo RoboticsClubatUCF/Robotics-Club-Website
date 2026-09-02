@@ -1350,6 +1350,49 @@ describe('teams, through their lifecycle', () => {
   })
 
   /**
+   * The description, which this route has always taken and nothing ever sent.
+   *
+   * It is worth its own row because its absence looked exactly like a working
+   * feature: the column is here, the roster route answers with it and the
+   * project dashboard renders it, so a team simply had no description and
+   * nothing anywhere said why. The manage page writes one now.
+   *
+   * The clear is the half that can regress quietly. `teamBody.partial()` means
+   * a patch carrying only `description` leaves `name` undefined, and Prisma
+   * skips an undefined field rather than nulling it — so this also pins that
+   * clearing the description does not take the name with it.
+   */
+  it('stores a team description, and clears it without touching the name', async () => {
+    const created = await request(
+      'POST',
+      `/api/projects/${projectId}/teams`,
+      leadCookie,
+      { name: 'Outreach', description: 'Schools, demos and the tent at Spark.' },
+    )
+    expect(created.status).toBe(201)
+    expect(await created.json()).toMatchObject({
+      name: 'Outreach',
+      description: 'Schools, demos and the tent at Spark.',
+    })
+
+    const team = await prisma.team.findUnique({
+      where: { projectId_name: { projectId, name: 'Outreach' } },
+    })
+
+    const cleared = await request(
+      'PATCH',
+      `/api/teams/${team!.id}`,
+      leadCookie,
+      { description: null },
+    )
+    expect(cleared.status).toBe(200)
+    expect(await cleared.json()).toMatchObject({
+      name: 'Outreach',
+      description: null,
+    })
+  })
+
+  /**
    * Deleting a team is the delicate one: the composite FK is RESTRICT, so the
    * route has to detach the seated members itself — and a TEAM_LEAD rank left
    * behind with no team would quietly attach to whatever team its holder
