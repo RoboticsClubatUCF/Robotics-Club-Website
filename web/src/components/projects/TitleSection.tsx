@@ -1,15 +1,14 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { ConfirmDialog } from '../shared/ConfirmDialog'
 import { ImageFramer } from '../shared/ImageFramer'
-import { Status } from '../shared/Status'
-import { fieldClass, labelClass, submitClass } from '../shared/formChrome'
+import { fieldClass, labelClass } from '../shared/formChrome'
 import { patchJson, postForm } from '../../lib/api/api'
 import type { ApiProjectDetail } from '../../lib/api/api'
 import { ACCEPTED_IMAGE_TYPES, downscaleImage } from '../../lib/media/downscaleImage'
 import { frameStyle, safeFraming, type Framing } from '../../lib/media/imageFraming'
 import { imageSrc, isStoredUpload } from '../../lib/media/storedFiles'
-import { coverOf } from '../../lib/projects/projectCover'
-import { useSectionStatus } from '../../lib/useSectionStatus'
+import { draftSrc, type DraftImage } from '../../lib/projects/projectDraft'
+import { useSectionSave, type SaveRegistry } from '../../lib/projects/editorSaves'
 
 /**
  * The `/ TITLE` section: what a project is called, the line the projects list
@@ -20,27 +19,32 @@ import { useSectionStatus } from '../../lib/useSectionStatus'
  * whether to open the project at all — everything below this section is read by
  * somebody who has already decided.
  *
- * **It carries its own SAVE, and that is not a copy of the writing section's.**
- * The editor's rule is that prose waits for a button and pictures do not, and
- * the reason the writing's button sits at the foot of the page is that nothing
- * below it waits. A section at the *top* of the page cannot be covered by a
- * button at the bottom: somebody who types a summary here, scrolls past three
- * sections and presses SAVE CHANGES has no way to know which of the things they
- * typed that button meant. So the words here get a button here, and the picture
- * saves as it changes like every other picture in this editor.
+ * **It used to carry a SAVE of its own and no longer does.** The cover went up
+ * the moment a file was chosen, the checkbox wrote as it was ticked, and the
+ * words waited for a button here while the writing below waited for a different
+ * button with the same label on it. All of it waits for the page's one SAVE now,
+ * so the picture in the frame below is a preview until then and says so.
  */
 export function TitleSection({
   project,
-  apply,
-  onDirtyChange,
+  images,
+  registry,
+  busy,
 }: {
   project: ApiProjectDetail
-  apply: (project: ApiProjectDetail) => void
-  onDirtyChange: (dirty: boolean) => void
+  /**
+   * The gallery **as it is being edited**, not as the server holds it.
+   *
+   * The cover can be the gallery's first picture, and the two sections are far
+   * apart on the page — so a preview drawn from `project.images` would go on
+   * showing the old first photo while a new one sat unsaved at the top of the
+   * gallery below. It is the same list `DraftGallery` is drawing.
+   */
+  images: DraftImage[]
+  registry: SaveRegistry
+  busy: boolean
 }) {
   const id = useId()
-  const { message, busy, setMessage, run } = useSectionStatus()
-  const [saved, setSaved] = useState(false)
   const [framing, setFraming] = useState(false)
   const [url, setUrl] = useState('')
   const [clearing, setClearing] = useState(false)
@@ -50,68 +54,107 @@ export function TitleSection({
   const [gallery, setGallery] = useState(project.galleryHeading ?? '')
   const [resources, setResources] = useState(project.resourcesHeading ?? '')
   const [team, setTeam] = useState(project.teamHeading ?? '')
+  const [fromGallery, setFromGallery] = useState(project.coverFromGallery)
+  const [cover, setCover] = useState<CoverDraft>(KEPT)
+  const [coverFraming, setCoverFraming] = useState<Framing>(() =>
+    safeFraming({
+      focalX: project.coverFocalX,
+      focalY: project.coverFocalY,
+      zoom: project.coverZoom,
+    }),
+  )
+
+  /** The object URL behind a chosen file, handed back on unmount. Read through
+      a ref for the reason `DraftGallery`'s cleanup is. */
+  const held = useRef(cover)
+  held.current = cover
+  useEffect(
+    () => () => {
+      releaseCover(held.current)
+    },
+    [],
+  )
 
   /**
-   * Compared against the project rather than a remembered baseline, because
-   * `apply` writes the saved values back into it — so after a save the two agree
-   * by construction and there is no second copy to keep in step. The same rule
-   * `ProseAndLinks` follows.
+   * Compared against the project rather than a remembered baseline, because what
+   * the save returns is written back into it — so afterwards the two agree by
+   * construction and there is no second copy to keep in step.
    */
   const dirty =
     title !== project.title ||
     summary !== (project.summary ?? '') ||
     gallery !== (project.galleryHeading ?? '') ||
     resources !== (project.resourcesHeading ?? '') ||
-    team !== (project.teamHeading ?? '')
+    team !== (project.teamHeading ?? '') ||
+    fromGallery !== project.coverFromGallery ||
+    cover.kind !== 'kept' ||
+    coverFraming.focalX !== project.coverFocalX ||
+    coverFraming.focalY !== project.coverFocalY ||
+    coverFraming.zoom !== project.coverZoom
 
-  useEffect(() => {
-    onDirtyChange(dirty)
-  }, [dirty, onDirtyChange])
+  useSectionSave(registry, 'title', {
+    dirty,
+    // Refused here rather than by the server, which would answer 400 after
+    // however many uploads the sections ahead of this one had already sent.
+    blocked: title.trim() === '' ? 'The project needs a title.' : null,
+    save: async () => {
+      // The one thing in this section that cannot ride along in the PATCH: a
+      // file is a multipart upload against its own budget, and the route writes
+      // `coverUrl` itself. It goes first so the PATCH below answers with it.
+      if (cover.kind === 'file') {
+        const body = new FormData()
+        body.append('file', cover.file)
+        await postForm(`/projects/${project.id}/cover`, body)
+      }
 
-  const cover = coverOf(project)
-
-  /** Every cover write is a PATCH of the project, and they all land the same
-      way — the route answers with what it wrote, so nothing is re-read. */
-  const patchProject = async (body: Record<string, unknown>) => {
-    const written = await patchJson<Partial<ApiProjectDetail>>(
-      `/projects/${project.id}`,
-      body,
-    )
-    apply({ ...project, ...written })
-  }
-
-  const save = () =>
-    run(async () => {
-      setSaved(false)
-      // Blank clears the column rather than storing an empty string — two
-      // spellings of "nothing here" is one too many, and every page falls back
-      // to the standing heading on null.
-      await patchProject({
-        title: title.trim(),
-        summary: summary.trim() || null,
-        galleryHeading: gallery.trim() || null,
-        resourcesHeading: resources.trim() || null,
-        teamHeading: team.trim() || null,
-      })
-      setSaved(true)
-    })
-
-  const uploadChosen = (chosen: File) =>
-    run(async () => {
-      const { file } = await downscaleImage(chosen)
-      const body = new FormData()
-      body.append('file', file)
-
-      const written = await postForm<Partial<ApiProjectDetail>>(
-        `/projects/${project.id}/cover`,
-        body,
+      const written = await patchJson<Partial<ApiProjectDetail>>(
+        `/projects/${project.id}`,
+        {
+          title: title.trim(),
+          // Blank clears the column rather than storing an empty string — two
+          // spellings of "nothing here" is one too many, and every page falls
+          // back to the standing heading on null.
+          summary: summary.trim() || null,
+          galleryHeading: gallery.trim() || null,
+          resourcesHeading: resources.trim() || null,
+          teamHeading: team.trim() || null,
+          coverFromGallery: fromGallery,
+          ...(cover.kind === 'url' ? { coverUrl: cover.url } : {}),
+          ...(cover.kind === 'none' ? { coverUrl: null } : {}),
+          coverFocalX: coverFraming.focalX,
+          coverFocalY: coverFraming.focalY,
+          coverZoom: coverFraming.zoom,
+        },
       )
-      apply({ ...project, ...written })
-      // Straight into framing, the same as the gallery: the moment a picture
-      // lands is the moment its framing is worth looking at, and every photo the
-      // club takes is some shape the 16:10 card is not.
+
+      // Only once the whole section has landed. A retry after a failed PATCH
+      // uploads the file a second time, which the route handles by replacing —
+      // the alternative is a page showing the *old* cover as though it were the
+      // saved one.
+      releaseCover(cover)
+      setCover(KEPT)
+      setUrl('')
+      return written
+    },
+  })
+
+  const preview = fromGallery
+    ? images.length > 0
+      ? { src: draftSrc(images[0]), framing: images[0].framing }
+      : null
+    : coverPreview(cover, project.coverUrl, coverFraming)
+
+  const chooseFile = (chosen: File) => {
+    // Downscaled here rather than at save time, exactly as the gallery does it:
+    // the same work either way, and a photo too large to send is found out about
+    // while there is still a form to fix it in.
+    void downscaleImage(chosen).then(({ file }) => {
+      releaseCover(held.current)
+      setCover({ kind: 'file', file, previewUrl: URL.createObjectURL(file) })
+      setCoverFraming(safeFraming(null))
       setFraming(true)
     })
+  }
 
   return (
     <section>
@@ -132,7 +175,6 @@ export function TitleSection({
             disabled={busy}
             onChange={(event) => {
               setTitle(event.target.value)
-              setSaved(false)
             }}
             className={fieldClass}
           />
@@ -150,7 +192,6 @@ export function TitleSection({
             disabled={busy}
             onChange={(event) => {
               setSummary(event.target.value)
-              setSaved(false)
             }}
             className="textarea w-full border-rule bg-base-200 text-sm"
           />
@@ -174,17 +215,11 @@ export function TitleSection({
       <label className="flex cursor-pointer items-start gap-3 border border-rule bg-base-200 p-3">
         <input
           type="checkbox"
-          checked={project.coverFromGallery}
+          checked={fromGallery}
           disabled={busy}
           onChange={(event) => {
-            // Immediately, not under SAVE: it changes what the public list shows
-            // and the panel below redraws on the answer, so a pending version of
-            // this would be a control that appears not to work.
-            const on = event.target.checked
-            void run(async () => {
-              await patchProject({ coverFromGallery: on })
-              setFraming(false)
-            })
+            setFromGallery(event.target.checked)
+            setFraming(false)
           }}
           className="checkbox mt-0.5 shrink-0 border-rule checkbox-sm"
         />
@@ -193,7 +228,7 @@ export function TitleSection({
             USE THE FIRST GALLERY PICTURE
           </span>
           <span className="mt-1 block text-[11px] leading-[1.5] text-faint">
-            {project.coverFromGallery
+            {fromGallery
               ? 'On — reordering the gallery changes what the list shows.'
               : 'Off — the list shows the picture chosen here, whatever the gallery does.'}
           </span>
@@ -201,12 +236,12 @@ export function TitleSection({
       </label>
 
       <div className="mt-3">
-        {cover ? (
+        {preview ? (
           <img
-            src={imageSrc(cover.url)}
+            src={imageSrc(preview.src)}
             alt=""
             decoding="async"
-            style={frameStyle(cover)}
+            style={frameStyle(preview.framing)}
             className="aspect-[16/10] w-full max-w-[22rem] border border-rule bg-hatch"
           />
         ) : (
@@ -214,12 +249,12 @@ export function TitleSection({
              reason the gallery's well is: this is the thing somebody is about to
              put a picture into. */
           <p className="flex aspect-[16/10] w-full max-w-[22rem] items-center justify-center border border-rule bg-hatch font-mono text-[11px] font-medium tracking-[0.14em] text-faint">
-            {project.coverFromGallery ? '[ NO GALLERY YET ]' : '[ NO COVER YET ]'}
+            {fromGallery ? '[ NO GALLERY YET ]' : '[ NO COVER YET ]'}
           </p>
         )}
       </div>
 
-      {project.coverFromGallery ? (
+      {fromGallery ? (
         <p className="mt-2 text-[11px] leading-[1.5] text-faint">
           Taken from the gallery below. Frame it there, or untick the box to give the list
           a picture of its own.
@@ -243,7 +278,7 @@ export function TitleSection({
                   // value has not moved does not emit one, which is how a retry
                   // after a failure silently does nothing.
                   event.target.value = ''
-                  if (chosen) void uploadChosen(chosen)
+                  if (chosen) chooseFile(chosen)
                 }}
                 className="file-input w-full border-rule bg-base-200 text-sm"
               />
@@ -268,21 +303,20 @@ export function TitleSection({
               <button
                 type="button"
                 onClick={() => {
-                  void run(async () => {
-                    await patchProject({ coverUrl: url.trim() })
-                    setUrl('')
-                    setFraming(true)
-                  })
+                  releaseCover(held.current)
+                  setCover({ kind: 'url', url: url.trim() })
+                  setCoverFraming(safeFraming(null))
+                  setFraming(true)
                 }}
                 disabled={busy || url.trim() === ''}
                 className="btn mt-2 h-auto min-h-0 border-base-content/28 btn-outline px-5 py-2.5 text-[12px] font-semibold text-base-content hover:border-base-content hover:bg-base-content/6 hover:text-base-content disabled:opacity-50"
               >
-                ADD
+                USE THIS ONE
               </button>
             </div>
           </div>
 
-          {cover && (
+          {preview && (
             <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
               <button
                 type="button"
@@ -301,14 +335,19 @@ export function TitleSection({
                 type="button"
                 disabled={busy}
                 onClick={() => {
-                  // Only an upload needs the ceremony — a pasted address can be
-                  // pasted back, the bytes cannot.
-                  if (project.coverUrl && isStoredUpload(project.coverUrl)) {
+                  // Only a picture the club is hosting needs the ceremony — an
+                  // address can be pasted back in, and a file that has not gone
+                  // up yet costs nothing to take back.
+                  if (
+                    cover.kind === 'kept' &&
+                    project.coverUrl &&
+                    isStoredUpload(project.coverUrl)
+                  ) {
                     setClearing(true)
                   } else {
-                    void run(async () => {
-                      await patchProject({ coverUrl: null })
-                    })
+                    releaseCover(held.current)
+                    setCover({ kind: 'none' })
+                    setFraming(false)
                   }
                 }}
                 className="cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] text-faint transition-colors duration-200 hover:text-error disabled:opacity-50"
@@ -318,23 +357,17 @@ export function TitleSection({
             </div>
           )}
 
-          {framing && cover && (
+          {framing && preview && (
             <ImageFramer
-              url={cover.url}
-              initial={safeFraming(cover)}
+              url={preview.src}
+              initial={preview.framing}
               busy={busy}
               onCancel={() => {
                 setFraming(false)
               }}
               onSave={(next: Framing) => {
-                void run(async () => {
-                  await patchProject({
-                    coverFocalX: next.focalX,
-                    coverFocalY: next.focalY,
-                    coverZoom: next.zoom,
-                  })
-                  setFraming(false)
-                })
+                setCoverFraming(next)
+                setFraming(false)
               }}
             />
           )}
@@ -355,87 +388,79 @@ export function TitleSection({
           label="GALLERY"
           value={gallery}
           disabled={busy}
-          onChange={(next) => {
-            setGallery(next)
-            setSaved(false)
-          }}
+          onChange={setGallery}
         />
         <HeadingField
           id={`${id}-resources`}
           label="RESOURCES"
           value={resources}
           disabled={busy}
-          onChange={(next) => {
-            setResources(next)
-            setSaved(false)
-          }}
+          onChange={setResources}
         />
         <HeadingField
           id={`${id}-team`}
           label="THE TEAM"
           value={team}
           disabled={busy}
-          onChange={(next) => {
-            setTeam(next)
-            setSaved(false)
-          }}
+          onChange={setTeam}
         />
       </div>
-
-      <div className="mt-6">
-        <button
-          type="button"
-          onClick={() => void save()}
-          disabled={busy || title.trim() === ''}
-          className={submitClass}
-        >
-          {/* A button says what pressing it does, so the resting state is SAVE
-              rather than a report of what happened last. "Saved." below is the
-              status line, which is where that belongs.
-
-              Named for this section while there is something to save, because
-              the writing section lower down has its own button — two controls
-              reading the same word are two a screen reader cannot tell apart,
-              and the dirty state is when it matters which one is being pressed. */}
-          {busy ? 'SAVING…' : dirty ? 'SAVE THE TITLE' : 'SAVE'}
-        </button>
-      </div>
-
-      <Status message={message} />
-      {message === '' && saved && !dirty && <Status message="Saved." tone="ok" />}
-      {/* Said here as well as in the dialog on the way out, so somebody who
-          scrolls past can see there is something outstanding before they are
-          asked about it. */}
-      {message === '' && dirty && (
-        <p role="status" className="mt-2 min-h-4 text-[12px] text-warning">
-          Unsaved changes.
-        </p>
-      )}
 
       {clearing && (
         <ConfirmDialog
           title="Remove this cover?"
           confirmLabel="REMOVE IT"
-          busy={busy}
           onConfirm={() => {
-            void run(async () => {
-              await patchProject({ coverUrl: null })
-              setClearing(false)
-              setMessage('')
-            })
+            releaseCover(held.current)
+            setCover({ kind: 'none' })
+            setFraming(false)
+            setClearing(false)
           }}
           onDismiss={() => {
             setClearing(false)
           }}
         >
           <p>
-            This one is in the club&rsquo;s own storage, so removing it deletes the file.
-            There is no copy to put back.
+            This one is in the club&rsquo;s own storage, so the file is deleted when this
+            page is saved. There is no copy to put back.
           </p>
         </ConfirmDialog>
       )}
     </section>
   )
+}
+
+/**
+ * What the cover is about to become.
+ *
+ * `kept` is the state this starts and ends in: whatever the project already
+ * holds, untouched. The other three are the three things somebody can do to it,
+ * and each is a different write — an upload is multipart, an address is a column,
+ * and clearing it is that column set to null.
+ */
+type CoverDraft =
+  | { kind: 'kept' }
+  | { kind: 'none' }
+  | { kind: 'url'; url: string }
+  | { kind: 'file'; file: File; previewUrl: string }
+
+const KEPT: CoverDraft = { kind: 'kept' }
+
+/** Hands back the memory an unsaved file preview is pinning. */
+function releaseCover(cover: CoverDraft): void {
+  if (cover.kind === 'file') URL.revokeObjectURL(cover.previewUrl)
+}
+
+/** The cover as the frame should draw it, or null for an empty well. */
+function coverPreview(
+  cover: CoverDraft,
+  storedUrl: string | null,
+  framing: Framing,
+): { src: string; framing: Framing } | null {
+  if (cover.kind === 'none') return null
+  if (cover.kind === 'file') return { src: cover.previewUrl, framing }
+  if (cover.kind === 'url') return cover.url ? { src: cover.url, framing } : null
+  return storedUrl ? { src: storedUrl, framing } : null
 }
 
 /** One heading box. The `/ ` and the capitals belong to the page, so the label

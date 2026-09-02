@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 import { getJson } from '../api/api'
 import type { ApiProjectTeamMember, ApiProjectTeamView, ApiTeam } from '../api/api'
 
@@ -37,7 +37,16 @@ export const EMPTY_ROSTER: ProjectRoster = {
   ready: false,
 }
 
-export function useProjectRoster(projectId: string): ProjectRoster {
+/**
+ * Returned as a pair rather than a value, because one section writes to it. The
+ * team editor's baseline for "has this box changed" is the roster itself, so a
+ * save that did not move it would leave every field reporting itself as unsaved
+ * — and the documents section beside it reads the same list, which is why the
+ * answer is one piece of state up here rather than a copy in each.
+ */
+export function useProjectRoster(
+  projectId: string,
+): [ProjectRoster, Dispatch<SetStateAction<ProjectRoster>>] {
   const [roster, setRoster] = useState<ProjectRoster>(EMPTY_ROSTER)
 
   useEffect(() => {
@@ -70,5 +79,5 @@ export function useProjectRoster(projectId: string): ProjectRoster {
     }
   }, [projectId])
 
-  return roster
+  return [roster, setRoster]
 }

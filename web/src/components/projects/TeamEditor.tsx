@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Status } from '../shared/Status'
 import { patchJson } from '../../lib/api/api'
-import type { ApiProjectDetail } from '../../lib/api/api'
+import type { ApiProjectDetail, ApiProjectTeamMember } from '../../lib/api/api'
 import { memberLabel } from '../../lib/projects/projectRoles'
 import type { ProjectRoster } from '../../lib/projects/useProjectRoster'
-import { useSectionStatus } from '../../lib/useSectionStatus'
+import { useSectionSave, type SaveRegistry } from '../../lib/projects/editorSaves'
 
 /**
  * The `/ THE TEAM` section of the editor: what each person is called on this
@@ -22,23 +21,28 @@ import { useSectionStatus } from '../../lib/useSectionStatus'
  * route behind this section refuses `PROJECT_LEAD` in its own schema, so a form
  * offering it here would be offering something the server will not do.
  *
- * Saved on blur, one field at a time, like a gallery caption: each row is its
- * own small write with its own failure, and there is nothing here that a SAVE
- * button would usefully batch.
+ * Written on the page's SAVE, and only for the rows that actually changed. It
+ * used to save on blur, one field at a time, which was defensible on its own and
+ * indefensible on a page where four other sections waited for a button.
  */
 export function TeamEditor({
   project,
   roster,
+  onRoster,
   heading,
+  registry,
+  busy,
 }: {
   project: ApiProjectDetail
   /** Read once by `ProjectEditor` and passed down — the public payload carries
       no user ids, and a title is written by id. */
   roster: ProjectRoster
+  /** What the save writes back, so the boxes stop reading as unsaved. */
+  onRoster: (members: ApiProjectTeamMember[]) => void
   heading: string
+  registry: SaveRegistry
+  busy: boolean
 }) {
-  const { message, busy, run } = useSectionStatus()
-
   /**
    * The typed titles, keyed by user.
    *
@@ -58,15 +62,34 @@ export function TeamEditor({
     )
   }, [roster.ready, roster.members])
 
+  const changed = roster.members.filter(
+    (member) => (titles[member.userId] ?? '') !== (member.title ?? ''),
+  )
+
+  useSectionSave(registry, 'team', {
+    dirty: changed.length > 0,
+    save: async () => {
+      for (const member of changed) {
+        await patchJson(`/projects/${project.id}/members/${member.userId}`, {
+          title: (titles[member.userId] ?? '').trim() || null,
+        })
+      }
+
+      // The roster is this section's baseline, so it has to move with the save —
+      // otherwise every box goes on reporting itself as unsaved. Sent up rather
+      // than held here because the documents section reads the same list.
+      onRoster(
+        roster.members.map((member) =>
+          changed.some((row) => row.userId === member.userId)
+            ? { ...member, title: (titles[member.userId] ?? '').trim() || null }
+            : member,
+        ),
+      )
+    },
+  })
+
   const teamName = (teamId: string | null) =>
     teamId === null ? null : (roster.teams.find((team) => team.id === teamId) ?? null)
-
-  const save = (userId: string, title: string) =>
-    run(async () => {
-      await patchJson(`/projects/${project.id}/members/${userId}`, {
-        title: title.trim() || null,
-      })
-    })
 
   return (
     <section>
@@ -122,9 +145,6 @@ export function TeamEditor({
                       [member.userId]: event.target.value,
                     })
                   }}
-                  onBlur={() => {
-                    void save(member.userId, titles[member.userId] ?? '')
-                  }}
                   className="input h-9 min-h-0 min-w-0 flex-1 basis-48 border-rule bg-base-100 text-[13px]"
                 />
               </li>
@@ -138,8 +158,6 @@ export function TeamEditor({
         set by officers on the roles desk, and who leads a team on the project&rsquo;s own
         manage page.
       </p>
-
-      <Status message={message} />
     </section>
   )
 }

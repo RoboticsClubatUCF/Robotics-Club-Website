@@ -274,10 +274,13 @@ describe('ProjectPage', () => {
   })
 
   /**
-   * The way out sits in the slot the way in came from, so somebody looking for
-   * it looks where they last pressed something rather than scrolling for it.
+   * **One way out, not two.** This slot used to hold a DONE EDITING while the
+   * editor held a second one, on the argument that the exit belongs where the
+   * entrance was. That was worth its weight while the page saved as you touched
+   * it; now that it saves once, at the bottom, the exit belongs with the button
+   * it is the alternative to.
    */
-  it('swaps the edit button for a way back out', async () => {
+  it('takes the edit button away, and leaves the exit to the editor', async () => {
     vi.stubGlobal(
       'fetch',
       stubRoutes({
@@ -293,10 +296,9 @@ describe('ProjectPage', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'EDIT PAGE' }))
 
     expect(screen.queryByRole('button', { name: 'EDIT PAGE' })).toBeNull()
-    // One in the header, one at the foot of the editor — both real buttons.
-    expect(screen.getAllByRole('button', { name: 'DONE EDITING' })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: 'DONE EDITING' })).toHaveLength(1)
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'DONE EDITING' })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'DONE EDITING' }))
 
     expect(
       await screen.findByRole('button', { name: 'EDIT PAGE' }),
@@ -304,11 +306,11 @@ describe('ProjectPage', () => {
   })
 
   /**
-   * The write-up waits for SAVE, so leaving with it unsaved used to throw the
-   * text away in silence — which reads as the site having eaten the work rather
-   * than as a step having been missed.
+   * Everything waits for SAVE now — the pictures and the documents as well as the
+   * prose — so leaving with something unsaved throws away more than it used to,
+   * and doing it in silence would read as the site having eaten the work.
    */
-  it('asks before discarding unsaved writing, from either way out', async () => {
+  it('asks before discarding unsaved work', async () => {
     vi.stubGlobal(
       'fetch',
       stubRoutes({
@@ -325,17 +327,14 @@ describe('ProjectPage', () => {
     fireEvent.change(screen.getByLabelText('DESCRIPTION'), {
       target: { value: 'Half a sentence' },
     })
-    expect(screen.getByText('Unsaved changes.')).toBeInTheDocument()
+    expect(screen.getByText(/Unsaved changes/)).toBeInTheDocument()
 
-    // The header button and the one at the foot of the editor both guard.
-    for (const which of [0, 1]) {
-      fireEvent.click(screen.getAllByRole('button', { name: 'DONE EDITING' })[which])
-      expect(screen.getByText('Leave without saving?')).toBeInTheDocument()
-      fireEvent.click(screen.getByRole('button', { name: 'KEEP EDITING' }))
-      expect(screen.getByLabelText('DESCRIPTION')).toHaveValue('Half a sentence')
-    }
+    fireEvent.click(screen.getByRole('button', { name: 'DONE EDITING' }))
+    expect(screen.getByText('Leave without saving?')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'KEEP EDITING' }))
+    expect(screen.getByLabelText('DESCRIPTION')).toHaveValue('Half a sentence')
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'DONE EDITING' })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'DONE EDITING' }))
     fireEvent.click(screen.getByRole('button', { name: 'DISCARD THEM' }))
 
     expect(
@@ -343,7 +342,7 @@ describe('ProjectPage', () => {
     ).toBeInTheDocument()
   })
 
-  /** No dialog when there is nothing to lose — pictures save as they change. */
+  /** No dialog when there is nothing to lose. */
   it('leaves straight away when nothing is unsaved', async () => {
     vi.stubGlobal(
       'fetch',
@@ -357,7 +356,7 @@ describe('ProjectPage', () => {
 
     renderPage()
     fireEvent.click(await screen.findByRole('button', { name: 'EDIT PAGE' }))
-    fireEvent.click(screen.getAllByRole('button', { name: 'DONE EDITING' })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'DONE EDITING' }))
 
     expect(screen.queryByText('Leave without saving?')).toBeNull()
     expect(

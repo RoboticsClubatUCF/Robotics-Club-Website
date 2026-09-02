@@ -1,8 +1,10 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
+import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TeamEditor } from './TeamEditor'
 import type { ApiProjectDetail } from '../../lib/api/api'
 import type { ProjectRoster } from '../../lib/projects/useProjectRoster'
+import { SectionHarness } from '../../test/sectionHarness'
 import { urlOf } from '../../test/stubFetch'
 
 const project = (): ApiProjectDetail => ({
@@ -65,8 +67,54 @@ const roster = (over: Partial<ProjectRoster> = {}): ProjectRoster => ({
   ...over,
 })
 
-const show = (over: Partial<ProjectRoster> = {}) =>
-  render(<TeamEditor project={project()} roster={roster(over)} heading="THE TEAM" />)
+/**
+ * The roster is held in state here for the reason `ProjectEditor` holds it in
+ * state: this section's baseline for "has this box changed" is the roster
+ * itself, so the save has to move it. Building a fresh one on every render would
+ * also re-seed the boxes on every render, which is a loop rather than a test.
+ */
+function Show({
+  over = {},
+  heading = 'THE TEAM',
+}: {
+  over?: Partial<ProjectRoster>
+  heading?: string
+}) {
+  const [current, setCurrent] = useState<ProjectRoster>(() => roster(over))
+
+  return (
+    <SectionHarness initial={project()}>
+      {({ project: currentProject, registry, busy }) => (
+        <TeamEditor
+          project={currentProject}
+          roster={current}
+          onRoster={(members) => {
+            setCurrent((held) => ({ ...held, members }))
+          }}
+          heading={heading}
+          registry={registry}
+          busy={busy}
+        />
+      )}
+    </SectionHarness>
+  )
+}
+
+const show = (over: Partial<ProjectRoster> = {}) => render(<Show over={over} />)
+
+const saveIt = async () => {
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'SAVE' }))
+  })
+}
+
+const ok = () =>
+  Promise.resolve(
+    new Response(JSON.stringify({}), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }),
+  )
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -97,17 +145,13 @@ describe('TeamEditor', () => {
   /**
    * `ProjectMember.title` has had a route since the model existed and no page
    * had ever sent one, so the column was empty everywhere and the public roster
-   * printed the club-wide title instead. This is the write that fills it in.
+   * printed the club-wide title instead. This is the write that fills it in —
+   * under the page's SAVE now rather than on blur, because a page where one
+   * field writes as you leave it and the four sections around it wait for a
+   * button is a page nobody can predict.
    */
-  it('saves a title on blur, by user id', async () => {
-    const fetchMock = vi.fn((_input: string | URL | Request, _init?: RequestInit) =>
-      Promise.resolve(
-        new Response(JSON.stringify({}), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }),
-      ),
-    )
+  it('holds a title until the page is saved, then writes it by user id', async () => {
+    const fetchMock = vi.fn((_input: string | URL | Request, _init?: RequestInit) => ok())
     vi.stubGlobal('fetch', fetchMock)
 
     show()
@@ -118,34 +162,48 @@ describe('TeamEditor', () => {
     await act(async () => {
       fireEvent.blur(field)
     })
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(screen.getByText('UNSAVED')).toBeInTheDocument()
+
+    await saveIt()
 
     expect(urlOf(fetchMock.mock.calls[0][0])).toContain('/projects/p1/members/u1')
     expect(JSON.parse(fetchMock.mock.calls[0][1]?.body as string)).toEqual({
       title: 'Chief Engineer',
     })
+    // The roster moved with the save, so the box stops reporting itself unsaved.
+    expect(screen.getByText('SAVED')).toBeInTheDocument()
+  })
+
+  /** Only the rows that changed. Three members and one edit is one request, not
+      three — this section shares a budget with four others under one press. */
+  it('writes only the rows that changed', async () => {
+    const fetchMock = vi.fn((_input: string | URL | Request, _init?: RequestInit) => ok())
+    vi.stubGlobal('fetch', fetchMock)
+
+    show()
+
+    fireEvent.change(screen.getByLabelText('Title for Ada Lovelace'), {
+      target: { value: 'Frame' },
+    })
+    await saveIt()
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(urlOf(fetchMock.mock.calls[0][0])).toContain('/members/u2')
   })
 
   /** One spelling of "nothing typed", so the public page has one thing to
       check rather than two that render identically. */
   it('clears a blank title to null', async () => {
-    const fetchMock = vi.fn((_input: string | URL | Request, _init?: RequestInit) =>
-      Promise.resolve(
-        new Response(JSON.stringify({}), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }),
-      ),
-    )
+    const fetchMock = vi.fn((_input: string | URL | Request, _init?: RequestInit) => ok())
     vi.stubGlobal('fetch', fetchMock)
 
     show()
 
-    const field = screen.getByLabelText('Title for Rowan Chen')
-    fireEvent.change(field, { target: { value: '   ' } })
-
-    await act(async () => {
-      fireEvent.blur(field)
+    fireEvent.change(screen.getByLabelText('Title for Rowan Chen'), {
+      target: { value: '   ' },
     })
+    await saveIt()
 
     expect(JSON.parse(fetchMock.mock.calls[0][1]?.body as string)).toEqual({
       title: null,
@@ -167,7 +225,7 @@ describe('TeamEditor', () => {
 
   it('takes its heading from the project', () => {
     vi.stubGlobal('fetch', vi.fn())
-    render(<TeamEditor project={project()} roster={roster()} heading="WHO IS ON IT" />)
+    render(<Show heading="WHO IS ON IT" />)
 
     expect(screen.getByText('/ WHO IS ON IT')).toBeInTheDocument()
   })

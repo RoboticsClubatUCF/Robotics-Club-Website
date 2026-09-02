@@ -1,8 +1,10 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import { ConfirmDialog } from '../shared/ConfirmDialog'
 import { ImageFramer } from '../shared/ImageFramer'
 import { fieldClass, labelClass } from '../shared/formChrome'
 import { ACCEPTED_IMAGE_TYPES, downscaleImage } from '../../lib/media/downscaleImage'
 import { frameStyle } from '../../lib/media/imageFraming'
+import { isStoredUpload } from '../../lib/media/storedFiles'
 import {
   draftFromFile,
   draftFromUrl,
@@ -13,39 +15,48 @@ import {
 import { MAX_PROJECT_IMAGES, moveItem } from '../../lib/projects/projectGallery'
 
 /**
- * The gallery, before there is a project to attach it to.
+ * The gallery section, for a project that exists and for one that does not yet.
  *
- * The same section as `GalleryEditor`, with the one difference that decides
- * everything else: **nothing here talks to the server.** Pictures are held in
- * the browser — a file as an object URL, an address as itself — and the whole
- * set is sent by `publishDraft` when the project is created.
+ * **Nothing here talks to the server**, which is what lets it be one component
+ * rather than two. A picture is held in the browser — a file as an object URL,
+ * an address as itself, a picture already on the project as the row it came from
+ * — and the whole set is sent when the page is saved: by `saveGallery` in the
+ * editor, by `publishDraft` on the create page, which is the same list going to
+ * a project that has only just been made.
  *
- * That makes this the simpler of the two rather than a copy of it. There is no
- * per-action status line, because nothing can fail yet; no confirm-before-
- * delete, because removing a picture that was never uploaded destroys nothing;
- * and no debounced reorder, because reordering is a state change and not a
- * write. What it does share is `ImageFramer`, so a picture is framed here
- * exactly as it is framed afterwards, and the framing travels with it.
+ * There was a second, near-identical copy of this that wrote as it went: it
+ * uploaded on choosing a file, deleted on the ✕, and saved a caption on blur. It
+ * is gone, and this took over both jobs. The parts of it that only made sense
+ * because it wrote immediately went with it — the per-action status line, the
+ * debounced reorder — and the one part that did not is kept below: **removing a
+ * picture the club is hosting still asks first**, because the ✕ is now a promise
+ * to delete bytes rather than the deletion itself, and that is worth being sure
+ * about either way.
  *
- * A file is downscaled the moment it is chosen rather than at publish time. It
- * is the same work either way, and doing it here means the size shown in the
- * row is the size that will be uploaded — and that a photo too large to send is
- * found out about while there is still a form to fix it in.
+ * A file is downscaled the moment it is chosen rather than at save time. It is
+ * the same work either way, and doing it here means the size shown in the row is
+ * the size that will be uploaded — and that a photo too large to send is found
+ * out about while there is still a form to fix it in.
  */
 export function DraftGallery({
   images,
   disabled,
   onChange,
+  heading = 'GALLERY',
 }: {
   images: DraftImage[]
   disabled: boolean
   onChange: (images: DraftImage[]) => void
+  /** What this project calls the section. The `/ ` and the capitals are the
+      page's; this is the word after it. */
+  heading?: string
 }) {
   const id = useId()
   const [url, setUrl] = useState('')
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState('')
   const [framing, setFraming] = useState<string | null>(null)
+  const [doomed, setDoomed] = useState<DraftImage | null>(null)
 
   const full = images.length >= MAX_PROJECT_IMAGES
 
@@ -77,8 +88,9 @@ export function DraftGallery({
           ? `Ready — resized from ${sizeOf(chosen.size)} to ${sizeOf(file.size)} on the way.`
           : 'Ready.',
       )
-      // Straight into framing, exactly as the live editor does: the moment a
-      // picture lands is the moment its framing is worth looking at.
+      // Straight into framing: the moment a picture lands is the moment its
+      // framing is worth looking at, and every photo this club takes is some
+      // shape the 16:10 frame is not.
       setFraming(added.key)
       setBusy(false)
     })
@@ -96,6 +108,7 @@ export function DraftGallery({
     releaseDraftImage(image)
     onChange(images.filter((row) => row.key !== image.key))
     if (framing === image.key) setFraming(null)
+    setDoomed(null)
   }
 
   const patch = (image: DraftImage, change: Partial<DraftImage>) => {
@@ -108,8 +121,8 @@ export function DraftGallery({
 
   return (
     <section>
-      <p className="text-faint mt-8 mb-4 font-mono text-[13px] font-bold tracking-[0.2em]">
-        / GALLERY
+      <p className="text-faint mb-4 font-mono text-[13px] font-bold tracking-[0.2em] uppercase">
+        / {heading}
       </p>
 
       {images.length === 0 ? (
@@ -122,7 +135,8 @@ export function DraftGallery({
             <li key={image.key} className="border-rule bg-base-200 border p-2">
               <div className="flex flex-wrap items-center gap-3">
                 {/* Framed, so the row shows what the page will show rather than
-                    the raw file — the same reason the live editor does it. */}
+                    the raw file — otherwise a lead frames a picture and the list
+                    they are working from still disagrees with them. */}
                 <img
                   src={draftSrc(image)}
                   alt=""
@@ -177,15 +191,19 @@ export function DraftGallery({
                       onChange(moveItem(images, index, index + 1))
                     }}
                   />
-                  {/* No confirmation: nothing has been uploaded, so there are no
-                      bytes to lose — which is the only reason the live editor
-                      asks. */}
                   <button
                     type="button"
                     aria-label={`Remove image ${index + 1}`}
                     disabled={disabled}
                     onClick={() => {
-                      remove(image)
+                      // Only a picture the club is hosting needs the ceremony.
+                      // One that was never uploaded costs nothing to take back,
+                      // and an address can be pasted in again — the bytes cannot.
+                      if (image.kind === 'stored' && isStoredUpload(image.url)) {
+                        setDoomed(image)
+                      } else {
+                        remove(image)
+                      }
                     }}
                     className="text-faint hover:text-error flex size-11 cursor-pointer items-center justify-center text-sm transition-colors duration-200 disabled:opacity-50 wide:size-8"
                   >
@@ -235,7 +253,7 @@ export function DraftGallery({
           <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
             {busy
               ? 'Preparing…'
-              : 'Choosing a picture opens the framing tool. Large photos are shrunk in the browser first, and nothing is uploaded until the project is created.'}
+              : 'Choosing a picture opens the framing tool. Large photos are shrunk in the browser first, and nothing is uploaded until this page is saved.'}
           </p>
         </div>
 
@@ -254,7 +272,8 @@ export function DraftGallery({
               setUrl(event.target.value)
             }}
             onKeyDown={(event) => {
-              // This sits inside the create form, which is listening for Enter.
+              // This also sits inside the create form, which is listening for
+              // Enter.
               if (event.key !== 'Enter') return
               event.preventDefault()
               if (url.trim()) addUrl()
@@ -283,6 +302,24 @@ export function DraftGallery({
       <p role="status" className="text-primary mt-2 min-h-4 text-[12px]">
         {note}
       </p>
+
+      {doomed && (
+        <ConfirmDialog
+          title="Remove this picture?"
+          confirmLabel="REMOVE IT"
+          onConfirm={() => {
+            remove(doomed)
+          }}
+          onDismiss={() => {
+            setDoomed(null)
+          }}
+        >
+          <p>
+            This one is in the club's own storage, so the file is deleted when
+            this page is saved. There is no copy to put back.
+          </p>
+        </ConfirmDialog>
+      )}
     </section>
   )
 }
@@ -304,6 +341,10 @@ function MoveButton({
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
+      /* Two buttons per row rather than drag-and-drop. Dragging needs a pointer
+         *and* a keyboard alternative *and* an announcement to be honest about
+         what it did, and there is no drag library here — these work with a
+         thumb and with Tab on the first day. */
       className="border-rule text-dim enabled:hover:border-primary enabled:hover:text-primary flex size-11 cursor-pointer items-center justify-center border text-sm leading-none transition-colors duration-200 disabled:cursor-default disabled:opacity-30 wide:size-8"
     >
       {glyph}

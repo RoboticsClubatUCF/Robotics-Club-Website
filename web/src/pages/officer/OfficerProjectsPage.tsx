@@ -31,8 +31,8 @@ import { WEEKDAY_SHORT } from '../../lib/events/meetings'
 import {
   publishDraft,
   usableLinks,
-  type DraftImage,
   type DraftLink,
+  type NewImage,
 } from '../../lib/projects/projectDraft'
 import { useApi } from '../../lib/api/useApi'
 
@@ -174,7 +174,10 @@ type Created = {
 function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
   const id = useId()
   const [links, setLinks] = useState<DraftLink[]>([])
-  const [images, setImages] = useState<DraftImage[]>([])
+  // `NewImage` rather than `DraftImage`: the editor's version of this list can
+  // also hold pictures that are already on the server, and there is no project
+  // for one to be on yet.
+  const [images, setImages] = useState<NewImage[]>([])
   /**
    * The meeting days, and the only field on this form that is not a plain
    * uncontrolled input. Seven checkboxes are a set rather than a value, and
@@ -531,8 +534,20 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
 
         {/* The gallery, inside the form and above the button, because it is
             part of what the button sends. Pictures are held in the browser
-            until then — see `DraftGallery`. */}
-        <DraftGallery images={images} disabled={sending} onChange={setImages} />
+            until then — see `DraftGallery`, which is the same section the editor
+            draws once the project exists. */}
+        <div className="mt-8">
+          <DraftGallery
+            images={images}
+            disabled={sending}
+            onChange={(next) => {
+              // Narrowed on the way in. The shared component's list may contain
+              // stored rows; this page cannot produce one, and the create call
+              // below has nowhere to put one.
+              setImages(next.filter((image): image is NewImage => image.kind !== 'stored'))
+            }}
+          />
+        </div>
 
         <div className="border-rule mt-8 border-t pt-6">
           <button

@@ -1,12 +1,18 @@
 import { useId, useState } from 'react'
 import { Status } from '../shared/Status'
-import { useSectionStatus } from '../../lib/useSectionStatus'
 import { ConfirmDialog } from '../shared/ConfirmDialog'
 import { fieldClass, labelClass } from '../shared/formChrome'
-import { deleteJson, patchJson, postForm } from '../../lib/api/api'
-import type { ApiProjectDetail, ApiProjectDocument } from '../../lib/api/api'
+import type { ApiProjectDetail } from '../../lib/api/api'
 import { fileSize, longDate } from '../../lib/format/formats'
 import { MAX_PROJECT_DOCUMENTS } from '../../lib/projects/projectGallery'
+import {
+  blankDocument,
+  documentsDirty,
+  draftFromDocument,
+  saveDocuments,
+  type DraftDocument,
+} from '../../lib/projects/projectDocuments'
+import { useSectionSave, type SaveRegistry } from '../../lib/projects/editorSaves'
 import type { ProjectRoster } from '../../lib/projects/useProjectRoster'
 
 /** Somebody this project can credit: a member, or the officer editing it. */
@@ -15,24 +21,30 @@ type Person = { userId: string; fullName: string }
 /**
  * The `/ DOCUMENTATION` section of the project editor.
  *
- * Saves immediately, like the gallery and unlike the prose beside it, for the
- * same reason: every action here owns bytes. An upload can be refused for its
- * size or its format, a revision destroys the version it replaces, and a
- * removal does not come back — all failures worth seeing at the moment of the
- * act rather than a minute later under one SAVE.
+ * **Nothing here is published until the page is saved**, which is the opposite
+ * of what this section used to do: ADD sent the file, EDIT DETAILS wrote on the
+ * spot, and REMOVE deleted bytes — none of it touched by the SAVE at the foot of
+ * the page. The argument for that was that every action here owns bytes and
+ * therefore owns a failure worth seeing immediately. The argument against it won:
+ * a section that published a document a lead had not finished thinking about,
+ * from a page whose button said SAVE, was the surprise this editor kept handing
+ * people.
  *
- * **Choosing a file is not the upload here, which is the one place this differs
- * from the gallery.** A picture is complete the moment it is picked; a document
- * needs a title and a credit, and uploading before those exist would mean
- * either publishing something called "Rover_FINAL_v3(2).pdf" or holding a live
- * row in an unfinished state. So this section has a real ADD button, and the
- * gallery does not.
+ * What that costs is the size refusal, which now arrives at save time rather than
+ * at the moment of choosing. `tooBig` and `wrongFormat` below are the answer —
+ * both are checked in the browser first, so the server should have nothing left
+ * to say by the time it is asked.
+ *
+ * **ADD still validates, and that is why nothing else has to.** A row only joins
+ * the list once it has a title, a credit and a file, so every draft row is
+ * sendable and the page's SAVE is never blocked on this section.
  */
 export function DocumentsEditor({
   project,
   me,
   roster,
-  apply,
+  registry,
+  busy,
 }: {
   project: ApiProjectDetail
   /**
@@ -52,17 +64,28 @@ export function DocumentsEditor({
    * without the same list, so deferring here now only means asking twice.
    */
   roster: ProjectRoster
-  apply: (project: ApiProjectDetail) => void
+  registry: SaveRegistry
+  busy: boolean
 }) {
   const id = useId()
-  const { message, busy, setMessage, run } = useSectionStatus()
-
-  const documents = project.documents
-  const full = documents.length >= MAX_PROJECT_DOCUMENTS
-
+  const [message, setMessage] = useState('')
+  const [documents, setDocuments] = useState<DraftDocument[]>(() =>
+    project.documents.map(draftFromDocument),
+  )
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<string | null>(null)
-  const [doomed, setDoomed] = useState<ApiProjectDocument | null>(null)
+  const [doomed, setDoomed] = useState<DraftDocument | null>(null)
+
+  const full = documents.length >= MAX_PROJECT_DOCUMENTS
+
+  useSectionSave(registry, 'documents', {
+    dirty: documentsDirty(project.documents, documents),
+    save: async () => {
+      const saved = await saveDocuments(project.id, project.documents, documents)
+      setDocuments(saved.map(draftFromDocument))
+      return { documents: saved }
+    },
+  })
 
   /**
    * The roster, plus whoever is editing if they are not on it.
@@ -83,60 +106,30 @@ export function DocumentsEditor({
       : listed
   })()
 
-  const write = (documents: ApiProjectDocument[]) => {
-    apply({ ...project, documents })
+  const patch = (row: DraftDocument, change: Partial<DraftDocument>) => {
+    setDocuments(
+      documents.map((current) =>
+        current.key === row.key ? { ...current, ...change } : current,
+      ),
+    )
   }
 
-  const replaceFile = (document: ApiProjectDocument, file: File) => {
-    // Checked before `run`, not inside it: a thrown `Error` would come back out
-    // through `explainApiError`, which only keeps the *server's* sentences and
-    // flattens everything else into "that change did not go through" — which is
-    // the opposite of what this check is for.
-    const wrong = wrongFormat(file)
+  const remove = (row: DraftDocument) => {
+    setDocuments(documents.filter((current) => current.key !== row.key))
+    setDoomed(null)
+    setMessage('')
+  }
+
+  const chooseFile = (row: DraftDocument, file: File) => {
+    const wrong = wrongFormat(file) ?? tooBig(file)
     if (wrong) {
       setMessage(wrong)
       return
     }
 
-    void run(async () => {
-      const body = new FormData()
-      body.append('file', file)
-
-      const revised = await postForm<ApiProjectDocument>(
-        `/projects/${project.id}/documents/${document.id}/file`,
-        body,
-      )
-
-      write(documents.map((row) => (row.id === revised.id ? revised : row)))
-      setMessage('Replaced. The page now shows an updated date.')
-    })
+    patch(row, { file })
+    setMessage('')
   }
-
-  const saveDetails = (document: ApiProjectDocument, patch: Values) =>
-    run(async () => {
-      const saved = await patchJson<ApiProjectDocument>(
-        `/projects/${project.id}/documents/${document.id}`,
-        {
-          title: patch.title.trim(),
-          description: patch.description.trim() || null,
-          // Empty means "leave the credit alone", which is what the select's
-          // first option says out loud. The route treats an absent field the
-          // same way, so sending nothing is the honest way to say it.
-          ...(patch.authorUserId ? { authorUserId: patch.authorUserId } : {}),
-        },
-      )
-
-      write(documents.map((row) => (row.id === saved.id ? saved : row)))
-      setEditing(null)
-      setMessage('Saved.')
-    })
-
-  const remove = (document: ApiProjectDocument) =>
-    run(async () => {
-      await deleteJson(`/projects/${project.id}/documents/${document.id}`)
-      write(documents.filter((row) => row.id !== document.id))
-      setDoomed(null)
-    })
 
   return (
     <section>
@@ -158,44 +151,67 @@ export function DocumentsEditor({
         </p>
       ) : (
         <ul className="border-rule divide-rule divide-y border">
-          {documents.map((document) => (
-            <li key={document.id} className="p-4">
+          {documents.map((row) => (
+            <li key={row.key} className="p-4">
               <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <span className="text-sm font-medium">{document.title}</span>
+                <span className="text-sm font-medium">
+                  {row.title.trim() || 'Untitled'}
+                </span>
                 <span className="text-faint font-mono text-[10px] font-medium tracking-[0.14em]">
-                  {fileSize(document.fileSize)}
+                  {fileSize(row.file?.size ?? row.stored?.fileSize ?? 0)}
                 </span>
               </div>
 
               <p className="text-faint mt-1 font-mono text-[11px] leading-[1.7] tracking-[0.06em]">
-                {document.authorName} · {document.fileName} · UPLOADED{' '}
-                {longDate(document.uploadedAt)}
-                {document.updatedAt !== document.uploadedAt && (
-                  <> · UPDATED {longDate(document.updatedAt)}</>
+                {row.stored ? (
+                  <>
+                    {row.stored.authorName} · {row.stored.fileName} · UPLOADED{' '}
+                    {longDate(row.stored.uploadedAt)}
+                    {row.stored.updatedAt !== row.stored.uploadedAt && (
+                      <> · UPDATED {longDate(row.stored.updatedAt)}</>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {nameOf(people, row.authorUserId)} · {row.file?.name} · NOT
+                    PUBLISHED YET
+                  </>
                 )}
               </p>
 
-              {editing === document.id ? (
+              {/* Said on the row rather than only at the bottom of the page: a
+                  replacement is the one change here whose effect is invisible
+                  until it has happened. */}
+              {row.stored && row.file && (
+                <p className="text-primary mt-1 font-mono text-[10px] font-medium tracking-[0.14em]">
+                  REPLACING WITH {row.file.name} ON SAVE
+                </p>
+              )}
+
+              {editing === row.key ? (
                 <DocumentFields
-                  idPrefix={`${id}-edit-${document.id}`}
+                  idPrefix={`${id}-edit-${row.key}`}
                   people={people}
                   busy={busy}
                   initial={{
-                    title: document.title,
-                    description: document.description ?? '',
-                    authorUserId: '',
+                    title: row.title,
+                    description: row.description,
+                    authorUserId: row.authorUserId,
                   }}
                   // The credit already on the row. Passing the *name* rather
                   // than an id is not a shortcut: the public payload carries no
                   // user ids, on purpose, so "unchanged" is the only honest
                   // starting value and this is what it is labelled with.
-                  currentAuthor={document.authorName}
+                  currentAuthor={row.stored?.authorName}
                   defaultAuthorId={me?.id ?? ''}
-                  submitLabel="SAVE"
+                  submitLabel="DONE"
                   onCancel={() => {
                     setEditing(null)
                   }}
-                  onSubmit={(values) => void saveDetails(document, values)}
+                  onSubmit={(values) => {
+                    patch(row, values)
+                    setEditing(null)
+                  }}
                 />
               ) : (
                 <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
@@ -203,7 +219,7 @@ export function DocumentsEditor({
                     type="button"
                     disabled={busy}
                     onClick={() => {
-                      setEditing(document.id)
+                      setEditing(row.key)
                       setMessage('')
                     }}
                     className="text-faint hover:text-primary cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50"
@@ -212,25 +228,25 @@ export function DocumentsEditor({
                   </button>
 
                   <label
-                    htmlFor={`${id}-replace-${document.id}`}
+                    htmlFor={`${id}-replace-${row.key}`}
                     aria-disabled={busy}
                     className={`cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] text-faint transition-colors duration-200 hover:text-primary ${
                       busy ? 'pointer-events-none opacity-50' : ''
                     }`}
                   >
-                    REPLACE THE FILE
+                    {row.stored ? 'REPLACE THE FILE' : 'CHOOSE A DIFFERENT FILE'}
                   </label>
                   <input
-                    id={`${id}-replace-${document.id}`}
+                    id={`${id}-replace-${row.key}`}
                     type="file"
                     accept={ACCEPTED}
                     disabled={busy}
                     onChange={(event) => {
                       const chosen = event.target.files?.[0]
-                      // Cleared before the upload rather than after, so picking
-                      // the same file again after a failure still fires.
+                      // Cleared before, not after, so picking the same file
+                      // again after a refusal still fires.
                       event.target.value = ''
-                      if (chosen) replaceFile(document, chosen)
+                      if (chosen) chooseFile(row, chosen)
                     }}
                     className="sr-only"
                   />
@@ -239,7 +255,13 @@ export function DocumentsEditor({
                     type="button"
                     disabled={busy}
                     onClick={() => {
-                      setDoomed(document)
+                      // Nothing is destroyed by dropping a row that was never
+                      // published, so only the other kind is asked about.
+                      if (row.stored) {
+                        setDoomed(row)
+                      } else {
+                        remove(row)
+                      }
                     }}
                     className="text-faint hover:text-error cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50"
                   >
@@ -255,7 +277,7 @@ export function DocumentsEditor({
       {adding && !full && (
         <div className="border-rule mt-4 border p-4">
           <p className="text-faint mb-3 font-mono text-[10px] font-medium tracking-[0.16em]">
-            PUBLISH A DOCUMENT
+            ADD A DOCUMENT
           </p>
           <DocumentFields
             idPrefix={`${id}-new`}
@@ -270,45 +292,32 @@ export function DocumentsEditor({
               setMessage('')
             }}
             onSubmit={(values, file) => {
-              // Both of these are said here rather than thrown, for the reason
-              // the replacement above is: `explainApiError` keeps the server's
+              // Said here rather than thrown: this is the browser disagreeing
+              // with a choice, and `explainApiError` keeps only the *server's*
               // sentences and flattens everybody else's.
               if (!file) {
                 setMessage('Choose the file first.')
                 return
               }
 
-              const wrong = wrongFormat(file)
+              const wrong = wrongFormat(file) ?? tooBig(file)
               if (wrong) {
                 setMessage(wrong)
                 return
               }
 
-              void run(async () => {
-                const body = new FormData()
-                body.append('file', file)
-                body.append('title', values.title.trim())
-                body.append('description', values.description.trim())
-                body.append('authorUserId', values.authorUserId)
-
-                const added = await postForm<ApiProjectDocument>(
-                  `/projects/${project.id}/documents`,
-                  body,
-                )
-
-                write([...documents, added])
-                setAdding(false)
-                setMessage('Published.')
-              })
+              setDocuments([
+                ...documents,
+                { ...blankDocument(values.authorUserId), ...values, file },
+              ])
+              setAdding(false)
+              setMessage('')
             }}
           />
         </div>
       )}
 
-      {/* Closed until it is wanted, the way `+ ADD A LINK` is. It also keeps
-          the roster read below the fold: opening this is what asks the server
-          who may be credited, so somebody who came here to fix a typo in the
-          write-up never pays for it. */}
+      {/* Closed until it is wanted, the way `+ ADD A LINK` is. */}
       {!adding && !full && (
         <button
           type="button"
@@ -319,7 +328,7 @@ export function DocumentsEditor({
           }}
           className="text-faint hover:text-primary mt-4 cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50"
         >
-          + PUBLISH A DOCUMENT
+          + ADD A DOCUMENT
         </button>
       )}
 
@@ -333,18 +342,19 @@ export function DocumentsEditor({
 
       {doomed && (
         <ConfirmDialog
-          title={`Remove “${doomed.title}”?`}
+          title={`Remove “${doomed.title.trim() || 'this document'}”?`}
           confirmLabel="REMOVE IT"
-          busy={busy}
-          onConfirm={() => void remove(doomed)}
+          onConfirm={() => {
+            remove(doomed)
+          }}
           onDismiss={() => {
             setDoomed(null)
           }}
         >
           <p>
-            The file is deleted with it, and the club keeps no other copy. If
-            this is a new version rather than a mistake, REPLACE THE FILE keeps
-            the page and its history instead.
+            The file is deleted when this page is saved, and the club keeps no
+            other copy. If this is a new version rather than a mistake, REPLACE
+            THE FILE keeps the page and its history instead.
           </p>
         </ConfirmDialog>
       )}
@@ -354,18 +364,22 @@ export function DocumentsEditor({
 
 type Values = { title: string; description: string; authorUserId: string }
 
+/** Whoever a draft row is credited to, for the line under an unpublished one. */
+const nameOf = (people: Person[], userId: string) =>
+  people.find((person) => person.userId === userId)?.fullName ?? 'Unattributed'
+
 /**
- * Title, blurb, credit — and, when publishing, the file.
+ * Title, blurb, credit — and, when adding, the file.
  *
  * One component for both because a document being edited and a document being
  * written have exactly the same fields, and two copies is how the credit box
  * ends up on one of them.
  *
- * `currentAuthor` is what tells the two apart. Publishing has to choose
- * somebody, and defaults to whoever is signed in; editing starts on "leave the
- * credit alone", spelled with the existing author's name so the select is not
- * lying about what it will do. That option's value is empty, and the caller
- * reads that as "send no `authorUserId`".
+ * `currentAuthor` is what tells the two apart. A new document has to choose
+ * somebody, and defaults to whoever is signed in; an existing one starts on
+ * "leave the credit alone", spelled with the existing author's name so the select
+ * is not lying about what it will do. That option's value is empty, and the
+ * caller reads that as "send no `authorUserId`".
  */
 function DocumentFields({
   idPrefix,
@@ -382,7 +396,7 @@ function DocumentFields({
   idPrefix: string
   people: Person[]
   /**
-   * Who the credit starts on when publishing — whoever is signed in. Passed
+   * Who the credit starts on for a new document — whoever is signed in. Passed
    * down rather than picked out of `people` here, because "me" is not a
    * position in that list: a lead is usually near the top of their own roster
    * and an officer is appended to the end of it.
@@ -390,7 +404,7 @@ function DocumentFields({
   defaultAuthorId: string
   busy: boolean
   initial: Values
-  /** The credit already on the row, when there is one. Editing, not publishing. */
+  /** The credit already on the row, when there is one. Editing, not adding. */
   currentAuthor?: string
   submitLabel: string
   withFile?: boolean
@@ -405,9 +419,9 @@ function DocumentFields({
   }
 
   /**
-   * Editing starts on "leave it alone"; publishing starts on whoever is signed
-   * in, who can always honestly be credited. Naming somebody else is one press
-   * of the select either way.
+   * Editing starts on "leave it alone"; a new document starts on whoever is
+   * signed in, who can always honestly be credited. Naming somebody else is one
+   * press of the select either way.
    */
   const fallback = currentAuthor
     ? ''
@@ -415,7 +429,7 @@ function DocumentFields({
   const author = values.authorUserId || fallback
 
   // Nothing to choose from yet — the roster read has not landed and nobody is
-  // signed in, which in practice means a test. Publishing stays disabled rather
+  // signed in, which in practice means a test. Adding stays disabled rather
   // than sending a credit nobody picked.
   const chooseable = currentAuthor !== undefined || people.length > 0
 
@@ -510,7 +524,7 @@ function DocumentFields({
           }}
           className="text-primary hover:underline cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] underline-offset-2 transition-colors duration-200 disabled:cursor-default disabled:opacity-50 disabled:hover:no-underline"
         >
-          {busy ? 'WORKING…' : submitLabel}
+          {submitLabel}
         </button>
 
         {onCancel && (
@@ -529,8 +543,7 @@ function DocumentFields({
 }
 
 /**
- * The two formats, as the file picker's filter and as a check before the
- * upload.
+ * The two formats, as the file picker's filter and as a check before the save.
  *
  * Checked here as well as on the server, for the reason the print form checks
  * its own: a wrong file should say so instantly rather than after fifteen
@@ -540,11 +553,27 @@ function DocumentFields({
  */
 const ACCEPTED = '.pdf,.docx'
 
-/** The complaint, or null when there is none. */
+/**
+ * `MAX_DOCUMENT_FILE_MB` in `server/src/core/env.ts`, which is what the route's
+ * `bodyLimit` is built from. Mirrored rather than fetched because the refusal has
+ * to happen at the moment of choosing: the upload itself no longer goes until the
+ * page is saved, and "that one is too big" is a useless thing to learn about a
+ * file chosen ten minutes and four sections ago.
+ */
+const MAX_FILE_MB = 15
+
+/** The complaint about the format, or null when there is none. */
 function wrongFormat(file: File): string | null {
   const name = file.name.toLowerCase()
 
   return name.endsWith('.pdf') || name.endsWith('.docx')
     ? null
     : 'The page takes PDF and DOCX files. That one is something else.'
+}
+
+/** The complaint about the size, or null when there is none. */
+function tooBig(file: File): string | null {
+  return file.size > MAX_FILE_MB * 1024 * 1024
+    ? `That one is ${(file.size / (1024 * 1024)).toFixed(1)} MB — the cap is ${MAX_FILE_MB} MB.`
+    : null
 }

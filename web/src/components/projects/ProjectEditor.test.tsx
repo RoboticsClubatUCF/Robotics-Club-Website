@@ -45,17 +45,20 @@ const project = (over: Partial<ApiProjectDetail> = {}): ApiProjectDetail => ({
 })
 
 /**
- * Every mount of the editor reads the project's roster once — the team section
- * cannot draw a row without it, and the credit picker shares the same read.
+ * The editor makes reads of its own that no test here is about: the roster, once
+ * per mount, because the team section cannot draw a row without it; and both
+ * `/projects` listings after a clean save, to replace the cached copies the lead
+ * is about to go and look at.
  *
- * It is answered here rather than left to fail so the tests are not full of
- * caught errors, and `writesOf` is what keeps the call-counting assertions about
- * the thing each test is actually asserting on.
+ * `isRoster` answers the first so the tests are not full of caught errors, and
+ * `writesOf` keeps every call-counting assertion about what was actually sent.
+ * **By method rather than by path**: a read added to the editor later must not
+ * quietly start counting as a write in a suite that has stopped mentioning it.
  */
 const isRoster = (input: string | URL | Request) => urlOf(input).includes('/team')
 
 const writesOf = (mock: { mock: { calls: [string | URL | Request, RequestInit?][] } }) =>
-  mock.mock.calls.filter(([input]) => !isRoster(input))
+  mock.mock.calls.filter(([, init]) => init?.method && init.method !== 'GET')
 
 const emptyRoster = () => json({ project: {}, teams: [], members: [] })
 
@@ -90,12 +93,50 @@ function renderEditor(over: Partial<ApiProjectDetail> = {}) {
   render(<Harness initial={project(over)} />)
 }
 
+/** The page's one button. */
+const saveIt = async () => {
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'SAVE' }))
+  })
+}
+
+const chooseFile = async (name = 'rover.png') => {
+  await act(async () => {
+    fireEvent.change(screen.getByLabelText('ADD FROM YOUR COMPUTER'), {
+      target: {
+        files: [
+          new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], name, {
+            type: 'image/png',
+          }),
+        ],
+      },
+    })
+  })
+}
+
 afterEach(() => {
   vi.unstubAllGlobals()
   vi.useRealTimers()
 })
 
 describe('ProjectEditor', () => {
+  /**
+   * The complaint this whole shape answers: two buttons reading SAVE — one at
+   * the top for the title, one at the foot for the writing — plus a DONE EDITING
+   * here and a second one in the page header above it.
+   */
+  it('has one save, with the way out directly beneath it', () => {
+    renderEditor()
+
+    expect(screen.getAllByRole('button', { name: 'SAVE' })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: 'DONE EDITING' })).toHaveLength(1)
+
+    const buttons = screen.getAllByRole('button')
+    const save = buttons.indexOf(screen.getByRole('button', { name: 'SAVE' }))
+    const done = buttons.indexOf(screen.getByRole('button', { name: 'DONE EDITING' }))
+    expect(done).toBe(save + 1)
+  })
+
   it('draws the empty well as the thing to add a picture to', () => {
     renderEditor()
     expect(screen.getByText('[ NO IMAGES YET ]')).toBeInTheDocument()
@@ -114,16 +155,16 @@ describe('ProjectEditor', () => {
   })
 
   /**
-   * Choosing the file *is* the upload — there is no second button, because a
-   * picker already ended in a deliberate act and confirming it asks the same
-   * question twice.
+   * **Choosing a file used to be the upload.** It is a row in the draft now, and
+   * the page's SAVE is what sends it — which is the whole point of the change: a
+   * photo dropped into the gallery while somebody is still deciding is not on the
+   * public site until they say so.
    *
-   * Also the jsdom trap: `new FormData(form)` cannot see a file input's file,
-   * yielding one with an empty name and zero size. The editor takes the file
-   * off the change event and builds the body by hand, and this is what would
-   * catch a refactor back to the obvious thing.
+   * The jsdom trap is unchanged and still worth the assertion: `new FormData(form)`
+   * cannot see a file input's file, yielding one with an empty name and zero
+   * size. The file is taken off the change event and the body built by hand.
    */
-  it('uploads the moment a file is chosen, with no second press', async () => {
+  it('holds a chosen file until the page is saved, then uploads it', async () => {
     const fetchMock = vi.fn((input: string | URL | Request, _init?: RequestInit) =>
       isRoster(input)
         ? emptyRoster()
@@ -134,18 +175,13 @@ describe('ProjectEditor', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     renderEditor()
+    await chooseFile()
 
-    expect(screen.queryByRole('button', { name: 'UPLOAD' })).toBeNull()
+    // On the page, and nowhere else yet.
+    expect(screen.getByLabelText('Caption for image 1')).toBeInTheDocument()
+    expect(writesOf(fetchMock)).toHaveLength(0)
 
-    const file = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], 'rover.png', {
-      type: 'image/png',
-    })
-
-    await act(async () => {
-      fireEvent.change(screen.getByLabelText('ADD FROM YOUR COMPUTER'), {
-        target: { files: [file] },
-      })
-    })
+    await saveIt()
 
     expect(writesOf(fetchMock)).toHaveLength(1)
     const [, init] = writesOf(fetchMock)[0]
@@ -160,24 +196,10 @@ describe('ProjectEditor', () => {
     expect(sent.size).toBeGreaterThan(0)
   })
 
-  /** The point of removing the button: framing is where a new picture lands. */
+  /** The point of having no second button: framing is where a new picture lands. */
   it('opens the framing tool on the picture it just added', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((_input: string | URL | Request, _init?: RequestInit) =>
-        json(image('new', '/api/files/new'), 201),
-      ),
-    )
-
     renderEditor()
-
-    await act(async () => {
-      fireEvent.change(screen.getByLabelText('ADD FROM YOUR COMPUTER'), {
-        target: {
-          files: [new File([new Uint8Array([1])], 'rover.png', { type: 'image/png' })],
-        },
-      })
-    })
+    await chooseFile()
 
     expect(
       screen.getByRole('application', {
@@ -186,23 +208,13 @@ describe('ProjectEditor', () => {
     ).toBeInTheDocument()
   })
 
-  it('opens it for a picture added by link too', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((_input: string | URL | Request, _init?: RequestInit) =>
-        json(image('new', 'https://example.test/new.png'), 201),
-      ),
-    )
-
+  it('opens it for a picture added by link too', () => {
     renderEditor()
 
     fireEvent.change(screen.getByLabelText('OR ADD BY LINK'), {
       target: { value: 'https://example.test/new.png' },
     })
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'ADD' }))
-    })
+    fireEvent.click(screen.getByRole('button', { name: 'ADD' }))
 
     expect(
       screen.getByRole('application', {
@@ -216,61 +228,65 @@ describe('ProjectEditor', () => {
    * reset a retry after a failure would silently do nothing at all.
    */
   it('clears the picker so the same file can be chosen again', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((_input: string | URL | Request, _init?: RequestInit) =>
-        json(image('new', '/api/files/new'), 201),
-      ),
-    )
-
     renderEditor()
-
     const input = screen.getByLabelText('ADD FROM YOUR COMPUTER') as HTMLInputElement
 
-    await act(async () => {
-      fireEvent.change(input, {
-        target: {
-          files: [new File([new Uint8Array([1])], 'rover.png', { type: 'image/png' })],
-        },
-      })
-    })
+    await chooseFile()
 
     expect(input.value).toBe('')
   })
 
   /**
-   * The reorder is debounced, so a burst of presses is one write. Fake timers
-   * advanced inside `act` — never `findBy*` or `waitFor` under them.
+   * Reordering used to be a debounced write per burst. It is state now, and the
+   * whole order goes up once — and only when the draft disagrees with the order
+   * the server already holds, which is what keeps a caption edit from costing a
+   * reorder.
    */
-  it('sends one reorder for a burst of moves', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true })
-
-    const fetchMock = vi.fn((_input: string | URL | Request, _init?: RequestInit) =>
-      json([image('a'), image('b'), image('c')]),
+  it('sends one reorder for a burst of moves, on save', async () => {
+    const fetchMock = vi.fn((input: string | URL | Request, _init?: RequestInit) =>
+      isRoster(input) ? emptyRoster() : json([image('b'), image('c'), image('a')]),
     )
     vi.stubGlobal('fetch', fetchMock)
 
     renderEditor({ images: [image('a'), image('b'), image('c')] })
 
+    // Three presses that land somewhere other than where they started — two
+    // would put the same picture back and the gallery would be clean, which is
+    // now a save that correctly does nothing.
     fireEvent.click(screen.getByRole('button', { name: 'Move image 1 later' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Move image 2 later' }))
     fireEvent.click(screen.getByRole('button', { name: 'Move image 1 later' }))
+    expect(writesOf(fetchMock)).toHaveLength(0)
 
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(600)
-    })
+    await saveIt()
 
     expect(writesOf(fetchMock)).toHaveLength(1)
     expect(urlOf(writesOf(fetchMock)[0][0])).toContain('/images/order')
   })
 
+  /** Nothing changed, nothing sent. Five sections share one rate-limit budget
+      under one press, so an untouched gallery has to cost nothing. */
+  it('sends nothing at all when nothing was touched', async () => {
+    const fetchMock = vi.fn((input: string | URL | Request, _init?: RequestInit) =>
+      isRoster(input) ? emptyRoster() : json({}),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderEditor({ images: [image('a')] })
+    await saveIt()
+
+    expect(writesOf(fetchMock)).toHaveLength(0)
+  })
+
   /**
-   * Deleting an upload destroys bytes that do not come back, so it asks first.
-   * An external URL is a paste away from being undone, and asking about that
-   * would be ceremony people learn to click through.
+   * The ✕ is a promise to delete bytes rather than the deletion itself, and that
+   * is still worth being sure about — an external URL is a paste away from being
+   * undone, and asking about that would be ceremony people learn to click
+   * through.
    */
-  it('confirms before deleting an upload, but not an external picture', async () => {
-    const fetchMock = vi.fn((_input: string | URL | Request, _init?: RequestInit) =>
-      json({ deleted: true }),
+  it('confirms before dropping an upload, but not an external picture', async () => {
+    const fetchMock = vi.fn((input: string | URL | Request, _init?: RequestInit) =>
+      isRoster(input) ? emptyRoster() : json({ deleted: true }),
     )
     vi.stubGlobal('fetch', fetchMock)
 
@@ -280,25 +296,29 @@ describe('ProjectEditor', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove image 1' }))
     expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(screen.getByText(/removing it deletes the file/)).toBeInTheDocument()
+    expect(
+      screen.getByText(/the file is deleted when this page is saved/),
+    ).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'GO BACK' }))
     expect(screen.queryByRole('dialog')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove image 2' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    // Gone from the page, still on the server until the page is saved.
+    expect(screen.getByText(/1 \/ 12 IMAGES/)).toBeInTheDocument()
     expect(writesOf(fetchMock)).toHaveLength(0)
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Remove image 2' }))
-    })
-
-    expect(screen.queryByRole('dialog')).toBeNull()
-    expect(writesOf(fetchMock)).toHaveLength(1)
+    await saveIt()
+    expect(
+      writesOf(fetchMock).some(([, init]) => init?.method === 'DELETE'),
+    ).toBe(true)
   })
 
   /**
-   * **The title and the summary are not in this patch any more.** They moved to
-   * the title section, which carries its own SAVE — a button at the foot of the
-   * page cannot honestly cover fields at the top of it. What is left here is the
-   * writing proper and the links, in two requests under one press.
+   * **The title and the summary are not in this patch.** They are the title
+   * section's, and go up in a patch of their own under the same press — which is
+   * why the count below is two writes and not one.
    */
   it('saves the writing and the links together, and clears blanks to null', async () => {
     const fetchMock = vi.fn((input: string | URL | Request, _init?: RequestInit) =>
@@ -322,9 +342,7 @@ describe('ProjectEditor', () => {
       target: { value: '2026-2027' },
     })
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'SAVE CHANGES' }))
-    })
+    await saveIt()
 
     expect(writesOf(fetchMock)).toHaveLength(2)
 
@@ -341,16 +359,16 @@ describe('ProjectEditor', () => {
   /**
    * The editor is controlled and never re-reads the project — `/projects/:slug`
    * is publicly cached, so a read straight after a write can answer with the
-   * copy from before it. That makes `apply` the only thing standing between the
-   * response and the page, and any column the response leaves out lands as
-   * `undefined`.
+   * copy from before it. That makes what the save returns the only thing standing
+   * between the response and the page, and any column the response leaves out
+   * lands as `undefined`.
    *
    * `description` was exactly that column, and the damage was not the missing
    * paragraph: `dirty` compares the typed text against the project, so a project
-   * whose write-up came back blank stayed dirty *after a save that worked* —
-   * SAVE CHANGES that never became SAVED, "Unsaved changes." that would not go
-   * away, and the leave-the-page dialog on top. The route's answer now carries
-   * it; this is the half of that contract living in the browser.
+   * whose write-up came back blank stayed dirty *after a save that worked* — an
+   * "Unsaved changes." that would not go away and the leave-the-page dialog on
+   * top of it. The route's answer now carries it; this is the half of that
+   * contract living in the browser.
    */
   it('keeps the write-up and settles to SAVED after a save', async () => {
     const written = 'Two years of chassis work.'
@@ -370,10 +388,9 @@ describe('ProjectEditor', () => {
     fireEvent.change(screen.getByLabelText('COMPETITION'), {
       target: { value: '' },
     })
+    expect(screen.getByText(/Unsaved changes/)).toBeInTheDocument()
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'SAVE CHANGES' }))
-    })
+    await saveIt()
 
     const [, projectInit] = writesOf(fetchMock)[0]
     expect(JSON.parse(projectInit?.body as string)).toMatchObject({
@@ -382,24 +399,28 @@ describe('ProjectEditor', () => {
     })
 
     expect(screen.getByLabelText('DESCRIPTION')).toHaveValue(written)
-    expect(screen.queryByText('Unsaved changes.')).toBeNull()
-    // Back to rest: nothing outstanding to press, and "Saved." — the status
-    // line, which is where a report of what happened belongs — says so. Both
-    // deferred sections read SAVE at rest, so there are two of them.
-    expect(screen.queryByRole('button', { name: 'SAVE CHANGES' })).toBeNull()
-    expect(screen.getAllByRole('button', { name: 'SAVE' })).toHaveLength(2)
+    expect(screen.queryByText(/Unsaved changes/)).toBeNull()
     expect(screen.getByText('Saved.')).toBeInTheDocument()
   })
 
-  /** The server's own sentence reaches the reader, not a generic apology. */
-  it('prints what the server said when a write is refused', async () => {
+  /**
+   * The server's own sentence reaches the reader, not a generic apology — and
+   * with five sections behind one button it is named, because "that change did
+   * not go through" is unanswerable when five things were being changed.
+   */
+  it('names the section and prints what the server said when a write is refused', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn((_input: string | URL | Request, _init?: RequestInit) =>
-        json(
-          { error: 'A project shows up to 12 images. Remove one before adding another.' },
-          409,
-        ),
+      vi.fn((input: string | URL | Request, _init?: RequestInit) =>
+        isRoster(input)
+          ? emptyRoster()
+          : json(
+              {
+                error:
+                  'A project shows up to 12 images. Remove one before adding another.',
+              },
+              409,
+            ),
       ),
     )
 
@@ -408,12 +429,12 @@ describe('ProjectEditor', () => {
     fireEvent.change(screen.getByLabelText('OR ADD BY LINK'), {
       target: { value: 'https://example.test/a.png' },
     })
+    fireEvent.click(screen.getByRole('button', { name: 'ADD' }))
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'ADD' }))
-    })
+    await saveIt()
 
     expect(screen.getByText(/A project shows up to 12 images/)).toBeInTheDocument()
+    expect(screen.getByText(/^The gallery:/)).toBeInTheDocument()
   })
 
   it('opens one framing panel at a time, and only on request', () => {
@@ -442,13 +463,15 @@ describe('ProjectEditor', () => {
   })
 
   /**
-   * The framing patch carries only the three framing fields. Sending a caption
-   * alongside would overwrite one that had been typed but not yet blurred, and
-   * the server leaves absent fields alone precisely so it does not have to.
+   * Framing is state until the page is saved, so the row's patch carries the
+   * caption alongside it — the draft is where both live and there is nothing left
+   * to overwrite. It used to send the three framing fields alone, precisely
+   * because a caption typed and not yet blurred would have been clobbered by the
+   * picture being moved.
    */
-  it('saves framing on its own, without touching the caption', async () => {
-    const fetchMock = vi.fn((_input: string | URL | Request, _init?: RequestInit) =>
-      json({ ...image('a'), focalX: 50, focalY: 50, zoom: 2 }),
+  it('sends the framing with the caption, in one patch per changed picture', async () => {
+    const fetchMock = vi.fn((input: string | URL | Request, _init?: RequestInit) =>
+      isRoster(input) ? emptyRoster() : json({ ...image('a'), zoom: 2 }),
     )
     vi.stubGlobal('fetch', fetchMock)
 
@@ -456,25 +479,26 @@ describe('ProjectEditor', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Frame image 1' }))
     fireEvent.change(screen.getByLabelText('ZOOM'), { target: { value: '2' } })
+    fireEvent.click(screen.getByRole('button', { name: 'DONE' }))
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'DONE' }))
-    })
-
-    expect(writesOf(fetchMock)).toHaveLength(1)
-    const [, init] = writesOf(fetchMock)[0]
-    expect(JSON.parse(init?.body as string)).toEqual({
-      focalX: 50,
-      focalY: 50,
-      zoom: 2,
-    })
-
-    // And the panel closes on success, so the row shows the saved framing.
+    // The panel closes on DONE, so the row shows the framing it will publish.
     expect(
       screen.queryByRole('application', {
         name: 'Drag to choose what this picture shows',
       }),
     ).toBeNull()
+
+    await saveIt()
+
+    expect(writesOf(fetchMock)).toHaveLength(1)
+    const [url, init] = writesOf(fetchMock)[0]
+    expect(urlOf(url)).toContain('/images/a')
+    expect(JSON.parse(init?.body as string)).toEqual({
+      caption: null,
+      focalX: 50,
+      focalY: 50,
+      zoom: 2,
+    })
   })
 
   it('shows each row at the framing it will be published with', () => {

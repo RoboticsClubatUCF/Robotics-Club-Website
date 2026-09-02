@@ -1,36 +1,54 @@
-import { postForm, postJson, patchJson } from '../api/api'
-import { DEFAULT_FRAMING, isDefaultFraming, type Framing } from '../media/imageFraming'
+import { deleteJson, postForm, postJson, patchJson } from '../api/api'
+import {
+  DEFAULT_FRAMING,
+  isDefaultFraming,
+  safeFraming,
+  type Framing,
+} from '../media/imageFraming'
 import type { ApiProjectImage, ApiProjectLink } from '../api/api'
 
 /**
- * A project being filled in before it exists.
+ * A project's gallery while somebody is working on it, whether or not the
+ * project exists yet.
  *
- * The create page collects everything — the write-up, the links, the pictures,
- * their framing — and one press turns the lot into a project. Nothing on that
- * page is gated behind the project existing, which means nothing typed there
- * can be lost by not getting far enough.
- *
- * The write-up and the repository need no help: they are columns on the project
- * and go up in the create request itself. Links and pictures cannot, because
- * both hang off a project id — so they are held here until there is one, and
- * `publishDraft` is the sequence that lands them.
+ * This started as the create page's problem — everything typed there has to
+ * survive until one press turns it into a project — and it is now the *editor's*
+ * as well. The editor used to upload a picture the moment it was chosen, delete
+ * one the moment the ✕ was pressed, and write a caption on blur; a page that
+ * saves some of itself as you touch it and the rest when you press a button is a
+ * page nobody can predict. **Nothing in either gallery reaches the server until
+ * a save**, so a draft picture and a stored one are the same thing here and the
+ * one component draws both.
  */
 
 /**
- * A picture in the draft. Two shapes, because they become two different
+ * A picture in the draft. Three shapes, because they become three different
  * requests: an address is a small JSON write, a file is a multipart upload
- * against its own budget.
+ * against its own budget, and a stored row is already up and needs at most a
+ * patch.
  *
- * `key` is a local identity for React and for the framing panel — the stored
- * row's id does not exist yet, and a file has nothing else unique about it. A
- * file also carries `previewUrl`, an object URL that **must be revoked**, which
- * is why removing a picture goes through `releaseDraftImage`.
+ * `key` is a local identity for React and for the framing panel — a new
+ * picture's stored id does not exist yet, and a file has nothing else unique
+ * about it. A stored row uses its own id, which is stable across a save.
  */
-export type DraftImage = {
+type DraftImageBase = {
   key: string
   caption: string
   framing: Framing
-} & ({ kind: 'url'; url: string } | { kind: 'file'; file: File; previewUrl: string })
+}
+
+/**
+ * One that is not on the server yet. A file also carries `previewUrl`, an object
+ * URL that **must be revoked**, which is why removing a picture goes through
+ * `releaseDraftImage`.
+ */
+export type NewImage = DraftImageBase &
+  ({ kind: 'url'; url: string } | { kind: 'file'; file: File; previewUrl: string })
+
+/** One that is already a `ProjectImage` row. Only the editor has these. */
+export type StoredImage = DraftImageBase & { kind: 'stored'; id: string; url: string }
+
+export type DraftImage = NewImage | StoredImage
 
 /**
  * A link being typed. No id, on purpose: `PATCH /projects/:id/links` replaces
@@ -48,7 +66,7 @@ export const usableLinks = (links: DraftLink[]): DraftLink[] =>
 let counter = 0
 export const draftKey = () => `draft-${(counter += 1)}`
 
-export const draftFromUrl = (url: string): DraftImage => ({
+export const draftFromUrl = (url: string): NewImage => ({
   key: draftKey(),
   caption: '',
   framing: DEFAULT_FRAMING,
@@ -56,13 +74,27 @@ export const draftFromUrl = (url: string): DraftImage => ({
   url,
 })
 
-export const draftFromFile = (file: File): DraftImage => ({
+export const draftFromFile = (file: File): NewImage => ({
   key: draftKey(),
   caption: '',
   framing: DEFAULT_FRAMING,
   kind: 'file',
   file,
   previewUrl: URL.createObjectURL(file),
+})
+
+/**
+ * A stored row as a draft one. Keyed on its own id rather than a counter, so a
+ * re-render after a save does not remount every row in the gallery — and so the
+ * framing panel stays open on the picture it was opened on.
+ */
+export const draftFromImage = (image: ApiProjectImage): StoredImage => ({
+  key: image.id,
+  caption: image.caption ?? '',
+  framing: safeFraming(image),
+  kind: 'stored',
+  id: image.id,
+  url: image.url,
 })
 
 /** What to show for a draft picture: the object URL, or the address itself. */
@@ -102,13 +134,17 @@ export type PublishResult = {
  * alongside everything that did work — the page then drops into the ordinary
  * editor with the successful rows in place, which is where a retry belongs.
  *
+ * `saveGallery` below is the editor's version of this, and it is the opposite on
+ * exactly that point: there the project already exists, so a failure can be
+ * thrown at one status line and retried by pressing SAVE again.
+ *
  * Framing goes up **with** each picture rather than as a follow-up patch, so a
  * photo cannot arrive correctly and then be left wrongly framed by a second
  * request failing on its own.
  */
 export async function publishDraft(
   projectId: string,
-  draft: { links: DraftLink[]; images: DraftImage[] },
+  draft: { links: DraftLink[]; images: NewImage[] },
 ): Promise<PublishResult> {
   const failures: string[] = []
   let links: ApiProjectLink[] = []
@@ -138,9 +174,115 @@ export async function publishDraft(
   return { images, links, failures }
 }
 
+/**
+ * The gallery of a project that already exists, brought level with its draft.
+ *
+ * Four kinds of write, in the one order that is safe. **Removals first**, so a
+ * gallery swapped picture-for-picture at the twelve-image cap does not hit it
+ * halfway through. **Then each row in draft order**, which is what makes the
+ * appended ones arrive in the order they are shown in. **Then the order**, and
+ * only when the draft disagrees with what the server would already hold — the
+ * server keeps existing rows where they were and puts new ones at the end, which
+ * is very often exactly what was wanted.
+ *
+ * **This throws, and the caller must not swallow it.** Every step before the
+ * failure has already landed on the server, so the editor applies what came back
+ * and reports the rest: pressing SAVE again then retries only what is still
+ * outstanding rather than uploading the first four photos a second time.
+ */
+export async function saveGallery(
+  projectId: string,
+  stored: ApiProjectImage[],
+  draft: DraftImage[],
+): Promise<ApiProjectImage[]> {
+  const kept = new Set(
+    draft.filter((image) => image.kind === 'stored').map((image) => image.id),
+  )
+
+  for (const row of stored) {
+    if (!kept.has(row.id)) {
+      await deleteJson(`/projects/${projectId}/images/${row.id}`)
+    }
+  }
+
+  const byId = new Map(stored.map((row) => [row.id, row]))
+  const saved: ApiProjectImage[] = []
+  const added: string[] = []
+
+  for (const image of draft) {
+    if (image.kind !== 'stored') {
+      const row = await sendImage(projectId, image)
+      saved.push(row)
+      added.push(row.id)
+      continue
+    }
+
+    const row = byId.get(image.id)
+    const caption = image.caption.trim() || null
+
+    // Untouched rows are skipped rather than re-sent. A gallery of twelve is
+    // twelve writes against a budget of sixty, and all a lead did was reword one
+    // caption.
+    if (row && caption === row.caption && sameFraming(row, image.framing)) {
+      saved.push(row)
+      continue
+    }
+
+    saved.push(
+      await patchJson<ApiProjectImage>(
+        `/projects/${projectId}/images/${image.id}`,
+        { caption, ...image.framing },
+      ),
+    )
+  }
+
+  const asHeld = [
+    ...stored.filter((row) => kept.has(row.id)).map((row) => row.id),
+    ...added,
+  ].join()
+
+  if (saved.length > 0 && saved.map((row) => row.id).join() !== asHeld) {
+    return patchJson<ApiProjectImage[]>(`/projects/${projectId}/images/order`, {
+      ids: saved.map((row) => row.id),
+    })
+  }
+
+  return saved
+}
+
+/**
+ * Whether the gallery holds anything the server does not.
+ *
+ * Positional rather than set-based, because a reorder is a change: the draft is
+ * clean only when it is the stored list, in the stored order, with the same
+ * captions and the same framing.
+ */
+export const galleryDirty = (
+  stored: ApiProjectImage[],
+  draft: DraftImage[],
+): boolean =>
+  stored.length !== draft.length ||
+  draft.some((image, index) => {
+    const row = stored[index]
+
+    return (
+      image.kind !== 'stored' ||
+      row === undefined ||
+      row.id !== image.id ||
+      (image.caption.trim() || null) !== row.caption ||
+      !sameFraming(row, image.framing)
+    )
+  })
+
+/** Whether a stored row is already framed the way the draft says. */
+const sameFraming = (row: ApiProjectImage, framing: Framing) =>
+  row.focalX === framing.focalX &&
+  row.focalY === framing.focalY &&
+  row.zoom === framing.zoom
+
 async function sendImage(
   projectId: string,
-  image: DraftImage,
+  image: NewImage,
 ): Promise<ApiProjectImage> {
   const caption = image.caption.trim() || undefined
 

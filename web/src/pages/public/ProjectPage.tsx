@@ -191,7 +191,12 @@ function ProjectBody({
   const [dirty, setDirty] = useState(false)
   const { guard, dialog } = useUnsavedGuard(dirty)
 
-  /** Both ways out of edit mode do the same two things, so they share them. */
+  /**
+   * The way out, guarded. Nothing in the editor reaches the server before its
+   * SAVE, so leaving is genuinely destructive and `useUnsavedGuard` is what asks
+   * — and the refetch afterwards is what puts the reader back on the server's
+   * copy rather than on a draft they abandoned.
+   */
   const leaveEditing = guard(() => {
     setEditing(false)
     setDirty(false)
@@ -210,32 +215,28 @@ function ProjectBody({
       {/* The eyebrow shares its line with the edit affordance, so the button is
           above the fold and out of the reading column. For everyone else —
           which is most people, most of the time — nothing is rendered here at
-          all, rather than something greyed out. */}
+          all, rather than something greyed out.
+
+          **Nothing takes its place while editing.** This slot used to hold a
+          second DONE EDITING, on the argument that the way out belongs where
+          somebody last saw the way in. That was worth its weight while the page
+          saved as you touched it; now that it saves once, at the bottom, the
+          exit belongs with the button it is the alternative to — and two of them
+          on one page was one of the three duplicate controls this editor was
+          asked to stop having. */}
       <div className="mb-5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
         <p className="text-faint font-mono text-[13px] font-bold tracking-[0.2em]">
           / PROJECT
         </p>
-        {signedIn &&
-          (editing ? (
-            /* The button that turned the mode on turns it off, in the slot it
-               came from — so the way out is where somebody last saw the way
-               in, rather than at the bottom of a page they have to scroll. */
-            <button
-              type="button"
-              onClick={leaveEditing}
-              className="btn btn-outline h-auto min-h-0 border-base-content/28 px-5 py-2 text-[11px] font-semibold tracking-[0.08em] text-base-content transition-colors duration-200 hover:border-base-content hover:bg-base-content/6 hover:text-base-content"
-            >
-              DONE EDITING
-            </button>
-          ) : (
-            <EditAffordance
-              project={project}
-              signedIn={signedIn}
-              onEdit={() => {
-                setEditing(true)
-              }}
-            />
-          ))}
+        {signedIn && !editing && (
+          <EditAffordance
+            project={project}
+            signedIn={signedIn}
+            onEdit={() => {
+              setEditing(true)
+            }}
+          />
+        )}
       </div>
 
       <FormHeading>{project.title}</FormHeading>

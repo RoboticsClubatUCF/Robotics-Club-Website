@@ -1,9 +1,10 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TitleSection } from './TitleSection'
 import type { ApiProjectDetail } from '../../lib/api/api'
 import { DEFAULT_FRAMING } from '../../lib/media/imageFraming'
+import { draftFromImage, type DraftImage } from '../../lib/projects/projectDraft'
+import { SectionHarness } from '../../test/sectionHarness'
 import { urlOf } from '../../test/stubFetch'
 
 const project = (over: Partial<ApiProjectDetail> = {}): ApiProjectDetail => ({
@@ -43,15 +44,33 @@ const json = (body: unknown, status = 200) =>
     }),
   )
 
-/** The section is controlled, like the rest of the editor: it hands every change
-    back through `apply` and re-renders from what the parent passes down. */
-function Harness({ initial }: { initial: ApiProjectDetail }) {
-  const [current, setCurrent] = useState(initial)
-  return <TitleSection project={current} apply={setCurrent} onDirtyChange={() => {}} />
-}
+/**
+ * The section, under the machinery that stands behind the page's one SAVE.
+ *
+ * `images` is the *draft* gallery rather than the project's stored one, because
+ * that is what the cover preview reads — the two sections are far apart on the
+ * page and a preview drawn from the server's copy would show yesterday's first
+ * photo while a new one sat unsaved below.
+ */
+const show = (over: Partial<ApiProjectDetail> = {}, images: DraftImage[] = []) =>
+  render(
+    <SectionHarness initial={project(over)}>
+      {({ project: current, registry, busy }) => (
+        <TitleSection
+          project={current}
+          images={images}
+          registry={registry}
+          busy={busy}
+        />
+      )}
+    </SectionHarness>,
+  )
 
-const show = (over: Partial<ApiProjectDetail> = {}) =>
-  render(<Harness initial={project(over)} />)
+const saveIt = async () => {
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'SAVE' }))
+  })
+}
 
 const bodyOf = (init?: RequestInit) =>
   JSON.parse(init?.body as string) as Record<string, unknown>
@@ -70,11 +89,20 @@ describe('TitleSection', () => {
   })
 
   /**
-   * The title, the summary and the headings go up under one press. They are
-   * prose, and autosaving a textarea is how a half-written sentence becomes the
-   * published one — the rule the writing section below already follows.
+   * This section used to carry a SAVE of its own, and the writing section lower
+   * down carried a second one — two buttons with the same word on them, neither
+   * covering what somebody had just changed. There is one now, and it is the
+   * page's.
    */
-  it('saves the title, the summary and the headings together', async () => {
+  it('has no save button of its own', () => {
+    vi.stubGlobal('fetch', vi.fn())
+    show()
+
+    expect(screen.queryByRole('button', { name: /SAVE THE TITLE/ })).toBeNull()
+    expect(screen.getAllByRole('button', { name: 'SAVE' })).toHaveLength(1)
+  })
+
+  it('sends the words and the cover settings under the page’s save', async () => {
     const fetchMock = vi.fn((_input: string | URL | Request, _init?: RequestInit) =>
       json({ title: 'Renamed', summary: 'A rover.' }),
     )
@@ -92,9 +120,8 @@ describe('TitleSection', () => {
       target: { value: 'THE BUILD' },
     })
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'SAVE THE TITLE' }))
-    })
+    expect(fetchMock).not.toHaveBeenCalled()
+    await saveIt()
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(bodyOf(fetchMock.mock.calls[0][1])).toEqual({
@@ -105,15 +132,20 @@ describe('TitleSection', () => {
       // the pages fall back to the standing word.
       resourcesHeading: null,
       teamHeading: null,
+      coverFromGallery: false,
+      coverFocalX: 50,
+      coverFocalY: 50,
+      coverZoom: 1,
     })
   })
 
   /**
-   * The checkbox changes what the public list shows and the panel under it
-   * redraws on the answer, so a version of it waiting for SAVE would be a
-   * control that appears not to work.
+   * The checkbox used to write the moment it was pressed, on the grounds that it
+   * changes what the public list shows. So does everything else on this page, and
+   * a control that publishes while the words beside it wait is the surprise the
+   * one SAVE exists to remove.
    */
-  it('sends the cover switch the moment it is pressed', async () => {
+  it('holds the cover switch until the page is saved', async () => {
     const fetchMock = vi.fn((_input: string | URL | Request, _init?: RequestInit) =>
       json({ coverFromGallery: true }),
     )
@@ -121,12 +153,17 @@ describe('TitleSection', () => {
 
     show()
 
-    await act(async () => {
-      fireEvent.click(screen.getByLabelText(/USE THE FIRST GALLERY PICTURE/))
-    })
+    fireEvent.click(screen.getByLabelText(/USE THE FIRST GALLERY PICTURE/))
+    expect(fetchMock).not.toHaveBeenCalled()
 
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(bodyOf(fetchMock.mock.calls[0][1])).toEqual({ coverFromGallery: true })
+    // The panel still redraws on the press, which is the half of it that was
+    // always right: the controls below it are about to mean something else.
+    expect(screen.queryByLabelText('UPLOAD A COVER')).toBeNull()
+
+    await saveIt()
+    expect(bodyOf(fetchMock.mock.calls[0][1])).toMatchObject({
+      coverFromGallery: true,
+    })
   })
 
   /** Ticked, the cover is the gallery's and there is nothing here to choose —
@@ -140,18 +177,24 @@ describe('TitleSection', () => {
     expect(screen.getByText('[ NO GALLERY YET ]')).toBeInTheDocument()
   })
 
+  /** From the draft list, not from the project: a photo added to the gallery and
+      not yet saved is the one the list is about to show. */
   it('shows the gallery picture it will use', () => {
     vi.stubGlobal('fetch', vi.fn())
-    const { container } = show({
-      coverFromGallery: true,
-      images: [{ id: 'i1', url: '/api/files/i1', caption: null, ...DEFAULT_FRAMING }],
-    })
+    const { container } = show({ coverFromGallery: true }, [
+      draftFromImage({
+        id: 'i1',
+        url: '/api/files/i1',
+        caption: null,
+        ...DEFAULT_FRAMING,
+      }),
+    ])
 
     const preview = container.querySelector('img')
     expect(preview).toHaveAttribute('src', expect.stringContaining('/api/files/i1'))
   })
 
-  it('sets a cover by link, and opens the framing tool on it', async () => {
+  it('takes a cover by link, frames it, and sends both on save', async () => {
     const fetchMock = vi.fn((_input: string | URL | Request, _init?: RequestInit) =>
       json({ coverUrl: 'https://example.test/rover.png' }),
     )
@@ -162,46 +205,26 @@ describe('TitleSection', () => {
     fireEvent.change(screen.getByLabelText('OR LINK TO ONE'), {
       target: { value: 'https://example.test/rover.png' },
     })
+    fireEvent.click(screen.getByRole('button', { name: 'USE THIS ONE' }))
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'ADD' }))
-    })
-
-    expect(bodyOf(fetchMock.mock.calls[0][1])).toEqual({
-      coverUrl: 'https://example.test/rover.png',
-    })
     // The moment a picture lands is the moment its framing is worth looking at.
     expect(
       screen.getByLabelText('Drag to choose what this picture shows'),
     ).toBeInTheDocument()
-  })
+    expect(fetchMock).not.toHaveBeenCalled()
 
-  /** Only the three framing fields, so a summary typed but not yet saved is not
-      overwritten by the picture being moved. */
-  it('saves the cover framing on its own', async () => {
-    const fetchMock = vi.fn((_input: string | URL | Request, _init?: RequestInit) =>
-      json({ coverFocalX: 50 }),
-    )
-    vi.stubGlobal('fetch', fetchMock)
+    fireEvent.click(screen.getByRole('button', { name: 'DONE' }))
+    await saveIt()
 
-    show({ coverUrl: 'https://example.test/rover.png' })
-
-    fireEvent.click(screen.getByRole('button', { name: 'FRAME THE COVER' }))
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'DONE' }))
+    expect(urlOf(fetchMock.mock.calls[0][0])).toContain('/projects/p1')
+    expect(bodyOf(fetchMock.mock.calls[0][1])).toMatchObject({
+      coverUrl: 'https://example.test/rover.png',
     })
-
-    expect(Object.keys(bodyOf(fetchMock.mock.calls[0][1])).sort()).toEqual([
-      'coverFocalX',
-      'coverFocalY',
-      'coverZoom',
-    ])
   })
 
-  /** A pasted address can be pasted back; the bytes cannot. Only an upload gets
-      the ceremony, which is the rule the gallery already follows. */
-  it('confirms before deleting an uploaded cover, but not a linked one', async () => {
+  /** A pasted address can be pasted back; the bytes cannot. Only a picture the
+      club is hosting gets the ceremony, which is the rule the gallery follows. */
+  it('confirms before dropping an uploaded cover, but not a linked one', async () => {
     const fetchMock = vi.fn((_input: string | URL | Request, _init?: RequestInit) =>
       json({ coverUrl: null }),
     )
@@ -209,45 +232,38 @@ describe('TitleSection', () => {
 
     const { unmount } = show({ coverUrl: 'https://example.test/rover.png' })
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'REMOVE THE COVER' }))
-    })
+    fireEvent.click(screen.getByRole('button', { name: 'REMOVE THE COVER' }))
     expect(screen.queryByRole('dialog')).toBeNull()
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(screen.getByText('[ NO COVER YET ]')).toBeInTheDocument()
 
     unmount()
     show({ coverUrl: '/api/files/f1' })
 
     fireEvent.click(screen.getByRole('button', { name: 'REMOVE THE COVER' }))
     expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'REMOVE IT' }))
+    })
+    // Still nothing sent — the dialog is about what saving will do, not about
+    // what has happened.
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    await saveIt()
+    expect(bodyOf(fetchMock.mock.calls[0][1])).toMatchObject({ coverUrl: null })
   })
 
   /**
-   * A button says what pressing it does, so the resting label is SAVE rather
-   * than a report of what happened last — "Saved." below it is the status line
-   * that reports.
-   *
-   * It names this section once there is something to save, because the writing
-   * section lower down has its own button and the dirty state is when it matters
-   * which of the two is being pressed.
+   * Refused here rather than by the server, which would answer 400 after however
+   * many uploads the sections ahead of this one had already sent.
    */
-  it('offers to save, and names the section once there is something to', async () => {
-    const fetchMock = vi.fn((_input: string | URL | Request, _init?: RequestInit) =>
-      json({ title: 'Renamed' }),
-    )
-    vi.stubGlobal('fetch', fetchMock)
-
+  it('blocks the page’s save while the title is blank', () => {
+    vi.stubGlobal('fetch', vi.fn())
     show()
-    expect(screen.getByRole('button', { name: 'SAVE' })).toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText('TITLE'), {
-      target: { value: 'Renamed' },
-    })
-    expect(screen.getByRole('button', { name: 'SAVE THE TITLE' })).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('TITLE'), { target: { value: '  ' } })
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'SAVE THE TITLE' }))
-    })
-    expect(urlOf(fetchMock.mock.calls[0][0])).toContain('/projects/p1')
+    expect(screen.getByRole('button', { name: 'SAVE' })).toBeDisabled()
+    expect(screen.getByText('The project needs a title.')).toBeInTheDocument()
   })
 })

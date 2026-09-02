@@ -9,34 +9,12 @@ import type {
 import { frameStyle } from '../../lib/media/imageFraming'
 import { imageSrc } from '../../lib/media/storedFiles'
 import { coverOf } from '../../lib/projects/projectCover'
+import {
+  ARCHIVED_PROJECTS,
+  CURRENT_PROJECTS,
+} from '../../lib/projects/projectListing'
 import { useApi } from '../../lib/api/useApi'
 import { FormEyebrow, FormHeading } from '../shared/formChrome'
-
-/**
- * The server caps `limit` at 100, and one page of that is every project the
- * club has ever run. If the list outgrows it, this becomes pagination — not a
- * bigger number.
- */
-const LIMIT = 100
-
-/**
- * This semester's builds, with the one picture each of them shows here.
- * `term=current` is computed on the server — the browser has no way of knowing
- * which term it is, and a page that guessed would go quietly empty every August.
- *
- * **`cover=true` rather than `images=true`.** A card is a still now, not a
- * slideshow, so it wants one picture per project and the flag caps the gallery
- * at one row. Twelve times the payload for eleven pictures nothing draws is
- * exactly what the flag exists to avoid.
- *
- * **And no `description=true`.** The list prints `summary` — see `PROSE`.
- */
-const CURRENT = `/projects?term=current&cover=true&limit=${LIMIT}`
-
-/** Everything that is not this semester, newest term first. No pictures and no
-    write-up: forty galleries is not a list anybody scrolls, and the archive's
-    third column has always been one blurb wide. */
-const ARCHIVE = `/projects?term=other&limit=${LIMIT}`
 
 const rowClass =
   'border-rule grid grid-cols-[2.75rem_1fr] items-start gap-3.5 border-t py-6.5 pr-2 wide:grid-cols-[70px_1.1fr_2fr_140px] wide:gap-7 wide:pl-2'
@@ -132,7 +110,7 @@ const termLabel = (project: Pick<ApiProject, 'termYear' | 'termSeason'>) =>
  * whole content, header included, which is why the header is an `h1`.
  */
 export function ProjectsSection() {
-  const current = useApi<ApiCardProject[]>(CURRENT)
+  const current = useApi<ApiCardProject[]>(CURRENT_PROJECTS)
   const [archiveOpen, setArchiveOpen] = useState(false)
 
   // Every row in a `term=current` answer carries the same term, so the heading
@@ -321,7 +299,7 @@ function ProjectCard({
  * the page below the button costs nothing until somebody presses it.
  */
 function Archive() {
-  const past = useApi<ApiListedProject[]>(ARCHIVE)
+  const past = useApi<ApiListedProject[]>(ARCHIVED_PROJECTS)
 
   if (past.status === 'loading') return <ProjectRowsSkeleton />
 
