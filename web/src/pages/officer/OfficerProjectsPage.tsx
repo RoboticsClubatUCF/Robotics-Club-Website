@@ -484,7 +484,9 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
             disabled={sending}
           />
           <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
-            Leave a blank line between paragraphs. No markdown yet.
+            Markdown: <code>#</code> for a heading, <code>-</code> for a list,{' '}
+            <code>**bold**</code>, <code>[text](link)</code>. Leave a blank line
+            between paragraphs.
           </p>
         </div>
 

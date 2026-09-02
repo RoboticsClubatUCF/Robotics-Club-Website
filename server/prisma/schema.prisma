@@ -365,7 +365,11 @@ model Project {
   slug        String  @unique
   title       String
   summary     String? // one-liner for cards
-  description String? // long form, markdown
+  /// The long form, on the project's own page. Markdown, and it has actually
+  /// been markdown since `web/src/lib/projects/projectProse.ts` grew a parser —
+  /// this comment said so for a year while the column was set as plain
+  /// paragraphs. Stored raw; nothing on the server reads or renders it.
+  description String?
   season      String? // e.g. "2025-2026"
 
   /// The term this project is being built for — and the only thing that can

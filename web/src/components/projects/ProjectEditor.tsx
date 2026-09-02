@@ -747,8 +747,10 @@ function ProseAndLinks({
             className="textarea border-rule bg-base-200 w-full text-sm"
           />
           <p className="mt-1.5 text-[11px] leading-[1.5] text-faint">
-            The long form, on this project&rsquo;s own page. Leave a blank line between
-            paragraphs. No markdown yet.
+            The long form, on this project&rsquo;s own page. Markdown:{' '}
+            <code>#</code> for a heading, <code>-</code> for a list,{' '}
+            <code>**bold**</code>, <code>[text](link)</code>. Leave a blank line
+            between paragraphs.
           </p>
         </div>
       </div>
