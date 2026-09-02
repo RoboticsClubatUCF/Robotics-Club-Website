@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useState } from 'react'
 import { useNavigate, useOutletContext, useParams } from 'react-router'
 import { ConfirmDialog } from '../../components/shared/ConfirmDialog'
+import { DiscordRoleHelp } from '../../components/shared/DiscordRoleHelp'
 import { DuesLocked } from '../../components/dashboard/DuesLocked'
 import { duesLocked } from '../../lib/dues/dues'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
@@ -1571,11 +1572,15 @@ function DiscordRoleSection({
       <p className="text-faint mb-1 font-mono text-[10px] font-medium tracking-[0.16em]">
         DISCORD ROLE
       </p>
-      <p className="text-dim mb-4 text-[13px] leading-[1.6] text-pretty">
+      <p className="text-dim mb-2 text-[13px] leading-[1.6] text-pretty">
         Everyone on this project is given this Discord role, and loses it
-        when they leave. Clearing it takes the role off all of them. With
-        Developer Mode on, right-click the role and Copy Role ID.
+        when they leave. Clearing it takes the role off all of them.
       </p>
+      {/* The four steps that end in "Copy Role ID" used to be one sentence
+          here, which was the last of them. */}
+      <div className="mb-4">
+        <DiscordRoleHelp />
+      </div>
 
       <form onSubmit={save} className="flex flex-wrap items-end gap-3">
         <div className="min-w-52 flex-1">

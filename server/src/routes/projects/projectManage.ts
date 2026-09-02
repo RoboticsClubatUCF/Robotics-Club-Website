@@ -13,7 +13,7 @@ import {
 } from '../../auth/authz.js'
 import { prisma } from '../../core/db.js'
 import {
-  assertRealRole,
+  assertUsableRole,
   discordRoleField,
   pushRoles,
   pushRolesFor,
@@ -451,7 +451,7 @@ projectManage.patch(
     }
 
     if (patch.discordRoleId !== undefined) {
-      await assertRealRole(patch.discordRoleId)
+      await assertUsableRole(patch.discordRoleId)
     }
 
     const updated = await prisma.project.update({

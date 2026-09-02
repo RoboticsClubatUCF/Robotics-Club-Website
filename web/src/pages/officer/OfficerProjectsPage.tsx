@@ -12,6 +12,7 @@ import {
   fieldClass,
   labelClass,
 } from '../../components/shared/formChrome'
+import { DiscordRoleHelp } from '../../components/shared/DiscordRoleHelp'
 import { DraftGallery } from '../../components/projects/DraftGallery'
 import { LinkRows } from '../../components/projects/LinkRows'
 import { ProjectEditor } from '../../components/projects/ProjectEditor'
@@ -507,12 +508,14 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
               other field on this form is a label. The server checks the id
               against the guild's real roles before saving it — a wrong
               snowflake is not an error at Discord and would otherwise match
-              nobody for ever. */}
+              nobody for ever — and refuses the club's own roles outright. */}
           <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
             Optional. Everyone on the project is given this Discord role, and
-            loses it when they leave. With Developer Mode on, right-click the
-            role and Copy Role ID.
+            loses it when they leave.
           </p>
+          {/* The four steps that end in "Copy Role ID" used to be that one
+              sentence, which was the last of them. */}
+          <DiscordRoleHelp />
         </div>
 
         {/* Same eyebrow the editor uses, over the same list, so this section

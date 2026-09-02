@@ -44,10 +44,15 @@ const OTHER_CREW = '900000000000000005'
 /** A role in the guild that this sync does not own and must never remove. */
 const UNMANAGED = '900000000000000099'
 
+const OFFICER_ROLE = '900000000000000006'
+const ALUMNI_ROLE = '900000000000000007'
+
 const config = vi.hoisted(() => ({
   member: null as string | null,
   lead: null as string | null,
   team: null as string | null,
+  officer: null as string | null,
+  alumni: null as string | null,
   dry: false,
 }))
 
@@ -64,6 +69,15 @@ vi.mock('./discord.js', async (importOriginal) => ({
   },
   get teamLeadRoleId() {
     return config.team
+  },
+  // Neither is written by this sweep — Officers sits above the bot and Officer
+  // Alumni is read-only by design — but both are roles a project must not be
+  // pointed at, so `assertUsableRole` reads them.
+  get officerRoleId() {
+    return config.officer
+  },
+  get officerAlumniRoleId() {
+    return config.alumni
   },
   get roleSyncDryRun() {
     return config.dry
@@ -88,6 +102,7 @@ const {
   removeGuildRole,
 } = await import('./discord.js')
 const {
+  assertUsableRole,
   desiredRoles,
   sweepDiscordRoles,
   syncUserRoles,
@@ -175,6 +190,8 @@ beforeEach(async () => {
   config.member = MEMBER_ROLE
   config.lead = LEAD_ROLE
   config.team = TEAM_ROLE
+  config.officer = OFFICER_ROLE
+  config.alumni = ALUMNI_ROLE
   config.dry = false
 
   roster.mockReset()
@@ -190,7 +207,16 @@ beforeEach(async () => {
   roles.mockResolvedValue({
     status: 'ok',
     roles: new Map(
-      [MEMBER_ROLE, LEAD_ROLE, TEAM_ROLE, CREW_ROLE, OTHER_CREW, UNMANAGED].map(
+      [
+        MEMBER_ROLE,
+        LEAD_ROLE,
+        TEAM_ROLE,
+        OFFICER_ROLE,
+        ALUMNI_ROLE,
+        CREW_ROLE,
+        OTHER_CREW,
+        UNMANAGED,
+      ].map(
         (id) => [id, `role ${id}`],
       ),
     ),
@@ -673,5 +699,87 @@ describe('the isolation this suite depends on', () => {
       expect(touched).not.toContain(person.discordId)
     }
     expect(touched).toEqual([snowflake(60)])
+  })
+})
+
+/**
+ * What a project's crew role may be.
+ *
+ * **A project's role is added and removed as people join and leave it**, which
+ * is what makes pointing one at a club-wide role a disaster rather than a typo:
+ * the first person to leave a project whose role is Members loses their
+ * membership role in the guild, and the sweep and the project sync then fight
+ * over it every ten minutes.
+ */
+describe('assertUsableRole', () => {
+  const refuses = async (roleId: string, named: string) => {
+    await expect(assertUsableRole(roleId)).rejects.toMatchObject({
+      status: 422,
+      // Named, because "that role is reserved" leaves somebody staring at a
+      // list of thirty roles wondering which one they pasted.
+      message: expect.stringContaining(named),
+    })
+  }
+
+  it('refuses the members role', async () => {
+    await refuses(MEMBER_ROLE, 'Members')
+  })
+
+  it('refuses the two rank roles the site writes', async () => {
+    await refuses(LEAD_ROLE, 'Project Lead')
+    await refuses(TEAM_ROLE, 'Team Lead')
+  })
+
+  /** Above the bot, so Discord refuses the write anyway — silently, for ever.
+      A 422 is a better outcome than a project failing every role write. */
+  it('refuses the officers role', async () => {
+    await refuses(OFFICER_ROLE, 'Officers')
+  })
+
+  /** Read-only by design: the site never asks anybody to carry it. */
+  it('refuses the officer alumni role', async () => {
+    await refuses(ALUMNI_ROLE, 'Officer Alumni')
+  })
+
+  it('allows a role of the project’s own', async () => {
+    await expect(assertUsableRole(CREW_ROLE)).resolves.toBeUndefined()
+  })
+
+  it('has nothing to check when the field is cleared', async () => {
+    await expect(assertUsableRole(null)).resolves.toBeUndefined()
+    await expect(assertUsableRole(undefined)).resolves.toBeUndefined()
+    expect(roles).not.toHaveBeenCalled()
+  })
+
+  /**
+   * **The half that must not be skipped.** The guild lookup is skipped while
+   * Discord is down, deliberately — an outage there must not stop somebody
+   * creating a project. The reserved check is read off `env`, costs nothing and
+   * is the one that prevents damage rather than a typo, so it still holds.
+   */
+  it('refuses a club role even while Discord is unreachable', async () => {
+    roles.mockResolvedValue({ status: 'unavailable', reason: 'discord down' })
+
+    await refuses(MEMBER_ROLE, 'Members')
+    await expect(assertUsableRole(CREW_ROLE)).resolves.toBeUndefined()
+  })
+
+  /** Discord does not error on an id that matches nothing, so this is the only
+      thing standing between a transposed digit and a role that never works. */
+  it('refuses an id that is not a role in the guild', async () => {
+    await expect(assertUsableRole('900000000000000404')).rejects.toMatchObject({
+      status: 422,
+    })
+  })
+
+  /** A club that has configured none of its roles has none to reserve. */
+  it('reserves nothing that is not configured', async () => {
+    config.member = null
+    config.lead = null
+    config.team = null
+    config.officer = null
+    config.alumni = null
+
+    await expect(assertUsableRole(MEMBER_ROLE)).resolves.toBeUndefined()
   })
 })

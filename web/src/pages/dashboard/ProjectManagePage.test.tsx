@@ -245,6 +245,69 @@ describe('the project Discord role', () => {
       panel().getByText(/No role with that id/),
     ).toBeInTheDocument()
   })
+
+  /**
+   * The refusal that matters more than a typo. A project's role is added and
+   * removed as people join and leave it, so a project pointed at the club's
+   * Members role takes membership off the first person to leave — and unlike
+   * the check above, the server makes this one whether or not Discord is
+   * reachable. The page has to print the sentence rather than flattening it.
+   */
+  it('reports a club role being pasted, in the server’s own words', async () => {
+    const refusal =
+      'That is the club’s Members role, which the site hands out itself.'
+    const fetchMock = vi.fn((input: string | URL | Request, init?: RequestInit) =>
+      urlOf(input).includes('/team')
+        ? json({ project, teams: [], members: [] })
+        : init?.method === 'PATCH'
+          ? json({ error: refusal }, 422)
+          : json([]),
+    )
+    renderPage(fetchMock as unknown as ReturnType<typeof stubDesk>)
+    await act(async () => {})
+
+    fireEvent.change(panel().getByLabelText('ROLE ID'), {
+      target: { value: '222222222222222222' },
+    })
+
+    await act(async () => {
+      fireEvent.submit(
+        panel().getByRole('button', { name: 'SAVE' }).closest('form')!,
+      )
+    })
+
+    expect(panel().getByText(/hands out itself/)).toBeInTheDocument()
+  })
+
+  /**
+   * Finding a role id is a four-step job in another application, and the field
+   * used to carry only the last step of it. The guide is a disclosure so the
+   * panel stays short for the people who already know.
+   */
+  it('keeps the how-to behind a disclosure, closed', async () => {
+    renderPage(stubDesk())
+    await screen.findByText('DISCORD ROLE')
+
+    const guide = screen.getByText('WHERE DO I FIND THIS?')
+    expect(guide.closest('details')).not.toHaveAttribute('open')
+
+    // Closed, not unmounted: a `<details>` keeps its content findable by the
+    // browser's own in-page search, which is half the reason it is one.
+    expect(screen.getAllByText(/Developer Mode/).length).toBeGreaterThan(0)
+  })
+
+  /** The half of the guide that is not instructions, and the half that stops
+      somebody meeting the server's refusal at all. */
+  it('warns against the club’s own roles, and against ranking', async () => {
+    renderPage(stubDesk())
+    await screen.findByText('DISCORD ROLE')
+
+    expect(screen.getByText(/Not one of the club/)).toBeInTheDocument()
+    expect(
+      screen.getByText(/Members, Project Lead, Team Lead, Officers/),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/Not a role above the bot/)).toBeInTheDocument()
+  })
 })
 
 describe('a finished build takes no new tasks', () => {

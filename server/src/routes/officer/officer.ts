@@ -5,7 +5,7 @@ import { validate } from '../../core/validate.js'
 import { requireOfficer } from '../../auth/authz.js'
 import { prisma } from '../../core/db.js'
 import {
-  assertRealRole,
+  assertUsableRole,
   discordRoleField,
   pushRoles,
 } from '../../discord/discordRoles.js'
@@ -225,7 +225,7 @@ officer.post(
     // indefinitely, because the lead of one may walk out with nobody lined up.
     // Before the write, because a role id that matches nobody is not an error
     // anywhere else — not at Discord's API and not in Postgres.
-    await assertRealRole(data.discordRoleId)
+    await assertUsableRole(data.discordRoleId)
 
     const project = await prisma.project.create({
       data: { ...data, ...(await termFor(data)) },
@@ -357,7 +357,7 @@ officer.post(
     // Only what the officer typed is checked. The source's own id came through
     // this check when it was set, and re-checking it would let a role deleted
     // in Discord since then block a duplication that has nothing to do with it.
-    await assertRealRole(discordRoleId)
+    await assertUsableRole(discordRoleId)
 
     // The bytes first, and outside the create, because copying a gallery is a
     // read and a write per picture and an interactive transaction holding one

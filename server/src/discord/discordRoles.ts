@@ -7,6 +7,8 @@ import {
   guildRoles,
   guildRoster,
   memberRoleId,
+  officerAlumniRoleId,
+  officerRoleId,
   projectLeadRoleId,
   removeGuildRole,
   roleSyncDryRun,
@@ -80,21 +82,62 @@ export const discordRoleField = {
 }
 
 /**
- * Refuse a role id that is not a role.
+ * The club-wide roles a project's crew role may never be, and what to call each
+ * one when refusing it.
  *
- * The one check that makes a pasted snowflake safe. Discord does not error on
- * a wrong id — it matches nobody, silently, for ever — so without this a
- * transposed digit is a project whose crew role never works and no one finds
- * out. Called before the write, on create, edit and duplicate.
+ * **A project's role is handed out and taken back as people join and leave it.**
+ * That is the whole feature, and it is exactly what makes pointing one at a
+ * club-wide role a disaster rather than a mistake: set a project's role to
+ * Members and the first person to leave that project loses their membership
+ * role in the guild. Set it to Project Lead and a build hands out a rank. The
+ * role sweep would then fight the project sync over the same role every ten
+ * minutes, each undoing the other, and the only visible symptom is roles
+ * flickering on people who never touched anything.
  *
- * **Skipped whenever Discord cannot answer**, deliberately. An outage at
- * Discord must not be a reason somebody cannot create a project; the sweep
- * warns about an unmatched id later anyway.
+ * Officers is here even though it sits *above* the bot and Discord refuses the
+ * write: the refusal is Discord's, it is silent, and a project quietly failing
+ * every role write for ever is not a better outcome than a 422. Officer Alumni
+ * is here because it is read-only by design — see `officerAlumniRoleId`.
  */
-export async function assertRealRole(
+const reservedRoles = (): { id: string; name: string }[] =>
+  [
+    { id: memberRoleId, name: 'Members' },
+    { id: projectLeadRoleId, name: 'Project Lead' },
+    { id: teamLeadRoleId, name: 'Team Lead' },
+    { id: officerRoleId, name: 'Officers' },
+    { id: officerAlumniRoleId, name: 'Officer Alumni' },
+  ].filter((role): role is { id: string; name: string } => role.id !== null)
+
+/**
+ * Refuse a role id a project may not use.
+ *
+ * Two checks, and **they fail for different reasons and at different times**:
+ *
+ *   - **It must not be one of the club's own roles.** Read off `env`, so this
+ *     costs nothing, cannot be skipped, and holds while Discord is down — which
+ *     matters, because it is the check that prevents damage rather than the one
+ *     that prevents a typo.
+ *   - **It must be a role that exists.** Discord does not error on a wrong id —
+ *     it matches nobody, silently, for ever — so without this a transposed digit
+ *     is a project whose crew role never works and nobody finds out.
+ *
+ * The second is **skipped whenever Discord cannot answer**, deliberately: an
+ * outage there must not stop somebody creating a project, and the sweep warns
+ * about an unmatched id later anyway. The first is not skipped for anything.
+ *
+ * Called before the write, on create, edit and duplicate.
+ */
+export async function assertUsableRole(
   roleId: string | null | undefined,
 ): Promise<void> {
   if (!roleId) return
+
+  const reserved = reservedRoles().find((role) => role.id === roleId)
+  if (reserved) {
+    throw new HTTPException(422, {
+      message: `That is the club’s ${reserved.name} role, which the site hands out itself. A project’s role is added and removed as people join and leave it, so pointing one at a club-wide role would take ${reserved.name} off everybody who leaves. Give the project a role of its own.`,
+    })
+  }
 
   const known = await guildRoles()
   if (known.status !== 'ok') return
