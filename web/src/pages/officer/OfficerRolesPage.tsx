@@ -7,6 +7,7 @@ import { isOfficer } from '../../lib/auth/session'
 import { ConfirmDialog } from '../../components/shared/ConfirmDialog'
 import { MemberSearch } from '../../components/shared/MemberSearch'
 import {
+  fieldClass,
   FormEyebrow,
   FormHeading,
   FormPanel,
@@ -21,6 +22,7 @@ import type {
   ApiProjectTeamView,
   OfficerPosition,
   DuesPlan,
+  Season,
 } from '../../lib/api/api'
 import { explainApiError } from '../../lib/api/apiErrors'
 import { seatLabel } from '../../lib/officerTerms'
@@ -108,6 +110,177 @@ function Status({ message }: { message: Message }) {
         </span>
       )}
     </p>
+  )
+}
+
+/** How many matches are drawn before the list stops and asks for more typing. */
+const MAX_ROWS = 8
+
+type PickerOption = {
+  id: string
+  /** The line that names it, and the first thing typing matches against. */
+  label: string
+  /** The line beside it — the term, the rank. Matched on as well as printed,
+      which is what makes "rover fall" and "software lead" work. */
+  note?: string
+}
+
+/**
+ * A text box over a list, for the lists here that are too long to scroll.
+ *
+ * Both appointment panels used a `<select>` of every project the club has ever
+ * run, and the team panel a second one of the whole roster. A native drop-down
+ * is the worst control for either: no filtering, and the keyboard's
+ * type-to-jump matches only from the first character, so finding last autumn's
+ * rover means scrolling past everything else. This filters as it is typed,
+ * tokens match in any order and against the second line too.
+ *
+ * **It filters rather than asks.** Every list it is given is already in memory
+ * — the projects arrive in one request, the roster arrives with the project —
+ * so there is no debounce, no request per keystroke and no race to lose.
+ * `MemberSearch` is the other shape and stays that way: it searches every
+ * account the club has, which is hundreds and is not sent to the browser.
+ *
+ * At most `MAX_ROWS` rows are drawn with a count of what was left out, because
+ * a panel that opens into a hundred-row list has only moved the scrolling.
+ */
+function SearchPicker({
+  id,
+  label,
+  placeholder,
+  options,
+  value,
+  disabled,
+  hint,
+  onChange,
+}: {
+  id: string
+  label: string
+  placeholder: string
+  options: PickerOption[]
+  value: string
+  disabled: boolean
+  /** What to say when there is nothing to search — loading, a failure, or a
+      list that is genuinely empty. Null once there is something to type at,
+      which is also what decides whether the box is live. */
+  hint: string | null
+  onChange: (id: string) => void
+}) {
+  const [query, setQuery] = useState('')
+
+  const picked = options.find((option) => option.id === value) ?? null
+
+  // Collapsed to the choice once one is made, like `MemberSearch`: the list is
+  // an aid to picking, and leaving it open under a filled field is a second
+  // thing to read on a panel that has four of them.
+  if (picked) {
+    return (
+      <div>
+        <p className={labelClass}>{label}</p>
+        <div className="border-rule bg-base-100 flex items-center justify-between gap-4 border px-3 py-2.5">
+          <span className="text-sm font-medium">
+            {picked.label}
+            {picked.note && (
+              <span className="text-faint ml-2 text-[12px] font-normal">
+                {picked.note}
+              </span>
+            )}
+          </span>
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => {
+              onChange('')
+              setQuery('')
+            }}
+            className="text-faint hover:text-primary cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em]"
+          >
+            CHANGE
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean)
+  const matches = options.filter((option) => {
+    const haystack = `${option.label} ${option.note ?? ''}`.toLowerCase()
+    return words.every((word) => haystack.includes(word))
+  })
+
+  return (
+    <div>
+      <label htmlFor={id} className={labelClass}>
+        {label}
+      </label>
+      <input
+        id={id}
+        type="search"
+        autoComplete="off"
+        value={query}
+        maxLength={100}
+        placeholder={placeholder}
+        className={fieldClass}
+        disabled={disabled || hint !== null}
+        onChange={(event) => {
+          setQuery(event.target.value)
+        }}
+        onKeyDown={(event) => {
+          // The same reason `MemberSearch` does it: these panels have sat
+          // inside a form, and Enter would submit it half-filled.
+          if (event.key === 'Enter') event.preventDefault()
+        }}
+      />
+
+      {/* Shown from the start rather than only once something is typed. The
+          list is ordered so the rows an officer wants are the ones at the top,
+          and a picker that looks empty until you guess a word is worse than
+          the drop-down it replaced. */}
+      {hint === null && (
+        <ul className="border-rule divide-rule mt-3 divide-y border">
+          {matches.length === 0 && (
+            <li className="text-faint px-3 py-2.5 text-[13px]">
+              Nothing matches that.
+            </li>
+          )}
+          {matches.slice(0, MAX_ROWS).map((option) => (
+            <li key={option.id}>
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => {
+                  onChange(option.id)
+                  setQuery('')
+                }}
+                className="hover:bg-wash flex w-full cursor-pointer items-baseline justify-between gap-4 px-3 py-2.5 text-left transition-colors duration-150 disabled:cursor-default disabled:opacity-60"
+              >
+                <span className="text-sm font-medium">{option.label}</span>
+                {/* A space between the two, so the row's accessible name reads
+                    "Sam Patel project lead" rather than running them together.
+                    Flexbox drops a whitespace-only child, so it costs nothing
+                    on screen. */}
+                {option.note && ' '}
+                {option.note && (
+                  <span className="text-faint shrink-0 text-right text-[12px]">
+                    {option.note}
+                  </span>
+                )}
+              </button>
+            </li>
+          ))}
+          {matches.length > MAX_ROWS && (
+            <li className="text-faint px-3 py-2.5 text-[12px]">
+              {matches.length - MAX_ROWS} more &mdash; keep typing.
+            </li>
+          )}
+        </ul>
+      )}
+
+      {/* Always rendered, so nothing below moves when it fills. */}
+      <p role="status" className="text-faint mt-2 min-h-4 text-[12px]">
+        {hint}
+      </p>
+    </div>
   )
 }
 
@@ -293,18 +466,13 @@ function AppointLead() {
       <p className={panelLabel}>APPOINT OR STAND DOWN A PROJECT LEAD</p>
 
       <div className="space-y-4">
-        <div>
-          <label htmlFor={`${id}-project`} className={labelClass}>
-            PROJECT
-          </label>
-          <ProjectOptions
-            id={`${id}-project`}
-            projects={projects}
-            value={projectId}
-            disabled={busy}
-            onChange={setProjectId}
-          />
-        </div>
+        <ProjectPicker
+          id={`${id}-project`}
+          projects={projects}
+          value={projectId}
+          disabled={busy}
+          onChange={setProjectId}
+        />
 
         <MemberSearch picked={member} onPick={setMember} disabled={busy} />
 
@@ -345,12 +513,12 @@ function AppointLead() {
  * route the lead uses, which officers reach as readily because
  * `requireProjectLead` returns early for them.
  *
- * The member comes from a `<select>` of the project's existing roster rather
- * than from the people-picker, and that is not a shortcut — it is what makes
+ * The member is searched *within the project's own roster* rather than through
+ * the people-picker, and that is not a detail of the control — it is what makes
  * the two rules the route enforces reachable. It 404s for somebody who is not
  * on the project, and refuses outright if the target is the project lead, so a
- * free-text search here would mostly produce errors that were the picker's
- * fault. A team lead is also pinned to a team, so both selects are required.
+ * search over every account would mostly produce errors that were the picker's
+ * fault. A team lead is also pinned to a team, so the team is required too.
  */
 function AppointTeamLead() {
   const id = useId()
@@ -445,19 +613,16 @@ function AppointTeamLead() {
       </p>
 
       <div className="space-y-4">
-        <div>
-          <label htmlFor={`${id}-project`} className={labelClass}>
-            PROJECT
-          </label>
-          <ProjectOptions
-            id={`${id}-project`}
-            projects={projects}
-            value={projectId}
-            disabled={busy}
-            onChange={setProjectId}
-          />
-        </div>
+        <ProjectPicker
+          id={`${id}-project`}
+          projects={projects}
+          value={projectId}
+          disabled={busy}
+          onChange={setProjectId}
+        />
 
+        {/* Still a `<select>`, and deliberately: a project has a handful of
+            teams and they arrive with it, so there is nothing here to find. */}
         <div>
           <label htmlFor={`${id}-team`} className={labelClass}>
             TEAM
@@ -488,40 +653,35 @@ function AppointTeamLead() {
           </select>
         </div>
 
-        <div>
-          <label htmlFor={`${id}-member`} className={labelClass}>
-            MEMBER
-          </label>
-          <select
-            id={`${id}-member`}
-            className={selectClass}
-            value={userId}
-            disabled={busy || loading || !team}
-            onChange={(event) => {
-              setUserId(event.target.value)
-            }}
-          >
-            <option value="">
-              {!projectId
-                ? 'Pick a project first'
-                : loading
-                  ? 'Loading…'
-                  : roster.length === 0
-                    ? 'Nobody has joined this project yet'
-                    : 'Pick a member'}
-            </option>
-            {roster.map((row) => (
-              <option key={row.userId} value={row.userId}>
-                {row.fullName}
-                {row.rank === 'PROJECT_LEAD'
-                  ? ' — project lead'
-                  : row.rank === 'TEAM_LEAD'
-                    ? ` — leads ${team?.teams.find((t) => t.id === row.teamId)?.name ?? 'a team'}`
-                    : ''}
-              </option>
-            ))}
-          </select>
-        </div>
+        <SearchPicker
+          id={`${id}-member`}
+          label="MEMBER"
+          placeholder="Name, or a rank"
+          options={roster.map((row) => ({
+            id: row.userId,
+            label: row.fullName,
+            // The rank is printed so an officer can see they are about to pick
+            // the project lead, which the route refuses outright.
+            note:
+              row.rank === 'PROJECT_LEAD'
+                ? 'project lead'
+                : row.rank === 'TEAM_LEAD'
+                  ? `leads ${team?.teams.find((t) => t.id === row.teamId)?.name ?? 'a team'}`
+                  : undefined,
+          }))}
+          value={userId}
+          disabled={busy}
+          hint={
+            !projectId
+              ? 'Pick a project first'
+              : loading
+                ? 'Loading…'
+                : roster.length === 0
+                  ? 'Nobody has joined this project yet'
+                  : null
+          }
+          onChange={setUserId}
+        />
 
         <div className="flex flex-wrap gap-3">
           <button
@@ -553,15 +713,15 @@ function AppointTeamLead() {
 }
 
 /**
- * The project `<select>`, shared by both appointment panels.
+ * The project picker, shared by both appointment panels.
  *
  * Every project, not just this term's: appointing a lead for next semester's
  * build before the term starts is ordinary, and so is fixing last term's roster
- * after the fact. The term is printed beside the title because a build that
- * runs for years is several rows with one name, and picking the wrong one would
- * otherwise be invisible.
+ * after the fact. That is also why it cannot be a drop-down — the list is every
+ * term the club has ever run, and the term beside the title is the only thing
+ * telling this year's rover from the last three.
  */
-function ProjectOptions({
+function ProjectPicker({
   id,
   projects,
   value,
@@ -575,33 +735,58 @@ function ProjectOptions({
   onChange: (id: string) => void
 }) {
   return (
-    <select
+    <SearchPicker
       id={id}
-      className={selectClass}
+      label="PROJECT"
+      placeholder="Title, season or year"
+      options={projects.status === 'ready' ? projectOptions(projects.data) : []}
       value={value}
-      disabled={disabled || projects.status !== 'ready'}
-      onChange={(event) => {
-        onChange(event.target.value)
-      }}
-    >
-      <option value="">
-        {projects.status === 'loading'
+      disabled={disabled}
+      hint={
+        projects.status === 'loading'
           ? 'Loading…'
           : projects.status === 'error'
             ? "Couldn't load the list"
-            : 'Pick a project'}
-      </option>
-      {projects.status === 'ready' &&
-        projects.data.map((project) => (
-          <option key={project.id} value={project.id}>
-            {project.title} — {seasonOf(project)}
-          </option>
-        ))}
-    </select>
+            : projects.data.length === 0
+              ? 'No projects yet.'
+              : null
+      }
+      onChange={onChange}
+    />
   )
 }
 
-const SEASON_LABEL = { SPRING: 'Spring', SUMMER: 'Summer', FALL: 'Fall' }
+/**
+ * Newest term first, then by title.
+ *
+ * Ordered here rather than taken as `/projects` sends it: that route orders for
+ * the landing page — featured first, then a `startedAt` no route on this site
+ * writes — which scatters the current term's builds through the list. An
+ * officer appointing a lead is almost always doing it for the term that is
+ * running, so those are the rows the picker opens on.
+ */
+const projectOptions = (projects: ApiProject[]): PickerOption[] =>
+  [...projects]
+    .sort(
+      (a, b) =>
+        b.termYear - a.termYear ||
+        SEASON_ORDER[b.termSeason] - SEASON_ORDER[a.termSeason] ||
+        a.title.localeCompare(b.title),
+    )
+    .map((project) => ({
+      id: project.id,
+      label: project.title,
+      note: seasonOf(project),
+    }))
+
+const SEASON_LABEL: Record<Season, string> = {
+  SPRING: 'Spring',
+  SUMMER: 'Summer',
+  FALL: 'Fall',
+}
+
+/** Calendar order, matching the enum's declaration order on the server. */
+const SEASON_ORDER: Record<Season, number> = { SPRING: 0, SUMMER: 1, FALL: 2 }
 
 const seasonOf = (project: ApiProject) =>
   `${SEASON_LABEL[project.termSeason]} ${project.termYear}`

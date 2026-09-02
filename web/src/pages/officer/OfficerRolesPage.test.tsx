@@ -14,8 +14,12 @@ import { bodyOf, urlOf } from '../../test/stubFetch'
  * the only one behind a confirmation. Appointing a project lead refuses rather
  * than swaps — the server answers 409 and the page prints its sentence, so the
  * test worth having is that the sentence survives rather than being flattened
- * into an apology. Appointing a team lead needs a project *and* a team, and its
- * member list comes from the project's roster rather than from a search.
+ * into an apology. Appointing a team lead needs a project *and* a team, and the
+ * people it offers are the project's roster rather than every account.
+ *
+ * Neither project nor member is a drop-down any more, so a test that used to
+ * set a select's value now types and clicks a row. That is the whole difference
+ * — the ids on the wire are the same ones.
  *
  * The picker's own behaviour — debounce, minimum length, abort — is tested here
  * because this is the page that carries it now. Fake timers for the debounce,
@@ -151,29 +155,45 @@ function stubDesk(over: Record<string, unknown> = {}) {
       })
     }
     if (url.endsWith('/team')) return json(TEAM_VIEW)
-    if (url.includes('/projects?')) {
-      return json([
-        {
-          id: 'p1',
-          slug: 'rover',
-          title: 'Rover',
-          summary: null,
-          season: null,
-          termYear: 2035,
-          termSeason: 'FALL',
-          competition: null,
-          status: 'IN_PROGRESS',
-          coverUrl: null,
-          repoUrl: null,
-          featured: false,
-          startedAt: null,
-          completedAt: null,
-        },
-      ])
-    }
+    if (url.includes('/projects?')) return json(PROJECTS)
     return json({})
   })
 }
+
+const project = (
+  id: string,
+  title: string,
+  termYear: number,
+  termSeason: 'SPRING' | 'SUMMER' | 'FALL',
+) => ({
+  id,
+  slug: title.toLowerCase(),
+  title,
+  summary: null,
+  season: null,
+  termYear,
+  termSeason,
+  competition: null,
+  status: 'IN_PROGRESS',
+  coverUrl: null,
+  repoUrl: null,
+  featured: false,
+  startedAt: null,
+  completedAt: null,
+})
+
+/**
+ * Two terms and three builds, sent in the order `/projects` really sends them
+ * — which is the landing page's order, not the picker's. The list here is what
+ * makes the search worth testing at all: one title that is a prefix of nothing,
+ * one older term to find by year, and two rows to tell the sort from the wire
+ * order.
+ */
+const PROJECTS = [
+  project('p3', 'Combat Bot', 2034, 'SPRING'),
+  project('p1', 'Rover', 2035, 'FALL'),
+  project('p2', 'Rocketry', 2035, 'FALL'),
+]
 
 /**
  * The seats there are, as the route sends them — straight out of
@@ -374,9 +394,7 @@ describe('granting a membership', () => {
 
 describe('appointing a project lead', () => {
   const setUp = async () => {
-    fireEvent.change(leadPanel().getByLabelText('PROJECT'), {
-      target: { value: 'p1' },
-    })
+    fireEvent.click(leadPanel().getByRole('button', { name: /^Rover/ }))
     fireEvent.change(leadPanel().getByLabelText('FIND A MEMBER'), {
       target: { value: 'rowan' },
     })
@@ -473,20 +491,114 @@ describe('appointing a project lead', () => {
   })
 })
 
-describe('appointing a team lead', () => {
-  const pickProject = async () => {
-    fireEvent.change(teamPanel().getByLabelText('PROJECT'), {
-      target: { value: 'p1' },
-    })
+/**
+ * The project picker, which is a search box over the list rather than a
+ * drop-down of every term the club has ever run.
+ *
+ * Scoped to the project-lead panel; the team-lead panel below carries a second
+ * copy of the same component.
+ */
+describe('the project picker', () => {
+  const openPage = async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', stubDesk())
+    renderPage()
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0)
     })
   }
 
+  /** The current term first, and the wire order is not it. */
+  it('opens on the newest term', async () => {
+    await openPage()
+
+    const rows = leadPanel()
+      .getAllByRole('button')
+      .map((row) => row.textContent)
+      .filter((text) => text?.includes('20'))
+
+    expect(rows).toEqual([
+      'Rocketry Fall 2035',
+      'Rover Fall 2035',
+      'Combat Bot Spring 2034',
+    ])
+  })
+
+  it('narrows on the title, and on the term', async () => {
+    await openPage()
+
+    fireEvent.change(leadPanel().getByLabelText('PROJECT'), {
+      target: { value: 'rove' },
+    })
+
+    expect(
+      leadPanel().getByRole('button', { name: /^Rover/ }),
+    ).toBeInTheDocument()
+    expect(
+      leadPanel().queryByRole('button', { name: /^Rocketry/ }),
+    ).not.toBeInTheDocument()
+
+    // The term is matched as well as printed, which is the point of it being
+    // there: a build that runs for years is several rows with one name.
+    fireEvent.change(leadPanel().getByLabelText('PROJECT'), {
+      target: { value: '2034' },
+    })
+
+    expect(
+      leadPanel().getByRole('button', { name: /^Combat Bot/ }),
+    ).toBeInTheDocument()
+    expect(
+      leadPanel().queryByRole('button', { name: /^Rover/ }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('says so when nothing matches', async () => {
+    await openPage()
+
+    fireEvent.change(leadPanel().getByLabelText('PROJECT'), {
+      target: { value: 'submarine' },
+    })
+
+    expect(leadPanel().getByText('Nothing matches that.')).toBeInTheDocument()
+  })
+
+  /** Picking collapses the list, and CHANGE puts it back. */
+  it('collapses to the choice and reopens', async () => {
+    await openPage()
+
+    fireEvent.click(leadPanel().getByRole('button', { name: /^Rover/ }))
+
+    expect(
+      leadPanel().queryByRole('button', { name: /^Rocketry/ }),
+    ).not.toBeInTheDocument()
+    expect(leadPanel().getByText('Rover')).toBeInTheDocument()
+
+    fireEvent.click(leadPanel().getByRole('button', { name: 'CHANGE' }))
+
+    expect(
+      leadPanel().getByRole('button', { name: /^Rocketry/ }),
+    ).toBeInTheDocument()
+  })
+})
+
+describe('appointing a team lead', () => {
+  const pickProject = async () => {
+    fireEvent.click(teamPanel().getByRole('button', { name: /^Rover/ }))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+  }
+
+  /** Rowan, `u2`, who is on the roster as a plain member. */
+  const pickMember = () => {
+    fireEvent.click(teamPanel().getByRole('button', { name: 'Rowan Chen' }))
+  }
+
   /**
-   * The member list is the project's roster, not a search, and that is what
-   * makes the route's own rules reachable: it 404s for somebody not on the
-   * project and refuses outright if the target is the project lead.
+   * The member list is the project's roster rather than every account, and that
+   * is what makes the route's own rules reachable: it 404s for somebody not on
+   * the project and refuses outright if the target is the project lead. The
+   * search box narrows that roster; it never reaches past it.
    */
   it('offers the project roster once a project is picked', async () => {
     vi.useFakeTimers()
@@ -496,21 +608,56 @@ describe('appointing a team lead', () => {
       await vi.advanceTimersByTimeAsync(0)
     })
 
-    // Both selects say it, because both are empty until a project is named.
+    // Both say it: the team select's placeholder option and the member
+    // picker's status line. Neither has anything to offer until a project is.
     expect(teamPanel().getAllByText('Pick a project first')).toHaveLength(2)
 
     await pickProject()
 
     expect(
-      teamPanel().getByRole('option', { name: 'Rowan Chen' }),
+      teamPanel().getByRole('button', { name: 'Rowan Chen' }),
     ).toBeInTheDocument()
     // Ranks are printed, so an officer can see they are about to pick the lead.
     expect(
-      teamPanel().getByRole('option', { name: 'Sam Patel — project lead' }),
+      teamPanel().getByRole('button', { name: 'Sam Patel project lead' }),
     ).toBeInTheDocument()
     expect(
       teamPanel().getByRole('option', { name: 'Software' }),
     ).toBeInTheDocument()
+  })
+
+  it('narrows the roster as it is typed', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', stubDesk())
+    renderPage()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    await pickProject()
+    fireEvent.change(teamPanel().getByLabelText('MEMBER'), {
+      target: { value: 'sam' },
+    })
+
+    expect(
+      teamPanel().queryByRole('button', { name: 'Rowan Chen' }),
+    ).not.toBeInTheDocument()
+    expect(
+      teamPanel().getByRole('button', { name: 'Sam Patel project lead' }),
+    ).toBeInTheDocument()
+
+    // The rank is matched on as well as printed, which is how an officer finds
+    // the lead they have to stand down without knowing the name.
+    fireEvent.change(teamPanel().getByLabelText('MEMBER'), {
+      target: { value: 'project lead' },
+    })
+
+    expect(
+      teamPanel().getByRole('button', { name: 'Sam Patel project lead' }),
+    ).toBeInTheDocument()
+    expect(
+      teamPanel().queryByRole('button', { name: 'Rowan Chen' }),
+    ).not.toBeInTheDocument()
   })
 
   it('sends the rank and the team together', async () => {
@@ -526,9 +673,7 @@ describe('appointing a team lead', () => {
     fireEvent.change(teamPanel().getByLabelText('TEAM'), {
       target: { value: 't1' },
     })
-    fireEvent.change(teamPanel().getByLabelText('MEMBER'), {
-      target: { value: 'u2' },
-    })
+    pickMember()
 
     await act(async () => {
       fireEvent.click(
@@ -561,9 +706,7 @@ describe('appointing a team lead', () => {
     })
 
     await pickProject()
-    fireEvent.change(teamPanel().getByLabelText('MEMBER'), {
-      target: { value: 'u2' },
-    })
+    pickMember()
 
     await act(async () => {
       fireEvent.click(
@@ -589,9 +732,7 @@ describe('appointing a team lead', () => {
     })
 
     await pickProject()
-    fireEvent.change(teamPanel().getByLabelText('MEMBER'), {
-      target: { value: 'u2' },
-    })
+    pickMember()
 
     fireEvent.click(teamPanel().getByRole('button', { name: 'MAKE TEAM LEAD' }))
 
