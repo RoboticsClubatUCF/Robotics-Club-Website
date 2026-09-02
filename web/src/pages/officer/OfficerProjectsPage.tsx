@@ -1009,6 +1009,12 @@ function DuplicateForm({
     server, so a term sorts chronologically as `(termYear, SEASON_ORDER)`. */
 const SEASON_ORDER = { SPRING: 0, SUMMER: 1, FALL: 2 }
 
+/** Newest term first, then alphabetical inside a term. */
+const byTerm = (a: ApiProject, b: ApiProject) =>
+  b.termYear - a.termYear ||
+  SEASON_ORDER[b.termSeason] - SEASON_ORDER[a.termSeason] ||
+  a.title.localeCompare(b.title)
+
 /**
  * Every project the club has, and the way into managing one.
  *
@@ -1023,34 +1029,38 @@ const SEASON_ORDER = { SPRING: 0, SUMMER: 1, FALL: 2 }
  * doing the same thing to the same project — and an `officer` segment in a URL
  * a lead is entitled to would be a lie in the address bar.
  *
- * Sorted with this term's builds first, since those are the ones an officer is
- * nearly always after. The term is printed on every row regardless: "MANAGE"
- * beside a title says nothing about which semester's rover it is, and the club
- * runs the same build for years as one row per term.
+ * **This semester's builds, and the rest behind a button**, which is the shape
+ * `/projects` already uses for the same reason: the club has fifty-odd projects
+ * and runs a handful at a time, so a flat list is a long scroll past dead terms
+ * to reach the four an officer actually wants. The count sits on the button
+ * because "there are more" and "there are fifty-five more" are different
+ * things to know before pressing it.
+ *
+ * Unlike the public page's archive this splits a list it has already fetched
+ * rather than making a second request. One `/projects` answer is the whole
+ * club, the panel needs the full set to count what it is hiding, and an officer
+ * pressing SHOW is not worth a round trip.
  */
 function EveryProject() {
   const { membership } = useOutletContext<DashboardContext>()
   const projects = useApi<ApiProject[]>('/projects?limit=100')
+  const [pastOpen, setPastOpen] = useState(false)
 
-  // Off the layout's standing rather than a request of its own — the rail has
-  // already paid for it. Null while it is in flight, which costs the grouping
-  // and nothing else: every row still prints its own term.
   const term = membership.status === 'ready' ? membership.data.term : null
-  const current = (project: ApiProject) =>
-    term !== null &&
-    project.termYear === term.year &&
-    project.termSeason === term.season
+  const all = projects.status === 'ready' ? [...projects.data].sort(byTerm) : []
 
-  const ordered =
-    projects.status === 'ready'
-      ? [...projects.data].sort(
-          (a, b) =>
-            Number(current(b)) - Number(current(a)) ||
-            b.termYear - a.termYear ||
-            SEASON_ORDER[b.termSeason] - SEASON_ORDER[a.termSeason] ||
-            a.title.localeCompare(b.title),
+  // **With the term still in flight, nothing is hidden.** The same rule the
+  // dues padlocks follow: an unanswered question must not read as "no projects
+  // this semester", which is what splitting on a null term would draw.
+  const running =
+    term === null
+      ? all
+      : all.filter(
+          (project) =>
+            project.termYear === term.year &&
+            project.termSeason === term.season,
         )
-      : []
+  const earlier = all.filter((project) => !running.includes(project))
 
   return (
     <FormPanel>
@@ -1068,34 +1078,110 @@ function EveryProject() {
         <p className="text-dim text-sm leading-[1.7]">
           We couldn&rsquo;t load the projects just now. Try again in a moment.
         </p>
-      ) : ordered.length === 0 ? (
-        <p className="text-dim text-sm leading-[1.7] text-pretty">
-          There are no projects yet. Start one with the panel above.
-        </p>
       ) : (
-        <ul className="divide-rule divide-y">
-          {ordered.map((project) => (
-            <li
-              key={project.id}
-              className="flex items-center justify-between gap-4 py-2.5"
-            >
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{project.title}</p>
-                <p className="text-faint font-mono text-[10px] font-medium tracking-[0.14em] uppercase">
-                  {SEASON_LABEL[project.termSeason]} {project.termYear}
-                  {current(project) && ' · This term'}
-                </p>
-              </div>
-              <Link
-                to={`/dashboard/projects/${project.slug}/manage`}
-                className="text-faint hover:text-primary shrink-0 font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200"
-              >
-                MANAGE
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <>
+          {running.length === 0 ? (
+            <p className="text-dim text-sm leading-[1.7] text-pretty">
+              {all.length === 0
+                ? 'There are no projects yet. Start one with the panel above.'
+                : 'Nothing is running this semester.'}
+            </p>
+          ) : (
+            <ProjectRows projects={running} />
+          )}
+
+          {earlier.length > 0 && (
+            <div className="border-rule mt-4 border-t pt-4">
+              {pastOpen ? (
+                <>
+                  <div className="mb-1 flex flex-wrap items-baseline justify-between gap-3">
+                    <p className="text-faint font-mono text-[10px] font-medium tracking-[0.16em]">
+                      EARLIER SEMESTERS
+                    </p>
+                    <PastButton
+                      onClick={() => {
+                        setPastOpen(false)
+                      }}
+                    >
+                      HIDE PAST PROJECTS
+                    </PastButton>
+                  </div>
+                  <ProjectRows projects={earlier} showTerm />
+                </>
+              ) : (
+                <PastButton
+                  onClick={() => {
+                    setPastOpen(true)
+                  }}
+                >
+                  {`SHOW PAST PROJECTS (${String(earlier.length)})`}
+                </PastButton>
+              )}
+            </div>
+          )}
+        </>
       )}
     </FormPanel>
+  )
+}
+
+/**
+ * The rows themselves.
+ *
+ * `showTerm` is off for this semester's list, where every row carries the same
+ * term and printing it four times says nothing, and on for the archive, where
+ * it is the only thing telling one year's rover from the next.
+ */
+function ProjectRows({
+  projects,
+  showTerm = false,
+}: {
+  projects: ApiProject[]
+  showTerm?: boolean
+}) {
+  return (
+    <ul className="divide-rule divide-y">
+      {projects.map((project) => (
+        <li
+          key={project.id}
+          className="flex items-center justify-between gap-4 py-2.5"
+        >
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium">{project.title}</p>
+            {showTerm && (
+              <p className="text-faint font-mono text-[10px] font-medium tracking-[0.14em] uppercase">
+                {SEASON_LABEL[project.termSeason]} {project.termYear}
+              </p>
+            )}
+          </div>
+          <Link
+            to={`/dashboard/projects/${project.slug}/manage`}
+            className="text-faint hover:text-primary shrink-0 font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200"
+          >
+            MANAGE
+          </Link>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+/** Drawn the same way in both of its states, like the archive control on
+    `/projects` that this borrows its wording from. */
+function PastButton({
+  children,
+  onClick,
+}: {
+  children: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="border-rule text-faint hover:text-primary hover:border-primary cursor-pointer border px-4 py-2 font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200"
+    >
+      {children}
+    </button>
   )
 }

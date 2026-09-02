@@ -842,8 +842,8 @@ describe('the project Discord role', () => {
  * copy of the page.
  */
 describe('reaching any project from the desk', () => {
-  /** This semester's build. Handed to the stub *second* so the ordering
-      assertion below is about the sort rather than about the input. */
+  /** This semester's build. Handed to the stub *second* so the assertions
+      below are about the split rather than about the input order. */
   const running: ApiManagedProject = {
     ...created,
     id: 'p-now',
@@ -856,30 +856,79 @@ describe('reaching any project from the desk', () => {
   const everyPanel = () =>
     within(screen.getByText('EVERY PROJECT').closest('div')!)
 
-  it('links each project at the page its own lead opens', async () => {
+  const hrefs = () =>
+    everyPanel()
+      .getAllByRole('link', { name: 'MANAGE' })
+      .map((link) => link.getAttribute('href'))
+
+  it('shows this semester and keeps older terms behind the button', async () => {
     vi.stubGlobal('fetch', stubDesk({ projects: [existing, running] }))
     renderPage()
     await act(async () => {})
 
-    const links = everyPanel().getAllByRole('link', { name: 'MANAGE' })
-
     // `/dashboard/projects/...`, never `/dashboard/officer/...`: an `officer`
     // segment in a URL a lead is entitled to would be a lie in the address bar.
-    expect(links.map((link) => link.getAttribute('href'))).toEqual([
+    expect(hrefs()).toEqual(['/dashboard/projects/rover-now/manage'])
+    expect(everyPanel().queryByText('Rover One')).not.toBeInTheDocument()
+
+    // The count is on the button, because "there are more" and "there are
+    // fifty-five more" are different things to know before pressing it.
+    expect(
+      everyPanel().getByRole('button', { name: 'SHOW PAST PROJECTS (1)' }),
+    ).toBeInTheDocument()
+  })
+
+  it('reveals the older terms on press, and hides them again', async () => {
+    vi.stubGlobal('fetch', stubDesk({ projects: [existing, running] }))
+    renderPage()
+    await act(async () => {})
+
+    fireEvent.click(
+      everyPanel().getByRole('button', { name: 'SHOW PAST PROJECTS (1)' }),
+    )
+
+    expect(hrefs()).toEqual([
       '/dashboard/projects/rover-now/manage',
       '/dashboard/projects/rover-one/manage',
     ])
+    // The term is printed on the archive rows and not on this semester's,
+    // where every row carries the same one.
+    expect(everyPanel().getByText('Spring 2034')).toBeInTheDocument()
+
+    fireEvent.click(
+      everyPanel().getByRole('button', { name: 'HIDE PAST PROJECTS' }),
+    )
+    expect(hrefs()).toEqual(['/dashboard/projects/rover-now/manage'])
   })
 
-  it('puts this semester first and names the term on every row', async () => {
-    vi.stubGlobal('fetch', stubDesk({ projects: [existing, running] }))
+  it('says nothing is running rather than drawing an empty panel', async () => {
+    // Only the 2034 project, and the term is FALL 2026.
+    vi.stubGlobal('fetch', stubDesk({ projects: [existing] }))
     renderPage()
     await act(async () => {})
 
     const panel = everyPanel()
-    expect(panel.getByText(/Fall 2026 · This term/)).toBeInTheDocument()
-    // The older one is still listed, and still says which term it was.
-    expect(panel.getByText('Spring 2034')).toBeInTheDocument()
+    expect(panel.getByText('Nothing is running this semester.')).toBeInTheDocument()
+    // Still reachable — it is hidden, not gone.
+    expect(
+      panel.getByRole('button', { name: 'SHOW PAST PROJECTS (1)' }),
+    ).toBeInTheDocument()
+  })
+
+  it('hides nothing while the term is still in flight', async () => {
+    vi.stubGlobal('fetch', stubDesk({ projects: [existing, running] }))
+    renderPage({
+      ...context(),
+      membership: { status: 'loading' },
+    })
+    await act(async () => {})
+
+    // An unanswered question must not read as "no projects this semester",
+    // which is what splitting on a term nobody has yet would draw.
+    expect(hrefs()).toHaveLength(2)
+    expect(
+      everyPanel().queryByRole('button', { name: /SHOW PAST PROJECTS/ }),
+    ).not.toBeInTheDocument()
   })
 
   it('says so rather than emptying the panel when the list will not load', async () => {
