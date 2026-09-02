@@ -787,7 +787,10 @@ function ProseAndLinks({
           disabled={busy}
           className={submitClass}
         >
-          {busy ? 'SAVING…' : dirty ? 'SAVE CHANGES' : 'SAVED'}
+          {/* SAVE at rest rather than SAVED: the button says what pressing it
+              does, and "Saved." below is the status line that reports what
+              happened. */}
+          {busy ? 'SAVING…' : dirty ? 'SAVE CHANGES' : 'SAVE'}
         </button>
       </div>
 

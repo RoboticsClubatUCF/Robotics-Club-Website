@@ -383,7 +383,11 @@ describe('ProjectEditor', () => {
 
     expect(screen.getByLabelText('DESCRIPTION')).toHaveValue(written)
     expect(screen.queryByText('Unsaved changes.')).toBeNull()
-    expect(screen.getByRole('button', { name: 'SAVED' })).toBeInTheDocument()
+    // Back to rest: nothing outstanding to press, and "Saved." — the status
+    // line, which is where a report of what happened belongs — says so. Both
+    // deferred sections read SAVE at rest, so there are two of them.
+    expect(screen.queryByRole('button', { name: 'SAVE CHANGES' })).toBeNull()
+    expect(screen.getAllByRole('button', { name: 'SAVE' })).toHaveLength(2)
     expect(screen.getByText('Saved.')).toBeInTheDocument()
   })
 

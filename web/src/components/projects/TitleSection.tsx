@@ -389,10 +389,15 @@ export function TitleSection({
           disabled={busy || title.trim() === ''}
           className={submitClass}
         >
-          {/* Named for this section in both states, because the writing section
-              lower down has its own button and "SAVED" twice on one page is two
-              controls a screen reader cannot tell apart. */}
-          {busy ? 'SAVING…' : dirty ? 'SAVE THE TITLE' : 'TITLE SAVED'}
+          {/* A button says what pressing it does, so the resting state is SAVE
+              rather than a report of what happened last. "Saved." below is the
+              status line, which is where that belongs.
+
+              Named for this section while there is something to save, because
+              the writing section lower down has its own button — two controls
+              reading the same word are two a screen reader cannot tell apart,
+              and the dirty state is when it matters which one is being pressed. */}
+          {busy ? 'SAVING…' : dirty ? 'SAVE THE TITLE' : 'SAVE'}
         </button>
       </div>
 

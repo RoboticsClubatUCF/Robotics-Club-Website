@@ -222,16 +222,23 @@ describe('TitleSection', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 
-  /** The writing section lower down has its own button, and two controls both
-      reading "SAVED" is two things a screen reader cannot tell apart. */
-  it('names its own button in both states', async () => {
+  /**
+   * A button says what pressing it does, so the resting label is SAVE rather
+   * than a report of what happened last — "Saved." below it is the status line
+   * that reports.
+   *
+   * It names this section once there is something to save, because the writing
+   * section lower down has its own button and the dirty state is when it matters
+   * which of the two is being pressed.
+   */
+  it('offers to save, and names the section once there is something to', async () => {
     const fetchMock = vi.fn((_input: string | URL | Request, _init?: RequestInit) =>
       json({ title: 'Renamed' }),
     )
     vi.stubGlobal('fetch', fetchMock)
 
     show()
-    expect(screen.getByRole('button', { name: 'TITLE SAVED' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'SAVE' })).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('TITLE'), {
       target: { value: 'Renamed' },
