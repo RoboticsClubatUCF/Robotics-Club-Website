@@ -24,15 +24,11 @@ import {
   meetingProjectSelect,
 } from '../../projects/meetings.js'
 import { currentTerm } from '../../membership/semester.js'
-// Same rule as `documentSelect` below: the desk that writes the front page's
-// slideshow owns the shape of a slide, and this read borrows it rather than
-// restating six columns that would then be free to disagree.
+// The desk that writes the front page's slideshow owns the shape of a slide;
+// this read borrows it rather than restating six columns that could disagree.
 import { heroSlideSelect } from '../officer/heroSlides.js'
-// The same rule again: the desk that writes the sponsor page owns the shape of
-// everything on it, and these three reads borrow those shapes rather than
-// restating columns that would then be free to disagree. `TIERS` comes with
-// them because the club's ranking is the enum's declaration order and this
-// route must not keep a second copy of it.
+// Same rule for the sponsor page. `TIERS` comes with them because the club's
+// ranking is the enum's declaration order and this route must not keep a copy.
 import {
   inKindSelect,
   sheetFootnotes,
@@ -40,9 +36,8 @@ import {
   tierOfferSelect,
   TIERS,
 } from '../officer/sponsorsAdmin.js'
-// And again, twice over. The front page's copy and the about page's are written
-// from two more officer routers, and this file answers both reads — so the
-// shapes come from the files that own them rather than being restated here.
+// And again: the front page's copy and the about page's are written from two
+// more officer routers, so the shapes come from the files that own them.
 import {
   aboutCopySelect,
   ABOUT_ROW,
@@ -54,16 +49,14 @@ import {
   FRONT_PAGE_ROW,
   partnerSelect,
 } from '../officer/frontPage.js'
-// The documentation shape, from the router that writes it. Imported rather
-// than restated so the public read and the lead's editor cannot answer with
-// two different objects — the same reason `projectManage.ts` imports
-// `managedProjectSelect` from the officer desk.
+// The documentation shape, from the router that writes it — imported so the
+// public read and the lead's editor can't answer with two different objects.
 import { documentSelect, wireDocument } from '../projects/projectManage.js'
 
 /**
- * Public, read-only content for the website. Everything here is reachable
- * without auth, so each query filters out unpublished rows and no select
- * reaches for a column the public shouldn't see.
+ * Public, read-only content. Everything here is reachable without auth, so each
+ * query filters out unpublished rows and no select reaches for a column the
+ * public shouldn't see.
  */
 export const content = new Hono()
 
@@ -74,47 +67,31 @@ const listQuery = z.object({
 
 /**
  * What the club means by "an active member" — the landing page's headline count
- * and the roster's default chip, which are the same question asked twice.
+ * and the roster's default chip, which are one question asked twice.
  *
- * `role` is the club's ladder rather than a permission label — `membershipSweep`
- * puts a lapsed MEMBER back down to GUEST and `routes/member/dues.ts` promotes
- * them again — so "not a GUEST" is dues standing. `active` is the alumni flag.
- * See `.claude/docs/membership.md`; nothing here is a permission check.
+ * `role` is the club's ladder rather than a permission label (the sweep drops a
+ * lapsed MEMBER to GUEST and dues promote them back), so "not a GUEST" is dues
+ * standing. `active` is the alumni flag. See `.claude/docs/membership.md`;
+ * nothing here is a permission check.
  *
- * **`GET /members` defaults to exactly this**, and it has been wrong in both
- * directions to get here. The roster was once
- * `{ slug: { not: null }, role: { not: 'GUEST' } }` — a person reached the
- * public page only by being given a `slug` by hand, and **no route on this site
- * has ever written that column**, so a page headed "who is in the club" listed
- * sixty of six hundred and eighty-eight accounts with no way in the product to
- * add the sixty-first. Dropping the slug was right; defaulting to *everybody,
- * guests included* was the overcorrection, because the club's own answer to who
- * is in it is who has paid. EVERYONE is still one chip away for anybody who
- * wants the whole table.
- *
- * So the strip's cell and the page it links to agree again, and the exception
- * the strip used to document is gone — see
- * `web/src/components/home/StatStrip.tsx`.
+ * `GET /members` defaults to exactly this, and it has been wrong both ways. The
+ * roster once required a `slug` set by hand, which no route on this site has
+ * ever written — so a page headed "who is in the club" listed sixty of 688.
+ * Defaulting to everybody, guests included, was the overcorrection. EVERYONE is
+ * one chip away.
  */
 const activeMembers = { active: true, role: { not: 'GUEST' } } as const
 
 /**
  * Having sat on the board and left it, in the club's own archive.
  *
- * **The officers desk is why this is here.** Officer alumni used to be the
- * Discord role and nothing else, and the argument for that was reach:
- * `OfficerTerm` only knew about the people who had rotated off since the sync
- * started, which was a few months of a fifty-year club, while the guild's
- * `Officer Alumni` role goes back as far as the server does. That argument is
- * spent — `/dashboard/officer/officers` writes closed terms by hand now, so the
- * archive goes back as far as somebody is willing to type, and a club with no
- * Discord at all can still say who used to run it.
+ * A second source for officer alumni, not a replacement: the Discord role used
+ * to be the only one because `OfficerTerm` reached back only as far as the sync,
+ * and the officers desk spent that argument by letting closed terms be typed in.
  *
- * It is a *second source*, not a replacement, and deliberately not a second
- * writer. Nothing here writes `User.officerAlumnus`; `discordAlumni.ts` still
- * owns that column outright and this is read beside it. A column with two
- * owners is the bug this codebase keeps paying for — see the note on `active`
- * in that file.
+ * Deliberately not a second writer. `discordAlumni.ts` owns `User.officerAlumnus`
+ * outright and this is read beside it — a column with two owners is the bug this
+ * codebase keeps paying for.
  */
 const servedOnTheBoard: UserWhereInput = {
   officerTerms: { some: { endedAt: { not: null } } },
@@ -123,27 +100,18 @@ const servedOnTheBoard: UserWhereInput = {
 /**
  * What the roster's three chips mean.
  *
- * **ACTIVE MEMBERS is `activeMembers` itself**, shared rather than copied. The
+ * ACTIVE MEMBERS is `activeMembers` itself, shared rather than copied: the
  * landing page's cell counts that clause and links here, so the number somebody
- * presses has to be the list they land on; two spellings of one rule is how
- * that stops being true without anybody noticing.
+ * presses has to be the list they land on.
  *
- * **ALUMNI is two facts, either of which is enough**: the club's Discord
- * *Officer Alumni* role, mirrored into `User.officerAlumnus` by
- * `discord/discordAlumni.ts`, or a term in the club's own archive that has
- * ended — see `servedOnTheBoard` above. It is not `active`, which the chip used
- * to read and which is a different fact with a different owner —
- * `membershipUpdateFor` sets `active` back to `true` on every payment, so it
- * can never be made to mean "used to run the club".
+ * ALUMNI is two facts, either enough — the Discord role mirrored into
+ * `User.officerAlumnus`, or an ended term in the archive. Not `active`, which
+ * every payment sets back to true and so can never mean "used to run the club".
  *
- * **The three are not a partition and are not trying to be.** The first two
- * overlap on purpose: a past president who still pays dues is under both, and
- * one of the twenty-seven people carrying the role in the club's guild is a
- * sitting officer. ACTIVE MEMBERS used to negate both halves of ALUMNI to keep
- * them disjoint, which had the effect that paying dues could not put somebody
- * on the list of people who pay dues. A guest who signed up and went no further
- * is in neither and appears under EVERYONE alone, which is the honest answer
- * for them.
+ * The three are not a partition and aren't trying to be. The first two overlap
+ * on purpose: a past president who still pays dues is under both. ACTIVE MEMBERS
+ * used to negate the alumni halves, which meant paying dues couldn't put you on
+ * the list of people who pay dues.
  */
 const rosterStatus = {
   active: activeMembers,
@@ -152,17 +120,14 @@ const rosterStatus = {
 } satisfies Record<'active' | 'alumni' | 'all', UserWhereInput>
 
 /**
- * Contact details stay private — no `email` or `passwordHash` here.
+ * Contact details stay private — no `email` or `passwordHash`.
  *
- * `slug` is still sent and is still null for almost everybody. It means "has a
- * public profile URL" and nothing else now: `GET /members/:slug` is the only
- * reader, and it is an officer's to set.
+ * `slug` means "has a public profile URL" and nothing else; it's null for almost
+ * everybody and is an officer's to set.
  *
- * `profileUrl` is the member's own answer to the same question and needs
- * nobody's permission — the roster card's photograph is a link to it where
- * there is one. It has already been through the allowlist in
- * `src/core/validate.ts` by the time it is stored, which is what makes it safe
- * to print into an `href` on a page with several hundred faces on it.
+ * `profileUrl` is the member's own answer to the same question and needs nobody's
+ * permission. It has already been through the allowlist in `src/core/validate.ts`
+ * by the time it's stored, which is what makes it safe in an `href`.
  */
 const rosterSelect = {
   id: true,
@@ -175,27 +140,21 @@ const rosterSelect = {
   photoUrl: true,
   profileUrl: true,
   active: true,
-  // What the card's ALUMNI badge is drawn from under the EVERYONE chip. Sent
-  // rather than inferred from `active`, which is a different fact — see
-  // `rosterStatus`.
+  // What the card's ALUMNI badge is drawn from. Sent rather than inferred from
+  // `active`, which is a different fact — see `rosterStatus`.
   officerAlumnus: true,
-  // The archive's half of the same answer, as one row or none. `take: 1`
-  // because the question is "did they ever", and somebody who held five terms
-  // is no more an alumnus than somebody who held one — `asRosterEntry` below
-  // only asks whether the array is empty. A relation probe rather than a
-  // `_count`: Prisma cannot filter a `_count` and select a scalar from the same
-  // relation in one go, and this shape reads as what it is.
+  // The archive's half of the same answer, as one row or none. `take: 1` because
+  // the question is "did they ever". A relation probe rather than a `_count`:
+  // Prisma can't filter a `_count` and select a scalar from one relation at once.
   officerTerms: { where: { endedAt: { not: null } }, select: { id: true }, take: 1 },
 } satisfies UserSelect
 
 /**
- * `officerAlumnus` as the browser sees it: the Discord flag **or** a term that
- * has ended.
+ * `officerAlumnus` as the browser sees it: the Discord flag or an ended term.
  *
- * Collapsed here rather than sent as two fields, because every reader of it —
- * the card's badge, the ALUMNI chip's own filter — wants the same OR, and two
- * fields is two places for that OR to be written differently. The probe relation
- * does not go out at all; it is scaffolding for this line.
+ * Collapsed here rather than sent as two fields, because every reader wants the
+ * same OR and two fields is two places to write it differently. The probe
+ * relation doesn't go out at all.
  */
 const asRosterEntry = <
   T extends { officerAlumnus: boolean; officerTerms: unknown[] },
@@ -213,17 +172,15 @@ const projectSelect = {
   title: true,
   summary: true,
   season: true,
-  // The label and the term both. A multi-semester build is several rows now,
-  // one per term, so a list that printed only the free-text `season` would show
-  // the same title three times with nothing to tell them apart.
+  // The label and the term both. A multi-semester build is one row per term, so
+  // printing only the free-text `season` would show one title three times.
   termYear: true,
   termSeason: true,
   competition: true,
   status: true,
-  // The cover and how it is framed, plus the switch that says whether either is
-  // read at all. Six small scalars, sent unconditionally: `coverOf` in the
-  // browser is one rule over all of them, and a flag that sent half would make
-  // the listing and the project's own page disagree about the same picture.
+  // The cover, its framing, and the switch saying whether either is read. Six
+  // scalars sent unconditionally: `coverOf` is one rule over all of them, and
+  // sending half would make the listing and the project's page disagree.
   coverUrl: true,
   coverFromGallery: true,
   coverFocalX: true,
@@ -242,11 +199,10 @@ const projectSelect = {
 /**
  * A project's gallery, in the order its lead arranged it.
  *
- * Two readers — the detail route, which always carries it, and the listing when
- * a caller asks with `images=true`. One declaration because the two must answer
- * with the same object: the browser draws both through the same component, and
- * a framing column present on one and missing on the other is a picture that
- * silently reverts to a centred crop on one page and not the other.
+ * One declaration for two readers — the detail route and the listing under
+ * `images=true` — because they must answer with the same object: a framing column
+ * on one and missing from the other is a picture that silently reverts to a
+ * centred crop on one page.
  */
 const gallerySelect = {
   orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
@@ -254,9 +210,8 @@ const gallerySelect = {
     id: true,
     url: true,
     caption: true,
-    // How the picture sits in the frame. Public because the public page is what
-    // draws it — without these every gallery reverts to a plain centred crop
-    // for the visitors it was framed for.
+    // How the picture sits in the frame. Public because the public page draws it
+    // — without these every gallery reverts to a plain centred crop.
     focalX: true,
     focalY: true,
     zoom: true,
@@ -292,22 +247,21 @@ function notFound(what: string): never {
 }
 
 /**
- * Hasn't finished by `at`. `endsAt` is optional, so a one-day event falls back
- * to its start.
+ * Hasn't finished by `at`. `endsAt` is optional, so a one-day event falls back to
+ * its start.
  *
- * Two callers want this same predicate for different reasons: "upcoming" is
- * "hasn't finished by now", and the calendar's lower range bound is "hasn't
- * finished by the 1st of the month" — which is what keeps a competition that
- * started in July on the August grid.
+ * Two callers want the same predicate: "upcoming" is "hasn't finished by now",
+ * and the calendar's lower bound is "hasn't finished by the 1st" — which keeps a
+ * competition that started in July on the August grid.
  */
 const unfinishedBy = (at: Date) => ({
   OR: [{ endsAt: { gte: at } }, { endsAt: null, startsAt: { gte: at } }],
 })
 
 /**
- * An event counts as past only once it has finished, so a multi-day competition
- * keeps showing as upcoming while it runs. Shared by the event listing and the
- * stats count so the two can never disagree about what "upcoming" means.
+ * An event is past only once it has finished, so a multi-day competition stays
+ * upcoming while it runs. Shared by the listing and the stats count so the two
+ * can't disagree about what "upcoming" means.
  */
 const upcoming = unfinishedBy
 
@@ -320,18 +274,13 @@ const past = (now: Date) => ({
 /**
  * Counts for the landing page's headline strip.
  *
- * Each cell up there links to a listing page and counts exactly what that
- * listing shows by default — the number you read is the number of rows you find
- * when you land. Change one and change the other.
+ * Each cell links to a listing page and counts exactly what that listing shows by
+ * default — the number you read is the number of rows you find. Change one and
+ * change the other. `members` was the exception until the roster made
+ * `rosterStatus.active` its default; the two are one rule again.
  *
- * **`members` was the exception until the roster made this its default.**
- * `GET /members` used to list every account including guests, so the cell had to
- * carry the difference in its label. It defaults to `rosterStatus.active`, which
- * *is* `activeMembers`, and the two are one rule again. The label stays ACTIVE
- * MEMBERS because that is what the number is, not because it is a caveat.
- *
- * They run in a transaction so the three numbers describe a single snapshot
- * rather than three separate moments, and `count` never loads the rows.
+ * They run in a transaction so the three numbers describe one snapshot, and
+ * `count` never loads the rows.
  */
 content.get('/stats', async (c) => {
   const now = new Date()
@@ -353,22 +302,18 @@ content.get('/stats', async (c) => {
 /**
  * The club's active membership by default, and every account behind a chip.
  *
- * **The default is `rosterStatus.active`, which is `activeMembers`** — the same
- * clause the landing page's cell counts. The other two states are a `status=`
- * the page offers rather than something applied behind the reader's back.
+ * The default is `rosterStatus.active`, the same clause the landing page counts.
+ * The other two are a `status=` the page offers rather than something applied
+ * behind the reader's back.
  *
- * **There is no `slug` filter and there must never be one again.** It was how
- * this page came to show sixty of six hundred and eighty-eight accounts, and no
- * route on this site has ever written that column; see `activeMembers`.
+ * There is no `slug` filter and there must never be one again — see
+ * `activeMembers` for what that cost.
  *
- * `limit` is its own ceiling here rather than `listQuery`'s hundred. The page
- * searches by name in the browser on purpose — a club roster is a list too long
- * to *scan*, not one too long to send — and that only works if one request
- * carries the whole thing. A thousand rows of these columns is a
- * few hundred kilobytes before compression, cached at the edge for five
- * minutes, and read once by anybody who visits `/members`. If the club ever
- * passes a thousand this becomes real pagination *and* server-side search,
- * because either without the other is a search box that lies.
+ * `limit` is its own ceiling rather than `listQuery`'s hundred. The page searches
+ * by name in the browser on purpose: a roster is too long to scan, not too long
+ * to send, and that only works if one request carries the whole thing. Past a
+ * thousand this becomes real pagination and server-side search — either without
+ * the other is a search box that lies.
  */
 content.get(
   '/members',
@@ -389,9 +334,9 @@ content.get(
         ...rosterStatus[status],
         ...(role ? { role } : {}),
       },
-      // Leadership first, then alphabetical — the order the team page wants.
-      // UserRole is declared most permission to least, and Postgres sorts an
-      // enum by declaration order, so ascending role is descending seniority.
+      // Leadership first, then alphabetical. UserRole is declared most permission
+      // to least and Postgres sorts an enum by declaration order, so ascending
+      // role is descending seniority.
       orderBy: [{ role: 'asc' }, { fullName: 'asc' }],
       select: rosterSelect,
       take: limit,
@@ -405,38 +350,24 @@ content.get(
 /**
  * The officer board and the officer archive — the same rows, split on one column.
  *
- * `OfficerTerm` is who sat on the board, in which seat, between which dates, and
- * **an open term — `endedAt` null — is what "currently an officer" means.** That
- * is deliberately not `User.role`: the ladder there says what somebody may *do*
- * and `ADMIN` outranks `OFFICER` on it, so it cannot express an admin who also
- * sits on the board. A term can, and does. See `schema.prisma` and
- * `.claude/docs/membership.md`.
+ * An open term (`endedAt` null) is what "currently an officer" means. Deliberately
+ * not `User.role`, where `ADMIN` outranks `OFFICER` and so can't express an admin
+ * who also sits on the board. Its own route rather than `/members?role=OFFICER`
+ * because the faculty advisor sits on the board as a plain `MEMBER`.
  *
- * Its own route rather than `/members?role=OFFICER` for the reason it always
- * was: the faculty advisor sits on the board as a plain `MEMBER`, so a role
- * filter would both miss them and sweep up officers holding no named seat.
+ * The photo is coalesced here and the account's own wins. A term may carry a
+ * headshot, and that used to be preferred — an officer as they were that year —
+ * but a photo filed against one term is a copy nothing keeps up to date, and no
+ * page has ever written `officer_terms.photo_url`. The stored one still answers
+ * for every term with no account behind it, which is most of the archive.
  *
- * **The photo is coalesced here rather than left to the page, and the account's
- * own photograph is what wins.** A term may also carry a headshot stored on the
- * row, and that used to be preferred — an officer was shown as they were in the
- * year they served. It is the fallback now, because a photograph filed against
- * one term is a copy that nothing keeps up to date: somebody who replaces the
- * picture on their account expects the board to follow, and no page on this
- * site has ever written `officer_terms.photo_url`, so in practice the winner
- * was a column only an import could fill. The stored one still answers for
- * every term with no account behind it, which is most of the archive.
+ * `profileUrl` rides along for the reason the roster sends it. There's no
+ * per-term copy of that and shouldn't be — a link is a live address, not a record
+ * of a year.
  *
- * `profileUrl` rides along from the same place for the same reason the roster
- * sends it: the card's photograph is a link where the officer has given one.
- * There is no per-term copy of *that* and there should not be — a link is a
- * live address rather than a record of a year. Nothing else about the linked
- * user comes back.
- *
- * Both are unpaginated, deliberately. The whole archive is eight seats a year
- * against a fifty-year club; the page searches and filters it in the browser for
- * the same reason `web/src/lib/equipment/catalogue.ts` does — a list too long to *scan*,
- * not one too long to send. The day those become the same problem this wants
- * `?q=` and `?year=`, not a bigger `take`.
+ * Both are unpaginated: eight seats a year against a fifty-year club, searched in
+ * the browser. The day that stops working it wants `?q=` and `?year=`, not a
+ * bigger `take`.
  */
 const termSelect = {
   id: true,
@@ -462,11 +393,10 @@ const asOfficer = <T extends SelectedTerm>({ user, photoUrl, ...term }: T) => ({
 /**
  * The seats there are, in board order, straight out of the enum.
  *
- * `OfficerPosition` is declared in `schema.prisma` in the order the site shows
- * it, and Prisma generates the object in that order — so this needs no list
- * beside it and no sort. It is sent to the browser because **how many seats the
- * club has is the database's answer, not the frontend's**: adding a ninth to
- * the enum has to put a ninth on the page without anybody editing a constant.
+ * `OfficerPosition` is declared in board order and Prisma generates the object in
+ * that order, so this needs no list beside it and no sort. Sent to the browser
+ * because how many seats the club has is the database's answer: a ninth in the
+ * enum has to put a ninth on the page with nothing edited in `web/`.
  */
 const SEATS = Object.values(OfficerPosition)
 
@@ -477,25 +407,21 @@ const seatsAmong = (terms: { position: OfficerPosition | null }[]) => {
 }
 
 /**
- * Today's board: **one entry per sitting officer**, not one per seat.
+ * Today's board: one entry per sitting officer, not one per seat.
  *
- * It used to be one per seat, with the frontend holding the list of eight and
- * the response only filling them in. Two things were wrong with that. The count
- * was a constant in `content/home.ts`, so a seat added to the enum did not
- * appear until somebody edited the frontend; and an officer holding *no* named
- * seat — which is exactly what the Discord sync creates, before anybody has
- * given them a chair — could not be drawn at all, so a real officer was
- * invisible on the front page.
+ * It used to be one per seat with the frontend holding the list of eight. Two
+ * things were wrong: the count was a constant, so a seat added to the enum didn't
+ * appear until somebody edited `web/`; and an officer holding no named seat —
+ * exactly what the Discord sync creates — couldn't be drawn at all.
  *
- * `seats` rides along so the page can still draw the chairs nobody is sitting
- * in, and that list now comes from the database too.
+ * `seats` rides along so the page can still draw the empty chairs.
  */
 content.get('/officers', async (c) => {
   const terms = await prisma.officerTerm.findMany({
     where: { endedAt: null },
-    // Postgres sorts an enum by declaration order and OfficerPosition is
-    // declared in board order, so this is president-first without a lookup.
-    // Nulls sort last, which puts the seatless officers after the seated ones.
+    // Postgres sorts an enum by declaration order and OfficerPosition is declared
+    // in board order, so this is president-first without a lookup. Nulls sort
+    // last, which puts the seatless officers after the seated ones.
     orderBy: [{ position: 'asc' }, { startedAt: 'asc' }],
     select: termSelect,
   })
@@ -506,29 +432,25 @@ content.get('/officers', async (c) => {
 /**
  * Which academic year a term began in, in SQL.
  *
- * **August is the cut-over, and this has to agree with `academicYearOf` in
- * `web/src/lib/officerTerms.ts`.** The browser groups the cards under a heading
- * computed that way; if this windowed on a different rule, a year would arrive
- * half-empty and the page would have no way to know. `officers.test.ts` pins
- * the two together.
+ * August is the cut-over, and this has to agree with `academicYearOf` in
+ * `web/src/lib/officerTerms.ts` — the browser groups cards under a heading
+ * computed that way, so a different rule here arrives half-empty with no way for
+ * the page to know. `officers.test.ts` pins the two together.
  */
 const ACADEMIC_YEAR = `(EXTRACT(YEAR FROM started_at)::int
   - CASE WHEN EXTRACT(MONTH FROM started_at) >= 8 THEN 0 ELSE 1 END)`
 
 /**
- * Everyone who has left the board. Seatless terms are kept — somebody who
- * served without a named chair still served.
+ * Everyone who has left the board. Seatless terms are kept — somebody who served
+ * without a named chair still served.
  *
- * **Two academic years by default, not the whole archive.** A fifty-year club
- * is a few hundred rows and every one of them carries a headshot the page then
- * asks for; opening `/officers` should not be a request for the lot. `?all=1`
- * fetches everything, which is what the page's own "show earlier years" sends —
- * the same idiom as the print and borrowing queues.
+ * Two academic years by default, not the whole archive: a fifty-year club is a
+ * few hundred rows and every one carries a headshot the page then asks for.
+ * `?all=1` fetches everything, which is what "show earlier years" sends.
  *
- * **The window is the two most recent years that *have* terms, not the two most
- * recent years.** A club that has not rotated since 2025 would get an empty
- * page from a window counted off today's date, which looks broken and is the
- * one thing a default must never do.
+ * The window is the two most recent years that have terms, not the two most
+ * recent years — a club that hasn't rotated since 2025 would otherwise get an
+ * empty page, which looks broken and is the one thing a default must never do.
  */
 content.get(
   '/officers/past',
@@ -558,9 +480,8 @@ content.get(
 
     const oldest = present.at(-1)?.ay ?? null
 
-    // 1 August of that year is where it begins — the same boundary the SQL
-    // above divides on, expressed as a date so the query below can use the
-    // index on `started_at`.
+    // 1 August of that year is where it begins — the same boundary the SQL above
+    // divides on, as a date so the query can use the index on `started_at`.
     const from = oldest === null ? null : new Date(Date.UTC(oldest, 7, 1))
 
     const where = {
@@ -571,9 +492,8 @@ content.get(
     const [terms, older] = await Promise.all([
       prisma.officerTerm.findMany({
         where,
-        // Newest first, board order inside a start date. `endedAt` breaks the
-        // tie between a term that ran one year and one that ran eight from the
-        // same day.
+        // Newest first, board order inside a start date. `endedAt` breaks the tie
+        // between a term that ran one year and one that ran eight from the same day.
         orderBy: [{ startedAt: 'desc' }, { endedAt: 'desc' }, { position: 'asc' }],
         select: termSelect,
       }),
@@ -593,13 +513,11 @@ content.get(
 )
 
 /**
- * One person's profile, for a page that does not exist yet.
+ * One person's profile, for a page that doesn't exist yet.
  *
  * `slug` is the whole condition now. It used to also require not being a GUEST,
- * which was the roster rule rather than this route's — and with the listing
- * showing guests, a card whose profile 404s purely because they have not paid
- * would be the odd one out. A slug is set by hand and by an officer either way,
- * so having one *is* the decision to publish a profile.
+ * which was the roster's rule rather than this route's. A slug is set by hand by
+ * an officer either way, so having one is the decision to publish a profile.
  */
 content.get('/members/:slug', async (c) => {
   const member = await prisma.user.findFirst({
@@ -629,53 +547,44 @@ content.get(
       status: z.enum(ProjectStatus).optional(),
       season: z.string().optional(),
       /**
-       * Which term, computed rather than named — the caller cannot say *which*
-       * one, on purpose. A page asking for the current term has no way to know
-       * what that is without a second round trip, and one that hard-codes a
-       * guess is a page that goes quietly empty in August. `season` above stays
-       * for the free-text label; this is the real term.
+       * Which term, computed rather than named — the caller can't say which one,
+       * on purpose: a page asking for the current term has no way to know what
+       * that is without a second round trip, and one that hard-codes a guess goes
+       * quietly empty in August.
        *
-       * **`other` is everything that is not the current term, not everything
-       * before it.** The public list shows this semester and puts the rest
-       * behind a button, so a strict "past" would leave a project stamped for a
-       * term that has not started — a fall build entered in spring, which
-       * `currentTerm` makes an ordinary thing to have — on neither list and
-       * therefore on no page at all. It sorts newest term first, so such a row
-       * arrives at the top carrying its own term label rather than vanishing.
+       * `other` is everything that is not the current term, not everything before
+       * it. A strict "past" would leave a project stamped for a term that hasn't
+       * started — a fall build entered in spring — on neither list and so on no
+       * page at all. Newest term first, so such a row arrives at the top.
        */
       term: z.enum(['current', 'other']).optional(),
       /**
-       * Opt-in, because the gallery is otherwise the detail route's alone — see
-       * the note on `/projects/:slug`. This list answers up to a hundred rows
-       * and renders none of their pictures, so the flag exists for the one
-       * caller that renders all of them: `/projects` asks for the current term,
-       * which is a handful of projects, and draws a slideshow per project.
+       * Opt-in, because the gallery is otherwise the detail route's alone. This
+       * list answers up to a hundred rows and renders none of their pictures, so
+       * the flag exists for the one caller that renders all of them: `/projects`
+       * asks for the current term and draws a slideshow per project.
        */
       images: z.enum(['true', 'false']).optional(),
       /**
        * The one picture a card draws, which is `images` capped at a single row.
        *
-       * Separate from `images=true` rather than a smarter version of it: this
-       * route answers up to a hundred rows and `/projects` is the only caller
-       * that wants pictures at all, but it wants exactly one per project now
-       * that a card is a still rather than a slideshow. Twelve times the payload
-       * for eleven pictures nothing draws is the thing the flag exists to avoid,
-       * and a caller that genuinely wants whole galleries still has `images`.
+       * Separate from `images=true` rather than a smarter version of it:
+       * `/projects` is the only caller that wants pictures and now wants exactly
+       * one per project, since a card is a still rather than a slideshow. Twelve
+       * times the payload for eleven pictures nothing draws is what this avoids.
        *
        * It answers on the same `images` key, so the browser reads
        * `project.images[0]` either way and `coverOf` needs no second shape.
        */
       cover: z.enum(['true', 'false']).optional(),
       /**
-       * The write-up, on the same terms and for the same reason: it is a
-       * 20,000-character column and this route answers a hundred rows, so it is
-       * asked for rather than sent.
+       * The write-up, on the same terms: a 20,000-character column against a
+       * hundred rows, so it's asked for rather than sent.
        *
-       * **`/projects` no longer asks for it.** The list prints `summary` and
-       * only `summary` — the field the schema calls the one-liner for cards —
-       * because a card is a cover and a line beside it, and a whole write-up set
-       * under six of them was a page of grey text. The flag stays for any caller
-       * that wants the prose; it simply has none today.
+       * `/projects` no longer asks for it — the list prints `summary` only,
+       * because a card is a cover and a line beside it, and a whole write-up under
+       * six of them was a page of grey text. The flag stays for any caller that
+       * wants the prose; it simply has none today.
        */
       description: z.enum(['true', 'false']).optional(),
       featured: z.enum(['true', 'false']).optional(),
@@ -687,11 +596,10 @@ content.get(
 
     const now = term ? await currentTerm() : null
 
-    // The pair, either way round. `other` being the negation rather than a
-    // `<` is the whole reason it is spelled `other`: two columns compared as
-    // one value has no `<` in Prisma anyway — an enum takes no range filter —
-    // and a hand-rolled "earlier year, or this year and an earlier season"
-    // would be the strict version this deliberately is not.
+    // The pair, either way round. `other` is the negation rather than a `<`,
+    // which is why it's spelled `other`: two columns compared as one value have
+    // no `<` in Prisma anyway, and a hand-rolled "earlier year, or this year and
+    // an earlier season" would be the strict version this deliberately isn't.
     const termWhere =
       now === null
         ? {}
@@ -706,21 +614,17 @@ content.get(
         ...termWhere,
         ...(featured ? { featured: featured === 'true' } : {}),
       },
-      // The archive is read by term and nothing else, so it is ordered by term
-      // — `startedAt` is written by no route here and `featured` is curation
-      // for the landing page, neither of which says anything about a list
-      // somebody opened to find last year's rover.
+      // The archive is read by term and nothing else. `startedAt` is written by no
+      // route here and `featured` is landing-page curation, neither of which says
+      // anything about a list somebody opened to find last year's rover.
       orderBy:
         term === 'other'
           ? [{ termYear: 'desc' }, { termSeason: 'desc' }, { title: 'asc' }]
           : [{ featured: 'desc' }, { startedAt: 'desc' }, { title: 'asc' }],
       // The heavy parts, each only when asked for. Spread rather than nested
-      // ternaries: they are independent of one another.
+      // ternaries: they're independent.
       //
-      // `images` wins over `cover` when both are sent, because it is the
-      // superset — a caller that asked for the whole gallery has already been
-      // given the first picture, and taking `take: 1` as the later spread would
-      // silently hand them one row for a flag that promises twelve.
+      // `images` wins over `cover` when both are sent, because it's the superset
       select: {
         ...projectSelect,
         ...(description === 'true' && { description: true }),
@@ -736,19 +640,17 @@ content.get(
 )
 
 /**
- * The gallery, the resource links and the documentation ride on the *detail*
- * route and nowhere else. The listing above answers up to a hundred rows and
- * renders none of them, so carrying them there would ship every gallery in the
- * club to every visitor of `/projects`.
+ * The gallery, the resource links and the documentation ride on the detail route
+ * and nowhere else — the listing answers up to a hundred rows and renders none of
+ * them, so carrying them there would ship every gallery in the club to every
+ * visitor of `/projects`.
  *
- * `sortOrder` deliberately does not go on the wire. The array order *is* the
- * order — sending both invites the client to disagree with itself, and the
- * reorder route takes ids in order anyway.
+ * `sortOrder` deliberately doesn't go on the wire. The array order is the order;
+ * sending both invites the client to disagree with itself.
  *
- * Documents come back on the project rather than from a route of their own, and
- * they are read twice: `/projects/:slug/docs` is the page that shows them, and
- * `/projects/:slug` needs to know only whether there are any, so it can draw
- * the row in `/ RESOURCES` that leads there. One fetch answers both.
+ * Documents come back on the project rather than from a route of their own
+ * because they're read twice: `/projects/:slug/docs` shows them, and
+ * `/projects/:slug` needs only to know whether there are any.
  */
 content.get('/projects/:slug', async (c) => {
   const project = await prisma.project.findUnique({
@@ -758,29 +660,23 @@ content.get('/projects/:slug', async (c) => {
       description: true,
       members: {
         // Leads first, then alphabetical — the same order `GET /projects/:id/team`
-        // uses, and for a reason the private route does not have: this list is
-        // re-read in place when somebody joins or leaves, and an unordered read
-        // lets the planner reshuffle every name on a refetch that was only ever
-        // meant to add one.
+        // uses, for a reason the private route doesn't have: this list is re-read
+        // in place when somebody joins or leaves, and an unordered read lets the
+        // planner reshuffle every name on a refetch meant to add one.
         orderBy: [{ rank: 'asc' }, { user: { fullName: 'asc' } }],
         /**
-         * **`rank` is on the wire now, and `User.title` is off it.**
+         * `rank` is on the wire and `User.title` is off it.
          *
-         * The roster used to print two free-text columns and no rank at all, so
-         * the person running the build was indistinguishable from anybody else
-         * on it — the ordering above put them first and said nothing about why.
-         * `rank` plus the team's name is what the page draws instead, and it is
-         * the one label here that means something: it is the column every
-         * permission on this project is decided by.
+         * The roster used to print two free-text columns and no rank, so the person
+         * running the build was indistinguishable from anybody else on it. `rank`
+         * plus the team's name is what the page draws instead, and it's the one
+         * label here that means something.
          *
-         * `User.title` is gone because it is the club-wide title — "Lab
-         * Manager" — written by nothing in the product, only by the seed and the
-         * legacy import. An officer's club seat has no bearing on what they do
-         * on somebody's rover, and printing it beside their name on a project
-         * page said it did.
+         * `User.title` is the club-wide one — "Lab Manager" — written by nothing in
+         * the product. An officer's club seat has no bearing on what they do on
+         * somebody's rover, and printing it beside their name said it did.
          *
-         * `ProjectMember.title` stays: it is the project-scoped one, free text,
-         * grants nothing, and is now written by the page's own editor.
+         * `ProjectMember.title` stays: project-scoped, free text, grants nothing.
          */
         select: {
           title: true,
@@ -795,10 +691,9 @@ content.get('/projects/:slug', async (c) => {
         select: { id: true, label: true, url: true },
       },
       documents: {
-        // Upload order, and there is no sort column to override it — see the
-        // model's comment. `id` breaks the tie because uuid7 is time-ordered,
-        // so two documents published in the same millisecond still come back
-        // in a stable order rather than whichever way the planner felt.
+        // Upload order, with no sort column to override it. `id` breaks the tie
+        // because uuid7 is time-ordered, so two documents published in the same
+        // millisecond still come back in a stable order.
         orderBy: [{ uploadedAt: 'asc' }, { id: 'asc' }],
         select: documentSelect,
       },
@@ -820,14 +715,12 @@ content.get(
       when: z.enum(['upcoming', 'past', 'all']).default('upcoming'),
       type: z.enum(EventType).optional(),
       /**
-       * Half-open window `[from, to)`, for the landing page's calendar: it asks
-       * for one month at a time and pairs these with `when=all`, since a grid
-       * has to show the days that have already been and gone.
+       * Half-open window `[from, to)`, for the landing page's calendar: it asks for
+       * one month at a time and pairs these with `when=all`, since a grid has to
+       * show days that have been and gone.
        *
-       * An event counts as inside the window if any part of it overlaps —
-       * starts before `to` and hasn't finished by `from` — so a multi-day
-       * competition appears on every month it touches rather than only the one
-       * it began in.
+       * An event is inside the window if any part of it overlaps, so a multi-day
+       * competition appears on every month it touches.
        */
       from: z.iso.datetime().optional(),
       to: z.iso.datetime().optional(),
@@ -837,9 +730,8 @@ content.get(
     const { when, type, from, to, limit, offset } = c.req.valid('query')
     const now = new Date()
 
-    // `unfinishedBy` and `upcoming` both compile to an `OR`, and an object can
-    // hold only one of those, so the conditions go into an `AND` array instead
-    // of being spread into a single `where`.
+    // `unfinishedBy` and `upcoming` both compile to an `OR` and an object can hold
+    // only one, so the conditions go into an `AND` array.
     const events = await prisma.event.findMany({
       where: {
         published: true,
@@ -878,18 +770,16 @@ content.get(
 /**
  * The project meetings the public calendar carries, for one window.
  *
- * **Only when both ends of the window are named**, and that is the rule rather
- * than an optimisation. A meeting is a recurrence, not a row: "the next 50
- * upcoming events" has an answer for stored rows and no answer at all for a
- * rule that repeats until December. Every caller that wants meetings is a
- * calendar and every calendar asks for a month. A bare `?when=upcoming` gets
- * the stored rows it has always got, `?limit` and `?offset` keep meaning what
- * they mean, and `GET /stats` — which counts the same unwindowed default — stays
- * consistent with this endpoint without knowing anything about meetings.
+ * Only when both ends are named, and that's the rule rather than an optimisation:
+ * a meeting is a recurrence, not a row, and "the next 50 upcoming events" has no
+ * answer for a rule that repeats until December. Every caller that wants meetings
+ * is a calendar and every calendar asks for a month. So `?when=upcoming` gets the
+ * stored rows it always got, and `GET /stats` stays consistent with this endpoint
+ * without knowing anything about meetings.
  *
- * `meetingsPublic` is the whole gate. `Event.published` guards stored rows and
- * is deliberately untouched by any of this: a lead scheduling meetings still
- * cannot put an *event* on the front page.
+ * `meetingsPublic` is the whole gate. `Event.published` guards stored rows and is
+ * untouched by any of this: a lead scheduling meetings still can't put an event on
+ * the front page.
  */
 async function publicMeetings(
   from: string | undefined,
@@ -959,10 +849,9 @@ content.get(
 
     const sponsors = await prisma.sponsor.findMany({
       where: { active: true, ...(tier ? { tier } : {}) },
-      // Tier descends by declaration order, so "the top N sponsors" is just the
-      // first N rows of this — the landing page takes five and needs no notion
-      // of "top" of its own. Name breaks ties so the order is stable between
-      // requests rather than left to the planner.
+      // Tier descends by declaration order, so "the top N sponsors" is the first N
+      // rows — the landing page takes five and needs no notion of "top". Name
+      // breaks ties so the order is stable between requests.
       orderBy: [{ tier: 'asc' }, { name: 'asc' }],
       select: sponsorSelect,
       take: limit,
@@ -975,24 +864,19 @@ content.get(
 
 /**
  * The pitch half of `/sponsors`: what a level costs, and what a sponsor can give
- * that is not money.
+ * that isn't money.
  *
- * **Only the tiers somebody has actually written.** All four of these were
- * hardcoded placeholder copy in `web/src/content/sponsorship.ts` until the
- * officers got a desk for them, and the whole point of the move is that nothing
- * on this page is a figure the club did not agree to — so an unwritten tier is
- * absent from the price list rather than defaulted to something. A tier with
- * sponsors in it and no sheet still appears in the list above, which is the
- * honest way round and the behaviour `SponsorsPage` was already built for.
+ * Only the tiers somebody has actually written. All four were hardcoded
+ * placeholder copy until officers got a desk, and the point of the move is that
+ * nothing here is a figure the club didn't agree to — so an unwritten tier is
+ * absent rather than defaulted. A tier with sponsors and no sheet still appears in
+ * the list above, which is the honest way round.
  *
- * `tiers` is ordered by the enum, which is the club's ranking, so the page
- * prints it in the order it arrives — the same trust `/sponsors` asks for. It
- * carries no `limit`: there are four levels and at most `MAX_IN_KIND` of the
- * other thing, and paginating that would be machinery for nothing.
+ * `tiers` is ordered by the enum, which is the club's ranking, so the page prints
+ * it as it arrives. No `limit`: four levels and at most `MAX_IN_KIND` of the other.
  *
  * Its own route rather than a field on `/sponsors` because the two answer
- * different questions for different readers — who backs the club, and what
- * backing it would mean — and the front page's marquee wants only the first.
+ * different questions — who backs the club, and what backing it would mean.
  */
 content.get('/sponsorship', async (c) => {
   const [offers, inKind, footnotes] = await Promise.all([
@@ -1004,9 +888,8 @@ content.get('/sponsorship', async (c) => {
     sheetFootnotes(),
   ])
 
-  // Ordered here rather than in the query: Postgres would sort the enum
-  // correctly, but reading the order off `TIERS` is what makes the ranking one
-  // fact rather than two that agree today.
+  // Ordered here rather than in the query: Postgres would sort the enum correctly,
+  // but reading the order off `TIERS` makes the ranking one fact rather than two.
   const byTier = new Map(offers.map((offer) => [offer.tier, offer]))
 
   return c.json({
@@ -1024,24 +907,20 @@ content.get('/sponsorship', async (c) => {
 // ------------------------------------------------------------ the front page
 
 /**
- * The photographs beside the landing page's headline, in the order the officers
- * put them in.
+ * The photographs beside the landing page's headline, in the officers' order.
  *
- * No `limit`/`offset` and no filter: it is one short curated list, capped at
- * `MAX_HERO_SLIDES` by the desk that writes it, and the browser wants all of it
- * to run the slideshow. Paginating a list of six would be machinery for nothing.
+ * No `limit`/`offset` and no filter: one short curated list, capped at
+ * `MAX_HERO_SLIDES` by the desk that writes it, and the browser wants all of it.
  *
- * **An empty answer is a real answer**, not a failure and not a page with a hole
- * in it: the hero draws the rings and the wireframe trace when this comes back
- * empty, which is what the right half of it was before this table existed. The
- * browser therefore never has to tell "no photos yet" from "the API is down" —
- * both end up in the same place, which is the one case where that is right.
+ * An empty answer is a real answer, not a page with a hole in it — the hero draws
+ * its rings and wireframe trace instead. So the browser never has to tell "no
+ * photos yet" from "the API is down", which is the one case where that's right.
  */
 content.get('/hero-slides', async (c) => {
   const slides = await prisma.heroSlide.findMany({
     // `sortOrder` is dense but not unique — the reorder route rewrites the whole
-    // block in one transaction — so `createdAt` is what makes a half-applied
-    // write a deterministic order rather than a random one.
+    // block in one transaction — so `createdAt` is what makes a half-applied write
+    // deterministic rather than random.
     orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
     select: heroSlideSelect,
   })
@@ -1052,20 +931,15 @@ content.get('/hero-slides', async (c) => {
 /**
  * What the landing page says, as opposed to what it lists.
  *
- * **One read for the whole of the page's copy**, and the browser makes it once:
- * `HomePage` fetches this and hands the pieces to the hero, the partner section
- * and the FAQ. Three routes would be three round trips for one document that is
- * meaningless in pieces — the hero's lede and the FAQ are not two subjects, they
- * are the top and the bottom of one page somebody wrote in one sitting. The
- * sections still fetch their own *data* (the slideshow, the events, the board,
- * the sponsors); this is the writing around it.
+ * One read for the whole of the page's copy, made once by `HomePage` and handed to
+ * the hero, the partner section and the FAQ. Three routes would be three round
+ * trips for one document that's meaningless in pieces. The sections still fetch
+ * their own data; this is the writing around it.
  *
- * `FRONT_PAGE_COPY` below is why the row may be absent. Every other singleton on
- * this API can be empty because empty is a state its page is built for — no fine
- * print under the tier grid, no lab status ever set. A landing page with no
- * headline is not one of those, and a database that has only just been migrated
- * is exactly where that would show up. So the shipped wording is the floor, and
- * an officer's first save replaces it.
+ * `FRONT_PAGE_COPY` below is why the row may be absent. Every other singleton here
+ * can be empty because empty is a state its page is built for; a landing page with
+ * no headline isn't one of those, and a freshly migrated database is exactly where
+ * that would show up. So the shipped wording is the floor.
  */
 const FRONT_PAGE_COPY = {
   headline: 'Building Our Future,',
@@ -1082,9 +956,9 @@ content.get('/front-page', async (c) => {
       select: frontPageCopySelect,
     }),
     prisma.faq.findMany({
-      // `sortOrder` is dense but not unique — the reorder route rewrites the
-      // whole block in one transaction — so `createdAt` is what makes a
-      // half-applied write a deterministic order rather than a random one.
+      // `sortOrder` is dense but not unique — the reorder route rewrites the whole
+      // block in one transaction — so `createdAt` is what makes a half-applied
+      // write deterministic rather than random.
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
       select: faqSelect,
     }),
@@ -1094,10 +968,9 @@ content.get('/front-page', async (c) => {
     }),
   ])
 
-  // Both lists may be empty and both sections are built for it: the FAQ prints
-  // its heading and the contact form beside it, and the partner section takes
-  // itself off the page entirely. Neither is a failure the browser has to tell
-  // apart from a request that did not land.
+  // Both lists may be empty and both sections are built for it: the FAQ prints its
+  // heading and the contact form, and the partner section takes itself off the
+  // page. Neither is a failure the browser has to tell from a request that didn't land.
   return c.json({ ...(copy ?? FRONT_PAGE_COPY), faqs, partners })
 })
 
@@ -1106,14 +979,13 @@ content.get('/front-page', async (c) => {
 /**
  * What `/about` says about the club.
  *
- * The same shape and the same reasoning as the front page above: one read for a
- * page that is one document, and a floor under the singleton so a freshly
- * migrated database serves the page rather than a heading-shaped hole.
+ * Same shape and reasoning as the front page: one read for a page that is one
+ * document, and a floor under the singleton so a freshly migrated database serves
+ * the page rather than a heading-shaped hole.
  *
- * **`storyNotice` being null is the club having written its own history.** The
- * page carried that admission as a hardcoded panel, which meant the only way to
- * retire it was a deploy — so an unwritten history and a written one looked the
- * same to everybody except the person who could tell the difference.
+ * `storyNotice` being null is the club having written its own history. The page
+ * carried that admission as a hardcoded panel, so the only way to retire it was a
+ * deploy.
  */
 const ABOUT_COPY = {
   heading: 'Building robots at UCF since 1972.',

@@ -9,19 +9,18 @@ import {
 /**
  * "Add to calendar", and the two ways out of the site.
  *
- * A menu rather than one button, because there is no single link that reaches
- * every calendar app: Google wants a URL at its own domain, and Samsung, Apple
- * and Outlook all want an `.ics` file. Guessing from the user agent would be
- * wrong for anyone signed into Google on an iPhone, which is most people.
+ * A menu rather than one button, because there is no single link that reaches every calendar app:
+ * Google wants a URL at its own domain, and Samsung, Apple and Outlook all want an `.ics` file.
+ * Guessing from the user agent would be wrong for anyone signed into Google on an iPhone, which is
+ * most people.
  *
- * The menu is two `<button>`s and a `<a>`, not a `<select>`: one of the two
- * navigates away and the other downloads, and a select that does either on
- * change is a control that fires when somebody is only looking.
+ * The menu is two `<button>`s and an `<a>`, not a `<select>`: one of the two navigates away and the
+ * other downloads, and a select that does either on change is a control that fires when somebody is
+ * only looking.
  *
- * On a recurring meeting the panel says what it is about to add — the term it
- * runs to, and that finals week is left out — because "add to calendar" on a
- * weekly meeting could reasonably mean one evening, and somebody should know
- * which before their phone fills up with Tuesdays.
+ * On a recurring meeting the panel says what it is about to add — the term it runs to, and that
+ * finals week is left out — because "add to calendar" on a weekly meeting could reasonably mean one
+ * evening, and somebody should know which before their phone fills up with Tuesdays.
  */
 export function AddToCalendar({
   event,

@@ -25,9 +25,9 @@ describe('safeFraming', () => {
   })
 
   /**
-   * These numbers come out of a database column, so a row edited by hand in
-   * Studio can hold anything. `NaN` in a style silently blanks a picture on the
-   * public page, which is a worse outcome than ignoring the value.
+   * These numbers come out of a database column, so a row edited by hand in Studio can hold
+   * anything. `NaN` in a style silently blanks a picture on the public page, which is worse than
+   * ignoring the value.
    */
   it('refuses to put nonsense into a style', () => {
     expect(safeFraming({ focalX: NaN, focalY: Infinity, zoom: NaN })).toEqual(

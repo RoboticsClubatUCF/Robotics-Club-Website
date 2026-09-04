@@ -21,11 +21,10 @@ const project = (over: Partial<Parameters<typeof coverOf>[0]> = {}) => ({
 })
 
 /**
- * The whole point of these is the *absence* of a fallback. A chain that tried
- * the gallery when there was no cover, or the cover when the gallery was empty,
- * would make "why is the wrong picture on the projects list" unanswerable from
- * the checkbox that set it — and would mean reordering a gallery silently
- * changed the listing image, which is the thing `coverUrl` exists to prevent.
+ * The whole point of these is the absence of a fallback. A chain that tried the gallery when there
+ * was no cover, or the cover when the gallery was empty, would make "why is the wrong picture on
+ * the projects list" unanswerable from the checkbox that set it — and would mean reordering a
+ * gallery silently changed the listing image, which is what `coverUrl` exists to prevent.
  */
 describe('coverOf', () => {
   it('takes the first gallery picture when the box is ticked', () => {

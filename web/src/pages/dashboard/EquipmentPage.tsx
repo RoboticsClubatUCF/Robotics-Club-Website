@@ -34,15 +34,13 @@ import type { StatusTone } from '../../lib/format/formats'
 /**
  * Borrowing club equipment: pick a thing, say what for, wait for an officer.
  *
- * The catalogue is a pick-list rather than a free-text box because the club
- * wanted to know what is actually out and with whom — which needs the item to
- * be a row, not a sentence. An item with nothing free is shown and disabled
- * rather than hidden: "the drill is all out" is the answer to the question,
- * and a missing card just looks like the club has no drill.
+ * The catalogue is a pick-list rather than a free-text box because the club wanted to know
+ * what's actually out and with whom — which needs the item to be a row, not a sentence. An item
+ * with nothing free is shown and disabled rather than hidden: "the drill is all out" is the
+ * answer to the question, and a missing card just looks like the club has no drill.
  *
- * The card pattern is `PlanPicker`'s — a fieldset of radios where the whole
- * card is the label — because it is the same job, and having two answers on
- * one site for "pick one of these" is one too many.
+ * The card pattern is `PlanPicker`'s — a fieldset of radios where the whole card is the label —
+ * because it's the same job.
  */
 
 const STATUS_LABEL: Record<LoanStatus, { text: string; tone: StatusTone }> = {
@@ -60,10 +58,9 @@ const OPEN_STATUSES: LoanStatus[] = ['REQUESTED', 'APPROVED', 'CHECKED_OUT']
 /**
  * What a card says when the member already has one of these on the go.
  *
- * Three states rather than one, and the distinction is the whole point: a card
- * reading YOU HAVE ONE over something nobody has approved yet is the site
- * telling somebody they are holding a drill that is still on the shelf. What
- * they want to know is that the ask landed and is waiting on an officer.
+ * Three states rather than one, and the distinction is the point: a card reading YOU HAVE ONE
+ * over something nobody has approved yet is the site telling somebody they're holding a drill
+ * that's still on the shelf.
  */
 const MINE_LABEL: Record<'REQUESTED' | 'APPROVED' | 'CHECKED_OUT', string> = {
   REQUESTED: 'REQUESTED',
@@ -84,11 +81,9 @@ type OpenLoanStatus = keyof typeof MINE_LABEL
 /**
  * What the shelf is showing.
  *
- * FREE NOW is the one that earns its place: everything else on the page can be
- * answered by reading, and "what could I actually walk out with today" cannot,
- * because an all-out item is deliberately still listed. MINE collects the
- * handful somebody already has in flight, which is otherwise scattered through
- * an alphabetical list.
+ * FREE NOW is the one that earns its place: everything else can be answered by reading, and
+ * "what could I actually walk out with today" can't, because an all-out item is deliberately
+ * still listed. MINE collects the handful somebody has in flight.
  */
 const SHELF = [
   { value: 'ALL', label: 'EVERYTHING' },
@@ -99,12 +94,12 @@ const SHELF = [
 type ShelfFilter = (typeof SHELF)[number]['value']
 
 /**
- * What to say about a window that will not do, in the page's own voice.
+ * What to say about a window that won't do, in the page's own voice.
  *
- * The two unreadable cases name the year on purpose. A date box will take a
- * five-digit year without complaint, and somebody who has typed one has almost
- * always mistyped the day and pushed a digit along — telling them the date is
- * "invalid" leaves them staring at a box that looks fine.
+ * The two unreadable cases name the year on purpose. A date box will take a five-digit year
+ * without complaint, and somebody who has typed one has almost always mistyped the day and
+ * pushed a digit along — telling them the date is "invalid" leaves them staring at a box that
+ * looks fine.
  */
 function sentenceFor(fault: WindowFault, item: ApiEquipment): string {
   switch (fault) {
@@ -133,15 +128,12 @@ function explain(error: unknown): string {
 /**
  * The dues gate, split out so the page below it never mounts while locked.
  *
- * A wrapper rather than an early return inside the page: everything under here
- * fetches on mount, and a locked account would fire those requests only to have
- * the server 403 every one of them into the console. Nothing renders, nothing
- * asks.
+ * A wrapper rather than an early return inside the page: everything under here fetches on mount,
+ * and a locked account would fire those requests only to have the server 403 every one into the
+ * console.
  *
- * The context is read as nullable for the reason the dues page reads it that
- * way — this page has its own suite that renders it alone, and a component that
- * falls over without a parent can only be tested through one. Null means "not
- * locked", and the server is the thing that actually refuses.
+ * The context is read as nullable for the reason the dues page reads it that way — this page has
+ * its own suite that renders it alone. Null means "not locked", and the server actually refuses.
  */
 export function EquipmentPage() {
   const dashboard = useOutletContext<DashboardContext | null>()
@@ -208,13 +200,10 @@ function EquipmentCatalogue() {
         messages you the day before it's due.
       </p>
 
-      {/* Asking for something and keeping track of what you have got are the
-          two halves of this page, and neither waits on the other — so where
-          there is room they sit side by side rather than one below the other.
-          The catalogue is the taller half by a long way, which is why the
-          columns start at the top instead of stretching to match. Same
-          `--col-min` as the print page: both halves have to be comfortable
-          before the split is worth having. */}
+      {/* Asking for something and keeping track of what you've got are the two halves of this
+          page, and neither waits on the other — so where there's room they sit side by side. The
+          catalogue is the taller half by a long way, which is why the columns start at the top
+          instead of stretching to match. */}
       <div className="grid-fluid items-start gap-5 [--col-min:32rem]">
         <BorrowForm items={items} openLoans={openLoans} onSent={load} />
         <MyLoans loans={loans} onChange={load} />
@@ -277,13 +266,11 @@ function BorrowForm({
   const from = later ? startDate : today()
 
   /**
-   * What is wrong with the window, checked here so the form can say so before
-   * the server does. The judging is `lib/equipment/borrowing.ts`'s precisely so the two
-   * answers cannot drift — a form that offers a window the desk then refuses
-   * is worse than one that never offered it.
+   * What's wrong with the window, checked here so the form can say so before the server does. The
+   * judging is `lib/equipment/borrowing.ts`'s precisely so the two answers can't drift — a form
+   * that offers a window the desk then refuses is worse than one that never offered it.
    *
-   * An empty return date is not a fault — `windowFault` holds that judgement
-   * until there is something to judge, so the panel does not open in red.
+   * An empty return date isn't a fault, so the panel doesn't open in red.
    */
   const fault: WindowFault | null = chosen
     ? windowFault(from, dueDate, chosen.maxLoanDays)
@@ -325,11 +312,10 @@ function BorrowForm({
     /**
      * Converted before anything is sent, and both ends checked.
      *
-     * `fault` has already said these are dates, so neither can be null here —
-     * but the whole reason this page needed hardening is that a date box can
-     * hand you something `Date` refuses, and a second reader of that value
-     * turning it into a `RangeError` mid-submit is exactly the failure being
-     * designed out. The type makes it impossible to forget.
+     * `fault` has already said these are dates, so neither can be null here — but the whole reason
+     * this page needed hardening is that a date box can hand you something `Date` refuses, and a
+     * second reader turning it into a `RangeError` mid-submit is exactly the failure being
+     * designed out.
      */
     const startAt = later ? startOfDay(startDate) : null
     const requestedDueAt = endOfDay(dueDate)
@@ -502,12 +488,10 @@ function BorrowForm({
             }}
             onStart={(value) => {
               setStartDate(value)
-              // Pushed along only when the start has genuinely passed the
-              // return date. Counted in days rather than compared as strings:
-              // two values of different widths sort in the wrong order, which
-              // is the same trap the year check exists for. An unreadable
-              // start answers null and moves nothing, so the box below keeps
-              // its value and the complaint above it stays on screen.
+              // Pushed along only when the start has genuinely passed the return date. Counted in
+              // days rather than compared as strings: two values of different widths sort in the
+              // wrong order, the same trap the year check exists for. An unreadable start answers
+              // null and moves nothing.
               const gap = daysBetween(value, dueDate)
               if (gap !== null && gap < 0) {
                 setDueDate(addDays(value, chosen.maxLoanDays))
@@ -557,16 +541,13 @@ function BorrowForm({
 /**
  * When they want it and when it comes back.
  *
- * Two questions rather than one, because they are two different situations and
- * a single "how long for" box cannot tell them apart: somebody in the lab now
- * wants a return date, and somebody booking the good soldering station for
- * competition week wants both ends. The toggle is the same selectable-card
- * pattern as the item list above and `PlanPicker` before it.
+ * Two questions rather than one, because they're two different situations and a single "how long
+ * for" box can't tell them apart: somebody in the lab now wants a return date, and somebody
+ * booking the good soldering station for competition week wants both ends.
  *
- * Both boxes are `type="date"`, so what a member gets is whatever calendar
- * their browser draws — which is the one they already know how to use, is
- * localised, and works with a keyboard and a screen reader without any of it
- * being this file's problem.
+ * Both boxes are `type="date"`, so what a member gets is whatever calendar their browser draws —
+ * the one they already know, localised, and keyboard- and screen-reader-friendly without any of
+ * it being this file's problem.
  */
 function BorrowWindow({
   id,
@@ -594,15 +575,12 @@ function BorrowWindow({
   const when = today()
 
   /**
-   * Bounds on the boxes themselves, so the browser refuses most of this before
-   * any of our code runs — the picker will not scroll past them, and a typed
-   * value outside them makes the input `:invalid`, which stops a real submit
-   * with the browser's own bubble. Belt to the braces in `windowFault`, which
-   * is what actually gates the send and what a test can reach.
+   * Bounds on the boxes themselves, so the browser refuses most of this before any of our code
+   * runs — the picker won't scroll past them, and a typed value outside them makes the input
+   * `:invalid`. Belt to the braces in `windowFault`, which is what actually gates the send.
    *
-   * `addDays` returns empty for a value it cannot read, and an empty `min` or
-   * `max` is simply no bound — so a broken start date loosens the return box
-   * rather than pinning it to nonsense.
+   * `addDays` returns empty for a value it can't read, and an empty `min` or `max` is simply no
+   * bound — so a broken start date loosens the return box rather than pinning it to nonsense.
    */
   const horizon = addDays(when, BOOKING_HORIZON_DAYS)
   const from = later ? startDate : when

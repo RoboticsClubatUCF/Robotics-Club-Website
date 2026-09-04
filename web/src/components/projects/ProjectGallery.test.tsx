@@ -48,11 +48,10 @@ describe('ProjectGallery', () => {
   })
 
   /**
-   * An upload's address is root-relative, and the site and the API are
-   * different origins — so a bare `src` resolves against this page and the dev
-   * server answers `index.html` at a 200, which an `<img>` reports as a plain
-   * load failure. Uploads invisible, external links fine, nothing in the
-   * console. `imageSrc` is the fix and this is what holds it in place.
+   * An upload's address is root-relative, and the site and the API are different origins — so a
+   * bare `src` resolves against this page and the dev server answers `index.html` at a 200, which
+   * an `<img>` reports as a plain load failure. Uploads invisible, external links fine, nothing in
+   * the console. `imageSrc` is the fix and this is what holds it in place.
    */
   it('resolves an upload against the API, and leaves an external URL alone', () => {
     render(

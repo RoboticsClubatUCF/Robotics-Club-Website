@@ -13,79 +13,50 @@ import { membershipStanding } from '../membership/semester.js'
 /**
  * Following the club's Discord officer role.
  *
- * The board is appointed in Discord — somebody hands out a role — and until
- * this existed the site knew nothing about it, so `OFFICER` was typed into
- * Prisma Studio by hand and forgotten about when people rotated off. This makes
- * the site follow: carry the role and you are an officer here, lose it and you
- * are not.
+ * The board is appointed in Discord, and until this existed `OFFICER` was typed
+ * into Prisma Studio by hand and forgotten when people rotated off. Now the site
+ * follows: carry the role and you're an officer here, lose it and you aren't.
  *
- * **It is a third writer of `User.role`, and that was a documented invariant
- * until now.** The rule it replaces said dues moved people between `MEMBER` and
- * `GUEST` and nothing else ever wrote the column. The rule now is that three
- * writers each own exactly one edge: dues own `MEMBER`↔`GUEST`, this owns
- * `OFFICER`↔whatever-dues-say, and `ADMIN` is a human in Studio and nothing
- * else, in either direction. No writer crosses more than one boundary, which is
- * what keeps them from fighting.
+ * It's a third writer of `User.role`, which used to be a documented invariant.
+ * The rule now is that three writers each own one edge: dues own MEMBER<->GUEST,
+ * this owns OFFICER<->whatever-dues-say, and `ADMIN` is a human in Studio in both
+ * directions. No writer crosses more than one boundary, which keeps them from
+ * fighting — and is why this sits beside `membershipSweep.ts` rather than inside it.
  *
- * This lives beside `membershipSweep.ts` rather than inside it on purpose: that
- * file's entire header is an argument that it writes on dues alone, and it is
- * still true.
+ * Two entry points. `syncDiscordOfficers` is the ten-minute sweep across the
+ * guild; `refreshOfficerStanding` is one person on the spot, so a role handed over
+ * lands on the next page load. Both promote and both demote — the per-user one
+ * only safely because it first checks the configured role id against the guild's
+ * own role list.
  *
- * ## Two entry points, and two columns
+ * Both maintain two things, and keeping them apart is the point. `User.role` is
+ * the permission ladder. `OfficerTerm` is the tenure, written for everyone
+ * including admins — which is the whole reason it's a separate table, since
+ * `UserRole` has one slot and `ADMIN` outranks `OFFICER`, so the ladder can't say
+ * "an admin who is also an officer". It's also what puts an ex-officer on
+ * `/officers` rather than making them vanish.
  *
- * `syncDiscordOfficers` is the ten-minute sweep across the whole guild.
- * `refreshOfficerStanding` is one person on the spot — sign-in, and the "who am
- * I" read behind every page — so a role handed over or taken away in Discord
- * lands on the next page load rather than up to ten minutes later. **Both
- * promote and both demote.** The per-user one can only do that safely because
- * it first checks the configured role id against the guild's own role list; its
- * comment has the argument in full, and without that guard it could not demote
- * at all.
+ * Only `DISCORD`-sourced terms are closed by either — the faculty advisor sits on
+ * the board carrying no Discord role at all.
  *
- * Both maintain **two** things, and keeping them apart is the point:
+ * Four ways it refuses to run, all the same worry from different angles, because
+ * Discord gives no error for the case that matters most:
  *
- *   - **`User.role`** — the permission ladder, `OFFICER` ↔ whatever dues say.
- *     `ADMIN` is never written here, in either direction.
- *   - **`OfficerTerm`** — the tenure. Open (`endedAt` null) is what "on the
- *     board" means, and it is written for **everyone including admins**. That
- *     is the whole reason it is a separate table: `UserRole` has one slot per
- *     person and `ADMIN` outranks `OFFICER`, so the ladder cannot say "an admin
- *     who is also an officer" and a term can. It is also what puts an
- *     ex-officer on `/officers` rather than making them vanish.
- *
- * Only `DISCORD`-sourced terms are closed by either. The faculty advisor sits
- * on the board carrying no Discord role at all.
- *
- * ## Four ways it refuses to run
- *
- * Every one of them is the same worry from a different angle — that this
- * quietly stands the whole board down — and the reason there are four is that
- * Discord gives no error for the case that matters most.
- *
- *   1. **Not configured.** No role id, nothing happens, no queries. Unset is
- *      the default and it is how this ships.
- *   2. **Discord unreachable.** Write nothing. The analogue of
- *      `!standing.billable.fromCalendar` in the dues sweep, and stronger: there,
- *      bad data means approximate dates; here it means an empty roster, which
- *      reads as "demote everybody".
- *   3. **Nobody holds the role.** Stand down unconditionally, and this is the
- *      important one — `officerRoleExists` is the per-user answer to the same
- *      worry. **A wrong role id is not an error at Discord's API** — it
- *      returns the guild happily and the typo'd snowflake simply appears in
- *      nobody's `roles` array. A misconfigured id, a deleted role and a
- *      genuinely empty board are byte-for-byte identical, and a club where
- *      nobody is an officer is not a state worth automating into.
- *   4. **No overlap at all.** If there are sitting officers and not one of them
- *      carries the role, something is wrong with the setup rather than with the
- *      board — a whole committee does not resign between two sweeps. Ordinary
- *      turnover passes straight through; only total disjunction stops it, and
- *      the cost when it fires is that a person flips one role by hand.
+ *   1. Not configured. No role id, nothing happens. This is how it ships.
+ *   2. Discord unreachable. Write nothing — an empty roster reads as "demote
+ *      everybody".
+ *   3. Nobody holds the role. A wrong role id is not an error at Discord's API:
+ *      the typo'd snowflake simply appears in nobody's `roles` array, so a
+ *      misconfigured id, a deleted role and a genuinely empty board are identical.
+ *   4. No overlap at all. Sitting officers and not one carrying the role means the
+ *      setup is wrong, not the board — a whole committee doesn't resign between two
+ *      sweeps. Ordinary turnover passes straight through.
  */
 export interface OfficerSyncReport {
   promoted: number
   demoted: number
-  /** Terms opened and closed. Separate from the two above because an `ADMIN`
-      moves these and never those. */
+  /** Terms opened and closed. Separate from the two above because an `ADMIN` moves
+      these and never those. */
   opened: number
   closed: number
   /** Set when nothing was attempted, and why. */
@@ -99,19 +70,15 @@ export interface OfficerSyncReport {
 /**
  * What somebody is once they stop being an officer.
  *
- * Not a fixed value, because both ways of fixing it are wrong and both are
- * permanent.
+ * Not a fixed value, because both fixed answers are wrong and permanent. `MEMBER`
+ * for everybody strands the ex-officer with no `duesPaidThrough`, so
+ * `sweepLapsedMembers` never touches them again and they count towards the active
+ * membership for ever without having paid. `GUEST` for everybody takes club
+ * membership from somebody who paid and merely stepped off the board.
  *
- * `MEMBER` for everybody strands the ex-officer with no `duesPaidThrough`:
- * `sweepLapsedMembers` only touches rows that have a date on them, so nothing
- * would ever move them again — they would count towards the club's active
- * membership for ever, and carry the Discord Members role with it, having
- * never paid. `GUEST` for everybody takes club membership away from somebody
- * who paid and merely stepped off the board.
- *
- * So it asks the question the dues loop asks and hands them straight back to
- * it, which also preserves that loop's own invariant: every `MEMBER` the site
- * wrote has a date the site can later read.
+ * So it asks the question the dues loop asks and hands them straight back to it,
+ * which also preserves that loop's invariant: every `MEMBER` the site wrote has a
+ * date the site can later read.
  */
 async function standingRole(
   paidThrough: Date | null,
@@ -121,49 +88,39 @@ async function standingRole(
 
   const standing = await membershipStanding(paidThrough, now)
 
-  // On fallback dates, err towards leaving them a member. Taking membership
-  // away on a guessed calendar is the mistake `membershipSweep` refuses to
-  // make, and leaving somebody a `MEMBER` one sweep too long costs nothing —
-  // the dues sweep reaches them the moment the calendar answers again.
+  // On fallback dates, err towards leaving them a member. Taking membership away on
+  // a guessed calendar is the mistake `membershipSweep` refuses to make, and one
+  // sweep too long as a `MEMBER` costs nothing.
   if (!standing.billable.fromCalendar) return UserRole.MEMBER
 
-  // **`duesRequired`, not `hasAccess`** — the same signal `membershipSweep`
-  // demotes on, and it has to be the same one. Access is the dues date now, so
-  // `hasAccess` would put an ex-officer at `GUEST` the day their date passed
-  // while an ordinary member in exactly the same position stayed a `MEMBER`
-  // until the free window shut. Two loops writing one column to different
-  // rules is how the roster starts contradicting itself.
+  // `duesRequired`, not `hasAccess` — the same signal `membershipSweep` demotes on,
+  // and it has to be. `hasAccess` would put an ex-officer at `GUEST` the day their
+  // date passed while an ordinary member in the same position stayed a `MEMBER`
+  // until the free window shut.
   return standing.duesRequired ? UserRole.GUEST : UserRole.MEMBER
 }
 
 // ------------------------------------------------------------------ tenure
 
 /**
- * Opening and closing a term, which is the half of this that is *not* about
- * `User.role`.
+ * Opening and closing a term — the half of this that isn't about `User.role`.
  *
- * An open `OfficerTerm` — `endedAt` null — is what "currently on the board"
- * means. It is a separate axis from the permission ladder on purpose, and the
- * case that forces it is the admin who is also an officer: `UserRole` has one
- * slot per person and `ADMIN` outranks `OFFICER`, so the ladder simply cannot
- * hold both facts. A term can, and the sync writes it for admins exactly as it
- * does for anybody else while never touching their `role`.
+ * An open `OfficerTerm` is what "currently on the board" means. A separate axis
+ * from the permission ladder on purpose, and the case that forces it is the admin
+ * who is also an officer: `UserRole` has one slot and `ADMIN` outranks `OFFICER`,
+ * so the ladder can't hold both facts. A term can, and the sync writes it for
+ * admins exactly as for anybody else while never touching their `role`.
  *
- * **The sync only ever closes what the sync opened**, hence
- * `source: 'DISCORD'` on both sides of this. A `MANUAL` term is somebody's
- * deliberate appointment on the roles desk — the faculty advisor sits on the
- * board carrying no Discord role at all — and closing those would stand them
- * down on the first pass. Same rule as the dues sweep only touching rows that
- * already have a `duesPaidThrough`: an appointment made outside a loop is not
- * that loop's to undo.
+ * The sync only ever closes what the sync opened, hence `source: 'DISCORD'` on
+ * both sides. A `MANUAL` term is somebody's deliberate appointment on the roles
+ * desk, and closing those would stand the faculty advisor down on the first pass.
  */
 async function openTerm(
   user: { id: string; fullName: string },
   now: Date,
 ): Promise<boolean> {
-  // Check-then-act rather than a constraint, because there deliberately is not
-  // one: two sweeps racing would leave two open terms, both visible and either
-  // closable, which is the trade written down in `schema.prisma`.
+  // Check-then-act rather than a constraint, because there deliberately isn't one:
+  // two sweeps racing would leave two open terms, both visible and either closable.
   const held = await prisma.officerTerm.findFirst({
     where: { userId: user.id, endedAt: null },
     select: { id: true },
@@ -175,9 +132,9 @@ async function openTerm(
     data: {
       userId: user.id,
       fullName: user.fullName,
-      // No seat. Discord says *that* somebody is on the board; which chair they
-      // sit in is an officer's decision on the roles desk, and inventing one
-      // here would put them in somebody else's.
+      // No seat. Discord says that somebody is on the board; which chair they sit in
+      // is an officer's decision, and inventing one here would put them in somebody
+      // else's.
       position: null,
       startedAt: now,
       source: OfficerTermSource.DISCORD,
@@ -205,20 +162,15 @@ const LOST_THE_ROLE = 'Lost the officer role in Discord'
 /**
  * Whether the configured officer role is a real role in the club's guild.
  *
- * **This is what makes demoting one person at a time safe**, and without it the
- * live half of this file could not demote at all. From a single member's role
- * list, "this person is not an officer" and "the role id in `.env` is a typo or
- * names a role somebody deleted" are byte-for-byte identical — Discord returns
- * neither an error nor a hint for the second, which is why the sweep below has
- * three separate refusals built on that one fact. A per-user check that demoted
- * without this would stand the whole board down one sign-in at a time.
+ * This is what makes demoting one person at a time safe. From a single member's
+ * role list, "this person is not an officer" and "the role id in `.env` is a typo"
+ * are identical — Discord returns neither an error nor a hint for the second — so a
+ * per-user check that demoted without this would stand the whole board down one
+ * sign-in at a time.
  *
- * `guildRoles()` answers it directly and cheaply: one call, every role in the
- * guild by id. Cached because sign-in and the "who am I" read both reach it and
- * a role list does not change minute to minute. **Only a definite `no` is
- * cached as false** — an unreachable Discord is not evidence the role is gone,
- * and caching that would turn one bad minute into ten minutes of refusing to
- * demote for a reason nobody could see.
+ * `guildRoles()` answers directly and cheaply. Cached because sign-in and the "who
+ * am I" read both reach it. Only a definite no is cached as false: an unreachable
+ * Discord isn't evidence the role is gone.
  */
 const ROLE_CHECK_TTL_MS = 10 * 60 * 1000
 
@@ -279,10 +231,9 @@ export async function syncDiscordOfficers(
     return { ...nothing, skipped: 'no-role-holders' }
   }
 
-  // `ADMIN` is excluded in the `where` of both *role* queries rather than by a
-  // check in the loops below, so a bug in the matching logic cannot reach an
-  // admin's `role` at all. Their **tenure** is maintained by the third query,
-  // which is a different column and deliberately does include them.
+  // `ADMIN` is excluded in the `where` of both role queries rather than by a check
+  // in the loops, so a bug in the matching logic can't reach an admin's `role` at
+  // all. Their tenure is maintained by the third query, which does include them.
   const [risers, sitting, tenured] = await Promise.all([
     prisma.user.findMany({
       where: {
@@ -302,9 +253,9 @@ export async function syncDiscordOfficers(
     prisma.user.findMany({
       where: {
         role: UserRole.OFFICER,
-        // Officers the site has no way to look up in the guild are left alone.
-        // The analogue of `duesPaidThrough: { not: null }` in the dues sweep: an
-        // appointment made outside this loop is not this loop's to undo.
+        // Officers the site can't look up in the guild are left alone. The analogue
+        // of `duesPaidThrough: { not: null }` in the dues sweep: an appointment made
+        // outside this loop isn't this loop's to undo.
         OR: [{ discordId: { not: null } }, { discordUsername: { not: null } }],
       },
       select: {
@@ -316,13 +267,11 @@ export async function syncDiscordOfficers(
       },
     }),
     /**
-     * Everyone the guild could name, whatever their role — this is the query
-     * that keeps `OfficerTerm` in step, and the one an `ADMIN` appears in.
+     * Everyone the guild could name, whatever their role — the query that keeps
+     * `OfficerTerm` in step, and the one an `ADMIN` appears in.
      *
-     * Tenure and permission are different questions with different answers, and
-     * an admin is exactly where they come apart: `UserRole` has one slot per
-     * person and `ADMIN` outranks `OFFICER`, so an admin who also sits on the
-     * board cannot be said on the ladder at all. It can be said here.
+     * Tenure and permission are different questions, and an admin is where they come
+     * apart: an admin who also sits on the board can't be said on the ladder at all.
      */
     prisma.user.findMany({
       where: {
@@ -340,9 +289,9 @@ export async function syncDiscordOfficers(
   /**
    * One predicate, both directions.
    *
-   * Computing "holds the role" differently for promotion and demotion is how a
-   * row whose stored `discordId` is stale but whose handle still matches gets
-   * promoted and demoted on alternate sweeps, for ever.
+   * Computing "holds the role" differently for promotion and demotion is how a row
+   * whose stored `discordId` is stale but whose handle still matches gets promoted
+   * and demoted on alternate sweeps, for ever.
    */
   const holds = (user: {
     discordId: string | null
@@ -365,14 +314,14 @@ export async function syncDiscordOfficers(
 
   for (const user of risers) {
     // Guarded on the role, the way `demoteIfLapsed` guards its write, so two
-    // instances sweeping at once write once — and so `ADMIN` is refused a
-    // second time at the write itself.
+    // instances sweeping at once write once — and `ADMIN` is refused a second time
+    // at the write itself.
     const { count } = await prisma.user.updateMany({
       where: { id: user.id, role: { in: [UserRole.MEMBER, UserRole.GUEST] } },
       data: {
         role: UserRole.OFFICER,
-        // Same rule and the same reason as `membershipUpdateFor`: an officer
-        // with no `joinedAt` prints a blank year on their public profile.
+        // Same rule and reason as `membershipUpdateFor`: an officer with no
+        // `joinedAt` prints a blank year on their public profile.
         ...(user.joinedAt === null ? { joinedAt: now } : {}),
       },
     })
@@ -380,11 +329,10 @@ export async function syncDiscordOfficers(
     if (count === 0) continue
     promoted++
 
-    // Backfilled on the way past, the way `recipientFor` does it — but free
-    // here, because the roster entry that matched already carries the id. Kept
-    // best-effort for the same reason: `discordId` is unique, and a handle that
-    // resolves to an account another row already claims must not take the
-    // promotion down with it.
+    // Backfilled on the way past, free here because the roster entry that matched
+    // already carries the id. Best-effort: `discordId` is unique, and a handle that
+    // resolves to an account another row already claims must not take the promotion
+    // down with it.
     if (user.discordId === null && user.discordUsername !== null) {
       const id = roster.byHandle.get(user.discordUsername.toLowerCase())
       if (id) {
@@ -410,22 +358,19 @@ export async function syncDiscordOfficers(
     if (count === 0) continue
     demoted++
 
-    // Losing a permission level gets a line with a name on it. Promotions can
-    // be quiet; this is the one somebody comes looking for an explanation of.
+    // Losing a permission level gets a line with a name on it. Promotions can be
+    // quiet; this is the one somebody comes looking for.
     console.warn(
       `discord officers: ${user.fullName} no longer carries the officer role and is now ${target}`,
     )
   }
 
   /**
-   * And the tenure, for everybody the guild can name — admins included, whose
-   * `role` neither loop above touched.
+   * And the tenure, for everybody the guild can name — admins included, whose `role`
+   * neither loop above touched.
    *
-   * This is what puts an ex-officer on the archive instead of simply making
-   * them vanish from the board. It runs after the role writes rather than
-   * beside them so that a row promoted a moment ago is seen as promoted; the
-   * two are independent columns, but reading them in a settled order is what
-   * keeps the logs comprehensible.
+   * This is what puts an ex-officer on the archive instead of making them vanish. It
+   * runs after the role writes so a row promoted a moment ago is seen as promoted.
    *
    * Only `DISCORD` terms are closed — `closeTerm` says why.
    */
@@ -448,12 +393,9 @@ export async function syncDiscordOfficers(
 /**
  * How long a single answer is reused before Discord is asked again.
  *
- * `GET /api/auth/me` runs on every page load of every signed-in browser, so
- * without this a busy afternoon is one Discord call per navigation. In memory
- * and per process on purpose: it is a rate limiter, not a record. Losing it on
- * deploy costs one extra call per person, and two instances each keeping their
- * own copy is two calls rather than one — both are fine, and neither is worth a
- * column or a cache server.
+ * `GET /api/auth/me` runs on every page load of every signed-in browser, so without
+ * this a busy afternoon is one Discord call per navigation. In memory and per
+ * process on purpose: it's a rate limiter, not a record.
  */
 const REFRESH_EVERY_MS = 5 * 60 * 1000
 
@@ -476,48 +418,32 @@ export interface OfficerRefreshReport {
     | 'unidentifiable'
     | 'discord-unavailable'
     | 'without-role'
-    /** The configured role id is not a role in the guild, so "they don't carry
-        it" says nothing about them. Nobody is stood down on this. */
+    /** The configured role id isn't a role in the guild, so "they don't carry it"
+        says nothing about them. Nobody is stood down on this. */
     | 'role-missing'
 }
 
 /**
- * Follow the officer role for **one** person, now, rather than at the next
- * sweep.
+ * Follow the officer role for one person, now, rather than at the next sweep.
  *
- * The sweep runs every ten minutes, which is fine for a board that changes
- * twice a year and useless for the person it just changed for: somebody handed
- * the role in Discord and told it is done signs in, finds no officer desks, and
- * reports the site as broken. Somebody stood down keeps their desks for ten
- * minutes, which is worse than untidy. This closes both windows for the one
- * account that is asking — sign-in, and the "who am I" read behind every page —
- * at the cost of one member lookup rather than a walk of the whole guild.
+ * The sweep runs every ten minutes, which is fine for a board that changes twice a
+ * year and useless for the person it just changed for: somebody handed the role and
+ * told it's done signs in, finds no officer desks, and reports the site as broken.
+ * Somebody stood down keeps their desks for ten minutes, which is worse. This closes
+ * both windows for the one account asking, at the cost of one member lookup.
  *
- * ## Demoting one person needs evidence the role is real
+ * Demoting one person needs evidence the role is real. Carrying it is self-evident;
+ * not carrying it is not — a mistyped role id, a deleted role and a person who was
+ * never an officer are identical from one member's role list. So `officerRoleExists`
+ * checks the configured id against the guild's own role list before anybody is stood
+ * down, and a `null` from it — Discord unreachable — refuses too.
  *
- * Carrying the role is self-evident: the guild says this account holds it, and
- * nothing else could change what that means. **Not** carrying it is not
- * self-evident at all — a mistyped role id, a role somebody deleted, and a
- * person who was never an officer are byte-for-byte identical from one member's
- * role list, which is the failure the sweep has three separate refusals to
- * avoid. So this asks the question directly instead of inferring it:
- * `officerRoleExists` checks the configured id against the guild's own role
- * list before anybody is stood down, and a `null` from it — Discord unreachable
- * — is not evidence either way and refuses too.
+ * Role and tenure move separately, which is what admits an admin: `role` has one
+ * slot with `ADMIN` above `OFFICER`, so it can't say "an admin who is also an
+ * officer". The term can, and an admin gains and loses one here exactly as anybody
+ * else does while their `role` is never written.
  *
- * What is left after that guard is the honest case: the role exists, this
- * account does not carry it, so they are not an officer.
- *
- * ## Role and tenure move separately, which is what admits an admin
- *
- * `role` is the permission ladder and has one slot, with `ADMIN` above
- * `OFFICER` — so it cannot say "an admin who is also an officer". The term can.
- * An admin gains and loses a term here exactly as anybody else does while their
- * `role` is never written, which keeps the "`ADMIN` is a human in Prisma
- * Studio, in both directions" invariant whole.
- *
- * Nothing is pushed back to Discord; `sweepDiscordRoles` reconciles what the
- * club's members should carry on the tick after any of this.
+ * Nothing is pushed back to Discord; `sweepDiscordRoles` reconciles on the next tick.
  */
 export async function refreshOfficerStanding(
   userId: string,
@@ -559,45 +485,40 @@ export async function refreshOfficerStanding(
   const open = user.officerTerms[0] ?? null
 
   /**
-   * Whether the *role* column is somewhere this may not write.
+   * Whether the role column is somewhere this may not write.
    *
-   * `ADMIN` is above `OFFICER` on the ladder and is a human's decision in both
-   * directions; an `OFFICER` is already where a promotion would put them. The
-   * tenure half below runs regardless, which is the admin-and-officer case.
+   * `ADMIN` is above `OFFICER` and is a human's decision in both directions; an
+   * `OFFICER` is already where a promotion would put them. The tenure half below runs
+   * regardless, which is the admin-and-officer case.
    *
-   * **There is deliberately no early exit for "already an officer".** There was
-   * one while this could only promote — a sitting officer had nothing to gain,
-   * so asking Discord about them was waste. Now that it demotes, they are
-   * precisely the people worth asking about: skipping them would mean an
-   * ex-officer keeps their desks until the sweep notices. The throttle is what
-   * keeps that affordable.
+   * Deliberately no early exit for "already an officer". There was one while this
+   * could only promote. Now that it demotes they're precisely the people worth asking
+   * about — skipping them would mean an ex-officer keeps their desks until the sweep
+   * notices. The throttle is what keeps that affordable.
    */
   const roleSettled =
     user.role === UserRole.OFFICER || user.role === UserRole.ADMIN
 
-  // Somebody with neither a snowflake nor a handle cannot be looked up. Not an
-  // error — most of the roster predates the signup check — and the sweep is no
-  // better off with them either.
+  // Somebody with neither a snowflake nor a handle can't be looked up. Not an error —
+  // most of the roster predates the signup check — and the sweep is no better off.
   if (user.discordId === null && user.discordUsername === null) {
     return { ...nothing, skipped: 'unidentifiable' }
   }
 
-  // Stamped before the call rather than after it, so a Discord outage cannot
-  // turn every page load into a five-second timeout for as long as it lasts.
+  // Stamped before the call rather than after, so a Discord outage can't turn every
+  // page load into a five-second timeout for as long as it lasts.
   lastChecked.set(userId, now.getTime())
 
   /**
    * Two ways in, one call either way.
    *
-   * The snowflake is the direct lookup and is what every account created since
-   * the signup check carries. A handle-only row — the seed, anything an officer
-   * typed — goes through the same search signup itself uses, which answers with
-   * the id *and* the roles together, so resolving the handle costs nothing
-   * extra. Neither path walks the guild.
+   * The snowflake is the direct lookup and is what every account created since the
+   * signup check carries. A handle-only row goes through the same search signup uses,
+   * which answers with the id and the roles together. Neither path walks the guild.
    *
-   * **Not being in the guild is an empty role list, not a failure.** Somebody
-   * who has left the club's Discord is not one of its officers, and the guard
-   * below is what makes acting on that safe.
+   * Not being in the guild is an empty role list, not a failure — somebody who has
+   * left the club's Discord is not one of its officers, and the guard below is what
+   * makes acting on that safe.
    */
   let roles: string[]
   let resolvedId: string | null = null
@@ -623,15 +544,15 @@ export async function refreshOfficerStanding(
   if (roles.includes(officerRoleId)) {
     let promoted = false
 
-    // Guarded on the role at the write, exactly as the sweep guards its own, so
-    // two of these racing write once and `ADMIN` is refused a second time here.
+    // Guarded on the role at the write, exactly as the sweep guards its own, so two
+    // of these racing write once and `ADMIN` is refused a second time here.
     if (!roleSettled) {
       const { count } = await prisma.user.updateMany({
         where: { id: user.id, role: { in: [UserRole.MEMBER, UserRole.GUEST] } },
         data: {
           role: UserRole.OFFICER,
-          // Same rule and the same reason as the sweep: an officer with no
-          // `joinedAt` prints a blank year on their public profile.
+          // Same rule and reason as the sweep: an officer with no `joinedAt` prints a
+          // blank year on their public profile.
           ...(user.joinedAt === null ? { joinedAt: now } : {}),
         },
       })
@@ -642,8 +563,8 @@ export async function refreshOfficerStanding(
     if (!open) await openTerm(user, now)
 
     // Best-effort and after the promotion, for the reason the sweep gives:
-    // `discordId` is unique, and a handle resolving to an account another row
-    // already claims must not take the promotion down with it.
+    // `discordId` is unique, and a handle resolving to an account another row already
+    // claims must not take the promotion down with it.
     if (resolvedId !== null) {
       try {
         await prisma.user.update({
@@ -671,8 +592,8 @@ export async function refreshOfficerStanding(
     return { ...nothing, skipped: 'without-role' }
   }
 
-  // The guard the whole live half rests on. `null` is Discord not answering,
-  // which is not evidence the role is gone.
+  // The guard the whole live half rests on. `null` is Discord not answering, which
+  // isn't evidence the role is gone.
   const exists = await officerRoleExists(now)
 
   if (exists !== true) {
@@ -684,8 +605,8 @@ export async function refreshOfficerStanding(
 
   let demoted = false
 
-  // `ADMIN` is never written, in either direction. Their term still closes
-  // below, which is what puts them on the archive.
+  // `ADMIN` is never written, in either direction. Their term still closes below,
+  // which is what puts them on the archive.
   if (user.role === UserRole.OFFICER) {
     const target = await standingRole(user.duesPaidThrough, now)
 
@@ -697,16 +618,16 @@ export async function refreshOfficerStanding(
     demoted = count > 0
 
     if (demoted) {
-      // Losing a permission level gets a line with a name on it, the same way
-      // the sweep gives one. This is the one somebody comes looking for.
+      // Losing a permission level gets a line with a name on it, the same way the
+      // sweep gives one.
       console.warn(
         `discord officers: ${user.fullName} no longer carries the officer role and is now ${target}`,
       )
     }
   }
 
-  // `MANUAL` terms are left alone — `closeTerm` says why, and this is what
-  // keeps the faculty advisor on the board.
+  // `MANUAL` terms are left alone — `closeTerm` says why, and this is what keeps the
+  // faculty advisor on the board.
   const closed = await closeTerm(user.id, now, LOST_THE_ROLE)
 
   return { promoted: false, demoted: demoted || closed }

@@ -37,29 +37,23 @@ import {
 import { useApi } from '../../lib/api/useApi'
 
 /**
- * The projects desk: starting one, running last term's again, and reaching the
- * management page of any of them.
+ * The projects desk: starting one, running last term's again, and reaching the management
+ * page of any of them.
  *
- * Both live here rather than on a project's own manage page because both are
- * decisions that stay with the board — which projects the club runs. Everything
- * after that point belongs to the lead.
+ * Both live here rather than on a project's own manage page because both are decisions that
+ * stay with the board — which projects the club runs. Everything after that belongs to the
+ * lead.
  *
- * **Appointing that lead used to be here and is not any more.** It sat on this
- * page twice over, as a field inside the create form and as a panel underneath
- * it, and it is a decision about a *person* rather than about a project. It is
- * one panel on the roles desk now, `/dashboard/officer/roles`, beside the other
- * two questions of the same shape.
+ * Appointing that lead used to be here and isn't any more. It sat on this page twice over,
+ * as a field inside the create form and as a panel underneath it, and it's a decision about
+ * a person rather than a project. It's one panel on the roles desk now.
  *
- * **Officers and admins, and nobody else.** It briefly had a second audience:
- * somebody carrying a `PROJECT_LEAD` roster label could start one project of
- * their own. That label is not a role any more — leading a project is a fact
- * about a membership row against one project — and the delegation went with it.
- * Running a project confers nothing here, which is the point: authority *inside*
- * a project and permission to make another are different things, and the second
- * is the board's.
+ * Officers and admins, and nobody else. It briefly had a second audience: somebody carrying
+ * a `PROJECT_LEAD` roster label could start one project of their own. That label isn't a
+ * role any more, and the delegation went with it. Authority inside a project and permission
+ * to make another are different things, and the second is the board's.
  *
- * Every role check on this page is presentation only. The server re-checks on
- * every request regardless of who finds the URL, and it is the one that decides.
+ * Every role check here is presentation only.
  */
 
 const explain = (error: unknown) =>
@@ -70,8 +64,8 @@ const explain = (error: unknown) =>
 export function OfficerProjectsPage() {
   const { user, membership } = useOutletContext<DashboardContext>()
 
-  // Dues before role, because a lapsed officer *is* an officer and the
-  // sentence they need is about a payment rather than about the board.
+  // Dues before role, because a lapsed officer is an officer and the sentence they need is
+  // about a payment rather than about the board.
   if (duesLocked(membership, user.role)) {
     return <DuesLocked eyebrow="/ MANAGE · PROJECTS" />
   }
@@ -90,12 +84,11 @@ export function OfficerProjectsPage() {
       <FormEyebrow>/ MANAGE · PROJECTS</FormEyebrow>
       <FormHeading>Projects.</FormHeading>
 
-      {/* Two ways to end up with a project, and an officer is doing one of
-          them — a new build, or last term's again. Side by side once there is
-          genuinely room for both, which is what the high `--col-min` is for:
-          the create panel turns into the full project editor the moment it is
-          pressed, and half a laptop is not enough for that. `items-start`,
-          since the panel beside it is four fields. */}
+      {/* Two ways to end up with a project, and an officer is doing one of them — a new
+          build, or last term's again. Side by side once there's genuinely room for both,
+          which is what the high `--col-min` is for: the create panel turns into the full
+          project editor the moment it's pressed. `items-start`, since the panel beside it is
+          four fields. */}
       <div className="grid-fluid items-start gap-5 [--col-min:34rem]">
         <CreateProject />
         <DuplicateProject />
@@ -108,30 +101,24 @@ export function OfficerProjectsPage() {
 /**
  * Creating a project, then setting its page up without leaving the desk.
  *
- * Two steps rather than one form, because the second half genuinely cannot
- * happen first: **a picture and a link hang off a project id**, and there is no
- * id until the project exists.
+ * Two steps rather than one form, because the second half genuinely can't happen first: a
+ * picture and a link hang off a project id, and there's no id until the project exists.
  *
- * So the split is drawn as narrowly as that constraint actually is, rather than
- * around the whole form. Everything typeable before the project exists is on the
- * page from the start and goes up *with* it — the description included, which is
- * why `POST /officer/projects` takes that column. Only the gallery and the
- * resource links are gated, they are drawn in place under their own eyebrows
- * while they wait, and each says in one line what it is waiting for. Pressing
- * CREATE unlocks them where they already are.
+ * So the split is drawn as narrowly as that constraint actually is. Everything typeable
+ * before the project exists is on the page from the start and goes up with it — the
+ * description included, which is why `POST /officer/projects` takes that column. Only the
+ * gallery and the resource links are gated, drawn in place under their own eyebrows while
+ * they wait, each saying in one line what it's waiting for.
  *
- * **The repository is one of those links now** rather than a column of its own,
- * so it is collected in the draft with the rest of them instead of having a box
- * to itself above the list.
+ * The repository is one of those links now rather than a column of its own.
  *
- * The panel after that is `ProjectEditor` — the same editor the public page
- * carries, not a second copy — laid out in the same order under the same
- * labels, so what changes is that two sections come alive and the button reads
- * SAVE CHANGES. Nothing moves.
+ * The panel after that is `ProjectEditor` — the same editor the public page carries — laid
+ * out in the same order under the same labels, so what changes is that two sections come
+ * alive and the button reads SAVE CHANGES. Nothing moves.
  *
- * **It says the project is already live, and offers to delete it.** That is the
- * price of the one seam that is left: somebody who walks away mid-setup would
- * otherwise leave an empty project on the public site with nothing to say so.
+ * It says the project is already live, and offers to delete it. That's the price of the one
+ * seam that's left: somebody who walks away mid-setup would otherwise leave an empty project
+ * on the public site with nothing to say so.
  */
 function CreateProject() {
   const [created, setCreated] = useState<Created | null>(null)
@@ -151,16 +138,14 @@ function CreateProject() {
 }
 
 /**
- * What the create press produced: the project, plus the parts of it the create
- * response does not carry back.
+ * What the create press produced: the project, plus the parts of it the create response
+ * doesn't carry back.
  *
- * `description` is here because it is deliberately **not** in
- * `managedProjectSelect` — that shape feeds `/me/projects`, which every
- * dashboard page loads, and a 20,000-character column on every project somebody
- * is on is a payload nobody asked for. The form sent it, so the form hands it
- * over. `images` and `links` are what `publishDraft` landed, and `failures` is
- * what it could not — named rather than swallowed, because by then the project
- * exists and silence would read as everything having worked.
+ * `description` is here because it's deliberately not in `managedProjectSelect` — that
+ * shape feeds `/me/projects`, which every dashboard page loads. The form sent it, so the
+ * form hands it over. `images` and `links` are what `publishDraft` landed, and `failures` is
+ * what it couldn't — named rather than swallowed, because by then the project exists and
+ * silence would read as everything having worked.
  */
 type Created = {
   project: ApiManagedProject
@@ -174,15 +159,13 @@ type Created = {
 function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
   const id = useId()
   const [links, setLinks] = useState<DraftLink[]>([])
-  // `NewImage` rather than `DraftImage`: the editor's version of this list can
-  // also hold pictures that are already on the server, and there is no project
-  // for one to be on yet.
+  // `NewImage` rather than `DraftImage`: the editor's version of this list can also hold
+  // pictures that are already on the server, and there's no project for one to be on yet.
   const [images, setImages] = useState<NewImage[]>([])
   /**
-   * The meeting days, and the only field on this form that is not a plain
-   * uncontrolled input. Seven checkboxes are a set rather than a value, and
-   * reading them back out of `FormData` would be `getAll` plus a cast — state
-   * is what lets the chips draw themselves selected.
+   * The meeting days, and the only field on this form that isn't a plain uncontrolled input.
+   * Seven checkboxes are a set rather than a value, and reading them back out of `FormData`
+   * would be `getAll` plus a cast — state is what lets the chips draw themselves selected.
    */
   const [days, setDays] = useState<number[]>([])
   const [fault, setFault] = useState('')
@@ -208,9 +191,9 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
     const from = value('meetingStartTime')
     const to = value('meetingEndTime')
 
-    // Refused here as well as on the server, so somebody who has just typed a
-    // page of write-up is not told about a missing checkbox by a round trip.
-    // The server refuses all three regardless — see `projectMeeting.ts`.
+    // Refused here as well as on the server, so somebody who has just typed a page of
+    // write-up isn't told about a missing checkbox by a round trip. The server refuses all
+    // three regardless.
     if (days.length === 0) {
       setFault('Pick at least one day the project meets.')
       return
@@ -234,22 +217,22 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
       competition: value('competition'),
       description,
       discordRoleId: value('discordRoleId'),
-      // Required by the route, unlike everything above it but the title, slug
-      // and summary. A project's meeting time is the one thing a prospective
-      // member needs and the one thing nobody ever came back to fill in.
+      // Required by the route, unlike everything above it but the title, slug and summary. A
+      // project's meeting time is the one thing a prospective member needs and the one thing
+      // nobody ever came back to fill in.
       meetingWeekdays: days,
       meetingStartTime: from,
       meetingEndTime: to,
       meetingLocation: value('meetingLocation'),
       meetingDescription: value('meetingDescription'),
-      // No lead. Appointing one is the roles desk's job now, and the term is
-      // left off so the server stamps the one we are in — which is what an
-      // officer creating a project today means every time.
+      // No lead. Appointing one is the roles desk's job now, and the term is left off so the
+      // server stamps the one we're in — which is what an officer creating a project today
+      // means every time.
     })
       .then(async (project) => {
-        // Past this line the project exists and is public, so nothing below may
-        // throw: `publishDraft` catches its own failures and reports them, and
-        // the panel drops into the editor either way with whatever landed.
+        // Past this line the project exists and is public, so nothing below may throw:
+        // `publishDraft` catches its own failures and reports them, and the panel drops into
+        // the editor either way with whatever landed.
         if (ready.length > 0 || images.length > 0) {
           setState({ status: 'sending', step: 'ADDING THE REST…' })
         }
@@ -261,24 +244,24 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
         form.reset()
         setDays([])
         setLinks([])
-        // Not released: the object URLs belong to the editor's rows now, and
-        // `DraftGallery` unmounting is what hands back any that never landed.
+        // Not released: the object URLs belong to the editor's rows now, and `DraftGallery`
+        // unmounting is what hands back any that never landed.
         setImages([])
         setState({ status: 'idle' })
 
         onCreated({
           project,
           description: description ?? null,
-          // Nobody is on a new project now, so the editor below always shows
-          // the officer banner. It only decides which sentence is printed.
+          // Nobody is on a new project now, so the editor below always shows the officer
+          // banner. It only decides which sentence is printed.
           mine: false,
           ...published,
         })
       })
       .catch((error: unknown) => {
-        // Only the create request reaches here. Deliberately no `form.reset()`:
-        // the fields keep what was typed, and so do the links and the pictures,
-        // so a taken slug is one word to change rather than the whole page again.
+        // Only the create request reaches here. Deliberately no `form.reset()`: the fields
+        // keep what was typed, and so do the links and the pictures, so a taken slug is one
+        // word to change rather than the whole page again.
         setState({ status: 'failed', message: explain(error) })
       })
   }
@@ -338,9 +321,9 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
             className={fieldClass}
             disabled={sending}
           />
-          {/* Required, and the only one of these four that is: this is the line
-              the projects list prints under the title, so a project without one
-              is an empty row on the page people browse before joining. */}
+          {/* Required, and the only one of these four that is: this is the line the projects
+              list prints under the title, so a project without one is an empty row on the
+              page people browse before joining. */}
           <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
             Printed under the title on the projects list.
           </p>
@@ -372,20 +355,18 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
               className={fieldClass}
               disabled={sending}
             />
-            {/* The placeholder reads as an example to follow rather than as one
-                option, and plenty of what the club builds is not entered into
-                anything. Blank sends nothing at all — see `value` in `submit`,
-                which is what keeps the create route's optional field optional. */}
+            {/* The placeholder reads as an example to follow rather than as one option, and
+                plenty of what the club builds isn't entered into anything. Blank sends
+                nothing at all, which keeps the create route's optional field optional. */}
             <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
               Optional.
             </p>
           </div>
         </div>
 
-        {/* The schedule, and the one block on this form that refuses to be
-            skipped. It sits above the write-up rather than below it because it
-            is a fact somebody already knows when they open this page, and the
-            write-up is the part they will go away and come back to. */}
+        {/* The schedule, and the one block on this form that refuses to be skipped. It sits
+            above the write-up because it's a fact somebody already knows when they open this
+            page, and the write-up is the part they'll go away and come back to. */}
         <div className="border-rule border-t pt-5">
           <fieldset>
             <legend className={labelClass}>MEETING DAYS</legend>
@@ -401,10 +382,9 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
                         : 'border-rule text-dim hover:border-primary hover:text-primary'
                     }`}
                   >
-                    {/* A real checkbox, hidden with `sr-only` rather than
-                        replaced: the accessible name is what a screen reader
-                        announces and what the tests query on, and `hidden`
-                        would take it out of the tab order too. */}
+                    {/* A real checkbox, hidden with `sr-only` rather than replaced: the
+                        accessible name is what a screen reader announces and what the tests
+                        query on, and `hidden` would take it out of the tab order too. */}
                     <input
                       type="checkbox"
                       className="sr-only"
@@ -468,10 +448,9 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
             </div>
           </div>
 
-          {/* Optional where the three above are required, and the lead can
-              write it later on their own manage page. It is the description
-              the meeting carries into somebody's calendar; empty means empty,
-              so nothing has to be invented at creation to fill it. */}
+          {/* Optional where the three above are required, and the lead can write it later on
+              their own manage page. It's the description the meeting carries into somebody's
+              calendar; empty means empty, so nothing has to be invented at creation. */}
           <div className="mt-3">
             <label htmlFor={`${id}-meeting-note`} className={labelClass}>
               NOTE (OPTIONAL)
@@ -527,43 +506,39 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
             className={fieldClass}
             disabled={sending}
           />
-          {/* Worth spelling out that this one does something, because every
-              other field on this form is a label. The server checks the id
-              against the guild's real roles before saving it — a wrong
-              snowflake is not an error at Discord and would otherwise match
-              nobody for ever — and refuses the club's own roles outright. */}
+          {/* Worth spelling out that this one does something, because every other field on
+              this form is a label. The server checks the id against the guild's real roles
+              before saving it — a wrong snowflake isn't an error at Discord and would
+              otherwise match nobody for ever — and refuses the club's own roles outright. */}
           <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
             Optional. Everyone on the project is given this Discord role, and
             loses it when they leave.
           </p>
-          {/* The four steps that end in "Copy Role ID" used to be that one
-              sentence, which was the last of them. */}
+          {/* The four steps that end in "Copy Role ID" used to be that one sentence, which
+              was the last of them. */}
           <DiscordRoleHelp />
         </div>
 
-        {/* Same eyebrow the editor uses, over the same list, so this section
-            does not appear to arrive from somewhere else once the project
-            exists. It sat above a SOURCE CODE box until the repository stopped
-            being a column of its own; the links are the whole section now, and
-            leaving it empty is an ordinary answer. */}
+        {/* Same eyebrow the editor uses, over the same list, so this section doesn't appear
+            to arrive from somewhere else once the project exists. It sat above a SOURCE CODE
+            box until the repository stopped being a column of its own; the links are the
+            whole section now, and leaving it empty is an ordinary answer. */}
         <p className="pt-2 font-mono text-[13px] font-bold tracking-[0.2em] text-faint">
           / RESOURCES
         </p>
 
         <LinkRows links={links} disabled={sending} onChange={setLinks} />
 
-        {/* The gallery, inside the form and above the button, because it is
-            part of what the button sends. Pictures are held in the browser
-            until then — see `DraftGallery`, which is the same section the editor
-            draws once the project exists. */}
+        {/* The gallery, inside the form and above the button, because it's part of what the
+            button sends. Pictures are held in the browser until then — see `DraftGallery`,
+            the same section the editor draws once the project exists. */}
         <div className="mt-8">
           <DraftGallery
             images={images}
             disabled={sending}
             onChange={(next) => {
-              // Narrowed on the way in. The shared component's list may contain
-              // stored rows; this page cannot produce one, and the create call
-              // below has nowhere to put one.
+              // Narrowed on the way in. The shared component's list may contain stored rows;
+              // this page can't produce one, and the create call below has nowhere to put one.
               setImages(next.filter((image): image is NewImage => image.kind !== 'stored'))
             }}
           />
@@ -595,18 +570,16 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
 }
 
 /**
- * What the panel becomes once the press has landed: the project's own page, in
- * place, with everything that was filled in already on it.
+ * What the panel becomes once the press has landed: the project's own page, in place, with
+ * everything that was filled in already on it.
  *
- * `ProjectEditor` is reused wholesale rather than reassembled here — it carries
- * the same fields under the same labels in the same order, each backed by a
- * route that re-checks the caller — so **the page does not rearrange itself
- * around the moment of creation**. `writingFirst` keeps the writing where the
- * form's fields were. What changes is that the slug stops being editable and
- * CREATE PROJECT becomes SAVE CHANGES.
+ * `ProjectEditor` is reused wholesale rather than reassembled here — the same fields under
+ * the same labels in the same order — so the page doesn't rearrange itself around the moment
+ * of creation. `writingFirst` keeps the writing where the form's fields were. What changes
+ * is that the slug stops being editable and CREATE PROJECT becomes SAVE CHANGES.
  *
- * It is not a second step to complete. Everything was sent by the press; this
- * is where corrections go, and where the undo lives.
+ * It isn't a second step to complete. Everything was sent by the press; this is where
+ * corrections go, and where the undo lives.
  */
 function SetUpProject({
   created,
@@ -615,25 +588,24 @@ function SetUpProject({
   created: Created
   onFinished: () => void
 }) {
-  // The desk's own context, for the one thing the editor below needs a person
-  // for: a document's credit has to start on somebody, and here that is the
-  // officer who just made the project.
+  // The desk's own context, for the one thing the editor below needs a person for: a
+  // document's credit has to start on somebody, and here that's the officer who just made
+  // the project.
   const { user } = useOutletContext<DashboardContext>()
   const { project, images, links, failures } = created
 
-  // Assembled rather than re-read. Everything but the write-up comes back in
-  // the create response, the write-up comes from the form that sent it, and the
-  // gallery and links are what the publish just landed — so a read here would
-  // be a round trip to be told what this component was handed.
+  // Assembled rather than re-read. Everything but the write-up comes back in the create
+  // response, the write-up comes from the form that sent it, and the gallery and links are
+  // what the publish just landed — so a read here would be a round trip to be told what this
+  // component was handed.
   const [detail, setDetail] = useState<ApiProjectDetail>({
     ...project,
     description: created.description,
     members: [],
     images,
     links,
-    // Always empty here, and deliberately not part of the draft: a document
-    // needs a title, a credit and a project to hang off, and this component is
-    // the editor that has all three. See `lib/projects/projectDraft.ts`.
+    // Always empty here, and deliberately not part of the draft: a document needs a title, a
+    // credit and a project to hang off, and this component is the editor that has all three.
     documents: [],
   })
   const [dirty, setDirty] = useState(false)
@@ -665,9 +637,9 @@ function SetUpProject({
         SET UP · {project.title.toUpperCase()}
       </p>
 
-      {/* Said plainly, because it is the one thing about this page that is not
-          obvious from looking at it: the project is on the public site already,
-          not once somebody presses something else. */}
+      {/* Said plainly, because it's the one thing about this page that isn't obvious from
+          looking at it: the project is on the public site already, not once somebody presses
+          something else. */}
       <div className="border-primary/35 bg-primary/5 mb-6 border p-4">
         <p className="text-dim text-sm leading-[1.7] text-pretty">
           <strong className="text-base-content">{project.title} is live</strong>
@@ -683,9 +655,9 @@ function SetUpProject({
         </p>
       </div>
 
-      {/* The project was made before these failed, so the panel cannot simply
-          show a red line and let somebody assume nothing happened. Named one by
-          one, above the editor that can fix them. */}
+      {/* The project was made before these failed, so the panel can't simply show a red line
+          and let somebody assume nothing happened. Named one by one, above the editor that
+          can fix them. */}
       {failures.length > 0 && (
         <div className="border-error/40 bg-error/5 mb-6 border p-4">
           <p className="text-base-content mb-2 text-sm leading-[1.7]">
@@ -755,21 +727,17 @@ function SetUpProject({
 /**
  * Running last term's project again this term.
  *
- * The club's builds do not fit in a semester — S.T.O.R.M. and Knightmare run
- * for years — and the dashboard now asks every project which term it belongs
- * to. So a build that carries on is several rows, one per term, rather than one
- * row that quietly never leaves anybody's MY PROJECTS. This is how the next row
- * gets made without retyping a write-up somebody spent an afternoon on.
+ * The club's builds don't fit in a semester, and the dashboard asks every project which term
+ * it belongs to. So a build that carries on is several rows, one per term. This is how the
+ * next row gets made without retyping a write-up somebody spent an afternoon on.
  *
- * **The writing comes across; the people do not.** Everything descriptive is
- * copied, gallery and resource links included. Members, teams, tasks and events
- * are not: a new term is when people decide again, and a copy that silently
- * re-enrolled last spring's roster would put a project back on the dashboard of
- * somebody who has graduated. They join, and the lead is appointed on the roles
- * desk, the same as any other project.
+ * The writing comes across; the people don't. Everything descriptive is copied, gallery and
+ * resource links included. Members, teams, tasks and events aren't: a new term is when people
+ * decide again, and a copy that re-enrolled last spring's roster would put a project back on
+ * the dashboard of somebody who has graduated.
  *
- * It lands in the same editor the create form ends in, because the first thing
- * anybody does after duplicating is change the summary.
+ * It lands in the same editor the create form ends in, because the first thing anybody does
+ * after duplicating is change the summary.
  */
 function DuplicateProject() {
   const [created, setCreated] = useState<Created | null>(null)
@@ -824,24 +792,23 @@ function DuplicateForm({
       slug: value('slug'),
       title: value('title'),
       season: value('season') ?? null,
-      // Left off when blank, like `title` and unlike `season`: nothing sent
-      // means the server carries the original's role across, which is what
-      // running the same build again almost always wants.
+      // Left off when blank, like `title` and unlike `season`: nothing sent means the server
+      // carries the original's role across, which is what running the same build again almost
+      // always wants.
       discordRoleId: value('discordRoleId'),
-      // Both or neither — the server refuses a season with no year, because
-      // that lands the project in a term nobody chose and it vanishes from
-      // every dashboard rather than erroring.
+      // Both or neither — the server refuses a season with no year, because that lands the
+      // project in a term nobody chose and it vanishes from every dashboard rather than
+      // erroring.
       ...(year && season ? { termYear: Number(year), termSeason: season } : {}),
     })
       .then((project) => {
         setState({ status: 'idle' })
         onCreated({
           project,
-          // The copy carries the original's write-up, but the create response
-          // does not include `description` — it is not in `managedProjectSelect`
-          // — and unlike the create form there is nothing typed here to hand
-          // over. The editor re-reads the project, so this only decides what it
-          // shows for the instant before that lands.
+          // The copy carries the original's write-up, but the create response doesn't include
+          // `description` and unlike the create form there's nothing typed here to hand over.
+          // The editor re-reads the project, so this only decides what it shows for the
+          // instant before that lands.
           description: null,
           mine: false,
           images: [],
@@ -850,8 +817,8 @@ function DuplicateForm({
         })
       })
       .catch((error: unknown) => {
-        // Nothing is reset: a taken slug is one word to change rather than the
-        // whole form again.
+        // Nothing is reset: a taken slug is one word to change rather than the whole form
+        // again.
         setState({ status: 'failed', message: explain(error) })
       })
   }
@@ -901,16 +868,15 @@ function DuplicateForm({
 
         <div className="grid-fluid gap-4 [--col-min:14rem]">
           <div>
-            {/* "NEW" on all four of these, because the create panel above is on
-                screen at the same time and carries a TITLE, a SLUG and a SEASON
-                of its own. Two identical labels on one page is a form somebody
-                fills in the wrong half of. */}
+            {/* "NEW" on all four of these, because the create panel above is on screen at the
+                same time and carries a TITLE, a SLUG and a SEASON of its own. Two identical
+                labels on one page is a form somebody fills in the wrong half of. */}
             <label htmlFor={`${id}-dup-title`} className={labelClass}>
               NEW TITLE
             </label>
-            {/* Keyed on the source so picking a different one refills it: this
-                is uncontrolled, and without the key React keeps whatever the
-                previous choice put there. */}
+            {/* Keyed on the source so picking a different one refills it: this is
+                uncontrolled, and without the key React keeps whatever the previous choice
+                put there. */}
             <input
               key={sourceId}
               id={`${id}-dup-title`}
@@ -937,8 +903,8 @@ function DuplicateForm({
               className={fieldClass}
               disabled={sending}
             />
-            {/* The one field with no sensible default. Two projects cannot share
-                a URL, so the officer has to say how this one differs. */}
+            {/* The one field with no sensible default. Two projects can't share a URL, so the
+                officer has to say how this one differs. */}
             <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
               Has to be new — the original keeps its own.
             </p>
@@ -990,8 +956,8 @@ function DuplicateForm({
               className={fieldClass}
               disabled={sending}
             />
-            {/* The two together or neither: leaving both alone stamps the term
-                the club is in, which is what duplicating usually means. */}
+            {/* The two together or neither: leaving both alone stamps the term the club is
+                in, which is what duplicating usually means. */}
             <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
               Leave both blank for the current term.
             </p>
@@ -1002,13 +968,10 @@ function DuplicateForm({
           <label htmlFor={`${id}-dup-discord`} className={labelClass}>
             NEW DISCORD ROLE
           </label>
-          {/* Blank carries the original's across, the same rule NEW TITLE
-              follows — the same build next semester is the same crew in the
-              same channel, which is why the column has no unique index. Left
-              empty rather than prefilled because the list this panel reads is
-              the *public* one, and a role id has no business on an
-              unauthenticated route just to populate a box. Taking a role off a
-              copy is done on the project's own manage page. */}
+          {/* Blank carries the original's across, the same rule NEW TITLE follows — the same
+              build next semester is the same crew in the same channel. Left empty rather than
+              prefilled because the list this panel reads is the public one, and a role id has
+              no business on an unauthenticated route just to populate a box. */}
           <input
             id={`${id}-dup-discord`}
             name="discordRoleId"
@@ -1040,8 +1003,8 @@ function DuplicateForm({
 
 // ---------------------------------------------------------- every project
 
-/** Calendar order, for sorting. `Season` is declared in this order on the
-    server, so a term sorts chronologically as `(termYear, SEASON_ORDER)`. */
+/** Calendar order, for sorting. `Season` is declared in this order on the server, so a term
+    sorts chronologically as `(termYear, SEASON_ORDER)`. */
 const SEASON_ORDER = { SPRING: 0, SUMMER: 1, FALL: 2 }
 
 /** Newest term first, then alphabetical inside a term. */
@@ -1053,28 +1016,20 @@ const byTerm = (a: ApiProject, b: ApiProject) =>
 /**
  * Every project the club has, and the way into managing one.
  *
- * The rail lists the projects you are *on* and draws MANAGE under a lead's
- * rank — and an officer is routinely on none of them. So
- * `/dashboard/projects/:slug/manage` has always handled an officer with no
- * membership row, and until this panel there was no link to it: the only way
- * in was to type the address. This is that link.
+ * The rail lists the projects you're on and draws MANAGE under a lead's rank — and an
+ * officer is routinely on none of them. So `/dashboard/projects/:slug/manage` has always
+ * handled an officer with no membership row, and until this panel there was no link to it.
  *
- * It points at the lead's own URL rather than an officer-only copy of the page.
- * The board reaches the same page the project's lead reaches, because they are
- * doing the same thing to the same project — and an `officer` segment in a URL
- * a lead is entitled to would be a lie in the address bar.
+ * It points at the lead's own URL rather than an officer-only copy. The board reaches the
+ * same page the lead reaches, because they're doing the same thing to the same project.
  *
- * **This semester's builds, and the rest behind a button**, which is the shape
- * `/projects` already uses for the same reason: the club has fifty-odd projects
- * and runs a handful at a time, so a flat list is a long scroll past dead terms
- * to reach the four an officer actually wants. The count sits on the button
- * because "there are more" and "there are fifty-five more" are different
- * things to know before pressing it.
+ * This semester's builds, and the rest behind a button — the shape `/projects` already uses:
+ * the club has fifty-odd projects and runs a handful at a time. The count sits on the button
+ * because "there are more" and "there are fifty-five more" are different things to know.
  *
- * Unlike the public page's archive this splits a list it has already fetched
- * rather than making a second request. One `/projects` answer is the whole
- * club, the panel needs the full set to count what it is hiding, and an officer
- * pressing SHOW is not worth a round trip.
+ * Unlike the public page's archive this splits a list it has already fetched rather than
+ * making a second request: one `/projects` answer is the whole club, and the panel needs the
+ * full set to count what it's hiding.
  */
 function EveryProject() {
   const { membership } = useOutletContext<DashboardContext>()
@@ -1084,9 +1039,9 @@ function EveryProject() {
   const term = membership.status === 'ready' ? membership.data.term : null
   const all = projects.status === 'ready' ? [...projects.data].sort(byTerm) : []
 
-  // **With the term still in flight, nothing is hidden.** The same rule the
-  // dues padlocks follow: an unanswered question must not read as "no projects
-  // this semester", which is what splitting on a null term would draw.
+  // With the term still in flight, nothing is hidden. The same rule the dues padlocks follow:
+  // an unanswered question must not read as "no projects this semester", which is what
+  // splitting on a null term would draw.
   const running =
     term === null
       ? all
@@ -1163,9 +1118,9 @@ function EveryProject() {
 /**
  * The rows themselves.
  *
- * `showTerm` is off for this semester's list, where every row carries the same
- * term and printing it four times says nothing, and on for the archive, where
- * it is the only thing telling one year's rover from the next.
+ * `showTerm` is off for this semester's list, where every row carries the same term and
+ * printing it four times says nothing, and on for the archive, where it's the only thing
+ * telling one year's rover from the next.
  */
 function ProjectRows({
   projects,
@@ -1201,8 +1156,8 @@ function ProjectRows({
   )
 }
 
-/** Drawn the same way in both of its states, like the archive control on
-    `/projects` that this borrows its wording from. */
+/** Drawn the same way in both of its states, like the archive control on `/projects` that
+    this borrows its wording from. */
 function PastButton({ children, onClick }: { children: string; onClick: () => void }) {
   return (
     <button

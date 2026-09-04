@@ -5,15 +5,14 @@ import { isExternalHref, parseProse } from '../../lib/projects/projectProse'
 /**
  * A project's write-up, set as markdown.
  *
- * **Nothing here builds HTML from a string.** `parseProse` returns a tree and
- * this walks it into React elements, so every piece of a write-up is escaped by
- * React on the way out. That is the whole security story for a field a lead
- * types and the public reads, and it is why the renderer is written rather than
- * installed — see `lib/projects/projectProse.ts`.
+ * Nothing here builds HTML from a string. `parseProse` returns a tree and this walks it into React
+ * elements, so every piece of a write-up is escaped by React on the way out. That is the whole
+ * security story for a field a lead types and the public reads, and it is why the renderer is
+ * written rather than installed — see `lib/projects/projectProse.ts`.
  *
- * The one prop is how a *paragraph* is set, including the space above it. The
- * other blocks size themselves off that: a page reading at `text-sm` wants
- * headings a step up from its own body, not a fixed scale that fights it.
+ * The one prop is how a paragraph is set, including the space above it. The other blocks size
+ * themselves off that: a page reading at `text-sm` wants headings a step up from its own body, not
+ * a fixed scale that fights it.
  */
 export function ProjectProse({
   description,

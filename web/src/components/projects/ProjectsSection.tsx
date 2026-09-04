@@ -20,41 +20,31 @@ const rowClass =
   'border-rule grid grid-cols-[2.75rem_1fr] items-start gap-3.5 border-t py-6.5 pr-2 wide:grid-cols-[70px_1.1fr_2fr_140px] wide:gap-7 wide:pl-2'
 
 /**
- * How wide a card's cover is allowed to get: 22rem, so 352 × 220 at the frame's
- * 16:10.
+ * How wide a card's cover is allowed to get: 22rem, so 352 x 220 at the frame's 16:10.
  *
- * The pictures cannot be trusted to be big. Half a gallery is external
- * addresses somebody pasted — the club's covers today include a Google
- * image-search thumbnail a couple of hundred pixels across — and a frame that
- * took its size from the viewport was upscaling those threefold on a wide
- * monitor. Nothing in an `<img>` says "stop at your own pixels", so the layout
- * has to.
+ * The pictures can't be trusted to be big. Half a gallery is external addresses somebody pasted
+ * — the club's covers today include a Google image-search thumbnail a couple of hundred pixels
+ * across — and a frame that took its size from the viewport was upscaling those threefold on a
+ * wide monitor. Nothing in an `<img>` says "stop at your own pixels", so the layout has to.
  *
- * The card's own track is already bounded (`CARD_CLASS` below), so this only
- * bites in the two cases the track is not: a card wide enough to be handed a
- * 440px column on a large monitor, and a phone, where the card is one track and
- * that track is the page.
+ * The card's own track is already bounded, so this only bites where it isn't: a card handed a
+ * 440px column on a large monitor, and a phone, where the card is the page.
  */
 const GALLERY_WIDTH = 'w-full max-w-[22rem]'
 
 /**
  * A card, and the two-across grid it sits in.
  *
- * **The card lays itself out on its own width, not the viewport's.** It is a
- * `grid-fluid` rather than a `wide:` split because there is no viewport width
- * at which the answer is the same for both columns of a two-across grid: at the
- * breakpoint a card is 390px and the picture has to sit above the writing, on a
- * monitor it is 900px and it has to sit beside it. `--col-min` is "how narrow
- * may a column get" — 15rem, which is about as narrow as a summary stays
- * readable — so the card flips between the two on its own, and `auto-fit`
- * collapsing the empty tracks is what makes a card with no gallery one
- * full-width column with no class of its own.
+ * The card lays itself out on its own width, not the viewport's. It's a `grid-fluid` rather than
+ * a `wide:` split because there's no viewport width at which the answer is the same for both
+ * columns of a two-across grid: at the breakpoint a card is 390px and the picture has to sit
+ * above the writing, on a monitor it's 900px and it has to sit beside it. `--col-min` is how
+ * narrow a column may get, so the card flips between the two on its own.
  *
- * **Every card draws its own top rule and none draws a bottom one.** Grid items
- * stretch, so both cards in a row start on the row line and their two rules read
- * as the one rule the list has always been ruled with. The `gap` is horizontal
- * only: the rows' rhythm is each card's own `py-8`, exactly as when they were
- * full-width rows, and a vertical gap would double it.
+ * Every card draws its own top rule and none draws a bottom one. Grid items stretch, so both
+ * cards in a row start on the row line and their two rules read as the one rule the list has
+ * always been ruled with. The `gap` is horizontal only: the rows' rhythm is each card's own
+ * `py-8`, and a vertical gap would double it.
  */
 const CARD_CLASS =
   'border-rule grid-fluid items-start gap-5 border-t py-8 [--col-min:15rem]'
@@ -62,15 +52,11 @@ const CARD_CLASS =
 /**
  * How a card sets its one line of prose.
  *
- * **The page prints `summary` and only `summary`.** It printed the write-up as
- * well for a while, and had to: `summary` is the column the schema calls the
- * one-liner for cards, and no project the club had ever created had filled one
- * in, so every card was a title above an empty paragraph. The migration that
- * added the cover seeded them from each project's own first paragraph, and the
- * editor's title section is where a lead writes a better one — so the fallback
- * has stopped earning its place. A whole write-up under six cards was a page of
- * grey text either way; the long form is on the project's own page, which is
- * what the card is a door to.
+ * The page prints `summary` and only `summary`. It printed the write-up as well for a while, and
+ * had to: no project the club had ever created had filled a summary in, so every card was a
+ * title above an empty paragraph. The migration that added the cover seeded them from each
+ * project's own first paragraph, so the fallback has stopped earning its place. A whole write-up
+ * under six cards was a page of grey text either way.
  */
 const PROSE = 'text-dim mt-3 text-sm leading-[1.6] text-pretty'
 
@@ -84,39 +70,30 @@ const termLabel = (project: Pick<ApiProject, 'termYear' | 'termSeason'>) =>
   `${SEASON_LABEL[project.termSeason]} ${String(project.termYear)}`
 
 /**
- * The projects list — this semester in full, everything before it behind a
- * button.
+ * The projects list — this semester in full, everything before it behind a button.
  *
- * **The page shows one term at a time now.** A project belongs to a term, and a
- * build that runs for three years is three rows with one name; listed flat they
- * read as three projects, and the club's back catalogue buried the thing
- * somebody came here to find — what is being built *now*. So the current term
- * is the page, and the rest is one press away at the bottom.
+ * The page shows one term at a time. A project belongs to a term, and a build that runs for
+ * three years is three rows with one name; listed flat they read as three projects, and the
+ * club's back catalogue buried the thing somebody came here to find.
  *
- * **The two lists deliberately do not look alike.** This term's projects are
- * cards with a cover in them, because a prospective member is here to see robots
- * and a column of summaries is a page of grey text. The archive stays the
- * original rules-and-columns rows — you can read down the term column and the
- * competition column separately, which is what an archive is for, and forty
- * pictures is not a list anybody scrolls.
+ * The two lists deliberately don't look alike. This term's projects are cards with a cover,
+ * because a prospective member is here to see robots. The archive stays the original
+ * rules-and-columns rows — you can read down the term column and the competition column
+ * separately, which is what an archive is for, and forty pictures isn't a list anybody scrolls.
  *
- * **The archive is not fetched until it is asked for.** Its component mounts on
- * the press and `useApi` runs then, the same trick `ProjectPage` uses for the
- * signed-in half of a project page — which means the common visit costs one
- * request, and a smaller one than before.
+ * The archive isn't fetched until it's asked for: its component mounts on the press and `useApi`
+ * runs then, so the common visit costs one request.
  *
- * This came off the landing page when the projects moved to a page of their
- * own, and `pages/public/ProjectsPage.tsx` is now that page: the section carries its
- * whole content, header included, which is why the header is an `h1`.
+ * This came off the landing page when the projects moved to a page of their own, and the section
+ * carries its whole content, header included, which is why the header is an `h1`.
  */
 export function ProjectsSection() {
   const current = useApi<ApiCardProject[]>(CURRENT_PROJECTS)
   const [archiveOpen, setArchiveOpen] = useState(false)
 
-  // Every row in a `term=current` answer carries the same term, so the heading
-  // reads it off the first rather than asking the server a second time. With no
-  // rows there is no term to name, which is why the empty state says "this
-  // semester" in words instead.
+  // Every row in a `term=current` answer carries the same term, so the heading reads it off the
+  // first rather than asking the server again. With no rows there's no term to name, which is
+  // why the empty state says "this semester" in words.
   const term = current.status === 'ready' ? current.data[0] : undefined
 
   return (
@@ -200,22 +177,17 @@ export function ProjectsSection() {
 /**
  * One of this semester's projects: its cover beside the line its lead wrote.
  *
- * **One still, not a slideshow.** The card carried a compact `ProjectGallery`
- * for a while, which meant six sets of arrows and six counters down a page whose
- * job is to get somebody into a project — and it made "which picture represents
- * this build" a question nobody could answer, because it was whichever happened
- * to be first. `coverOf` answers it from the project's own columns, and the
- * slideshow is where it reads properly: the project's own page.
+ * One still, not a slideshow. The card carried a compact `ProjectGallery` for a while, which
+ * meant six sets of arrows down a page whose job is to get somebody into a project — and it made
+ * "which picture represents this build" a question nobody could answer. `coverOf` answers it
+ * from the project's own columns.
  *
- * **The card is not a link, and the title is.** The row used to be one `<Link>`
- * wrapping everything, which the gallery ended: arrows and a thumbnail inside an
- * anchor is a control inside a link, and the browser resolves that by giving the
- * reader neither. The controls are gone, but the two things worth pressing still
- * say so themselves — a whole card as one anchor reads out as one enormous link.
+ * The card isn't a link, and the title is. The row used to be one `<Link>` wrapping everything,
+ * which the gallery ended: arrows and a thumbnail inside an anchor is a control inside a link.
+ * The controls are gone, but a whole card as one anchor reads out as one enormous link.
  *
- * **No cover means no frame.** A project with nothing to show gets its text
- * across the full width rather than an empty hatched box, which on a public page
- * reads as an image that failed to load.
+ * No cover means no frame. A project with nothing to show gets its text across the full width
+ * rather than an empty hatched box, which on a public page reads as an image that failed to load.
  */
 function ProjectCard({
   project,
@@ -343,23 +315,18 @@ function Archive() {
             )}
           </div>
 
-          {/* Below the breakpoint the grid drops to two columns and these two
-              stack under the name rather than beside it.
+          {/* Below the breakpoint the grid drops to two columns and these stack under the name.
 
-              `summary`, and no fallback to an excerpt of the write-up any more:
-              this column has always been one blurb wide, that is the field meant
-              for exactly this, and every project has one now. Still clamped,
-              because a summary may run to 500 characters and the archive is read
-              by its row rhythm. The clamp is CSS, so the whole string stays in
+              `summary`, and no fallback to an excerpt of the write-up any more: this column has
+              always been one blurb wide and every project has one now. Still clamped, because a
+              summary may run to 500 characters. The clamp is CSS, so the whole string stays in
               the DOM and nothing is hidden from a screen reader. */}
           <p className="col-start-2 line-clamp-3 pt-0.5 text-sm leading-[1.6] text-pretty text-dim wide:col-start-auto">
             {project.summary}
           </p>
-          {/* The term rather than the free-text `season` this column used to
-              print. The same build run three years running is three rows with
-              one title, and the term is the only thing that tells them apart —
-              which is the entire job of the right-hand column in a list you are
-              reading downwards. */}
+          {/* The term rather than the free-text `season` this column used to print. The same
+              build run three years running is three rows with one title, and the term is the only
+              thing that tells them apart. */}
           <p className="text-faint col-start-2 pt-1.5 font-mono text-[11px] font-medium wide:col-start-auto wide:text-right">
             {termLabel(project)}
           </p>

@@ -39,22 +39,20 @@ import {
 } from '../../lib/printing'
 
 /**
- * The 3D print request form, and the list of what you have asked for.
+ * The 3D print request form, and the list of what you've asked for.
  *
  * Three club rules shape this page.
  *
- * The **file rule**: the printers take STL and STEP and nothing else, so the
- * file input says so, this page checks it before uploading, and the server
- * checks the bytes themselves — an extension is a claim, not evidence.
+ * The file rule: the printers take STL and STEP and nothing else, so the file input says so, this
+ * page checks it before uploading, and the server checks the bytes themselves — an extension is a
+ * claim, not evidence.
  *
- * The **storage rule**: a finished job's file is deleted, which is why a
- * settled row shows its name and size but no download. The record outlives the
- * model deliberately, and offering a link to nothing would be a lie.
+ * The storage rule: a finished job's file is deleted, which is why a settled row shows its name
+ * and size but no download.
  *
- * The **budget rule**: a personal print comes out of 500 g a term, and a print
- * for a project comes out of nothing at all. That is why the project field is
- * on the form rather than in the notes — it is not a label, it decides who
- * pays for the plastic.
+ * The budget rule: a personal print comes out of 500 g a term, and a print for a project comes
+ * out of nothing at all. That's why the project field is on the form rather than in the notes —
+ * it isn't a label, it decides who pays for the plastic.
  */
 
 /** What the form will attach. The server re-checks all of it. */
@@ -89,15 +87,12 @@ function explain(error: unknown): string {
 /**
  * The dues gate, split out so the page below it never mounts while locked.
  *
- * A wrapper rather than an early return inside the page: everything under here
- * fetches on mount, and a locked account would fire those requests only to have
- * the server 403 every one of them into the console. Nothing renders, nothing
- * asks.
+ * A wrapper rather than an early return inside the page: everything under here fetches on mount,
+ * and a locked account would fire those requests only to have the server 403 every one into the
+ * console.
  *
- * The context is read as nullable for the reason the dues page reads it that
- * way — this page has its own suite that renders it alone, and a component that
- * falls over without a parent can only be tested through one. Null means "not
- * locked", and the server is the thing that actually refuses.
+ * The context is read as nullable for the reason the dues page reads it that way — this page has
+ * its own suite that renders it alone. Null means "not locked".
  */
 export function PrintRequestPage() {
   const dashboard = useOutletContext<DashboardContext | null>()
@@ -169,17 +164,13 @@ function PrintRequestForm({
         the club's projects are printing too.
       </p>
 
-      {/* Two halves wherever there is room for them: what you are asking for
-          on one side, what you have already asked for on the other. They are
-          the two things somebody opens this page to do and neither follows from
-          the other, so stacking them only ever meant scrolling past a form to
-          check on a print. The allowance stays with the form — it is what
-          decides the infill you type into it, not a fact about the queue.
+      {/* Two halves wherever there's room: what you're asking for on one side, what you've already
+          asked for on the other. They're the two things somebody opens this page to do and neither
+          follows from the other, so stacking them only ever meant scrolling past a form to check
+          on a print. The allowance stays with the form — it decides the infill you type into it.
 
-          `--col-min` is set well above the width either half needs, so a laptop
-          keeps the single column: two 30rem columns of dense form is worse than
-          one 60rem one, and the split is only worth having when both halves are
-          comfortable. */}
+          `--col-min` is set well above the width either half needs, so a laptop keeps the single
+          column: two 30rem columns of dense form is worse than one 60rem one. */}
       <div className="grid-fluid items-start gap-5 [--col-min:32rem]">
         <div className="space-y-5">
           <Allowance allowance={allowance} />
@@ -195,11 +186,9 @@ function PrintRequestForm({
 /**
  * The balance, and the two sentences that stop it being a surprise.
  *
- * Above the form rather than beside the submit button, because it changes what
- * somebody chooses — 40% infill on a big part is a different decision when
- * there are 80 g left. The bar is the same information as the numbers and is
- * there for the glance; the numbers are there because a bar cannot be read
- * exactly.
+ * Above the form rather than beside the submit button, because it changes what somebody chooses —
+ * 40% infill on a big part is a different decision when there are 80 g left. The bar is the same
+ * information as the numbers and is there for the glance.
  */
 function Allowance({ allowance }: { allowance: ApiPrintAllowance | null }) {
   if (!allowance) return null
@@ -271,11 +260,10 @@ function RequestForm({
   // state here — everything else is uncontrolled and read at submit. Resin has
   // no infill and a different material, and both have to follow this.
   const [process, setProcess] = useState<PrintProcess>(DEFAULT_SETTINGS.process)
-  // The file comes off the input rather than out of `new FormData(form)`,
-  // unlike every other form here. Two reasons: the body is built by hand
-  // anyway so the request says exactly what it sends, and a file input needs
-  // its `value` cleared explicitly — `form.reset()` alone leaves the
-  // filename sitting under a form that has already been sent.
+  // The file comes off the input rather than out of `new FormData(form)`, unlike every other form
+  // here. The body is built by hand anyway so the request says exactly what it sends, and a file
+  // input needs its `value` cleared explicitly — `form.reset()` alone leaves the filename sitting
+  // under a form that has already been sent.
   const fileInput = useRef<HTMLInputElement>(null)
 
   const materials = materialsFor(process)
@@ -570,10 +558,9 @@ function RequestForm({
 /**
  * What the printers are for, said before somebody uploads rather than after.
  *
- * The club asked for a notice about inappropriate prints. It sits at the foot
- * of the form in the quiet type rather than in a warning box at the top: a
- * page that opens by accusing its reader of something reads badly to the
- * hundred people who were only ever going to print a bracket.
+ * The club asked for a notice about inappropriate prints. It sits at the foot of the form in the
+ * quiet type rather than in a warning box at the top: a page that opens by accusing its reader of
+ * something reads badly to the hundred people who were only ever going to print a bracket.
  */
 function Conduct() {
   return (

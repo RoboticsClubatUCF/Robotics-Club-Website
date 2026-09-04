@@ -33,44 +33,38 @@ import { isOfficer } from '../../lib/auth/session'
 /**
  * The events desk: everything on the calendar that this person may change.
  *
- * **Not an officer desk, and that is the point.** Every other page under
- * `/ MANAGE` is board business, so they all live under `/dashboard/officer/…`
- * and refuse anybody else. This one is open to project leads as well, because
- * scheduling a design review is not a decision about the club — it is a
- * decision about a build, and the person running the build is the one who knows
- * when it is. `requireEventManager` on the server has always granted exactly
- * that; there was simply no page that used it. Hence `/dashboard/events` rather
- * than `/dashboard/officer/events`: putting `officer` in a URL that leads open
- * would be a lie in the address bar.
+ * Not an officer desk, and that's the point. Every other page under `/ MANAGE` is board
+ * business, so they live under `/dashboard/officer/…` and refuse anybody else. This one is
+ * open to project leads as well, because scheduling a design review isn't a decision about
+ * the club — it's a decision about a build, and the person running it knows when it is.
+ * `requireEventManager` has always granted exactly that. Hence `/dashboard/events`: putting
+ * `officer` in a URL that leads open would be a lie in the address bar.
  *
- * What separates the two audiences is not what they may do but what they may
- * reach. A lead sees their own projects in the picker; an officer additionally
- * gets *Club-wide*, which is the row with no project behind it, and the
- * PUBLISHED switch, which is the public calendar. The server re-checks both.
+ * What separates the two audiences isn't what they may do but what they may reach. A lead
+ * sees their own projects in the picker; an officer additionally gets Club-wide and the
+ * PUBLISHED switch. The server re-checks both.
  *
- * The project **meetings** that now fill the calendars are deliberately not
- * editable here. They are not rows — `server/src/projects/meetings.ts` generates them
- * from three columns on the project — so an EDIT button on one would PATCH an
- * id that does not exist. They are filtered out, and the empty-state copy says
- * where the schedule actually lives.
+ * The project meetings that fill the calendars are deliberately not editable here. They
+ * aren't rows — `server/src/projects/meetings.ts` generates them from three columns — so an
+ * EDIT button on one would PATCH an id that doesn't exist.
  */
 export function EventsManagePage() {
   const { user, membership, projects } = useOutletContext<DashboardContext>()
 
-  // Dues before authority, the same order every other desk uses: a lapsed lead
-  // is a lead, and the sentence they need is about a payment.
+  // Dues before authority, the same order every other desk uses: a lapsed lead is a lead,
+  // and the sentence they need is about a payment.
   if (duesLocked(membership, user.role)) {
     return <DuesLocked eyebrow="/ MANAGE · EVENTS" />
   }
 
   const officer = isOfficer(user.role)
   const mine = projects.status === 'ready' ? projects.data : []
-  // Read off the membership rows rather than off `user.role`, which says
-  // nothing about any project — the rule this codebase states most often.
+  // Read off the membership rows rather than `user.role`, which says nothing about any
+  // project — the rule this codebase states most often.
   const leads = mine.filter(({ rank }) => rank !== 'MEMBER')
 
-  // Nothing until the memberships land, rather than a refusal that would flash
-  // at a lead on every page load. The same reasoning the rail's locks use.
+  // Nothing until the memberships land, rather than a refusal that would flash at a lead on
+  // every page load. The same reasoning the rail's locks use.
   if (!officer && projects.status !== 'ready') {
     return <div aria-busy="true" className="border-rule bg-base-200 h-64 border" />
   }
@@ -132,21 +126,20 @@ function Events({
   /**
    * This term, for the one warning this page gives.
    *
-   * `useApi` rather than a loader: nothing on this page writes it, so the
-   * hook's lack of a refetch costs nothing. The year is today's because the
-   * warning is about something being scheduled now.
+   * `useApi` rather than a loader: nothing here writes it, so the hook's lack of a refetch
+   * costs nothing. The year is today's because the warning is about something being
+   * scheduled now.
    */
   const terms = useApi<ApiSemesterTerm[]>(
     `/officer/semesters/${String(new Date().getFullYear())}`,
   )
 
   /**
-   * Its own loader rather than `useApi`, which has no refetch: every write on
-   * this page changes the list it is written into.
+   * Its own loader rather than `useApi`, which has no refetch: every write on this page
+   * changes the list it's written into.
    *
-   * Read from `/me/events`, which already answers with everything an officer
-   * may see and everything a lead's projects carry — the same endpoint the
-   * dashboard calendar uses. A dedicated officer route would be a fourth way to
+   * Read from `/me/events`, which already answers with everything an officer may see and
+   * everything a lead's projects carry. A dedicated officer route would be a fourth way to
    * ask the same question.
    */
   const reload = useCallback(async () => {
@@ -185,9 +178,9 @@ function Events({
   }
 
   /**
-   * The same matrix `requireEventManager` applies, so the buttons match what
-   * the server will actually allow: officers everywhere, creators on their own,
-   * and a lead on anything hanging off a project they lead.
+   * The same matrix `requireEventManager` applies, so the buttons match what the server will
+   * allow: officers everywhere, creators on their own, and a lead on anything hanging off a
+   * project they lead.
    */
   const canTouch = (event: ApiMeEvent) =>
     officer ||
@@ -220,8 +213,8 @@ function Events({
     event.preventDefault()
     const form = event.currentTarget
     const data = new FormData(form)
-    // Narrowed rather than coerced: `FormData.get` can hand back a `File`, and
-    // `String()` on one is the literal text '[object File]' going into the row.
+    // Narrowed rather than coerced: `FormData.get` can hand back a `File`, and `String()` on
+    // one is the literal text '[object File]' going into the row.
     const text = (name: string) => {
       const raw = data.get(name)
       return typeof raw === 'string' ? raw.trim() : ''
@@ -238,10 +231,10 @@ function Events({
       type: text('type') as EventType,
       location: text('location') || null,
       registrationUrl: text('registrationUrl') || null,
-      // Built in local time and shipped as an instant — "6:30 in the lab" is
-      // campus time, and the calendar converts back on the way in. An all-day
-      // event still needs a timestamp to sort and range-query on, so it gets
-      // midnight and the flag is what stops anything printing that as a time.
+      // Built in local time and shipped as an instant — "6:30 in the lab" is campus time, and
+      // the calendar converts back on the way in. An all-day event still needs a timestamp to
+      // sort and range-query on, so it gets midnight and the flag stops anything printing
+      // that as a time.
       startsAt: new Date(`${date}T${allDay ? '00:00' : start}`).toISOString(),
       endsAt: allDay
         ? new Date(`${date}T23:59`).toISOString()
@@ -249,8 +242,8 @@ function Events({
           ? new Date(`${date}T${end}`).toISOString()
           : null,
       allDay,
-      // Only officers may send this at all; the checkbox is not drawn for
-      // anybody else, and the server refuses it from them regardless.
+      // Only officers may send this at all; the checkbox isn't drawn for anybody else, and
+      // the server refuses it from them regardless.
       ...(officer ? { published: data.get('published') === 'on' } : {}),
     }
 
@@ -263,8 +256,8 @@ function Events({
         const team = text('team')
         await postJson('/events', {
           ...body,
-          // Absent, not null: an omitted `projectId` is what the route reads as
-          // club business, and only an officer gets that option in the picker.
+          // Absent, not null: an omitted `projectId` is what the route reads as club
+          // business, and only an officer gets that option in the picker.
           ...(project === CLUB_WIDE ? {} : { projectId: project }),
           ...(team ? { teamId: team } : {}),
         })
@@ -297,12 +290,10 @@ function Events({
       <FormEyebrow>/ MANAGE · EVENTS</FormEyebrow>
       <FormHeading>Events</FormHeading>
 
-      {/* The calendar on one side and the form on the other, wherever there is
-          room for both. Editing is what makes it worth the split: EDIT fills
-          this form from a row in that list, and stacked they are far enough
-          apart that pressing it looks like nothing happened. `items-start`
-          keeps the form at the top of its column instead of being stretched
-          down the height of a long calendar. */}
+      {/* The calendar on one side and the form on the other, wherever there's room for both.
+          Editing is what makes it worth the split: EDIT fills this form from a row in that
+          list, and stacked they're far enough apart that pressing it looks like nothing
+          happened. `items-start` keeps the form at the top of its column. */}
       <div className="grid-fluid items-start gap-5 [--col-min:30rem]">
         <FormPanel>
           <p className={panelLabel}>ON THE CALENDAR</p>
@@ -391,17 +382,16 @@ function Events({
         </FormPanel>
 
         <FormPanel>
-          {/* `key` swaps the form wholesale between "new" and "editing", which
-              is what lets the uncontrolled inputs pick up an event's values as
-              their defaults. */}
+          {/* `key` swaps the form wholesale between "new" and "editing", which is what lets
+              the uncontrolled inputs pick up an event's values as their defaults. */}
           <form key={editing?.id ?? 'new'} onSubmit={submit} className="space-y-4">
             <p className={panelLabel}>
               {editing ? `EDITING — ${editing.title.toUpperCase()}` : 'NEW EVENT'}
             </p>
 
-            {/* Where it hangs is fixed once it exists — moving an event between
-                projects is deleting and recreating it, which is what keeps the
-                permission question one-dimensional on the server. */}
+            {/* Where it hangs is fixed once it exists — moving an event between projects is
+                deleting and recreating it, which keeps the permission question
+                one-dimensional on the server. */}
             {!editing && (
               <div className="grid-fluid gap-4 [--col-min:14rem]">
                 <div>
@@ -598,10 +588,9 @@ function Events({
               />
             </div>
 
-            {/* The public calendar is officers'. A lead's events are real and
-                reach every member of their project; they simply do not go on
-                the front page. The server refuses this field from anyone else,
-                so its absence here is layout rather than the rule. */}
+            {/* The public calendar is officers'. A lead's events are real and reach every
+                member of their project; they simply don't go on the front page. The server
+                refuses this field from anyone else, so its absence here is layout. */}
             {officer && (
               <label className="flex cursor-pointer items-start gap-2.5">
                 <input
@@ -620,10 +609,9 @@ function Events({
               </label>
             )}
 
-            {/* Advisory, not a refusal. The halt is about the weekly meetings
-                the site generates; a competition that genuinely falls in finals
-                week is the club's business, not the site's, and refusing it
-                would be the page overruling the person who knows. */}
+            {/* Advisory, not a refusal. The halt is about the weekly meetings the site
+                generates; a competition that genuinely falls in finals week is the club's
+                business, and refusing it would be the page overruling the person who knows. */}
             {finalsWarning && (
               <p className="text-warning text-[13px] leading-[1.5] text-pretty">
                 {finalsWarning}

@@ -57,11 +57,10 @@ describe('LeaveProjectButton', () => {
   })
 
   /**
-   * The dialog used to say what leaving cost the *person* — walking out of a
-   * last lead seat rewrote their club-wide roster label, so three sentences
-   * worked out whether they would land on MEMBER or GUEST. Nothing about a
-   * project writes that column now, so what is left to warn about is the cost
-   * to the *project*: it is about to have nobody running it.
+   * The dialog used to say what leaving cost the person — walking out of a last lead seat rewrote
+   * their club-wide roster label, so three sentences worked out whether they would land on MEMBER
+   * or GUEST. Nothing about a project writes that column now, so what is left to warn about is the
+   * cost to the project: it is about to have nobody running it.
    */
   it('warns a project lead that the project would be left with no lead', () => {
     renderButton({ rank: 'PROJECT_LEAD' })

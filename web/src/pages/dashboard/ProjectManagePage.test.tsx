@@ -12,17 +12,14 @@ import type {
 import { urlOf } from '../../test/stubFetch'
 
 /**
- * The manage page, narrowed to the one section on it that reaches outside this
- * website.
+ * The manage page, narrowed to the one section on it that reaches outside this website.
  *
- * Everything else here — members, teams, events, tasks — changes rows the site
- * owns, and a mistake shows up on a page somebody can go and fix. The Discord
- * role hands out and takes away access to a channel for everybody on the
- * project at once, and it does that from a text box with a number in it. So
- * what is worth asserting is narrow and specific: that the box shows what is
- * actually stored, that saving sends the right shape, and that emptying it
- * sends `null` rather than an empty string — because `''` and `null` would be
- * two spellings of "no role" and only one of them means it.
+ * Everything else here — members, teams, events, tasks — changes rows the site owns, and a mistake
+ * shows up on a page somebody can go and fix. The Discord role hands out and takes away access to
+ * a channel for everybody on the project at once, from a text box with a number in it. So what's
+ * worth asserting is narrow: that the box shows what's actually stored, that saving sends the
+ * right shape, and that emptying it sends `null` rather than an empty string — because `''` and
+ * `null` would be two spellings of "no role" and only one means it.
  */
 
 const term: ApiTerm = {
@@ -249,11 +246,10 @@ describe('the project Discord role', () => {
   })
 
   /**
-   * The refusal that matters more than a typo. A project's role is added and
-   * removed as people join and leave it, so a project pointed at the club's
-   * Members role takes membership off the first person to leave — and unlike
-   * the check above, the server makes this one whether or not Discord is
-   * reachable. The page has to print the sentence rather than flattening it.
+   * The refusal that matters more than a typo. A project's role is added and removed as people
+   * join and leave it, so a project pointed at the club's Members role takes membership off the
+   * first person to leave — and unlike the check above, the server makes this one whether or not
+   * Discord is reachable.
    */
   it('reports a club role being pasted, in the server’s own words', async () => {
     const refusal =
@@ -394,11 +390,9 @@ const wrote = (fetchMock: ReturnType<typeof stubTeams>, method: string) =>
 /**
  * Teams, which a project lead makes and unmakes.
  *
- * The rename and the description are what these cover, because they are what
- * the page could not do at all: `PATCH /api/teams/:id` has always existed and
- * nothing in the browser called it, so `Team.description` was a column the site
- * displayed on the project dashboard and could never write. Creating and
- * deleting are older and are covered on the server.
+ * The rename and the description are what these cover, because they're what the page couldn't do
+ * at all: `PATCH /api/teams/:id` has always existed and nothing in the browser called it, so
+ * `Team.description` was a column the site displayed and could never write.
  */
 describe('a project lead editing teams', () => {
   it('opens a team with the name and description it is carrying', async () => {
@@ -517,9 +511,8 @@ describe('a project lead editing teams', () => {
 /**
  * The one control on this page that destroys something no copy exists of.
  *
- * It was the word DANGER in grey over a text-link button that turned red only
- * on hover — the same weight the page gives REMOVE on a single task. It is
- * drawn as the destructive panel it is now, matching `DeleteAccountPanel`.
+ * It was the word DANGER in grey over a text-link button that turned red only on hover — the same
+ * weight the page gives REMOVE on a single task. It's drawn as the destructive panel it is now.
  */
 describe('deleting a project', () => {
   const openPage = async () => {

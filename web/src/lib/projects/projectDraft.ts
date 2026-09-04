@@ -8,28 +8,23 @@ import {
 import type { ApiProjectImage, ApiProjectLink } from '../api/api'
 
 /**
- * A project's gallery while somebody is working on it, whether or not the
- * project exists yet.
+ * A project's gallery while somebody is working on it, whether or not the project exists yet.
  *
- * This started as the create page's problem — everything typed there has to
- * survive until one press turns it into a project — and it is now the *editor's*
- * as well. The editor used to upload a picture the moment it was chosen, delete
- * one the moment the ✕ was pressed, and write a caption on blur; a page that
- * saves some of itself as you touch it and the rest when you press a button is a
- * page nobody can predict. **Nothing in either gallery reaches the server until
- * a save**, so a draft picture and a stored one are the same thing here and the
- * one component draws both.
+ * This started as the create page's problem — everything typed there has to survive until one
+ * press turns it into a project — and it's now the editor's as well. The editor used to upload a
+ * picture the moment it was chosen and write a caption on blur; a page that saves some of itself
+ * as you touch it and the rest when you press a button is a page nobody can predict. Nothing in
+ * either gallery reaches the server until a save, so a draft picture and a stored one are the
+ * same thing here.
  */
 
 /**
- * A picture in the draft. Three shapes, because they become three different
- * requests: an address is a small JSON write, a file is a multipart upload
- * against its own budget, and a stored row is already up and needs at most a
- * patch.
+ * A picture in the draft. Three shapes, because they become three different requests: an address
+ * is a small JSON write, a file is a multipart upload against its own budget, and a stored row is
+ * already up and needs at most a patch.
  *
- * `key` is a local identity for React and for the framing panel — a new
- * picture's stored id does not exist yet, and a file has nothing else unique
- * about it. A stored row uses its own id, which is stable across a save.
+ * `key` is a local identity for React and the framing panel — a new picture's stored id doesn't
+ * exist yet, and a file has nothing else unique about it.
  */
 type DraftImageBase = {
   key: string
@@ -123,24 +118,19 @@ export type PublishResult = {
 /**
  * Turns a draft into rows on a project that now exists.
  *
- * **Sequential, not parallel, and that is the whole ordering story**: each
- * picture is appended at the end of the gallery, so the order they arrive in is
- * the order they end up in. `Promise.all` would publish a gallery shuffled by
- * whichever upload finished first.
+ * Sequential, not parallel, and that's the whole ordering story: each picture is appended at the
+ * end of the gallery, so the order they arrive in is the order they end up in. `Promise.all`
+ * would publish a gallery shuffled by whichever upload finished first.
  *
- * **Nothing throws.** The project has already been created by the time this
- * runs, so an exception here would leave the caller holding a live project and
- * no idea what landed. Each step's failure is caught, named, and reported
- * alongside everything that did work — the page then drops into the ordinary
- * editor with the successful rows in place, which is where a retry belongs.
+ * Nothing throws. The project has already been created by the time this runs, so an exception
+ * would leave the caller holding a live project and no idea what landed. Each step's failure is
+ * caught, named, and reported alongside everything that did work.
  *
- * `saveGallery` below is the editor's version of this, and it is the opposite on
- * exactly that point: there the project already exists, so a failure can be
- * thrown at one status line and retried by pressing SAVE again.
+ * `saveGallery` below is the editor's version and is the opposite on exactly that point: there
+ * the project already exists, so a failure can be thrown at one status line and retried.
  *
- * Framing goes up **with** each picture rather than as a follow-up patch, so a
- * photo cannot arrive correctly and then be left wrongly framed by a second
- * request failing on its own.
+ * Framing goes up with each picture rather than as a follow-up patch, so a photo can't arrive
+ * correctly and then be left wrongly framed by a second request failing on its own.
  */
 export async function publishDraft(
   projectId: string,
@@ -177,18 +167,14 @@ export async function publishDraft(
 /**
  * The gallery of a project that already exists, brought level with its draft.
  *
- * Four kinds of write, in the one order that is safe. **Removals first**, so a
- * gallery swapped picture-for-picture at the twelve-image cap does not hit it
- * halfway through. **Then each row in draft order**, which is what makes the
- * appended ones arrive in the order they are shown in. **Then the order**, and
- * only when the draft disagrees with what the server would already hold — the
- * server keeps existing rows where they were and puts new ones at the end, which
- * is very often exactly what was wanted.
+ * Four kinds of write, in the one order that's safe. Removals first, so a gallery swapped
+ * picture-for-picture at the twelve-image cap doesn't hit it halfway through. Then each row in
+ * draft order, which is what makes the appended ones arrive in the order they're shown. Then the
+ * order, and only when the draft disagrees with what the server would already hold.
  *
- * **This throws, and the caller must not swallow it.** Every step before the
- * failure has already landed on the server, so the editor applies what came back
- * and reports the rest: pressing SAVE again then retries only what is still
- * outstanding rather than uploading the first four photos a second time.
+ * This throws, and the caller must not swallow it. Every step before the failure has already
+ * landed, so the editor applies what came back and reports the rest: pressing SAVE again retries
+ * only what's outstanding rather than uploading the first four photos a second time.
  */
 export async function saveGallery(
   projectId: string,

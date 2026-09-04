@@ -9,14 +9,13 @@ import {
 /**
  * What a lead or an officer sees on a management page while their dues are out.
  *
- * The whole page, rather than a banner over a disabled form. Every button on
- * these pages would 403 anyway — `requireCurrentDues` in `server/src/auth/authz.ts`
- * is the thing actually refusing — and a screen full of controls that all fail
- * is a worse answer than one sentence saying why.
+ * The whole page, rather than a banner over a disabled form. Every button on these pages would 403
+ * anyway — `requireCurrentDues` in `server/src/auth/authz.ts` is the thing actually refusing — and
+ * a screen full of controls that all fail is a worse answer than one sentence saying why.
  *
- * The reassurance is not padding. The fear this state creates is "have I lost
- * my project", and the answer is no: rank is untouched, nothing has been
- * reassigned, and paying puts it all back the same minute.
+ * The reassurance is not padding. The fear this state creates is "have I lost my project", and the
+ * answer is no: rank is untouched, nothing has been reassigned, and paying puts it all back the
+ * same minute.
  */
 export function DuesLocked({ eyebrow }: { eyebrow: string }) {
   return (

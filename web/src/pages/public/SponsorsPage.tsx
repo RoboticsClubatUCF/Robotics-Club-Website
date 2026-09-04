@@ -8,50 +8,35 @@ import { useApi } from '../../lib/api/useApi'
 /**
  * `/sponsors` — the whole list, and the pitch.
  *
- * The front page's marquee shows the top five and links here; this is where the
- * rest of them are, and where somebody who pressed "Sponsor us" finds out what
- * that would mean. Two audiences on one page, which is why it runs in that
- * order: who already backs the club is the argument for backing it, so it goes
- * above the price list rather than under it.
+ * The front page's marquee shows the top five and links here. Two audiences on one
+ * page, which is why it runs in that order: who already backs the club is the argument
+ * for backing it, so it goes above the price list.
  *
- * **Grouped by tier, and the server decides the ranking.** `GET /api/sponsors`
- * already orders by tier and then by name — that is why the marquee can ask for
- * "the top five" without knowing what a tier is worth — so this page groups the
- * response in the order it arrived instead of sorting it again. A ranking
- * written down twice is a ranking that ends up disagreeing with itself.
+ * Grouped by tier, and the server decides the ranking. `GET /api/sponsors` already
+ * orders by tier and then name, so this page groups the response in the order it
+ * arrived instead of sorting it again — a ranking written down twice ends up
+ * disagreeing with itself.
  *
- * **A tier with sponsors in it but no sheet still draws.** The two halves are
- * different tables — `sponsors`, and `sponsor_tier_offers` — so a level nobody
- * has priced yet appears in the list of sponsors and is absent from the price
- * list, which is the honest way round. A tier with a sheet and no sponsors is
- * normal and draws nothing up here.
+ * A tier with sponsors but no sheet still draws. The two halves are different tables,
+ * so a level nobody has priced appears in the list of sponsors and is absent from the
+ * price list, which is the honest way round.
  *
- * **Every word of the pitch is the club's now.** The tier amounts, the benefits
- * and the ways-to-help were four hardcoded objects in `content/sponsorship.ts`,
- * every one of them marked PLACEHOLDER, under a panel on the page saying so.
- * They are `GET /api/sponsorship` — written by officers at
- * `/dashboard/officer/sponsors` — and the panel is gone with them, because there
- * is no longer anything on this page the club did not write.
+ * Every word of the pitch is the club's now. The tier amounts, benefits and
+ * ways-to-help were four hardcoded PLACEHOLDER objects under a panel saying so. They're
+ * `GET /api/sponsorship`, written by officers, and the panel went with them.
  *
- * **Each tier card carries its own supporters, and the roll above carries their
- * logos.** The two are deliberately not the same list. Up there the club is
- * thanking the companies that pay for the rover, at card size with artwork and a
- * sentence each; down here a name roll answers the only question the price list
- * raises — who else is at this level — and it names the empty ones out loud,
- * because a tier that simply says nothing reads as a tier that is closed.
+ * Each tier card carries its own supporters and the roll above carries their logos —
+ * deliberately not the same list. Up there the club is thanking the companies that pay
+ * for the rover; down here a name roll answers "who else is at this level", and it
+ * names the empty ones out loud, because a tier that says nothing reads as closed.
  *
- * **Nothing published is a supported state and the page is built around it**,
- * the same way the hero is built around an empty slideshow. An unpriced page
- * says the tiers are not settled and points at the form, which is both true and
- * the thing a company reading it should do — and it is *also* where a failed
- * read lands, deliberately: "we have not published this" and "the API is down"
- * want the same sentence here, because both end in "ask an officer".
+ * Nothing published is a supported state and the page is built around it, the way the
+ * hero is built around an empty slideshow. It's also where a failed read lands,
+ * deliberately: "we haven't published this" and "the API is down" want the same
+ * sentence here, because both end in "ask an officer".
  *
- * The card is the partner section's rather than the marquee's: a fixed logo
- * well over a caption, at listing size. That is the third copy of the well
- * idiom on the site and the second deliberate one — the marquee's is 20rem wide
- * and loops, and forcing one component to be both would cost more than the
- * markup saves. See the well note in `.claude/docs/styling.md`.
+ * The card is the partner section's rather than the marquee's: a fixed logo well over a
+ * caption, at listing size. See the well note in `.claude/docs/styling.md`.
  */
 
 /** The server caps `limit` at 100, and the club has nothing like that many. */
@@ -61,23 +46,22 @@ const gridClass = 'bg-rule border-rule grid gap-px border wide:grid-cols-3'
 
 export function SponsorsPage() {
   const sponsors = useApi<ApiSponsor[]>(`/sponsors?limit=${LIMIT}`)
-  // The second half of the page, and a second request rather than a field on
-  // the first: who backs the club and what backing it costs are different
-  // questions for different readers, and the front page's marquee wants only
-  // the one. Neither call blocks the other.
+  // The second half of the page, and a second request rather than a field on the first:
+  // who backs the club and what backing it costs are different questions for different
+  // readers, and the marquee wants only the one. Neither call blocks the other.
   const pitch = useApi<ApiSponsorship>('/sponsorship')
 
   const listed = sponsors.status === 'ready' ? sponsors.data : []
-  // Loading, empty and failed all read as "nothing to print", which is what the
-  // panels below are written for — see the note at the top of this file.
+  // Loading, empty and failed all read as "nothing to print", which is what the panels
+  // below are written for.
   const tiers = pitch.status === 'ready' ? pitch.data.tiers : []
   const inKind = pitch.status === 'ready' ? pitch.data.inKind : []
   const footnotes = pitch.status === 'ready' ? pitch.data.footnotes : null
 
   /**
-   * The response, split into runs of one tier — it arrives already ordered, so
-   * this is a grouping rather than a sort. A `Map` keeps insertion order, which
-   * is the server's order, which is the ranking.
+   * The response, split into runs of one tier — it arrives already ordered, so this is a
+   * grouping rather than a sort. A `Map` keeps insertion order, which is the server's
+   * order, which is the ranking.
    */
   const byTier = listed.reduce((runs, sponsor) => {
     const run = runs.get(sponsor.tier)
@@ -91,12 +75,10 @@ export function SponsorsPage() {
   /**
    * What each level costs, for the headings over the roll.
    *
-   * Off the pitch read rather than off the sponsor rows, because the price is
-   * not a property of a company — and the two are different tables on purpose,
-   * so a tier with sponsors in it and no sheet yet is a real state. It draws
-   * its heading exactly as it did before, and so does every heading while the
-   * second request is still in flight: the amount is an addition to the name,
-   * never a thing the name waits for.
+   * Off the pitch read rather than the sponsor rows, because the price isn't a property
+   * of a company — and the two are different tables on purpose, so a tier with sponsors
+   * and no sheet is a real state. The amount is an addition to the name, never a thing
+   * the name waits for.
    */
   const amounts = new Map(tiers.map((offer) => [offer.tier, offer.amount]))
 
@@ -126,10 +108,9 @@ export function SponsorsPage() {
         {sponsors.status === 'ready' &&
           (listed.length === 0 ? (
             <p className="border-rule text-faint border-t py-6.5 text-sm">
-              {/* Not "the tiers below are open", which it used to say: with
-                  nothing published there is nothing below to be open, and a
-                  page that promises a price list it is not showing is worse
-                  than one that names the way to ask. */}
+              {/* Not "the tiers below are open", which it used to say: with nothing
+                  published there's nothing below to be open, and a page that promises a
+                  price list it isn't showing is worse than one naming the way to ask. */}
               No sponsors are listed yet — which is an opening rather than a
               problem. The form at the bottom of this page reaches an officer.
             </p>
@@ -142,13 +123,10 @@ export function SponsorsPage() {
                   <div key={tier}>
                     <h2 className="text-faint mb-4 font-mono text-[13px] font-bold tracking-[0.2em]">
                       {tierLabel(tier)}
-                      {/* Beside the name rather than against the right margin:
-                          this heading is the width of the page, and an amount
-                          out at the far edge stops reading as the price of the
-                          thing on the left. Smaller and unbolded for the reason
-                          it is quieter on the tier cards too — the level is the
-                          heading and the amount is its footnote. The separator
-                          is a real space and a real middot rather than a
+                      {/* Beside the name rather than against the right margin: this
+                          heading is the width of the page, and an amount out at the far
+                          edge stops reading as the price of the thing on the left. The
+                          separator is a real space and a real middot rather than a
                           margin, so the heading reads correctly aloud. */}
                       {amount && (
                         <span className="text-[11px] font-medium tracking-[0.14em]">
@@ -184,10 +162,10 @@ export function SponsorsPage() {
         </div>
 
         {tiers.length === 0 ? (
-          /* Nothing published, still loading, and a read that failed all land
-             here on purpose. The three are different facts and they have one
-             answer — ask an officer — and a visitor deciding whether to sponsor
-             a robotics club is not owed the difference between them. */
+          /* Nothing published, still loading, and a read that failed all land here on
+             purpose. Three different facts with one answer — ask an officer — and a
+             visitor deciding whether to sponsor a robotics club isn't owed the
+             difference between them. */
           <p className="border-primary/35 bg-primary/5 text-dim max-w-[38rem] border p-4 text-[13px] leading-[1.6] text-pretty">
             The tiers aren&rsquo;t published here yet. Use the form at the bottom
             of this page and an officer will send you the current sheet.
@@ -205,21 +183,18 @@ export function SponsorsPage() {
                   </span>
                 </div>
 
-                {/* Most tiers have none. The club's sheet is an amount over a
-                    list of what you get, so the sentence is drawn only when
-                    somebody wrote one rather than left as an empty paragraph
-                    holding the layout open. */}
+                {/* Most tiers have none. The club's sheet is an amount over a list of
+                    what you get, so the sentence is drawn only when somebody wrote one
+                    rather than left as an empty paragraph holding the layout open. */}
                 {offer.blurb && (
                   <p className="text-dim mt-3 text-[13px] leading-[1.55] text-pretty">
                     {offer.blurb}
                   </p>
                 )}
 
-                {/* A list, not a paragraph: what somebody is comparing across
-                    the tiers is which lines each one has, and prose makes that
-                    a reading exercise. Absent rather than empty when a level's
-                    whole offer is its amount, which the desk allows on
-                    purpose. */}
+                {/* A list, not a paragraph: what somebody is comparing across the tiers
+                    is which lines each one has, and prose makes that a reading exercise.
+                    Absent rather than empty when a level's whole offer is its amount. */}
                 {offer.benefits.length > 0 && (
                   <ul className="mt-4 space-y-1.5">
                     {offer.benefits.map((benefit) => (
@@ -239,20 +214,19 @@ export function SponsorsPage() {
                   </ul>
                 )}
 
-                {/* Pushed to the bottom of the card, so the rolls line up
-                    across a row whose benefit lists are different lengths —
-                    four cards with the supporters at four different heights is
-                    four separate things to read rather than one comparison. */}
+                {/* Pushed to the bottom of the card, so the rolls line up across a row
+                    whose benefit lists are different lengths — four cards with the
+                    supporters at four different heights is four things to read rather
+                    than one comparison. */}
                 <TierSupporters supporters={byTier.get(offer.tier) ?? []} />
               </li>
             ))}
           </ul>
         )}
 
-        {/* The fine print, under the grid rather than in any one card: the same
-            `*` is cited by two tiers, and the note about the sponsorship being
-            tax-deductible is about all of them. `whitespace-pre-line` because
-            the officer typed it as lines and the lines are the structure. */}
+        {/* The fine print, under the grid rather than in any one card: the same `*` is
+            cited by two tiers, and the tax-deductible note is about all of them.
+            `whitespace-pre-line` because the officer typed it as lines. */}
         {footnotes && (
           <p className="text-faint mt-6 max-w-[46rem] text-[12px] leading-[1.6] whitespace-pre-line text-pretty">
             {footnotes}
@@ -260,11 +234,10 @@ export function SponsorsPage() {
         )}
       </section>
 
-      {/* Drawn only when there is something in it, unlike the tiers above. That
-          section answers the question a company arrived with, so it has to say
-          something even when it is empty; this one is the club volunteering
-          extra ways to say yes, and an empty heading over nothing is the sad
-          version of that. */}
+      {/* Drawn only when there's something in it, unlike the tiers above. That section
+          answers the question a company arrived with, so it has to say something even
+          when empty; this one is the club volunteering extra ways to say yes, and an
+          empty heading over nothing is the sad version of that. */}
       {inKind.length > 0 && (
         <section className="border-rule px-page border-t py-12 wide:py-18">
           <div className="mb-9">
@@ -292,11 +265,10 @@ export function SponsorsPage() {
         </section>
       )}
 
-      {/* The site's one contact route, and its own copy already offers to talk
-          about sponsoring — it was written for the FAQ, where the same form
-          sits. Reused rather than reimplemented: `POST /api/contact` is rate
-          limited and a second form would be a second set of field lengths to
-          keep in step with `contactSchema`. */}
+      {/* The site's one contact route, and its own copy already offers to talk about
+          sponsoring. Reused rather than reimplemented: `POST /api/contact` is rate
+          limited, and a second form would be a second set of field lengths to keep in
+          step with `contactSchema`. */}
       <section className="border-rule px-page border-t py-12 wide:py-18">
         <div className="max-w-[34rem]">
           <ContactForm />
@@ -309,27 +281,22 @@ export function SponsorsPage() {
 /**
  * Who is at this level, at the foot of its card.
  *
- * **It says so when there is nobody**, which is the whole reason this is a
- * component and not an `&&`. A tier that silently prints no supporters looks
- * shut — the reader cannot tell "nobody yet" from "we stopped listing them" —
- * and "no sponsors at this tier yet" is an invitation where a blank space is a
- * closed door.
+ * It says so when there is nobody, which is the whole reason this is a component and
+ * not an `&&`. A tier that silently prints no supporters looks shut — the reader can't
+ * tell "nobody yet" from "we stopped listing them" — and "no sponsors at this tier yet"
+ * is an invitation where a blank space is a closed door.
  *
- * Names only, deliberately. The roll at the top of the page is the club thanking
- * its sponsors, with logos and a line each; this answers "who else is in at
- * this price", and repeating the artwork here would make the same list twice on
- * one page rather than two lists doing different jobs. It does not link either:
- * the card above already links the ones that have a website, and a second
- * anchor to the same place is one more thing for somebody tabbing through.
+ * Names only, deliberately. The roll at the top is the club thanking its sponsors with
+ * logos; this answers "who else is in at this price". It doesn't link either: the card
+ * above already links the ones with a website.
  */
 function TierSupporters({ supporters }: { supporters: ApiSponsor[] }) {
   return (
-    /* Two boxes, and the reason is the rule. `mt-auto` is what puts the roll at
-       the foot of the card, and on a card whose benefits already fill the row it
-       resolves to nothing — which left the hairline tight under the last benefit
-       and a clear 1rem above the heading, off-centre on exactly the cards with
-       the most in them. The outer box owns the push and the space above the
-       rule, the inner one owns the rule and the same space below it. */
+    /* Two boxes, and the reason is the rule. `mt-auto` puts the roll at the foot of the
+       card, and on a card whose benefits already fill the row it resolves to nothing —
+       which left the hairline tight under the last benefit and a clear 1rem above the
+       heading, off-centre on exactly the cards with the most in them. The outer box owns
+       the push and the space above the rule, the inner one the rule and the space below. */
     <div className="mt-auto pt-4">
       <div className="border-rule border-t pt-4">
         <p className="text-faint font-mono text-[10px] font-medium tracking-[0.16em]">
@@ -360,12 +327,10 @@ function TierSupporters({ supporters }: { supporters: ApiSponsor[] }) {
 /**
  * One sponsor, at listing size.
  *
- * The well is a fixed height whether or not there is artwork in it — the rule
- * every image well on this site follows — so a sponsor who sends a wordmark does
- * not make their card taller than the ones beside it. Taller than the marquee's
- * because these cards are the subject of their section rather than a passing row
- * of logos, and `object-contain` because what lands here is a wordmark and a
- * cropped logo looks like a mistake.
+ * The well is a fixed height whether or not there's artwork in it — the rule every image
+ * well here follows — so a sponsor who sends a wordmark doesn't make their card taller
+ * than its neighbours. Taller than the marquee's because these cards are the subject of
+ * their section, and `object-contain` because a cropped wordmark looks like a mistake.
  */
 function SponsorCard({ sponsor }: { sponsor: ApiSponsor }) {
   const body = (
@@ -376,8 +341,8 @@ function SponsorCard({ sponsor }: { sponsor: ApiSponsor }) {
         }`}
       >
         {sponsor.logoUrl ? (
-          /* Decorative: the name is printed directly below, so announcing the
-             logo too reads the sponsor out twice. */
+          /* Decorative: the name is printed directly below, so announcing the logo too
+             reads the sponsor out twice. */
           <img
             src={imageSrc(sponsor.logoUrl)}
             alt=""
@@ -404,15 +369,15 @@ function SponsorCard({ sponsor }: { sponsor: ApiSponsor }) {
     </>
   )
 
-  // A sponsor without a website is not a link — a dead anchor is worse than
-  // plain text for anyone tabbing through. Same call the marquee makes.
+  // A sponsor without a website isn't a link — a dead anchor is worse than plain text
+  // for anyone tabbing through. Same call the marquee makes.
   return sponsor.websiteUrl ? (
     <a
       href={sponsor.websiteUrl}
       target="_blank"
       rel="noreferrer noopener"
-      /* Inset focus ring: the cards are flush with each other, so an outset one
-         would be clipped by the neighbours on either side. */
+      /* Inset focus ring: the cards are flush with each other, so an outset one would be
+         clipped by the neighbours on either side. */
       className="bg-base-100 hover:bg-wash focus-visible:bg-wash focus-visible:outline-primary group flex h-full w-full flex-col transition-colors duration-200 focus-visible:outline-2 focus-visible:-outline-offset-2"
     >
       {body}

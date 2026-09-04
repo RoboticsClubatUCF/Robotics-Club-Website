@@ -21,56 +21,42 @@ import { ProjectMemberRank } from '../generated/prisma/enums.js'
 /**
  * Giving people the Discord roles the site says they should have.
  *
- * The mirror image of `discordOfficers.ts`, and the two are deliberately
- * separate files because they point in opposite directions. That one reads the
- * guild and writes Postgres: the club appoints its board in Discord and the
- * site follows. This one reads Postgres and writes the guild.
+ * The mirror image of `discordOfficers.ts`, and deliberately a separate file because
+ * they point in opposite directions: that one reads the guild and writes Postgres,
+ * this one reads Postgres and writes the guild.
  *
- * **Every role has exactly one owner, and that is the rule the design rests
- * on.** Two loops pointed at one role would fight each other every ten
- * minutes, each undoing the other's last write, and the symptom would be a
- * role that flickers rather than an error anybody could find.
+ * Every role has exactly one owner, and that's the rule the design rests on. Two loops
+ * pointed at one role would fight every ten minutes, each undoing the other, and the
+ * symptom would be a role that flickers rather than an error anybody could find.
  *
- *   - **Officers** belongs to Discord. Nothing here reads or writes it. (The
- *     bot could not anyway — its own role sits below the Officers role, so
- *     Discord itself refuses, which is a guarantee worth keeping.)
- *   - **Members, Project Leads, Team Leads and each project's own role**
- *     belong to the site. Hand-editing one in Discord is undone on the next
- *     sweep, for anybody the site can match.
- *   - **Everything else in the guild** — pronouns, majors, committees, Server
- *     Booster, Faculty — belongs to nobody here and is never touched. Only a
- *     role in the managed set below is ever removed.
+ *   - Officers belongs to Discord. Nothing here reads or writes it — the bot couldn't
+ *     anyway, since its own role sits below Officers.
+ *   - Members, Project Leads, Team Leads and each project's own role belong to the
+ *     site. Hand-editing one in Discord is undone on the next sweep.
+ *   - Everything else in the guild — pronouns, majors, committees, Server Booster,
+ *     Faculty — belongs to nobody here and is never touched.
  *
- * ## Ways it refuses to run
+ * Ways it refuses to run, all the same worry: that a bad minute quietly strips a role
+ * off the whole club.
  *
- * The same worry as the officer sync's four refusals, which is that a bad
- * minute somewhere quietly strips a role off the whole club.
+ *   1. Nothing configured. No queries, no calls. This is how it ships.
+ *   2. The guild couldn't be read. Write nothing — a half-read roster is
+ *      indistinguishable from everybody having lost everything.
+ *   3. Anybody the site can't match is invisible, in either direction, ever. There are
+ *      people in the club's Discord who never signed up and they keep what they have.
+ *   4. Overshoot. If a sweep would take one role off more than a quarter of the matched
+ *      holders, that role stands down for the sweep and says so by name.
+ *   5. A write budget. Fifty a sweep, paced, so a large first reconcile converges over
+ *      a few sweeps rather than hammering the API.
  *
- *   1. **Nothing configured.** No club role id set and no project carrying
- *      one: no queries, no calls. Unset is the default and it is how this
- *      ships.
- *   2. **The guild could not be read.** Write nothing. A half-read roster is
- *      indistinguishable from everybody having lost everything, and this is the
- *      one sweep that would act on that.
- *   3. **Anybody the site cannot match is invisible.** A guild member with no
- *      `User` row — by snowflake or by handle — is never written to, in either
- *      direction, ever. There are people in the club's Discord who never signed
- *      up and they keep exactly what they have.
- *   4. **Overshoot.** If a sweep would take one role off more than a quarter of
- *      the matched people holding it, that role stands down for the sweep and
- *      says so by name. Ordinary turnover passes; a column read wrong does not.
- *      This is the officer sync's "no overlap" rule generalised.
- *   5. **A write budget.** Fifty writes a sweep, paced, so a large first
- *      reconcile converges over a few sweeps rather than hammering the API.
- *
- * And `DISCORD_ROLE_SYNC_DRY_RUN` computes all of it and writes none of it,
- * which is how the club should read the first sweep before trusting it.
+ * `DISCORD_ROLE_SYNC_DRY_RUN` computes all of it and writes none of it, which is how
+ * the club should read the first sweep before trusting it.
  */
 
 /**
- * The project form's Discord role field, spread into all three write schemas
- * so the three cannot drift. Nullable as well as optional: clearing the field
- * is a thing a lead does, and `undefined` already means "leave it alone".
+ * The project form's Discord role field, spread into all three write schemas so they
+ * can't drift. Nullable as well as optional: clearing the field is a thing a lead
+ * does, and `undefined` already means "leave it alone".
  */
 export const discordRoleField = {
   discordRoleId: z
@@ -82,22 +68,18 @@ export const discordRoleField = {
 }
 
 /**
- * The club-wide roles a project's crew role may never be, and what to call each
- * one when refusing it.
+ * The club-wide roles a project's crew role may never be, and what to call each one
+ * when refusing it.
  *
- * **A project's role is handed out and taken back as people join and leave it.**
- * That is the whole feature, and it is exactly what makes pointing one at a
- * club-wide role a disaster rather than a mistake: set a project's role to
- * Members and the first person to leave that project loses their membership
- * role in the guild. Set it to Project Lead and a build hands out a rank. The
- * role sweep would then fight the project sync over the same role every ten
- * minutes, each undoing the other, and the only visible symptom is roles
- * flickering on people who never touched anything.
+ * A project's role is handed out and taken back as people join and leave it, which is
+ * exactly what makes pointing one at a club-wide role a disaster rather than a
+ * mistake: set a project's role to Members and the first person to leave that project
+ * loses their membership role in the guild. The role sweep would then fight the
+ * project sync over the same role every ten minutes.
  *
- * Officers is here even though it sits *above* the bot and Discord refuses the
- * write: the refusal is Discord's, it is silent, and a project quietly failing
- * every role write for ever is not a better outcome than a 422. Officer Alumni
- * is here because it is read-only by design — see `officerAlumniRoleId`.
+ * Officers is here even though it sits above the bot and Discord refuses the write:
+ * the refusal is silent, and a project quietly failing every role write for ever isn't
+ * a better outcome than a 422. Officer Alumni is here because it's read-only by design.
  */
 const reservedRoles = (): { id: string; name: string }[] =>
   [
@@ -111,21 +93,16 @@ const reservedRoles = (): { id: string; name: string }[] =>
 /**
  * Refuse a role id a project may not use.
  *
- * Two checks, and **they fail for different reasons and at different times**:
+ * Two checks that fail for different reasons and at different times. It must not be
+ * one of the club's own roles — read off `env`, so it costs nothing and holds while
+ * Discord is down, which matters because it's the check that prevents damage. And it
+ * must be a role that exists: Discord doesn't error on a wrong id, it matches nobody
+ * silently for ever, so without this a transposed digit is a project whose crew role
+ * never works.
  *
- *   - **It must not be one of the club's own roles.** Read off `env`, so this
- *     costs nothing, cannot be skipped, and holds while Discord is down — which
- *     matters, because it is the check that prevents damage rather than the one
- *     that prevents a typo.
- *   - **It must be a role that exists.** Discord does not error on a wrong id —
- *     it matches nobody, silently, for ever — so without this a transposed digit
- *     is a project whose crew role never works and nobody finds out.
- *
- * The second is **skipped whenever Discord cannot answer**, deliberately: an
- * outage there must not stop somebody creating a project, and the sweep warns
- * about an unmatched id later anyway. The first is not skipped for anything.
- *
- * Called before the write, on create, edit and duplicate.
+ * The second is skipped whenever Discord can't answer — an outage must not stop
+ * somebody creating a project, and the sweep warns about an unmatched id later. The
+ * first is not skipped for anything.
  */
 export async function assertUsableRole(
   roleId: string | null | undefined,
@@ -163,17 +140,17 @@ export interface RoleSyncReport {
 }
 
 /**
- * Fifty a sweep, three hundred milliseconds apart — the pace the DM sweeps
- * already use, and the shape Discord throttles hardest. Fifteen seconds of a
- * ten-minute tick, and a backlog of any size converges within the hour.
+ * Fifty a sweep, three hundred milliseconds apart — the pace the DM sweeps use, and
+ * the shape Discord throttles hardest. Fifteen seconds of a ten-minute tick, and a
+ * backlog of any size converges within the hour.
  */
 const WRITE_BUDGET = 50
 const WRITE_SPACING_MS = 300
 
 /**
- * A quarter, or five, whichever is larger. The floor matters more than the
- * fraction: on a club this size a percentage alone would let "all three people
- * who hold it" through as ordinary turnover.
+ * A quarter, or five, whichever is larger. The floor matters more than the fraction:
+ * on a club this size a percentage alone would let "all three people who hold it"
+ * through as ordinary turnover.
  */
 const overshoots = (removing: number, holders: number): boolean =>
   removing > Math.max(5, holders * 0.25)
@@ -190,8 +167,8 @@ interface Standing {
   discordId: string | null
   discordUsername: string | null
   duesPaidThrough: Date | null
-  /** Named `projects` because that is the relation on `User`, and a second
-      spelling for one thing is how a select and its type drift apart. */
+  /** Named `projects` because that's the relation on `User`, and a second spelling for
+      one thing is how a select and its type drift apart. */
   projects: {
     rank: ProjectMemberRank
     project: { discordRoleId: string | null }
@@ -201,26 +178,21 @@ interface Standing {
 /**
  * Every role this person should be carrying.
  *
- * **All four rules are a union across their memberships, and that is
- * load-bearing rather than incidental.** Standing somebody down as lead of one
- * project must not take the Project Leads role away while they still lead
- * another; leaving last semester's row of a build that runs on must not take
- * the crew role while they are on this semester's row of the same build. The
- * duplicate-a-project feature makes the second of those ordinary rather than
- * rare — one crew role, one row per term — which is why this is recomputed
+ * All four rules are a union across their memberships, and that's load-bearing:
+ * standing somebody down as lead of one project must not take the Project Leads role
+ * while they still lead another, and leaving last semester's row of a build that runs
+ * on must not take the crew role while they're on this semester's. Duplicating a
+ * project makes the second ordinary rather than rare, which is why this is recomputed
  * whole every time rather than patched by delta.
  */
 export function desiredRoles(user: Standing, now: Date): Set<string> {
   const wanted = new Set<string>()
 
-  // A date, still running — which is now *exactly* what
-  // `membershipStanding().hasAccess` means, and this file is where that rule
-  // was written down first. The site used to be looser: the summer and the
-  // opening weeks granted access to everybody, so the Discord role and the
-  // website disagreed for about three months a year. The website came to meet
-  // this, rather than the other way round. Kept as the plain comparison because
-  // it needs no calendar and this runs against every matched member on a sweep;
-  // `semester.ts` is the prose.
+  // A date, still running — which is exactly what `membershipStanding().hasAccess`
+  // means, and this file is where that rule was written down first. The site used to be
+  // looser, so the Discord role and the website disagreed for about three months a
+  // year; the website came to meet this. Kept as the plain comparison because it needs
+  // no calendar and this runs against every matched member on a sweep.
   if (
     memberRoleId !== null &&
     user.duesPaidThrough !== null &&
@@ -264,9 +236,8 @@ const standingSelect = {
 } as const
 
 /**
- * The roles this sync is responsible for: the configured club-wide ones, plus
- * every role any project claims. Nothing outside this set is ever removed from
- * anybody, whatever they are carrying.
+ * The roles this sync is responsible for: the configured club-wide ones, plus every
+ * role any project claims. Nothing outside this set is ever removed from anybody.
  */
 async function managedRoles(): Promise<Set<string>> {
   const projects = await prisma.project.findMany({
@@ -336,8 +307,8 @@ function changesFor(
   }
 
   for (const roleId of carrying) {
-    // The managed check is the whole safety of this loop: a role nobody here
-    // owns is not a role this may take away.
+    // The managed check is the whole safety of this loop: a role nobody here owns is not
+    // a role this may take away.
     if (managed.has(roleId) && !wanted.has(roleId)) {
       changes.push({
         userId: user.id,
@@ -355,14 +326,13 @@ function changesFor(
 /**
  * One person, right now.
  *
- * Fire-and-forget from wherever their standing just changed, so paying dues or
- * being appointed a lead shows up in Discord in seconds rather than at the next
- * sweep. It reads that one member rather than the guild, so it costs two calls
- * and cannot be the thing that makes a request slow — nothing awaits it into a
- * response.
+ * Fire-and-forget from wherever their standing just changed, so paying dues or being
+ * appointed a lead shows up in Discord in seconds rather than at the next sweep. It
+ * reads that one member rather than the guild, so it costs two calls and can't be the
+ * thing that makes a request slow.
  *
- * Deliberately silent about most failures: the reconciler is behind this and
- * will put right anything a dropped call left wrong.
+ * Deliberately silent about most failures: the reconciler behind this will put right
+ * anything a dropped call left wrong.
  */
 export async function syncUserRoles(
   userId: string,
@@ -378,10 +348,9 @@ export async function syncUserRoles(
 
   if (!user) return
 
-  // Resolves the handle if that is all we have, and backfills `discordId` on
-  // the way — the same helper the DM sweeps use, and for the same reason:
-  // resolving is free of side effects, so a Discord outage here costs nothing
-  // but a delay until the next sweep.
+  // Resolves the handle if that's all we have, and backfills `discordId` on the way —
+  // the same helper the DM sweeps use, and for the same reason: resolving is free of
+  // side effects, so a Discord outage costs nothing but a delay.
   const snowflake = await recipientFor(user)
   if (snowflake === null) return
 
@@ -391,10 +360,9 @@ export async function syncUserRoles(
   const managed = await managedRoles()
   const changes = changesFor(user, snowflake, held.roles, managed, now)
 
-  // No overshoot guard here, on purpose. That guard exists to stop a bad read
-  // stripping a role off the whole club; one person's four roles is not that
-  // shape, and applying it here would only ever refuse somebody's legitimate
-  // departure from everything at once.
+  // No overshoot guard here, on purpose. That guard exists to stop a bad read stripping
+  // a role off the whole club; one person's four roles isn't that shape, and applying it
+  // here would only refuse somebody's legitimate departure from everything at once.
   for (const change of changes) {
     await apply(change, reason)
     await pause()
@@ -404,12 +372,11 @@ export async function syncUserRoles(
 /**
  * Several people at once, sharing one guild walk.
  *
- * For the events that change a whole roster's standing in one go — a project
- * or a team being deleted, a project's Discord role being set or cleared.
- * Calling `syncUserRoles` in a loop would pay two calls per person and fire
- * them all at once; a twenty-member project would be forty simultaneous
- * requests, which is the shape Discord's global limit is there for. One walk
- * and a serial diff is cheaper than that from about three people upwards.
+ * For the events that change a whole roster's standing in one go — a project or team
+ * deleted, a project's Discord role set or cleared. Calling `syncUserRoles` in a loop
+ * would pay two calls per person and fire them all at once; a twenty-member project
+ * would be forty simultaneous requests. One walk and a serial diff is cheaper from
+ * about three people upwards.
  */
 export async function syncUsersRoles(
   userIds: string[],
@@ -456,12 +423,11 @@ export async function syncUsersRoles(
 /**
  * `syncUserRoles`, started and not waited for.
  *
- * The shape every mutation site uses, and it is one function rather than
- * eleven copies of `void … .catch(…)` so that the promise can never be
- * accidentally awaited into a response. **Nothing on the request path may
- * depend on Discord answering**: the member has already paid, or joined, or
- * been stood down, and the sweep behind this puts right anything a dropped
- * call left wrong. The reason travels through to the guild's audit log.
+ * The shape every mutation site uses, and one function rather than eleven copies of
+ * `void … .catch(…)` so the promise can never be accidentally awaited into a response.
+ * Nothing on the request path may depend on Discord answering: the member has already
+ * paid, or joined, or been stood down, and the sweep puts right anything a dropped
+ * call left wrong.
  */
 export function pushRoles(userId: string, reason: string): void {
   void syncUserRoles(userId, reason).catch((error: unknown) => {
@@ -472,19 +438,16 @@ export function pushRoles(userId: string, reason: string): void {
 /**
  * Take back every role the site handed out, from somebody it no longer knows.
  *
- * The one case `syncUserRoles` structurally cannot cover: it reads the account
- * out of Postgres and returns early when there is no row, and the reconciler
- * behind it *skips anybody the site cannot match* — rule 3, and the property the
- * whole feature leans on. So a deleted account is invisible to both, and would
- * go on carrying Members and Project Leads in the club's Discord for ever.
+ * The one case `syncUserRoles` structurally can't cover: it reads the account out of
+ * Postgres and returns early when there's no row, and the reconciler skips anybody the
+ * site can't match. So a deleted account is invisible to both, and would go on carrying
+ * Members and Project Leads for ever.
  *
- * Called from the account deletion route with the snowflake read *before* the
- * row went, which is why this takes one rather than looking it up.
+ * Called from the account deletion route with the snowflake read before the row went,
+ * which is why this takes one rather than looking it up.
  *
- * It removes only roles in the managed set, exactly as the diff does. Pronouns,
- * majors, committees, Server Booster, Faculty and the Officers role belong to
- * nobody here, and somebody leaving the website is not somebody leaving the
- * Discord.
+ * It removes only roles in the managed set. Somebody leaving the website isn't somebody
+ * leaving the Discord.
  */
 export async function stripManagedRoles(
   snowflake: string,
@@ -507,9 +470,8 @@ export async function stripManagedRoles(
   }
 }
 
-/** `stripManagedRoles`, started and not waited for — the shape `pushRoles`
-    uses, and for the same reason: nothing on the request path may depend on
-    Discord answering. */
+/** `stripManagedRoles`, started and not waited for — the shape `pushRoles` uses, and
+    for the same reason: nothing on the request path may depend on Discord answering. */
 export function pushRoleStrip(
   snowflake: string,
   fullName: string,
@@ -528,9 +490,8 @@ export function pushRolesFor(userIds: string[], reason: string): void {
 }
 
 /**
- * The gap between writes. Skipped entirely on a dry run, which issues no
- * requests — there is nothing to pace, and waiting anyway would make the one
- * mode somebody runs interactively the slowest one.
+ * The gap between writes. Skipped entirely on a dry run, which issues no requests —
+ * waiting anyway would make the one mode somebody runs interactively the slowest.
  */
 const pause = () =>
   roleSyncDryRun
@@ -557,11 +518,10 @@ async function apply(change: Change, reason: string): Promise<boolean> {
 /**
  * Everybody, on the ten-minute tick.
  *
- * This is what makes the write-through calls optional rather than load-bearing:
- * a dropped call, a Discord outage, a bulk `updateMany` with no per-row hook —
- * all of them are put right here. `sweepLapsedMembers` demotes in bulk and this
- * runs directly after it in the same tick, which is why that sweep needed no
- * changes of its own.
+ * This is what makes the write-through calls optional rather than load-bearing: a
+ * dropped call, a Discord outage, a bulk `updateMany` with no per-row hook — all put
+ * right here. `sweepLapsedMembers` demotes in bulk and this runs directly after it in
+ * the same tick, which is why that sweep needed no changes of its own.
  */
 export async function sweepDiscordRoles(
   now: Date = new Date(),
@@ -587,8 +547,8 @@ export async function sweepDiscordRoles(
 
   const managed = await managedRoles()
 
-  // Only rows with something to match on. Everyone else is invisible to this
-  // by construction rather than by a check inside the loop.
+  // Only rows with something to match on. Everyone else is invisible to this by
+  // construction rather than by a check inside the loop.
   const users = await prisma.user.findMany({
     where: {
       OR: [{ discordId: { not: null } }, { discordUsername: { not: null } }],
@@ -642,9 +602,9 @@ export async function sweepDiscordRoles(
 }
 
 /**
- * A generic sentence, because the sweep is reconciling rather than reacting —
- * it does not know *which* of the things that changed since the last sweep is
- * the reason. The write-through calls pass something specific.
+ * A generic sentence, because the sweep is reconciling rather than reacting — it
+ * doesn't know which of the things that changed is the reason. The write-through calls
+ * pass something specific.
  */
 const reasonFor = (change: Change): string =>
   change.add ? 'matching the website' : 'no longer applies on the website'
@@ -652,9 +612,9 @@ const reasonFor = (change: Change): string =>
 /**
  * Roles this sweep is about to strip off too many people at once.
  *
- * The proportion is measured against the matched holders rather than the whole
- * guild, because unmatched people are not candidates and counting them would
- * dilute the guard into never firing.
+ * The proportion is measured against the matched holders rather than the whole guild,
+ * because unmatched people aren't candidates and counting them would dilute the guard
+ * into never firing.
  */
 function holdBackOvershoots(
   changes: Change[],
@@ -690,12 +650,11 @@ function holdBackOvershoots(
 }
 
 /**
- * Say something about a configured role that is not a role.
+ * Say something about a configured role that isn't a role.
  *
- * The one failure mode nothing else can see: a mistyped snowflake is not an
- * error at Discord's API, it simply matches nobody for ever. The project form
- * checks a pasted id at save time, but a role deleted afterwards — or one set
- * before that check existed — only shows up here.
+ * The one failure mode nothing else can see: a mistyped snowflake isn't an error at
+ * Discord's API, it simply matches nobody for ever. The project form checks a pasted id
+ * at save time, but a role deleted afterwards only shows up here.
  */
 async function warnAboutUnknownRoles(): Promise<void> {
   const known = await guildRoles()

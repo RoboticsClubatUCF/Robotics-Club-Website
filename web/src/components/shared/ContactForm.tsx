@@ -8,22 +8,17 @@ import {
 import { useApi } from '../../lib/api/useApi'
 
 /**
- * The public contact form — the one thing on the site that writes to the
- * database, via `POST /api/contact`.
+ * The public contact form — the one thing on the site that writes to the database, via
+ * `POST /api/contact`.
  *
- * It sits beside the FAQ rather than in a section of its own because the two
- * answer the same question: the FAQ covers what is already written down, this
- * covers what isn't. Anyone who reaches the bottom of the answers without
- * finding theirs has the form right there.
+ * It sits beside the FAQ rather than in a section of its own because the two answer the
+ * same question: the FAQ covers what's already written down, this covers what isn't.
  *
- * Validation is the browser's — `required`, `type="email"`, `maxLength` — with
- * the lengths matching `contactSchema` in `server/src/routes/public/forms.ts` so the
- * field stops you before the server does. The server revalidates regardless;
- * nothing here is a security boundary.
+ * Validation is the browser's — `required`, `type="email"`, `maxLength` — with the lengths
+ * matching `contactSchema` so the field stops you before the server does. The server
+ * revalidates regardless; nothing here is a security boundary.
  *
- * Submissions land in `contact_messages` and are read in Prisma Studio. Nothing
- * emails anyone yet — that is Postmark's job, and it goes in the route, not
- * here.
+ * Submissions land in `contact_messages` and are read in Prisma Studio.
  */
 type SendState =
   | { status: 'idle' }
@@ -32,10 +27,9 @@ type SendState =
   | { status: 'failed'; message: string }
 
 /**
- * The status is the whole point of catching this: an unreachable API, a rate
- * limit and a rejected field are three different things to have done wrong, and
- * "something went wrong" for all three tells the sender nothing about whether
- * trying again would help.
+ * The status is the whole point of catching this: an unreachable API, a rate limit and a
+ * rejected field are three different things to have done wrong, and "something went wrong"
+ * for all three tells the sender nothing about whether trying again would help.
  */
 function explain(error: unknown): string {
   if (error instanceof ApiError) {
@@ -43,10 +37,9 @@ function explain(error: unknown): string {
       return "Couldn't reach the server. Check your connection and try again."
     }
     if (error.status === 429) {
-      // Two different limits answer 429 here and they mean opposite things —
-      // "slow down" and "come back tomorrow" — so the server's own sentence
-      // wins when it sent one. The fallback is the burst limit's, which is the
-      // one with nothing specific to say.
+      // Two different limits answer 429 here and they mean opposite things — "slow down"
+      // and "come back tomorrow" — so the server's own sentence wins when it sent one. The
+      // fallback is the burst limit's, which has nothing specific to say.
       return (
         error.detail ??
         "That's a few too many messages at once. Please try again in a little while."
@@ -61,9 +54,8 @@ function explain(error: unknown): string {
 }
 
 /**
- * `FormData.get` is typed `string | File | null`, because a form *can* carry a
- * file. This one can't, but `String()` on the union would quietly post
- * "[object File]" if that ever changed.
+ * `FormData.get` is typed `string | File | null`, because a form can carry a file. This one
+ * can't, but `String()` on the union would quietly post "[object File]" if that changed.
  */
 function field(data: FormData, name: string): string {
   const value = data.get(name)
@@ -77,12 +69,11 @@ const fieldClass = 'input border-rule bg-base-200 w-full text-sm'
 export function ContactForm() {
   const [state, setState] = useState<SendState>({ status: 'idle' })
   /**
-   * What the send said was left, once one has been sent. Null until then, and
-   * the check below is what answers before that.
+   * What the send said was left, once one has been sent. Null until then, and the check
+   * below is what answers before that.
    *
-   * The count comes back from the write rather than being decremented here.
-   * One less mirror of a server rule to drift — and the number the route
-   * reports is the only one that decides anything.
+   * The count comes back from the write rather than being decremented here: one less mirror
+   * of a server rule to drift.
    */
   const [remaining, setRemaining] = useState<number | null>(null)
   const id = useId()
@@ -90,31 +81,29 @@ export function ContactForm() {
   /**
    * Ask before drawing the box.
    *
-   * A form that takes what somebody typed and then says they were not allowed
-   * to send it has wasted the only thing they came here to do — and the daily
-   * limit is two, so the second refusal is the common one, not the exotic one.
+   * A form that takes what somebody typed and then says they weren't allowed to send it has
+   * wasted the only thing they came here to do — and the daily limit is two, so the second
+   * refusal is the common one.
    *
-   * **This is politeness, not the gate.** The gate is `POST /api/contact`,
-   * which spends the same window server-side; a bot reloading the page to get
-   * at the fields never asks this and is refused there. Which is also why a
-   * *failed* check opens the form rather than closing it: the API being
-   * unreachable is not evidence that anybody is over their limit, and the one
-   * mistake worth avoiding here is a page that hides its contact form because
-   * a request nobody depends on came back 500.
+   * This is politeness, not the gate. The gate is `POST /api/contact`, which spends the
+   * same window server-side. Which is also why a failed check opens the form rather than
+   * closing it: the API being unreachable isn't evidence that anybody is over their limit,
+   * and the mistake worth avoiding is a page that hides its contact form because a request
+   * nobody depends on came back 500.
    */
   const check = useApi<ApiContactAvailability>('/contact')
 
   /**
-   * What the visitor has left, or null while nothing has answered — a failed
-   * check included, which is the case that must not read as zero.
+   * What the visitor has left, or null while nothing has answered — a failed check
+   * included, which is the case that must not read as zero.
    */
   const left =
     remaining ?? (check.status === 'ready' ? check.data.remaining : null)
 
   /**
-   * `allowed` is the route's own yes-or-no and outranks the count while it is
-   * the freshest thing anybody has said. Once a message has gone, the number
-   * that came back with it is newer than the check, so that one decides.
+   * `allowed` is the route's own yes-or-no and outranks the count while it's the freshest
+   * thing anybody has said. Once a message has gone, the number that came back with it is
+   * newer than the check.
    */
   const closed =
     remaining !== null
@@ -129,8 +118,8 @@ export function ContactForm() {
     event.preventDefault()
     if (state.status === 'sending') return
 
-    // Read synchronously: `currentTarget` is only the form for the length of the
-    // handler, and everything below this line is after an await.
+    // Read synchronously: `currentTarget` is only the form for the length of the handler,
+    // and everything below this line is after an await.
     const form = event.currentTarget
     const data = new FormData(form)
     const subject = field(data, 'subject').trim()
@@ -140,8 +129,8 @@ export function ContactForm() {
     postJson<ApiContactSent>('/contact', {
       name: field(data, 'name'),
       email: field(data, 'email'),
-      // Omitted rather than empty: the server has it optional, and a blank
-      // subject is not a subject.
+      // Omitted rather than empty: the server has it optional, and a blank subject isn't a
+      // subject.
       ...(subject ? { subject } : {}),
       message: field(data, 'message'),
     })
@@ -167,10 +156,9 @@ export function ContactForm() {
         back to you.
       </p>
 
-      {/* A skeleton the shape of the fields it replaces, so the FAQ above and
-          the footer below do not jump when the answer lands. Four bars and a
-          button, not a faithful copy — the check is one uncached read and is
-          usually gone before the first paint settles. */}
+      {/* A skeleton the shape of the fields it replaces, so the FAQ above and the footer
+          below don't jump when the answer lands. Four bars and a button, not a faithful
+          copy — the check is one uncached read and is usually gone before first paint. */}
       {check.status === 'loading' && (
         <div aria-busy="true" className="flex flex-col gap-4">
           {[0, 1, 2].map((row) => (
@@ -257,9 +245,9 @@ export function ContactForm() {
             {state.status === 'sending' ? 'SENDING…' : 'SEND MESSAGE'}
           </button>
 
-          {/* Only once one has gone, so a first-time visitor is not told about
-              a limit that has no bearing on them. Somebody on their last one is
-              worth telling, because the box disappears after it. */}
+          {/* Only once one has gone, so a first-time visitor isn't told about a limit that
+              has no bearing on them. Somebody on their last one is worth telling, because
+              the box disappears after it. */}
           {left === 1 && (
             <p className="text-faint font-mono text-[10px] tracking-[0.14em]">
               ONE MESSAGE LEFT TODAY
@@ -268,13 +256,12 @@ export function ContactForm() {
         </form>
       )}
 
-      {/* Live, because the outcome arrives long after the click and the button
-          label is the only other thing that moves. Always rendered so the
-          region exists before it has anything to say — a `role="status"` that
-          appears at the same moment as its text is often missed.
+      {/* Live, because the outcome arrives long after the click and the button label is the
+          only other thing that moves. Always rendered so the region exists before it has
+          anything to say.
 
-          Outside the form, because the last message of the day takes the form
-          with it and the confirmation for that one still has to be readable. */}
+          Outside the form, because the last message of the day takes the form with it and
+          the confirmation for that one still has to be readable. */}
       <p
         role="status"
         className={`text-sm leading-[1.6] ${

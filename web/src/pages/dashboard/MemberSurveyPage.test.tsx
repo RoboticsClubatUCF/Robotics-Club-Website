@@ -18,24 +18,19 @@ import type {
 import { bodyOf, urlOf } from '../../test/stubFetch'
 
 /**
- * The member survey page.
+ * The member survey page. Three things are worth pinning and the rest is ordinary form plumbing.
  *
- * Three things are worth pinning here and the rest is ordinary form plumbing.
+ * The NONE boxes, because they carry a distinction the database can't: an empty set of ticks is
+ * "none" once it's stored, so the form is the only place that can tell somebody who answered from
+ * somebody who scrolled past — and the club reads that list before it buys food.
  *
- * **The NONE boxes**, because they carry a distinction the database cannot: an
- * empty set of ticks is "none" once it is stored, so the form is the only place
- * that can tell somebody who answered from somebody who scrolled past — and the
- * club reads that list before it buys food.
+ * That the questions come from the payload. They're rows an officer edits, so nothing in `web/`
+ * knows what the survey asks; the fixtures below are *a* survey rather than *the* survey, and a
+ * question added on the officer desk must not need a line here.
  *
- * **That the questions come from the payload.** They are rows an officer edits,
- * so nothing in `web/` knows what the survey asks; the fixtures below are
- * *a* survey rather than *the* survey, and a question added on the officer desk
- * must not need a line here.
- *
- * **The unlock**, because answering it is what opens the whole rail, and the
- * rail is holding an answer from before the press. If `reloadMembership` stops
- * being called the page still works and the dashboard behind it stays locked
- * until a reload, which reads as the submission not having gone through.
+ * The unlock, because answering is what opens the rail, and the rail is holding an answer from
+ * before the press. Without `reloadMembership` the page still works and the dashboard behind it
+ * stays locked until a reload, which reads as the submission not having gone through.
  */
 
 const user: ApiUser = {

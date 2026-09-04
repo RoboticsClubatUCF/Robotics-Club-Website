@@ -21,22 +21,17 @@ import { framingFields, framingFromBody } from '../projects/projectManage.js'
  *   PATCH  /api/officer/hero-slides/:id     -> caption and framing
  *   DELETE /api/officer/hero-slides/:id     -> remove one
  *
- * The read is not here. `GET /api/hero-slides` is in `content.ts`, because it is
- * public and belongs on the cached side of `app.ts` with the rest of the club's
- * content — this file exports the `select` it answers with, so the desk and the
- * page cannot describe a slide two different ways. Same split, and the same
- * reason, as `surveyAdmin.ts` and `survey.ts`.
+ * The read isn't here. `GET /api/hero-slides` is in `content.ts`, on the cached side of
+ * `app.ts`; this file exports the `select` it answers with, so the desk and the page can't
+ * describe a slide two different ways.
  *
- * Its own file rather than a section of `officer.ts`, where every other
- * club-wide desk lives, and the reason is mechanical: the framing helpers below
- * come from `projectManage.ts`, which imports `managedProjectSelect` from
- * `officer.ts`. Putting these routes in `officer.ts` would close that loop into
- * an import cycle for the sake of tidiness. Mounted before `/api/officer` in
- * `app.ts` for the same reason `surveyAdmin` is: it owns a path underneath it.
+ * Its own file rather than a section of `officer.ts` for a mechanical reason: the framing
+ * helpers below come from `projectManage.ts`, which imports from `officer.ts`, so putting
+ * these routes there would close an import cycle. Mounted before `/api/officer` because it
+ * owns a path underneath it.
  *
- * **The framing rules are imported, not restated.** A hero slide sits in the
- * same fixed 16:10 well a gallery slide does, and the club's photographs are the
- * same photographs — a second copy of the bounds here would be a second thing to
+ * The framing rules are imported, not restated. A hero slide sits in the same fixed 16:10
+ * well a gallery slide does, and a second copy of the bounds would be a second thing to
  * keep in step with `web/src/lib/media/imageFraming.ts`.
  */
 export const heroSlides = new Hono<AuthEnv>()
@@ -44,15 +39,13 @@ export const heroSlides = new Hono<AuthEnv>()
 /**
  * How many photographs the hero may hold.
  *
- * Eight, against the gallery's twelve, and the difference is what the two are
- * for: a project gallery is a story somebody has chosen to sit through, and this
- * runs on its own beside a headline for as long as a visitor stays on the page.
- * Past about eight nobody reaches the end of it, and every one of them is bytes
- * on the *landing* page — the one page here that has to be quick for somebody
- * who has never heard of the club.
+ * Eight, against the gallery's twelve, and the difference is what the two are for: a
+ * project gallery is a story somebody has chosen to sit through, and this runs on its own
+ * beside a headline. Past about eight nobody reaches the end, and every one is bytes on
+ * the landing page — the one page that has to be quick for somebody who has never heard
+ * of the club.
  *
- * Mirrored in `web/src/lib/heroSlides.ts` so the desk cannot offer what this
- * refuses — change one and change the other.
+ * Mirrored in `web/src/lib/heroSlides.ts` so the desk can't offer what this refuses.
  */
 export const MAX_HERO_SLIDES = 8
 
@@ -70,17 +63,16 @@ export const heroSlideSelect = {
 } as const
 
 /**
- * Shares the officer desk's budget rather than opening one of its own: sixty
- * writes covers a sitting spent rearranging eight photographs, and a scope per
- * desk is a scope per suite to remember to clear. The upload below is the
- * exception, and it is the usual one — a body limit and a file per request.
+ * Shares the officer desk's budget rather than opening one of its own: sixty writes covers
+ * a sitting spent rearranging eight photographs, and a scope per desk is a scope per suite
+ * to remember to clear. The upload below is the usual exception.
  */
 const writes = rateLimit('officer', 60)
 
 /**
- * Uploads get their own, smaller budget. Twenty is more than twice the cap on
- * the list itself, which is the point: retries and second thoughts are normal,
- * and eight photographs is where a legitimate sitting stops.
+ * Uploads get their own, smaller budget. Twenty is more than twice the cap on the list
+ * itself, which is the point: retries and second thoughts are normal, and eight
+ * photographs is where a legitimate sitting stops.
  */
 const uploads = rateLimit('hero', 20)
 
@@ -90,17 +82,16 @@ const slideFields = {
 }
 
 /**
- * Framing arrives with the picture as well as afterwards — the desk opens the
- * framing tool the moment a photograph lands, and an officer who drags it into
- * place before doing anything else should not need that to have been two
- * requests for it to stick.
+ * Framing arrives with the picture as well as afterwards — the desk opens the framing tool
+ * the moment a photograph lands, and an officer who drags it into place first shouldn't
+ * need that to have been two requests for it to stick.
  */
 const addSlide = z.object({ ...slideFields, ...framingFields })
 
 /**
- * Everything about a slide except which picture it is. No `url`: replacing a
- * photograph is remove-then-add, which keeps `deleteIfStored` at two call sites
- * rather than three that have to agree. The same rule the gallery follows.
+ * Everything about a slide except which picture it is. No `url`: replacing a photograph is
+ * remove-then-add, which keeps `deleteIfStored` at two call sites rather than three that
+ * have to agree.
  */
 const editSlide = z.object({ caption: slideFields.caption, ...framingFields })
 
@@ -143,8 +134,8 @@ heroSlides.post(
       data: {
         url,
         caption: caption ?? null,
-        // Spread rather than assigned, so an omitted field takes the column's
-        // default instead of writing `undefined` over it.
+        // Spread rather than assigned, so an omitted field takes the column's default
+        // instead of writing `undefined` over it.
         ...(focalX === undefined ? {} : { focalX }),
         ...(focalY === undefined ? {} : { focalY }),
         ...(zoom === undefined ? {} : { zoom }),
@@ -158,12 +149,12 @@ heroSlides.post(
 )
 
 /**
- * A photograph as a file, which is how every one of these actually arrives — the
- * club's pictures come off a phone, not off a host somebody can link to.
+ * A photograph as a file, which is how every one of these actually arrives — the club's
+ * pictures come off a phone, not off a host somebody can link to.
  *
- * Two routes rather than one branching on `Content-Type`, for the reason the
- * gallery's pair documents: the middleware genuinely differs, and
- * `validate('json')` cannot sit in front of a multipart request at all.
+ * Two routes rather than one branching on `Content-Type`, for the reason the gallery's
+ * pair documents: the middleware genuinely differs, and `validate('json')` can't sit in
+ * front of a multipart request at all.
  */
 heroSlides.post(
   '/upload',
@@ -199,8 +190,8 @@ heroSlides.post(
       })
     }
 
-    // Multipart carries no types, so an untouched box arrives as `''` rather
-    // than absent — the same coercion the gallery's upload makes.
+    // Multipart carries no types, so an untouched box arrives as `''` rather than absent —
+    // the same coercion the gallery's upload makes.
     const caption =
       typeof body['caption'] === 'string' ? body['caption'].trim() : ''
     const { focalX, focalY, zoom } = framingFromBody(body)
@@ -225,13 +216,12 @@ heroSlides.post(
 /**
  * The whole order at once, as a list of ids.
  *
- * The set check is the lost-update guard, and it earns more here than it does on
- * a project: this is one global list, so the two tabs it protects against are
- * two *different officers* rather than one person in two windows.
+ * The set check is the lost-update guard, and it earns more here than on a project: this
+ * is one global list, so the two tabs it protects against are two different officers.
  *
- * **Registered before `/:id` on purpose** — `order` is a perfectly good
- * uuid-shaped hole for a wildcard to fall into, and a reorder answered by the
- * caption route would be a 404 that looks like a photograph having vanished.
+ * Registered before `/:id` on purpose — `order` is a perfectly good uuid-shaped hole for a
+ * wildcard to fall into, and a reorder answered by the caption route would be a 404 that
+ * looks like a photograph having vanished.
  */
 heroSlides.patch(
   '/order',
@@ -277,9 +267,8 @@ heroSlides.patch(
 )
 
 /**
- * The caption and the framing, each applied only when it was sent — so the
- * framing tool and the caption box can write independently without either
- * flattening the other.
+ * The caption and the framing, each applied only when it was sent — so the framing tool and
+ * the caption box can write independently without either flattening the other.
  */
 heroSlides.patch(
   '/:id',
@@ -295,8 +284,8 @@ heroSlides.patch(
     const updated = await prisma.heroSlide.update({
       where: { id: slide.id },
       data: {
-        // `caption` is nullable, so "absent" and "cleared" are different
-        // requests and only the first one leaves the column alone.
+        // `caption` is nullable, so "absent" and "cleared" are different requests and only
+        // the first leaves the column alone.
         ...(caption === undefined ? {} : { caption: caption ?? null }),
         ...(focalX === undefined ? {} : { focalX }),
         ...(focalY === undefined ? {} : { focalY }),
@@ -320,10 +309,9 @@ heroSlides.delete(
 
     await prisma.heroSlide.delete({ where: { id: slide.id } })
 
-    // The reference is gone before the bytes are, so a failure here leaves an
-    // orphaned file rather than a slideshow pointing at nothing.
-    // `deleteIfStored` ignores external URLs entirely — somebody else's hosting
-    // is not ours to clean up.
+    // The reference goes before the bytes, so a failure leaves an orphaned file rather than
+    // a slideshow pointing at nothing. `deleteIfStored` ignores external URLs — somebody
+    // else's hosting isn't ours to clean up.
     await deleteIfStored(slide.url)
 
     return c.json({ deleted: true })

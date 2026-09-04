@@ -39,40 +39,29 @@ import { createSession } from '../../auth/session.js'
 /**
  * The lab sign, against the live database.
  *
- * **This suite writes a row it cannot namespace, and it is the only one here
- * that does.** `lab_status` is a singleton — one row with a fixed id, because
- * "is the lab open" has one answer — so there is no prefix to hide behind the
- * way `print.test.ts` hides behind `test-print-`. It does what
- * `officerBoard.test.ts` does with the seats it borrows: reads the club's real
- * row first and puts it back in `afterAll`, keeping the window to this file.
- * Nothing else touches that table, so nothing else can be running in it.
+ * This suite writes a row it can't namespace, and it's the only one here that does.
+ * `lab_status` is a singleton — one row with a fixed id — so there's no prefix to hide
+ * behind. It reads the club's real row first and puts it back in `afterAll`, keeping the
+ * window to this file. Nothing else touches that table.
  *
- * **Discord is stubbed at the module boundary, and not optionally.** The dev
- * `.env` carries a live bot token and a real channel id, so an unstubbed run
- * would post into the club's actual server and rename an actual channel —
- * twice per test, until Discord started refusing. This is the same rule as the
- * three suites that can reach `pushRoles`, and for a worse reason than a DM:
- * a stray message can be deleted, a channel renamed at 3am by a test run is
- * something a member reads and believes.
+ * Discord is stubbed at the module boundary, and not optionally. The dev `.env` carries a
+ * live bot token and a real channel id, so an unstubbed run would post into the club's
+ * actual server and rename an actual channel, twice per test. A stray message can be
+ * deleted; a channel renamed at 3am by a test run is something a member reads and believes.
  *
- * **The clock is pinned, and it has to be**, because the lab refuses to open
- * while the building is shut. Left on the wall clock, every opening case here
- * would pass all afternoon and fail for anybody running the suite after ten at
- * night — the same reason `authz.test.ts` pins its own. The two instants below
- * are written in UTC on purpose: `new Date('…T14:00:00')` is fourteen hundred
- * in the *runner's* zone, which is exactly the confusion this feature is about.
+ * The clock is pinned, and it has to be, because the lab refuses to open while the building
+ * is shut — left on the wall clock, every opening case would fail for anybody running the
+ * suite after ten at night. The two instants below are written in UTC on purpose:
+ * `new Date('…T14:00:00')` is fourteen hundred in the runner's zone.
  *
- * **What this suite is mostly about is the direction of the sync, and the two
- * verbs.** Discord is the record: a flip the channel rename will not take does
- * not happen at all, and the sweep reads the sign back and corrects the row
- * against it. And the sign is one message in the channel that is nonetheless
- * able to ping — **opening posts a new message and deletes the old one, and
- * everything else edits.** The cases that pin those are the ones worth reading
- * first.
+ * What this suite is mostly about is the direction of the sync and the two verbs. Discord is
+ * the record: a flip the rename won't take doesn't happen, and the sweep reads the sign back
+ * and corrects the row against it. And the sign is one message that can nonetheless ping —
+ * opening posts a new message and deletes the old one, everything else edits.
  */
 
-/** A `vi.hoisted` holder, so one case can see the buttons switched off — the
-    real `buttonsLive` is a function over module state, not a constant. */
+/** A `vi.hoisted` holder, so one case can see the buttons switched off — the real
+    `buttonsLive` is a function over module state, not a constant. */
 const stub = vi.hoisted(() => ({ buttonsLive: true }))
 
 vi.mock('../../discord/discord.js', async (importOriginal) => ({
@@ -82,16 +71,13 @@ vi.mock('../../discord/discord.js', async (importOriginal) => ({
   labChannelConfigured: true,
   labChannelId: '111111111111111111',
   labMessageId: null,
-  // Invented, not the club's. The real one is in the dev `.env`, and a suite
-  // that read it would put the actual Members role into the assertions below —
-  // which passes here and pings two and a half thousand people the first time
-  // one of these stubs is forgotten.
+  // Invented, not the club's. The real one is in the dev `.env`, and a suite that read it
+  // would put the actual Members role into the assertions below — which passes here and
+  // pings two and a half thousand people the first time one of these stubs is forgotten.
   memberRoleId: '333333333333333333',
-  // Buttons are attached only when a press would actually land — the key *and*
-  // an Interactions Endpoint URL confirmed against Discord at startup. Stubbed
-  // live here, because asserting on the buttons is half of what this file is
-  // for; the real thing starts false and is turned on by
-  // `confirmInteractionEndpoint`.
+  // Buttons are attached only when a press would actually land — the key and an
+  // Interactions Endpoint URL confirmed at startup. Stubbed live here, because asserting on
+  // the buttons is half of what this file is for.
   interactionsConfigured: true,
   buttonsLive: () => stub.buttonsLive,
   postChannelMessage: vi.fn(),
@@ -154,10 +140,9 @@ let memberCookie: string
 let officerId: string
 
 beforeEach(async () => {
-  // `membershipStanding` runs behind `requireOfficer` and reads UCF's calendar.
-  // Stubbed to fail so it falls straight through to the fixed dates: under fake
-  // timers a real request's `AbortSignal.timeout` would never fire, and the
-  // suite would hang rather than fail.
+  // `membershipStanding` runs behind `requireOfficer` and reads UCF's calendar. Stubbed to
+  // fail so it falls through to the fixed dates: under fake timers a real request's
+  // `AbortSignal.timeout` would never fire, and the suite would hang rather than fail.
   clearCalendarCache()
   vi.stubGlobal(
     'fetch',
@@ -184,9 +169,8 @@ beforeEach(async () => {
   edited.mockResolvedValue({ status: 'sent' })
   deleted.mockResolvedValue({ status: 'done' })
   renamed.mockResolvedValue({ status: 'done' })
-  // An empty channel by default: the push has to look before it may post, and a
-  // listing that answered `undefined` would read as "could not look" and post
-  // nothing at all.
+  // An empty channel by default: the push has to look before it may post, and a listing that
+  // answered `undefined` would read as "could not look" and post nothing at all.
   listed.mockResolvedValue({ status: 'none' })
   named.mockResolvedValue({ status: 'unavailable' })
 
@@ -225,8 +209,8 @@ afterEach(() => {
 afterAll(async () => {
   await clearRows()
 
-  // Hand the club's lab status back exactly as it was found. A suite that left
-  // the sign reading OPEN would be a suite that sent somebody to the building.
+  // Hand the club's lab status back exactly as it was found. A suite that left the sign
+  // reading OPEN would be a suite that sent somebody to the building.
   if (savedRow) {
     const { id: _id, updatedAt: _updatedAt, ...row } = savedRow
     await prisma.labStatus.upsert({
@@ -274,10 +258,9 @@ describe('GET /api/lab', () => {
   })
 
   /**
-   * The registration-order rule in `app.ts`, from the outside. Mounted with the
-   * cached half of the API this would carry `s-maxage=300`, and a five-minute
-   * old answer to "is the lab open right now" is the one answer it must never
-   * give.
+   * The registration-order rule in `app.ts`, from the outside. Mounted with the cached half
+   * of the API this would carry `s-maxage=300`, and a five-minute-old answer to "is the lab
+   * open right now" is the one answer it must never give.
    */
   it('is not served from the five-minute public cache', async () => {
     const cacheControl = (await read()).headers.get('Cache-Control')
@@ -286,9 +269,8 @@ describe('GET /api/lab', () => {
     expect(cacheControl).not.toContain('s-maxage=300')
   })
 
-  /** No name on it, ever. The club's own channel says who opened the lab; an
-      endpoint anybody can read must not publish which named person was in a
-      building at a particular hour. */
+  /** No name on it, ever. The club's own channel says who opened the lab; an endpoint anybody
+      can read must not publish which named person was in a building at a particular hour. */
   it('never says who flipped it', async () => {
     await flip(true, officerCookie)
 
@@ -311,10 +293,9 @@ describe('PATCH /api/lab', () => {
   })
 
   /**
-   * The dashboard's switch cannot ask for this — its label follows the state —
-   * but a second tab, a double submit or a script can. Left to write, it would
-   * re-stamp `changedAt`, which reads downstream as a *new* opening, and spend
-   * one of the two channel renames Discord allows per ten minutes on nothing.
+   * The dashboard's switch can't ask for this — its label follows the state — but a second
+   * tab, a double submit or a script can. Left to write, it would re-stamp `changedAt`, which
+   * reads downstream as a new opening, and spend one of the two renames Discord allows.
    */
   it('does nothing at all when asked for the state it is already in', async () => {
     await flip(true, officerCookie)
@@ -344,9 +325,9 @@ describe('PATCH /api/lab', () => {
 })
 
 /**
- * The rule the whole rewrite turns on. Discord is the record, so the rename is
- * a *precondition* rather than a consequence: if the channel name will not
- * move, the lab did not open, and the officer is told which of the two it was.
+ * The rule the whole rewrite turns on. Discord is the record, so the rename is a
+ * precondition rather than a consequence: if the channel name won't move, the lab didn't
+ * open, and the officer is told which of the two it was.
  */
 describe('a flip Discord will not take does not happen', () => {
   it('refuses the flip on a throttled rename, and says how long', async () => {
@@ -374,14 +355,14 @@ describe('a flip Discord will not take does not happen', () => {
     const after = await row()
     expect(after?.open).toBe(true)
     expect(after?.changedAt).toEqual(before?.changedAt)
-    // And nothing was said in the channel either. A message that had already
-    // been edited to CLOSED under a green name is the split this is preventing.
+    // And nothing was said in the channel either. A message already edited to CLOSED under a
+    // green name is the split this is preventing.
     expect(edited).not.toHaveBeenCalled()
   })
 
-  /** Manage Channels taken away, or a channel id naming nothing. Neither ever
-      starts working on its own, so "try again" would be advice that never comes
-      good — the sentence names the permission instead. */
+  /** Manage Channels taken away, or a channel id naming nothing. Neither ever starts working
+      on its own, so "try again" would be advice that never comes good — the sentence names
+      the permission instead. */
   it('refuses the flip when Discord will not rename the channel at all', async () => {
     renamed.mockResolvedValue({ status: 'refused', reason: 'rename channel: 403' })
 
@@ -395,10 +376,9 @@ describe('a flip Discord will not take does not happen', () => {
   })
 
   /**
-   * The asymmetry, and it is deliberate. By the time the message is written the
-   * channel has already been renamed, so refusing here would leave the name
-   * saying one thing and the row another — exactly the split the rename gate is
-   * closing. The flip stands and the row is marked for the sweep.
+   * The asymmetry, and it's deliberate. By the time the message is written the channel has
+   * already been renamed, so refusing here would leave the name saying one thing and the row
+   * another. The flip stands and the row is marked for the sweep.
    */
   it('still commits when the message fails after the rename landed', async () => {
     edited.mockResolvedValue({ status: 'unavailable', reason: 'network' })
@@ -416,11 +396,9 @@ describe('a flip Discord will not take does not happen', () => {
 /**
  * One message in the channel, and it still pings.
  *
- * The two requirements that look like they cannot both hold: **posting
- * notifies and editing never does**, so a sign kept up to date for ever reaches
- * nobody, and a sign that posts every evening fills a channel until people mute
- * it. The way through is post new, delete old — and these are the cases that
- * hold it to both halves.
+ * The two requirements that look like they can't both hold: posting notifies and editing
+ * never does, so a sign kept up to date for ever reaches nobody, and a sign that posts every
+ * evening fills a channel until people mute it. The way through is post new, delete old.
  */
 describe('the one message', () => {
   it('posts a new message when the lab opens, and deletes the one before it', async () => {
@@ -445,23 +423,21 @@ describe('the one message', () => {
   })
 
   /**
-   * The ping, and the reason opening posts at all: **an edit notifies nobody**,
-   * so a message kept up to date for ever would reach @Members once, the first
-   * evening, and never again.
+   * The ping, and the reason opening posts at all: an edit notifies nobody, so a message kept
+   * up to date for ever would reach @Members once and never again.
    */
   it('pings @Members on the way open', async () => {
     await flip(true, officerCookie)
 
     expect(posted.mock.calls[0]?.[1]).toContain(`<@&${MEMBERS}>`)
-    // Said out loud rather than relying on Discord's default parsing, which
-    // would let anything in the body become a mention.
+    // Said out loud rather than relying on Discord's default parsing, which would let
+    // anything in the body become a mention.
     expect(posted.mock.calls[0]?.[2]?.mentionRoles).toEqual([MEMBERS])
   })
 
   /**
-   * Closing edits, and not only to save a message: a *new* message marks the
-   * channel unread for the whole club, and "the lab shut twenty seconds ago" is
-   * an interruption nobody can act on.
+   * Closing edits, and not only to save a message: a new message marks the channel unread for
+   * the whole club, and "the lab shut twenty seconds ago" is an interruption nobody can act on.
    */
   it('edits in place when the lab closes, and pings nobody', async () => {
     await flip(true, officerCookie)
@@ -473,8 +449,8 @@ describe('the one message', () => {
     expect(edited).toHaveBeenCalledTimes(1)
     expect(edited.mock.calls[0]?.[1]).toBe('msg-1')
     expect(edited.mock.calls[0]?.[2]).toContain('THE LAB IS CLOSED')
-    // The mention is off the closed sign entirely — on a message an edit
-    // delivered, it would look like a notification somebody had missed.
+    // The mention is off the closed sign entirely — on a message an edit delivered, it would
+    // look like a notification somebody had missed.
     expect(edited.mock.calls[0]?.[2]).not.toContain('<@&')
   })
 
@@ -487,10 +463,9 @@ describe('the one message', () => {
   })
 
   /**
-   * The failure worth choosing a direction on. A post that does not go out took
-   * the ping with it and nothing can bring it back — so the sign is put right
-   * by an edit instead. An evening nobody was told about is a shame; a sign
-   * reading CLOSED over an open lab is worse.
+   * The failure worth choosing a direction on. A post that doesn't go out took the ping with
+   * it and nothing can bring it back — so the sign is put right by an edit instead. An evening
+   * nobody was told about is a shame; a sign reading CLOSED over an open lab is worse.
    */
   it('falls back to editing when the announcement will not post', async () => {
     await flip(false, officerCookie)
@@ -504,9 +479,9 @@ describe('the one message', () => {
   })
 
   /**
-   * The check that makes the rule hold across a restored dump, a row somebody
-   * reset, or a `DISCORD_LAB_MESSAGE_ID` nobody filled in. Without it the next
-   * push posts a second sign and the channel collects one per incident.
+   * The check that makes the rule hold across a restored dump, a row somebody reset, or a
+   * `DISCORD_LAB_MESSAGE_ID` nobody filled in. Without it the next push posts a second sign
+   * and the channel collects one per incident.
    */
   it('adopts a message already in the channel rather than posting beside it', async () => {
     listed.mockResolvedValue({
@@ -522,10 +497,9 @@ describe('the one message', () => {
   })
 
   /**
-   * "There is nothing of ours here" and "I could not look" arrive at the same
-   * place, and only the first is safe to act on. Treating a missing Read
-   * Message History as an empty channel is how a channel ends up with forty
-   * signs in it.
+   * "There is nothing of ours here" and "I could not look" arrive at the same place, and only
+   * the first is safe to act on. Treating a missing Read Message History as an empty channel
+   * is how a channel ends up with forty signs in it.
    */
   it('posts nothing when it could not read the channel', async () => {
     listed.mockResolvedValue({
@@ -542,8 +516,8 @@ describe('the one message', () => {
     expect((await row())?.discordSynced).toBe(false)
   })
 
-  /** Deleted by hand, or never ours. The listing is what that answer falls
-      through to, and only an empty channel gets a fresh post. */
+  /** Deleted by hand, or never ours. The listing is what that answer falls through to, and
+      only an empty channel gets a fresh post. */
   it('posts a new one when the stored message has gone and nothing replaces it', async () => {
     await flip(true, officerCookie)
 
@@ -560,9 +534,8 @@ describe('the one message', () => {
   it('leaves a stale message alone when the channel has been re-pointed', async () => {
     await flip(true, officerCookie)
 
-    // The club made a new channel and pointed the setting at it. The stored id
-    // names a message in the old one, and editing it would put the sign back on
-    // a board nobody is reading.
+    // The club made a new channel and pointed the setting at it. The stored id names a message
+    // in the old one, and editing it would put the sign back on a board nobody is reading.
     await prisma.labStatus.update({
       where: { id: 'current' },
       data: { discordChannelId: '222222222222222222' },
@@ -578,10 +551,9 @@ describe('the one message', () => {
   })
 
   /**
-   * The delete after a post can fail, an earlier design can have left a message
-   * per opening behind, two instances can both have posted — and none of those
-   * heal on their own, because every other path edits. The sweep is what turns
-   * "one message" from an intention into an invariant.
+   * The delete after a post can fail, an earlier design can have left a message per opening
+   * behind, two instances can both have posted — and none of those heal on their own, because
+   * every other path edits. The sweep turns "one message" from an intention into an invariant.
    */
   it('clears strays out of the channel on the sweep, and keeps the sign', async () => {
     await flip(true, officerCookie)
@@ -617,8 +589,8 @@ describe('the one message', () => {
 })
 
 describe('the buttons', () => {
-  /** Down through the action row to the one button, since a `MessageComponents`
-      is deliberately loosely typed — see the note on it in `discord.ts`. */
+  /** Down through the action row to the one button, since a `MessageComponents` is
+      deliberately loosely typed — see the note on it in `discord.ts`. */
   const only = (state: {
     open: boolean
     changedAt: Date | null
@@ -659,8 +631,8 @@ describe('the buttons', () => {
     expect(other.style).toBe(4)
   })
 
-  /** Greyed rather than dropped, for the reason the dashboard's switch is: the
-      control is still theirs and simply has nothing to act on until eight. */
+  /** Greyed rather than dropped, for the reason the dashboard's switch is: the control is
+      still theirs and simply has nothing to act on until eight. */
   it('greys the open button out overnight', () => {
     expect(
       only({
@@ -673,10 +645,9 @@ describe('the buttons', () => {
   })
 
   /**
-   * The promise this function makes, and it was untrue for a while: the key
-   * alone used to be enough, so filling in `DISCORD_PUBLIC_KEY` and nothing
-   * else put a button in the club's channel that answered "This interaction
-   * failed" to whoever pressed it.
+   * The promise this function makes, and it was untrue for a while: the key alone used to be
+   * enough, so filling in `DISCORD_PUBLIC_KEY` and nothing else put a button in the club's
+   * channel that answered "This interaction failed" to whoever pressed it.
    */
   it('attaches nothing at all when a press would not land', async () => {
     stub.buttonsLive = false
@@ -704,10 +675,9 @@ describe('the buttons', () => {
 })
 
 /**
- * The other half of "Discord is the record": the sweep reads the sign back and
- * corrects the row against it. A message edited by hand, a write this process
- * lost, a second instance that flipped it — all of them end with the site
- * agreeing with the channel.
+ * The other half of "Discord is the record": the sweep reads the sign back and corrects the
+ * row against it. A message edited by hand, a write this process lost, a second instance that
+ * flipped it — all end with the site agreeing with the channel.
  */
 describe('reading the sign back', () => {
   it('reads a headline out of a message', () => {
@@ -767,8 +737,8 @@ describe('reading the sign back', () => {
     expect((await row())?.changedAt).toEqual(before?.changedAt)
   })
 
-  /** A channel somebody renamed by hand, or a name left behind by a throttled
-      push. Noticed on the tick rather than at the next flip. */
+  /** A channel somebody renamed by hand, or a name left behind by a throttled push. Noticed
+      on the tick rather than at the next flip. */
   it('marks the row unsynced when the channel name has drifted', async () => {
     await flip(true, officerCookie)
 
@@ -789,8 +759,8 @@ describe('reading the sign back', () => {
     expect((await row())?.discordSynced).toBe(false)
   })
 
-  /** The curfew is a fact about a locked door, not a sync direction. It is the
-      one thing that overrides the sign. */
+  /** The curfew is a fact about a locked door, not a sync direction. It's the one thing that
+      overrides the sign. */
   it('will not adopt an open sign while the building is shut', async () => {
     await flip(true, officerCookie)
     vi.setSystemTime(NIGHT)
@@ -818,10 +788,10 @@ describe('reading the sign back', () => {
   })
 
   /**
-   * The hole `signAgrees` exists to close. A message edited by hand to OPEN at
-   * two in the morning, in a channel somebody also renamed green, agrees with
-   * *itself* perfectly — so a check that only asked whether the name matched
-   * the message would leave that sign up all night over a row reading closed.
+   * The hole `signAgrees` exists to close. A message edited by hand to OPEN at two in the
+   * morning, in a channel somebody also renamed green, agrees with itself perfectly — so a
+   * check that only asked whether the name matched the message would leave that sign up all
+   * night over a row reading closed.
    */
   it('pushes a correction when a hand-edited sign agrees with itself overnight', async () => {
     await flip(false, officerCookie)
@@ -851,10 +821,9 @@ describe('reading the sign back', () => {
   })
 
   /**
-   * The invisible one. A club fills in `DISCORD_PUBLIC_KEY`, restarts, and the
-   * sign's *content* is already correct — so without this nothing would push and
-   * no buttons would appear until somebody happened to flip the lab, which reads
-   * as the key not working.
+   * The invisible one. A club fills in `DISCORD_PUBLIC_KEY`, restarts, and the sign's content
+   * is already correct — so without this nothing would push and no buttons would appear until
+   * somebody happened to flip the lab, which reads as the key not working.
    */
   it('pushes when the sign is right but carries no buttons', async () => {
     await flip(true, officerCookie)
@@ -881,17 +850,14 @@ describe('reading the sign back', () => {
   })
 
   /**
-   * **The one that actually happened, against the club's real guild.**
+   * The one that actually happened, against the club's real guild.
    *
-   * A leftover from the announce-per-opening design was still in the channel
-   * saying THE LAB IS CLOSED. The reconcile read it, could not tell it from a
-   * sign somebody had just corrected, and closed the lab for the whole club —
-   * site, channel name and message — while an officer was standing in it.
+   * A leftover from the announce-per-opening design was still in the channel saying THE LAB IS
+   * CLOSED. The reconcile read it, couldn't tell it from a sign somebody had just corrected,
+   * and closed the lab for the whole club while an officer was standing in it.
    *
-   * So state is only ever read back from the message **the row knows it is
-   * keeping**. A message found by search is adopted as the sign — its id is
-   * learned, it is what gets edited from here on — but its state is not read,
-   * and the row's own answer is pushed onto it instead.
+   * So state is only ever read back from the message the row knows it is keeping. A message
+   * found by search is adopted as the sign — its id is learned — but its state is not read.
    */
   it('never lets a message the row did not know about change the lab', async () => {
     await flip(true, officerCookie)
@@ -917,9 +883,9 @@ describe('reading the sign back', () => {
   })
 
   /**
-   * And nothing is deleted on that tick either. "Which of these is the sign"
-   * had just been guessed at rather than answered, and a tidy run on a guess
-   * deletes the club's real announcement — the other half of what went wrong.
+   * And nothing is deleted on that tick either. "Which of these is the sign" had just been
+   * guessed at rather than answered, and a tidy run on a guess deletes the club's real
+   * announcement — the other half of what went wrong.
    */
   it('deletes nothing on a tick where it could not identify the sign', async () => {
     await flip(true, officerCookie)
@@ -997,8 +963,8 @@ describe('the sweep retries what did not land', () => {
     await flip(true, officerCookie)
     expect((await row())?.discordSynced).toBe(false)
 
-    // Discord comes back. The sign is read first — it still says the old thing,
-    // or nothing — and then the push goes out.
+    // Discord comes back. The sign is read first — it still says the old thing, or nothing —
+    // and then the push goes out.
     edited.mockResolvedValue({ status: 'sent' })
     posted.mockResolvedValue({ status: 'sent', messageId: 'msg-1' })
     listed.mockResolvedValue({ status: 'none' })
@@ -1012,8 +978,8 @@ describe('the sweep retries what did not land', () => {
     await expect(sweepLabStatus()).resolves.toMatchObject({ retried: false })
   })
 
-  /** Nothing to say, so nothing is said. A channel is not renamed to `🔴` on
-      the strength of a row that does not exist. */
+  /** Nothing to say, so nothing is said. A channel isn't renamed to red on the strength of a
+      row that doesn't exist. */
   it('leaves the channel alone when the lab has never been set', async () => {
     await expect(sweepLabStatus()).resolves.toEqual({
       closed: false,
@@ -1028,9 +994,9 @@ describe('the sweep retries what did not land', () => {
 
 describe('the building shuts at ten', () => {
   /**
-   * A fixed offset would pass here and be an hour wrong for four months of the
-   * year. Both instants are 22:00 in Orlando — one under EDT and one under EST
-   * — and only a real timezone database gets both.
+   * A fixed offset would pass here and be an hour wrong for four months of the year. Both
+   * instants are 22:00 in Orlando — one under EDT and one under EST — and only a real timezone
+   * database gets both.
    */
   it('reads the hour on campus, through both halves of the year', () => {
     // 22:00 EDT (UTC-4) in June, and 21:00 the same summer evening.
@@ -1075,8 +1041,8 @@ describe('the building shuts at ten', () => {
     expect(renamed).not.toHaveBeenCalled()
   })
 
-  /** An officer realising at 22:05 that they left it open is the last person
-      this should argue with. */
+  /** An officer realising at 22:05 that they left it open is the last person this should argue
+      with. */
   it('still lets an officer close it', async () => {
     await flip(true, officerCookie)
 
@@ -1087,8 +1053,8 @@ describe('the building shuts at ten', () => {
   })
 
   /**
-   * The masking half. The sweep runs every ten minutes, so between 22:00 and
-   * whenever it next fires the row still says open — and the site must not.
+   * The masking half. The sweep runs every ten minutes, so between 22:00 and whenever it next
+   * fires the row still says open — and the site must not.
    */
   it('reads closed the moment the building shuts, before any sweep', async () => {
     await flip(true, officerCookie)
@@ -1116,8 +1082,8 @@ describe('the building shuts at ten', () => {
     })
   })
 
-  /** The writing half: the row is closed for real, so Discord is told and the
-      record carries a time. */
+  /** The writing half: the row is closed for real, so Discord is told and the record carries a
+      time. */
   it('locks up on the sweep, and attributes it to nobody', async () => {
     await flip(true, officerCookie)
     edited.mockClear()
@@ -1144,10 +1110,9 @@ describe('the building shuts at ten', () => {
   })
 
   /**
-   * The one write that is not vetoed by Discord, and the asymmetry is the
-   * point: an officer's press is a request, and ten at night is not. A green
-   * sign over a locked building all night is not an outcome worth protecting
-   * the rename budget for.
+   * The one write that isn't vetoed by Discord, and the asymmetry is the point: an officer's
+   * press is a request, and ten at night is not. A green sign over a locked building all night
+   * isn't worth protecting the rename budget for.
    */
   it('locks up even when the rename is throttled', async () => {
     await flip(true, officerCookie)
@@ -1169,9 +1134,8 @@ describe('the building shuts at ten', () => {
     vi.setSystemTime(NIGHT)
     await sweepLabStatus()
 
-    // The site's own answer is not the bot's to hold up. (Configured here, but
-    // the check sits above the `labChannelConfigured` guard for the club that
-    // has no bot at all.)
+    // The site's own answer isn't the bot's to hold up. (Configured here, but the check sits
+    // above the `labChannelConfigured` guard for the club that has no bot at all.)
     expect((await row())?.open).toBe(false)
   })
 
@@ -1188,9 +1152,8 @@ describe('the building shuts at ten', () => {
   })
 
   /**
-   * The curfew closes and never opens. A lab that sprang back open at eight
-   * because it had been open at 21:59 would be a sign nobody made, on a room
-   * nobody is in.
+   * The curfew closes and never opens. A lab that sprang back open at eight because it had been
+   * open at 21:59 would be a sign nobody made, on a room nobody is in.
    */
   it('does not re-open in the morning', async () => {
     await flip(true, officerCookie)
@@ -1239,8 +1202,8 @@ describe('labMessage', () => {
     expect(message).toBe('🔴 **THE LAB IS CLOSED**')
   })
 
-  /** `changedById` is `SetNull`, so an account deleted a year later leaves a
-      real flip with nobody attached to it. The time is still worth saying. */
+  /** `changedById` is `SetNull`, so an account deleted a year later leaves a real flip with
+      nobody attached to it. The time is still worth saying. */
   it('drops the name when the account has gone, and keeps the time', () => {
     const message = labMessage({
       open: false,
@@ -1253,8 +1216,8 @@ describe('labMessage', () => {
     expect(message).not.toContain('by')
   })
 
-  /** A lab reading CLOSED at 2am looks exactly like one somebody forgot to
-      open. Saying why is what stops the reader walking over to check. */
+  /** A lab reading CLOSED at 2am looks exactly like one somebody forgot to open. Saying why is
+      what stops the reader walking over to check. */
   it('says the building is shut when it is', () => {
     const message = labMessage({
       open: false,
@@ -1266,9 +1229,8 @@ describe('labMessage', () => {
     expect(message).toContain('The building is shut between 10pm and 8am')
   })
 
-  /** Both halves of the sign are written and read with the same two strings.
-      Change the wording in one place and forget the other and the reconcile
-      silently stops adopting anything. */
+  /** Both halves of the sign are written and read with the same two strings. Change the wording
+      in one place and forget the other and the reconcile silently stops adopting anything. */
   it('writes headlines the reconcile can read back', () => {
     for (const open of [true, false]) {
       const message = labMessage({

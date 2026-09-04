@@ -10,78 +10,56 @@ import { useApi } from '../../lib/api/useApi'
 /**
  * `/members` — the club, with the whole table one chip away.
  *
- * **The default is the club's active membership**: dues standing and not a
- * guest, the same clause the landing page's ACTIVE MEMBERS cell counts, so the
- * number somebody presses is the list they land on. OFFICER ALUMNI and EVERYONE
- * are the chips beside it.
+ * The default is the club's active membership: dues standing and not a guest, the same clause
+ * the landing page's ACTIVE MEMBERS cell counts, so the number somebody presses is the list they
+ * land on. OFFICER ALUMNI and EVERYONE are the chips beside it.
  *
- * It has been wrong in both directions to get here. A row reached this page
- * only by an officer setting `slug` by hand, and no route on the site ever
- * wrote that column — so a page headed "who is in the club" listed sixty of six
- * hundred and eighty-eight accounts with no way in the product to add the
- * sixty-first. Dropping the slug was right; making the default *everybody,
- * guests included* was the overcorrection. See `activeMembers` in
- * `server/src/routes/public/content.ts`, which is now this page's default and
- * the front page's number both.
+ * It has been wrong in both directions to get here. A row reached this page only by an officer
+ * setting `slug` by hand, and no route ever wrote that column — so a page headed "who is in the
+ * club" listed sixty of 688 accounts. Dropping the slug was right; defaulting to everybody,
+ * guests included, was the overcorrection.
  *
- * **A card links where its owner said and nowhere else.** The photograph is an
- * anchor to `profileUrl` — their LinkedIn, their GitHub — and a plain frame for
- * everybody who has not given one, which is most of the page. The *card* still
- * links nowhere: `GET /api/members/:slug` exists and a profile page does not,
- * and a card that opens a 404 is worse than a card that opens nothing (see the
- * note on unbuilt links in `.claude/docs/frontend.md`). Whoever writes
- * `/members/:slug` gets the caption; the face is already spoken for.
+ * A card links where its owner said and nowhere else. The photograph is an anchor to
+ * `profileUrl` and a plain frame for everybody who hasn't given one. The card still links
+ * nowhere: `GET /api/members/:slug` exists and a profile page doesn't, and a card that opens a
+ * 404 is worse than one that opens nothing.
  *
- * **ALUMNI means the club's Discord *Officer Alumni* role**, mirrored into
- * `User.officerAlumnus` by the server's ten-minute sweep. It is not `active`,
- * which this chip used to read: `active` is "still around" and every dues
- * payment sets it back to true, so it could never mean "used to run the club",
- * and somebody can be both. Nothing on this site sets it — the club marks its
- * alumni in Discord and the site follows.
+ * ALUMNI means the club's Discord Officer Alumni role, mirrored into `User.officerAlumnus` by
+ * the ten-minute sweep. It isn't `active`, which this chip used to read: `active` is "still
+ * around" and every dues payment sets it back to true, so it could never mean "used to run the
+ * club", and somebody can be both.
  *
- * **The first two chips overlap and that is deliberate.** A past president who
- * still pays dues is on both lists. They used to negate each other to stay
- * disjoint, which had the effect that paying dues could not put somebody on the
- * list of people who pay dues.
+ * The first two chips overlap deliberately. A past president who still pays dues is on both.
+ * They used to negate each other to stay disjoint, which meant paying dues couldn't put somebody
+ * on the list of people who pay dues.
  *
- * **The status refetches; the search box narrows what arrived.** The three
- * chips are different sets of rows — a guest who once ran the club is under
- * ALUMNI and under nothing else — so that one is `?status=`, and changing it
- * changes the path `useApi` keys its effect on. The search filters in the
- * browser for the reason `lib/equipment/catalogue.ts` gives: a club roster is a
- * list too long to *scan*, not one too long to send.
+ * The status refetches; the search box narrows what arrived. The three chips are different sets
+ * of rows, so that one is `?status=`. The search filters in the browser for the reason
+ * `catalogue.ts` gives: a roster is too long to scan, not too long to send.
  *
- * **Nothing on this page lives in the address bar.** A `?subteam=` did — the
- * club had standing divisions a member belonged to all year, `/about` printed a
- * count per division and linked straight here, so the link had to arrive
- * already narrowed. The club does not group people that way any more; a team is
- * a working group inside one project and lives on that project's page. The
- * search box was never in the URL and still is not: it is typed, not chosen,
- * and a query string that changed on every keystroke would be a history entry
- * per character.
+ * Nothing on this page lives in the address bar. A `?subteam=` did, back when the club had
+ * standing divisions and `/about` linked straight here already narrowed. The search box was
+ * never in the URL and still isn't: it's typed, not chosen, and a query string that changed on
+ * every keystroke would be a history entry per character.
  */
 
 /**
- * The server's own ceiling for this route, and asking for all of it in one go
- * is what makes the search box below possible at all — you cannot search a page
- * you were not sent. A thousand rows of names and bios is a few hundred
- * kilobytes, cached at the edge.
+ * The server's own ceiling for this route, and asking for all of it in one go is what makes the
+ * search box possible at all — you can't search a page you weren't sent. A thousand rows of
+ * names and bios is a few hundred kilobytes, cached at the edge.
  *
- * Past a thousand this becomes pagination *and* a server-side search, together;
- * either one alone gives you a search box that quietly misses people. The route
- * comment in `content.ts` says the same thing from the other side.
+ * Past a thousand this becomes pagination and a server-side search, together; either alone gives
+ * you a search box that quietly misses people.
  */
 const LIMIT = 1000
 
 type RosterStatus = 'active' | 'alumni' | 'all'
 
 /**
- * The `?status=` values are the server's; the labels are this page's and have
- * both moved since. `alumni` means the club's Discord Officer Alumni role and
- * the archive rather than `active: false`, and the chip says which — "ALUMNI"
- * on a club roster reads as "everyone who has graduated", which is not what
- * this is. `active` says ACTIVE MEMBERS in the front page's own words, because
- * it is now the front page's own number.
+ * The `?status=` values are the server's; the labels are this page's and both have moved since.
+ * `alumni` means the Discord Officer Alumni role and the archive rather than `active: false`, and
+ * the chip says which — "ALUMNI" on a club roster reads as "everyone who has graduated". `active`
+ * says ACTIVE MEMBERS in the front page's own words, because it's now the front page's number.
  */
 const statusOptions = [
   { value: 'active' as const, label: 'ACTIVE MEMBERS' },
@@ -90,11 +68,10 @@ const statusOptions = [
 ]
 
 /**
- * The strip idiom — rules are the container's background showing through a 1px
- * gap, not a border per cell. Written here rather than borrowed from
- * `OfficerCard`: the board's grid belongs to the board, and a roster that
- * quietly changed shape because somebody adjusted the officer cards would be a
- * surprise in the wrong file.
+ * The strip idiom — rules are the container's background showing through a 1px gap, not a border
+ * per cell. Written here rather than borrowed from `OfficerCard`: the board's grid belongs to the
+ * board, and a roster that quietly changed shape because somebody adjusted the officer cards
+ * would be a surprise in the wrong file.
  */
 const gridClass =
   'bg-rule border-rule grid grid-cols-2 gap-px border wide:grid-cols-4'
@@ -225,14 +202,12 @@ export function MembersPage() {
 /**
  * One person on the roster.
  *
- * The frame is the officer card's — square, `object-top`, a hatch where there is
- * no photograph — because a member and an officer of the same club should not be
- * drawn to two different standards. What sits under it is different on purpose.
- * The board prints a seat and a name and nothing else, and this page has no
- * seats; it has a title only some people carry, an alumni badge only some cards
- * earn and a graduation year that may be null. Those are a chip and a line
- * rather than fixed caption rows, because an absent chip reads as absent while
- * an empty row reads as a mistake.
+ * The frame is the officer card's — square, `object-top`, a hatch where there's no photograph —
+ * because a member and an officer of the same club shouldn't be drawn to two different
+ * standards. What sits under it differs on purpose: the board prints a seat and a name, and this
+ * page has no seats. It has a title only some people carry, an alumni badge only some cards earn
+ * and a graduation year that may be null — a chip and a line rather than fixed caption rows,
+ * because an absent chip reads as absent while an empty row reads as a mistake.
  */
 function MemberCard({
   member,
@@ -284,12 +259,9 @@ function MemberCard({
           </div>
         )}
 
-        {/* Drawn only if the badge is. An empty flex row would still cost its
-            top margin, which is a gap under the title on exactly the cards that
-            had the least to say. It held a second chip — the member's standing
-            division — until the club stopped having those, and it stays a row
-            rather than a bare span because a card carrying one badge and a card
-            carrying two should not be laid out by two different rules. */}
+        {/* Drawn only if the badge is. An empty flex row would still cost its top margin, which
+            is a gap under the title on exactly the cards that had the least to say. It held a
+            second chip — the member's standing division — until the club stopped having those. */}
         {alumnus && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <span className="text-faint border-rule border px-2 py-0.5 font-mono text-[9px] font-medium tracking-[0.14em]">

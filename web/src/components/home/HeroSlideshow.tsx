@@ -17,34 +17,24 @@ import { imageSrc } from '../../lib/media/storedFiles'
 /**
  * The club's photographs, beside the headline.
  *
- * **This one moves on its own and the project gallery does not**, which is the
- * only real difference between them and worth saying why. A gallery is opened by
- * somebody who has already decided to look at a robot; the hero is the first
- * thing on the site, seen by somebody who is reading a headline, and a hero that
- * shows one photograph until it is clicked shows one photograph. So it rotates —
- * and everything below is the cost of doing that honestly:
+ * This one moves on its own and the project gallery doesn't, which is the only real difference
+ * between them. A gallery is opened by somebody who has already decided to look at a robot; the
+ * hero is the first thing on the site, and a hero that shows one photograph until it's clicked
+ * shows one photograph. So it rotates — and everything below is the cost of doing that honestly:
  *
- * - **It stops for anybody who asks.** `prefers-reduced-motion` means it never
- *   starts, and the play control is not drawn either — offering to start movement
- *   somebody has asked not to have is not a kindness. That is stricter than the
- *   global block in `index.css`, which only flattens the fade: an image swapping
- *   instantly every six seconds is still moving content.
- * - **It stops when anybody takes over.** Pressing an arrow, a dot, a key or
- *   swiping ends the rotation for the rest of the visit, because somebody who has
- *   said which picture they want should not have it taken away six seconds later.
- *   The pause control is how it is started again, and the only way.
- * - **It pauses under the pointer and under focus**, so a caption cannot change
- *   while it is being read, and a keyboard user tabbing through the controls is
- *   not chasing a moving target.
- * - **It pauses with the tab**, the same rule `useLabStatus` follows: a
- *   background tab advancing through eight photographs is work nobody asked for
- *   and nobody sees.
+ * - It stops for anybody who asks. `prefers-reduced-motion` means it never starts, and the play
+ *   control isn't drawn either. That's stricter than the global block in `index.css`, which only
+ *   flattens the fade: an image swapping instantly every six seconds is still moving content.
+ * - It stops when anybody takes over. An arrow, a dot, a key or a swipe ends the rotation for the
+ *   rest of the visit, because somebody who has said which picture they want shouldn't have it
+ *   taken away six seconds later.
+ * - It pauses under the pointer and under focus, so a caption can't change while it's being read.
+ * - It pauses with the tab, the same rule `useLabStatus` follows.
  *
- * Three slides are mounted at a time and the window wraps — see `inHeroWindow`
- * in `lib/heroSlides.ts` for why `loading="lazy"` cannot do that job.
+ * Three slides are mounted at a time and the window wraps — see `inHeroWindow` in
+ * `lib/heroSlides.ts` for why `loading="lazy"` can't do that job.
  *
- * It draws nothing at all with no slides. The empty case belongs to
- * `HeroSection`, which puts the rings and the wireframe trace back.
+ * It draws nothing at all with no slides; the empty case belongs to `HeroSection`.
  */
 export function HeroSlideshow({ slides }: { slides: ApiHeroSlide[] }) {
   const total = slides.length
@@ -59,10 +49,9 @@ export function HeroSlideshow({ slides }: { slides: ApiHeroSlide[] }) {
   const dragFrom = useRef<{ x: number; y: number } | null>(null)
 
   /**
-   * The one thing on this page that would keep moving with the tab in the
-   * background. `useLabStatus` pauses its polling for the same reason and with
-   * the same event; this is cheaper to get right, because nothing has to catch
-   * up on the way back — the photograph on screen is still a photograph.
+   * The one thing on this page that would keep moving with the tab in the background.
+   * `useLabStatus` pauses its polling for the same reason and with the same event; this is
+   * cheaper to get right, because nothing has to catch up on the way back.
    */
   useEffect(() => {
     const onVisibility = () => {
@@ -160,12 +149,10 @@ export function HeroSlideshow({ slides }: { slides: ApiHeroSlide[] }) {
       }}
       className="animate-rise"
     >
-      {/* The frame owns the aspect ratio, so the box exists at its final size
-          before a single byte arrives and does not move when one does. That is
-          the whole layout-shift story, and it matters more here than it does in
-          a project's gallery: this sits beside the headline, and anything that
-          resized late would shove the hero around. The hatch shows through until
-          a slide loads, and keeps showing if one never does. */}
+      {/* The frame owns the aspect ratio, so the box exists at its final size before a byte
+          arrives and doesn't move when one does. That matters more here than in a project's
+          gallery: this sits beside the headline, and anything that resized late would shove the
+          hero around. */}
       <div
         role="group"
         aria-label="Club photos"
@@ -261,14 +248,12 @@ export function HeroSlideshow({ slides }: { slides: ApiHeroSlide[] }) {
         </div>
       )}
 
-      {/* One line, and it keeps its height whether or not this photograph has a
-          caption — otherwise the buttons below the hero would move as the
-          slideshow ran.
+      {/* One line, and it keeps its height whether or not this photograph has a caption —
+          otherwise the buttons below the hero would move as the slideshow ran.
 
-          `aria-live` is off while it is rotating and polite once it has stopped,
-          which is the whole of the announcement policy: a region that spoke every
-          six seconds would talk over the page, and one that never spoke would
-          leave a keyboard reader pressing › into silence. */}
+          `aria-live` is off while it's rotating and polite once it has stopped: a region that
+          spoke every six seconds would talk over the page, and one that never spoke would leave a
+          keyboard reader pressing the arrow into silence. */}
       <p
         role="status"
         aria-live={rotating ? 'off' : 'polite'}

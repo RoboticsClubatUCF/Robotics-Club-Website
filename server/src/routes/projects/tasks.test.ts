@@ -11,10 +11,10 @@ import { createSession } from '../../auth/session.js'
 import { currentTerm } from '../../membership/semester.js'
 
 /**
- * Tasks, against the live database. The scoping mirrors events — team lead on
- * their own board, project lead everywhere in the project — so what earns its
- * keep here is the part that is looser on purpose: an assignee may tick their
- * own task whatever their rank, and nobody else below lead may touch it.
+ * Tasks, against the live database. The scoping mirrors events — team lead on their own board,
+ * project lead everywhere in the project — so what earns its keep here is the part that's looser
+ * on purpose: an assignee may tick their own task whatever their rank, and nobody else below lead
+ * may touch it.
  */
 
 const PREFIX = 'test-tasks-'
@@ -25,13 +25,11 @@ const clearWindows = () =>
 
 const clearRows = async () => {
   await prisma.project.deleteMany({ where: { slug: { startsWith: PREFIX } } })
-  // **A task with no project is reachable by neither delete above**, and that
-  // is why it needs its own. Deleting the fixture projects cascades their
-  // tasks; deleting the fixture users cascades `task_assignees` but not the
-  // task, because `Task.createdById` is `SetNull` by design — an officer
-  // leaving must not delete the club's work. So a project-less fixture
-  // survives both and stays in the real database for ever. It is namespaced by
-  // *title* instead, which is the only column one of these has to be found by.
+  // A task with no project is reachable by neither delete above, which is why it needs its own.
+  // Deleting the fixture projects cascades their tasks; deleting the fixture users cascades
+  // `task_assignees` but not the task, because `Task.createdById` is `SetNull` by design — an
+  // officer leaving must not delete the club's work. So a project-less fixture survives both and
+  // is namespaced by title instead.
   await prisma.task.deleteMany({
     where: { projectId: null, title: { startsWith: PREFIX } },
   })
@@ -74,12 +72,10 @@ beforeEach(async () => {
     ),
   )
 
-  // **Read the term rather than pinning one**, the rule `print.test.ts`
-  // follows: new tasks may only go on a project running this semester, so a
-  // fixture stamped with a literal year is refused for a fortnight every
-  // August — and refused as a 409, which reads like the route being broken
-  // rather than the fixture being out of date. The slug prefix is what keeps
-  // this off the club's own rows; the term never was.
+  // Read the term rather than pinning one, the rule `print.test.ts` follows: new tasks may only go
+  // on a project running this semester, so a fixture stamped with a literal year is refused for a
+  // fortnight every August — and refused as a 409, which reads like the route being broken rather
+  // than the fixture being out of date.
   const term = await currentTerm()
 
   const project = await prisma.project.create({

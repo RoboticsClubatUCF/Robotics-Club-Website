@@ -9,23 +9,19 @@ import { bodyOf, urlOf } from '../../test/stubFetch'
 /**
  * The roles desk: who is what, and who runs what.
  *
- * Three panels, three questions of the same shape, and the tests split along
- * the same line. Granting a term is the one that spends the club's money and is
- * the only one behind a confirmation. Appointing a project lead refuses rather
- * than swaps — the server answers 409 and the page prints its sentence, so the
- * test worth having is that the sentence survives rather than being flattened
- * into an apology. Appointing a team lead needs a project *and* a team, and the
- * people it offers are the project's roster rather than every account.
+ * Three panels, three questions of the same shape, and the tests split along the same line.
+ * Granting a term is the one that spends the club's money and the only one behind a
+ * confirmation. Appointing a project lead refuses rather than swaps — the server answers 409
+ * and the page prints its sentence, so the test worth having is that the sentence survives
+ * rather than being flattened into an apology. Appointing a team lead needs a project and a
+ * team, and the people it offers are the project's roster rather than every account.
  *
- * Neither project nor member is a drop-down any more, so a test that used to
- * set a select's value now types and clicks a row. That is the whole difference
- * — the ids on the wire are the same ones.
+ * Neither project nor member is a drop-down any more, so a test that used to set a select's
+ * value now types and clicks a row. The ids on the wire are the same ones.
  *
- * The picker's own behaviour — debounce, minimum length, abort — is tested here
- * because this is the page that carries it now. Fake timers for the debounce,
- * and `advanceTimersByTimeAsync` inside `act` to flush it; never `findBy*` or
- * `waitFor` under fake timers, which would sit there advancing nothing until
- * the test times out.
+ * The picker's own behaviour — debounce, minimum length, abort — is tested here because this is
+ * the page that carries it. Fake timers for the debounce, and `advanceTimersByTimeAsync` inside
+ * `act` to flush it; never `findBy*` or `waitFor` under fake timers.
  */
 
 const term: ApiTerm = {
@@ -190,11 +186,10 @@ const project = (
 })
 
 /**
- * Two terms and three builds, sent in the order `/projects` really sends them
- * — which is the landing page's order, not the picker's. The list here is what
- * makes the search worth testing at all: one title that is a prefix of nothing,
- * one older term to find by year, and two rows to tell the sort from the wire
- * order.
+ * Two terms and three builds, sent in the order `/projects` really sends them — the landing
+ * page's order, not the picker's. The list is what makes the search worth testing at all: one
+ * title that's a prefix of nothing, one older term to find by year, and two rows to tell the
+ * sort from the wire order.
  */
 const PROJECTS = [
   project('p3', 'Combat Bot', 2034, 'SPRING'),
@@ -203,10 +198,9 @@ const PROJECTS = [
 ]
 
 /**
- * The seats there are, as the route sends them — straight out of
- * `OfficerPosition`, in board order. The frontend no longer keeps this list,
- * which is the point: a ninth seat in the schema reaches the page without a
- * frontend edit, so the fixture is what stands in for the database here.
+ * The seats there are, as the route sends them — straight out of `OfficerPosition`, in board
+ * order. The frontend no longer keeps this list, which is the point: a ninth seat in the schema
+ * reaches the page without a frontend edit.
  */
 const SEATS = [
   'PRESIDENT',
@@ -220,10 +214,9 @@ const SEATS = [
 ] as const
 
 /**
- * Today's board as the seat panel lists it. One seated officer, one on the
- * board with no chair yet — which is what the Discord sync creates before
- * anybody has been given one — and the advisor, who holds a seat as a plain
- * member.
+ * Today's board as the seat panel lists it. One seated officer, one on the board with no chair
+ * yet — what the Discord sync creates before anybody has been given one — and the advisor, who
+ * holds a seat as a plain member.
  */
 const BOARD = [
   {
@@ -441,11 +434,9 @@ describe('appointing a project lead', () => {
   })
 
   /**
-   * A project has one lead and the server refuses rather than swapping. It
-   * answers 409 naming whoever is sitting there, and no code here handles that
-   * case — the officer reads who it is and presses DEMOTE, the button beside
-   * this one. What this asserts is that the server's sentence reaches them
-   * intact rather than as a generic failure.
+   * A project has one lead and the server refuses rather than swapping. It answers 409 naming
+   * whoever is sitting there, and no code here handles that case — the officer reads who it is
+   * and presses DEMOTE. What this asserts is that the server's sentence reaches them intact.
    */
   it('prints the server sentence naming the sitting lead', async () => {
     vi.useFakeTimers()
@@ -602,10 +593,9 @@ describe('appointing a team lead', () => {
   }
 
   /**
-   * The member list is the project's roster rather than every account, and that
-   * is what makes the route's own rules reachable: it 404s for somebody not on
-   * the project and refuses outright if the target is the project lead. The
-   * search box narrows that roster; it never reaches past it.
+   * The member list is the project's roster rather than every account, and that's what makes the
+   * route's own rules reachable: it 404s for somebody not on the project and refuses outright if
+   * the target is the project lead. The search box narrows that roster; it never reaches past it.
    */
   it('offers the project roster once a project is picked', async () => {
     vi.useFakeTimers()
@@ -826,11 +816,10 @@ describe('the member picker', () => {
 /**
  * The seat panel.
  *
- * The thing worth protecting here is that a **seat** and a **club role** are
- * different facts. Discord decides who is an officer; this decides which chair
- * they sit in, and it must be able to seat somebody who is not an officer at
- * all — that is how the faculty advisor is on the board — and to seat an admin,
- * which `UserRole` could never express because it has one slot per person.
+ * The thing worth protecting is that a seat and a club role are different facts. Discord decides
+ * who is an officer; this decides which chair they sit in, and it must be able to seat somebody
+ * who isn't an officer at all — that's how the faculty advisor is on the board — and to seat an
+ * admin, which `UserRole` could never express.
  */
 describe('OfficerRolesPage — the officer board', () => {
   it('lists who is on the board, seat and all', async () => {
@@ -1025,10 +1014,9 @@ describe('OfficerRolesPage — the officer board', () => {
 /**
  * Rotation day.
  *
- * Flipping the Discord roles leaves the club with officers who have no chairs
- * and a front page reading "Seat open" eight times, and nothing says so. These
- * two — the work list and the one-press hand-over — are what make the handover
- * a task rather than an archaeology exercise.
+ * Flipping the Discord roles leaves the club with officers who have no chairs and a front page
+ * reading "Seat open" eight times, and nothing says so. These two — the work list and the
+ * one-press hand-over — are what make the handover a task rather than archaeology.
  */
 describe('OfficerRolesPage — handing the board over', () => {
   it('counts what is left to do, and names it while the list is short', async () => {

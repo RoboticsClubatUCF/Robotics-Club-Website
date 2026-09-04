@@ -4,10 +4,10 @@ import { inHeroWindow, prefersReducedMotion, stepIndex } from './heroSlides'
 /**
  * The two functions the front page's slideshow is built out of, without a DOM.
  *
- * Both differ from the project gallery's version in the same way — they wrap —
- * and both are total, because the officer desk renders the same component
- * against a list it is editing: a photograph removed under the index must not be
- * able to put `NaN` into a style or an undefined slide on the page.
+ * Both differ from the project gallery's version in the same way — they wrap — and both are total,
+ * because the officer desk renders the same component against a list it is editing: a photograph
+ * removed under the index must not be able to put `NaN` into a style or an undefined slide on the
+ * page.
  */
 
 afterEach(() => {

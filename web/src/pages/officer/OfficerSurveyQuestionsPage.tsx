@@ -25,26 +25,20 @@ import { duesLocked } from '../../lib/dues/dues'
 /**
  * `/dashboard/officer/survey/questions` — what the club asks its members.
  *
- * **The survey used to be five columns in Postgres.** Adding a question meant a
- * migration, a route change and a deploy, so the answer to "can we also ask
- * which build night people can make" was no, every August, for a year. The
- * questions are rows now and this is where they are written.
+ * The survey used to be five columns in Postgres. Adding a question meant a migration, a route
+ * change and a deploy, so the answer to "can we also ask which build night people can make" was
+ * no, every August, for a year. The questions are rows now and this is where they're written.
  *
- * **Nothing here can lock anybody out**, and the page says so, because that is
- * the fear that would otherwise stop an officer touching it. `surveyCompletedAt`
- * is stamped once and never moves: a new required question is asked of whoever
- * has not answered it the next time they open the form, and the people already
- * through the gate stay through it.
+ * Nothing here can lock anybody out, and the page says so, because that's the fear that would
+ * otherwise stop an officer touching it. `surveyCompletedAt` is stamped once and never moves.
  *
- * **REMOVE is not a delete once anybody has answered.** The question is retired
- * — off the form, off the tallies, out of the CSV — and its answers are kept,
- * because "stop asking this" and "throw away what forty people told us" are not
- * the same instruction and there is nothing at the button that could tell them
- * apart. The card says which of the two the press will do before it is pressed.
+ * REMOVE isn't a delete once anybody has answered. The question is retired — off the form, off the
+ * tallies, out of the CSV — and its answers are kept, because "stop asking this" and "throw away
+ * what forty people told us" aren't the same instruction. The card says which of the two the press
+ * will do before it's pressed.
  *
- * Its own route rather than a tab on the tallies desk: those are a page you
- * read across, this is a page you work down, and the two want different widths
- * and different states. They link to each other, both ways.
+ * Its own route rather than a tab on the tallies desk: those are a page you read across, this is a
+ * page you work down.
  */
 export function OfficerSurveyQuestionsPage() {
   const { user, membership } = useOutletContext<DashboardContext>()
@@ -201,12 +195,11 @@ function Editor() {
   }, [load])
 
   /**
-   * Every write goes through here, and every one of them re-reads afterwards.
+   * Every write goes through here, and every one re-reads afterwards.
    *
-   * One source of truth for the page, the same rule the dues page follows —
-   * and it matters more here than it usually does, because what a write did is
-   * not always what it was asked to do: removing a question with answers on it
-   * retires it, and half the fields on a card are counts only the server knows.
+   * One source of truth for the page, the same rule the dues page follows — and it matters more
+   * here, because what a write did isn't always what it was asked to do: removing a question with
+   * answers on it retires it, and half the fields on a card are counts only the server knows.
    */
   const run = async (act: () => Promise<unknown>) => {
     setBusy(true)
@@ -657,9 +650,8 @@ function QuestionForm({
         </select>
         {kindLocked && (
           <p className="text-faint mt-1.5 text-[12px] leading-[1.5] text-pretty">
-            People have already answered this one, so this cannot change &mdash;
-            a written answer is not a tick, and there is no honest way to convert
-            the answers. Remove it and ask a new question instead.
+            People have already answered this one, so this cannot change. Remove
+            it and ask a new question instead.
           </p>
         )}
       </div>

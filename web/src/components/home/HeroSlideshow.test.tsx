@@ -5,20 +5,17 @@ import type { ApiHeroSlide } from '../../lib/api/api'
 import { HERO_ADVANCE_MS } from '../../lib/heroSlides'
 
 /**
- * The one thing on this site that moves without being asked to, which is why
- * every case here is about it stopping.
+ * The one thing on this site that moves without being asked to, which is why every case here is
+ * about it stopping.
  *
- * The arithmetic — wrapping, the mount window — is pinned in
- * `lib/heroSlides.test.ts` without a DOM. What needs a DOM is the timer: that it
- * runs, that a press ends it, that the pause control ends it, and that a
- * backgrounded tab does. Those are the four ways somebody is not looking at a
- * photograph changing, and getting any of them wrong is invisible in a
- * screenshot.
+ * The arithmetic — wrapping, the mount window — is pinned in `lib/heroSlides.test.ts` without a
+ * DOM. What needs a DOM is the timer: that it runs, that a press ends it, that the pause control
+ * ends it, and that a backgrounded tab does. Those are the four ways somebody is not looking at a
+ * photograph changing, and getting any of them wrong is invisible in a screenshot.
  *
- * **Nothing here asserts on opacity**, because jsdom never fires an image's
- * `load` event: every slide stays at `opacity-0` under test whatever the state
- * says. `aria-hidden` is the honest handle — it tracks which slide is showing
- * and nothing else — and the caption line is the other.
+ * Nothing here asserts on opacity, because jsdom never fires an image's `load` event: every slide
+ * stays at `opacity-0` under test whatever the state says. `aria-hidden` is the honest handle — it
+ * tracks which slide is showing and nothing else — and the caption line is the other.
  */
 
 const slide = (id: string, caption: string | null): ApiHeroSlide => ({

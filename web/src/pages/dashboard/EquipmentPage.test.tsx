@@ -13,10 +13,10 @@ import {
 /**
  * The page's job is to be honest about what is free before anybody asks.
  *
- * An item with nothing left is shown and disabled, not hidden — "the drill is
- * all out" answers the question a member came with, and a missing card just
- * looks like the club has no drill. The same goes for something they already
- * have: the card says so rather than letting them ask twice into a 409.
+ * An item with nothing left is shown and disabled, not hidden — "the drill is all out" answers the
+ * question a member came with, and a missing card just looks like the club has no drill. The same
+ * goes for something they already have: the card says so rather than letting them ask twice into a
+ * 409.
  */
 
 const item = (over: Partial<ApiEquipment> = {}): ApiEquipment => ({
@@ -272,11 +272,10 @@ describe('EquipmentPage', () => {
   })
 
   /**
-   * The regression. A date box takes a year of four *or more* digits, so a
-   * slipped keystroke gives `12345-08-14` — which `new Date` cannot parse, so
-   * the day count came out `NaN`, `NaN > maxLoanDays` was false, and the cap
-   * check waved a three-hundred-millennium loan straight through. The submit
-   * that followed threw a `RangeError` out of the click handler.
+   * The regression. A date box takes a year of four or more digits, so a slipped keystroke gives
+   * `12345-08-14` — which `new Date` cannot parse, so the day count came out `NaN`,
+   * `NaN > maxLoanDays` was false, and the cap check waved a three-hundred-millennium loan through.
+   * The submit that followed threw a `RangeError` out of the click handler.
    */
   it('refuses a year with too many digits in it, in both boxes', async () => {
     const fetchStub = stubFetch({

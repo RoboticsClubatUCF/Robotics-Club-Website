@@ -7,19 +7,17 @@ import { HeroSlideshow } from './HeroSlideshow'
 import { LabStatus } from './LabStatus'
 
 /**
- * What the hero says when the request for it did not land.
+ * What the hero says when the request for it didn't land.
  *
- * **Only when it failed, never while it is still out.** The two states are
- * genuinely different: an answer that has not come back yet is a headline nobody
- * has been told is wrong, so the hero holds its shape and fills in; an answer
- * that will never come back would otherwise leave a permanent pulse where the
- * largest words on the site go.
+ * Only when it failed, never while it's still out. The two states are genuinely different: an
+ * answer that hasn't come back yet is a headline nobody has been told is wrong, so the hero
+ * holds its shape and fills in; one that will never come back would leave a permanent pulse
+ * where the largest words on the site go.
  *
- * It is a copy of what the club currently leads with, and it is allowed to go
- * stale — the day it does is a day the API is unreachable, and a slightly old
- * headline beats a blank one on the page a first-time visitor lands on. Kept
- * here rather than in `content/home.ts` because it is not the copy: the copy is
- * a row that officers write, and this is what to draw when nothing answered.
+ * It's a copy of what the club currently leads with, and it's allowed to go stale — the day it
+ * does is a day the API is unreachable. Kept here rather than in `content/home.ts` because it
+ * isn't the copy: the copy is a row that officers write, and this is what to draw when nothing
+ * answered.
  */
 const UNREACHABLE = {
   headline: 'Building Our Future,',
@@ -30,20 +28,16 @@ const UNREACHABLE = {
 /**
  * The headline, and the club's photographs beside it.
  *
- * **The right half used to be artwork and is now content.** Two rings and a
- * wireframe trace of the mark were what the hero had instead of a picture, which
- * was the right answer while nothing here could hold one; the club's own photos
- * are better, and officers put them there from `/dashboard/officer/front-page`
- * without a deploy.
+ * The right half used to be artwork and is now content. Two rings and a wireframe trace of the
+ * mark were what the hero had instead of a picture, which was the right answer while nothing
+ * here could hold one; officers put photographs there now without a deploy.
  *
- * The artwork is still what shows when there are no photographs — see below for
- * why that is a state worth keeping rather than a fallback nobody meets.
+ * The artwork is still what shows when there are no photographs — see below for why that's a
+ * state worth keeping rather than a fallback nobody meets.
  *
- * **The headline moved the same way the photographs did.** It was two lines and
- * a paragraph in `content/home.ts`, which made changing what the club leads with
- * a pull request; it is a row now, and `HomePage` hands it down. The copy is not
- * fetched here because two other sections want the same answer — see the note on
- * that component.
+ * The headline moved the same way. It was two lines and a paragraph in `content/home.ts`, which
+ * made changing what the club leads with a pull request; it's a row now, and `HomePage` hands it
+ * down.
  */
 export function HeroSection({ copy }: { copy: ApiState<ApiFrontPage> }) {
   const slides = useApi<ApiHeroSlide[]>('/hero-slides')
@@ -52,27 +46,22 @@ export function HeroSection({ copy }: { copy: ApiState<ApiFrontPage> }) {
   /**
    * The decoration, drawn only once the answer is in and the answer is "none".
    *
-   * Not while loading, which is the detail that matters: rings drawn on the way
-   * to a photograph would be a visible swap on every cold load, for the benefit
-   * of nothing. An empty right half for the length of one request is invisible;
-   * a ring dissolving into a robot is not.
+   * Not while loading, which is the detail that matters: rings drawn on the way to a photograph
+   * would be a visible swap on every cold load. An empty right half for the length of one
+   * request is invisible; a ring dissolving into a robot is not.
    *
-   * A failed request lands here too, and that is deliberate. Every other panel
-   * on this page degrades to a short message, because "no events" and "we can't
-   * reach the server" are different things somebody may act on. Here they are
-   * not: nobody is coming to the landing page to find out whether the club has
-   * uploaded photographs, so both answers get the hero the site has always had
-   * rather than an apology beside the headline.
+   * A failed request lands here too, deliberately. Every other panel degrades to a short message,
+   * because "no events" and "we can't reach the server" are different things somebody may act
+   * on. Here they aren't: nobody comes to the landing page to find out whether the club has
+   * uploaded photographs.
    */
   const decorated = slides.status !== 'loading' && showing.length === 0
 
   /**
-   * Three states and two answers. A request still out is drawn rather than
-   * written — `Waiting` below is sized in `em` of the type it stands in for, so
-   * the hero is exactly as tall before the copy lands as after, which matters
-   * more here than anywhere else on the site: this is the top of the page, and
-   * anything that grows here pushes everything under it down while somebody is
-   * reaching for a button.
+   * Three states and two answers. A request still out is drawn rather than written — `Waiting` is
+   * sized in `em` of the type it stands in for, so the hero is exactly as tall before the copy
+   * lands as after. That matters more here than anywhere: this is the top of the page, and
+   * anything that grows pushes everything under it down while somebody is reaching for a button.
    */
   const words = copy.status === 'ready' ? copy.data : UNREACHABLE
   const waiting = copy.status === 'loading'
@@ -84,14 +73,11 @@ export function HeroSection({ copy }: { copy: ApiState<ApiFrontPage> }) {
     >
       {decorated && (
         <>
-          {/* Two concentric rings bleeding off the right edge, one static and
-              one turning. Purely decorative, so they are hidden from assistive
-              tech and made inert to the pointer.
+          {/* Two concentric rings bleeding off the right edge, one static and one turning. Purely
+              decorative, so hidden from assistive tech and inert to the pointer.
 
-              Gone entirely below the breakpoint. A phone has no right half to
-              decorate — the rings ran under the headline instead of beside it,
-              and an animation nobody asked for costs a battery something even
-              where it reads as texture. */}
+              Gone entirely below the breakpoint. A phone has no right half to decorate — the
+              rings ran under the headline instead of beside it. */}
           <div
             aria-hidden
             className="border-primary/15 pointer-events-none absolute -top-15 -right-30 hidden size-130 rounded-full border wide:block"
@@ -101,14 +87,13 @@ export function HeroSection({ copy }: { copy: ApiState<ApiFrontPage> }) {
             className="border-primary/10 animate-orbit pointer-events-none absolute top-10 -right-10 hidden size-90 rounded-full border border-dashed wide:block"
           />
 
-          {/* The mark as a hairline trace, sitting inside both rings. The offsets
-              are not arbitrary: both rings are centred on the same point, 140px
-              in from the section's right edge and about 210px down, and these put
-              the trace's centre there too. Move a ring, move this.
+          {/* The mark as a hairline trace, sitting inside both rings. The offsets aren't
+              arbitrary: both rings are centred on the same point, 140px in from the section's
+              right edge and about 210px down, and these put the trace's centre there too. Move a
+              ring, move this.
 
-              Only above the breakpoint. The rings can bleed off a phone's right
-              edge and still read as texture; a recognisable mark landing on the
-              headline would just look like a mistake. */}
+              Only above the breakpoint: a recognisable mark landing on the headline would look
+              like a mistake. */}
           <div
             aria-hidden
             /* A background rather than an `<img>`, because a hidden `<img>` is
@@ -125,29 +110,22 @@ export function HeroSection({ copy }: { copy: ApiState<ApiFrontPage> }) {
         </>
       )}
 
-      {/* **Two columns at `wide`, whatever the answer turns out to be**, and that
-          is a layout-shift decision rather than a design one. The second track is
-          reserved before the request lands, so a photograph arriving fills a hole
-          that was already there instead of pushing the headline sideways — and
-          when there is no photograph the rings above bleed through the same
-          space, which is exactly where they always were.
+      {/* Two columns at `wide`, whatever the answer turns out to be, and that's a layout-shift
+          decision rather than a design one. The second track is reserved before the request
+          lands, so a photograph arriving fills a hole that was already there instead of pushing
+          the headline sideways — and with no photograph the rings bleed through the same space.
 
-          **The track is sized off the three-quarter line, and that is the whole
-          of it.** The picture is flush to the right gutter, so its centre sits at
-          `viewport - gutter - width/2`; setting that equal to `0.75 × viewport`
-          gives `width = 50vw - 2 × gutter` and nothing else does. Written that
-          way rather than as the 872px it comes to on a 1920 screen, because it
-          has to hold at every width — and written through `--spacing-page` so it
-          still holds if the gutter ever moves.
+          The track is sized off the three-quarter line. The picture is flush to the right gutter,
+          so its centre sits at `viewport - gutter - width/2`; setting that equal to
+          `0.75 x viewport` gives `width = 50vw - 2 x gutter` and nothing else does. Written that
+          way rather than as the 872px it comes to on a 1920 screen, because it has to hold at
+          every width — and through `--spacing-page` so it holds if the gutter moves.
 
-          It is also what closes the canyon. The copy column is `1fr`, so every
-          pixel this track does not take, it takes — and the text inside it has
-          its own natural widths, so the surplus used to land as dead space
-          between the headline and the picture rather than as a wider headline.
+          It's also what closes the canyon. The copy column is `1fr`, so every pixel this track
+          doesn't take, it takes.
 
-          The 56rem cap is for a monitor wide enough that the formula stops being
-          about halves: past there a photograph is not beside the headline any
-          more, it is the page. */}
+          The 56rem cap is for a monitor wide enough that the formula stops being about halves:
+          past there a photograph isn't beside the headline, it is the page. */}
       <div className="animate-rise relative grid items-center gap-10 wide:grid-cols-[minmax(0,1fr)_clamp(17rem,calc(50vw_-_2_*_var(--spacing-page)),56rem)]">
         <div className="min-w-0">
           {/* Above the headline, because it is the only thing in the hero that
@@ -156,20 +134,15 @@ export function HeroSection({ copy }: { copy: ApiState<ApiFrontPage> }) {
               the headline does not move when the answer lands. */}
           <LabStatus />
 
-          {/* Fluid at both sizes now, and the second clamp is what pays for the
-              column beside it. The two lines are fixed by the `<br>`, so each has
-              to fit its column outright — at a flat 5.25rem it did across the
-              whole page and does not across half of it, and a headline that wraps
-              to four lines is a different design rather than a smaller one.
+          {/* Fluid at both sizes now, and the second clamp is what pays for the column beside it.
+              The two lines are fixed by the `<br>`, so each has to fit its column outright — at a
+              flat 5.25rem it did across the whole page and doesn't across half of it, and a
+              headline that wraps to four lines is a different design rather than a smaller one.
 
-              **4.5vw is what the half above leaves room for.** The longest line
-              measures a little over nine times the font size, and the column the
-              picture leaves is `50vw - 40px`; 4.5 clears that at every width from
-              the breakpoint up with room to spare, where 5 was already inside its
-              own rounding error. It still reaches the full 5.25rem — the cap
-              lands around 1870px rather than 1680, which is the whole price of
-              the bigger picture, and it is paid at widths nobody is reading a
-              hero on. */}
+              4.5vw is what the half above leaves room for: the longest line measures a little
+              over nine times the font size, and the column the picture leaves is `50vw - 40px`.
+              It still reaches the full 5.25rem, around 1870px rather than 1680 — the price of the
+              bigger picture, paid at widths nobody reads a hero on. */}
           <h1 className="mb-6.5 text-[clamp(1.75rem,7.5vw,2.75rem)] leading-[0.94] font-bold tracking-[-0.03em] text-pretty wide:text-[clamp(2.5rem,4.5vw,5.25rem)]">
             {/* One skeleton for both lines rather than one each: the `<br>`
                 between them would otherwise add a line box of its own and make
@@ -225,14 +198,11 @@ export function HeroSection({ copy }: { copy: ApiState<ApiFrontPage> }) {
 }
 
 /**
- * A bar the size of the words it is standing in for.
+ * A bar the size of the words it's standing in for.
  *
- * In `em` rather than in `rem` or pixels, which is what makes one component
- * work for a headline that clamps between 1.75rem and 5.25rem and for a
- * paragraph that does not: it inherits the font size of whatever it is inside.
- * `aria-hidden` because there is nothing here to read out — the section is
- * marked busy by the page around it, and a screen reader announcing three grey
- * rectangles is worse than silence.
+ * In `em` rather than `rem` or pixels, which is what makes one component work for a headline
+ * that clamps between 1.75rem and 5.25rem and for a paragraph that doesn't: it inherits the font
+ * size of whatever it's inside. `aria-hidden` because there's nothing here to read out.
  */
 function Waiting({
   width,

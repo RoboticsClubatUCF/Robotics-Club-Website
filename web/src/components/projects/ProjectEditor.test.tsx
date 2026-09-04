@@ -45,15 +45,13 @@ const project = (over: Partial<ApiProjectDetail> = {}): ApiProjectDetail => ({
 })
 
 /**
- * The editor makes reads of its own that no test here is about: the roster, once
- * per mount, because the team section cannot draw a row without it; and both
- * `/projects` listings after a clean save, to replace the cached copies the lead
- * is about to go and look at.
+ * The editor makes reads of its own that no test here is about: the roster, once per mount,
+ * because the team section can't draw a row without it; and both `/projects` listings after a
+ * clean save, to replace the cached copies the lead is about to look at.
  *
- * `isRoster` answers the first so the tests are not full of caught errors, and
- * `writesOf` keeps every call-counting assertion about what was actually sent.
- * **By method rather than by path**: a read added to the editor later must not
- * quietly start counting as a write in a suite that has stopped mentioning it.
+ * `isRoster` answers the first so the tests aren't full of caught errors, and `writesOf` keeps
+ * every call-counting assertion about what was actually sent — by method rather than by path, so
+ * a read added later can't quietly start counting as a write.
  */
 const isRoster = (input: string | URL | Request) => urlOf(input).includes('/team')
 
@@ -71,10 +69,10 @@ const json = (body: unknown, status = 200) =>
   )
 
 /**
- * The editor is controlled: it never holds the project, it hands every change
- * back through `apply` and re-renders from what its parent then passes down.
- * So the harness has to hold that state, or nothing the editor does appears —
- * which is exactly how a stateless harness quietly tests half a component.
+ * The editor is controlled: it never holds the project, it hands every change back through
+ * `apply` and re-renders from what its parent passes down. So the harness has to hold that state,
+ * or nothing the editor does appears — which is exactly how a stateless harness quietly tests
+ * half a component.
  */
 function Harness({ initial }: { initial: ApiProjectDetail }) {
   const [current, setCurrent] = useState(initial)
@@ -155,14 +153,12 @@ describe('ProjectEditor', () => {
   })
 
   /**
-   * **Choosing a file used to be the upload.** It is a row in the draft now, and
-   * the page's SAVE is what sends it — which is the whole point of the change: a
-   * photo dropped into the gallery while somebody is still deciding is not on the
-   * public site until they say so.
+   * Choosing a file used to be the upload. It's a row in the draft now, and the page's SAVE is
+   * what sends it — which is the point of the change: a photo dropped into the gallery while
+   * somebody is still deciding isn't on the public site until they say so.
    *
-   * The jsdom trap is unchanged and still worth the assertion: `new FormData(form)`
-   * cannot see a file input's file, yielding one with an empty name and zero
-   * size. The file is taken off the change event and the body built by hand.
+   * The jsdom trap is unchanged and still worth the assertion: `new FormData(form)` can't see a
+   * file input's file, yielding one with an empty name and zero size.
    */
   it('holds a chosen file until the page is saved, then uploads it', async () => {
     const fetchMock = vi.fn((input: string | URL | Request, _init?: RequestInit) =>
@@ -357,18 +353,14 @@ describe('ProjectEditor', () => {
   })
 
   /**
-   * The editor is controlled and never re-reads the project — `/projects/:slug`
-   * is publicly cached, so a read straight after a write can answer with the
-   * copy from before it. That makes what the save returns the only thing standing
-   * between the response and the page, and any column the response leaves out
-   * lands as `undefined`.
+   * The editor is controlled and never re-reads the project — `/projects/:slug` is publicly
+   * cached, so a read straight after a write can answer with the copy from before it. That makes
+   * what the save returns the only thing between the response and the page, and any column the
+   * response leaves out lands as `undefined`.
    *
-   * `description` was exactly that column, and the damage was not the missing
-   * paragraph: `dirty` compares the typed text against the project, so a project
-   * whose write-up came back blank stayed dirty *after a save that worked* — an
-   * "Unsaved changes." that would not go away and the leave-the-page dialog on
-   * top of it. The route's answer now carries it; this is the half of that
-   * contract living in the browser.
+   * `description` was exactly that column, and the damage wasn't the missing paragraph: `dirty`
+   * compares the typed text against the project, so a project whose write-up came back blank
+   * stayed dirty after a save that worked.
    */
   it('keeps the write-up and settles to SAVED after a save', async () => {
     const written = 'Two years of chassis work.'
@@ -463,11 +455,10 @@ describe('ProjectEditor', () => {
   })
 
   /**
-   * Framing is state until the page is saved, so the row's patch carries the
-   * caption alongside it — the draft is where both live and there is nothing left
-   * to overwrite. It used to send the three framing fields alone, precisely
-   * because a caption typed and not yet blurred would have been clobbered by the
-   * picture being moved.
+   * Framing is state until the page is saved, so the row's patch carries the caption alongside it
+   * — the draft is where both live and there's nothing left to overwrite. It used to send the
+   * three framing fields alone, precisely because a caption typed and not yet blurred would have
+   * been clobbered by the picture being moved.
    */
   it('sends the framing with the caption, in one patch per changed picture', async () => {
     const fetchMock = vi.fn((input: string | URL | Request, _init?: RequestInit) =>

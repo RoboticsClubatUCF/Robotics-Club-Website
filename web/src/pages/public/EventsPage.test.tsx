@@ -5,10 +5,9 @@ import type { ApiEvent } from '../../lib/api/api'
 import { stubFetch, stubFetchNetworkError, urlOf } from '../../test/stubFetch'
 
 /**
- * No router here, unlike the other three new pages: the one link that leaves
- * this page carries a hash and is therefore a plain `<a>`, which is the rule in
- * `.claude/docs/frontend.md`. If that ever becomes a `<Link>` this suite needs a
- * `MemoryRouter` — see `AboutPage.test.tsx`.
+ * No router here, unlike the other three new pages: the one link that leaves this page carries a
+ * hash and is therefore a plain `<a>`, which is the rule in `.claude/docs/frontend.md`. If that
+ * ever becomes a `<Link>` this suite needs a `MemoryRouter` — see `AboutPage.test.tsx`.
  */
 const render = () => renderPage(<EventsPage />)
 

@@ -5,20 +5,17 @@ import { sweepTaskReminders } from './taskReminder.js'
 import { Season, UserRole } from '../generated/prisma/enums.js'
 
 /**
- * The overdue-task DM, and the property that matters: exactly one per deadline,
- * and one message per person rather than one per task.
+ * The overdue-task DM, and the property that matters: exactly one per deadline, and one message per
+ * person rather than one per task.
  *
- * **This sweep is roster-wide.** It takes every unsettled task whose deadline
- * has just passed, not only the ones these tests made — the same trap
- * `equipmentReminder.test.ts` documents. The isolation here is the clock:
- * every fixture deadline is in **2035** and every call passes a 2035 `now`, so
- * the window the sweep looks at cannot contain a real task.
- * Nothing belonging to a real member is claimed, messaged, or written to.
+ * This sweep is roster-wide — it takes every unsettled task whose deadline has just passed, not
+ * only the ones these tests made, the same trap `equipmentReminder.test.ts` documents. The
+ * isolation here is the clock: every fixture deadline is in 2035 and every call passes a 2035
+ * `now`, so the window the sweep looks at cannot contain a real task.
  *
- * Both Discord calls are stubbed for the usual reasons — one would DM a real
- * account and the other would search the club's actual guild — and
- * `discordConfigured` is forced true because the sweep declines to run without
- * a bot, which is not something the assertions should depend on.
+ * Both Discord calls are stubbed for the usual reasons — one would DM a real account and the other
+ * would search the club's actual guild — and `discordConfigured` is forced true because the sweep
+ * declines to run without a bot, which is not something the assertions should depend on.
  */
 vi.mock('./discord.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./discord.js')>()),

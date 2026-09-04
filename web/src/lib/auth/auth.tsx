@@ -5,14 +5,14 @@ import { SessionContext, type SessionState } from './session'
 /**
  * Who is signed in, for the whole app.
  *
- * Deliberately a context rather than a `useApi` call per component. Three
- * separate places want the answer — the nav, the dashboard and the dues page —
- * and `useApi` has no cache, so each would ask independently and the nav would
- * flicker from "sign in" to a name after the page below it had already settled.
+ * Deliberately a context rather than a `useApi` call per component. Three separate places want the
+ * answer — the nav, the dashboard and the dues page — and `useApi` has no cache, so each would ask
+ * independently and the nav would flicker from "sign in" to a name after the page below it had
+ * already settled.
  *
- * Nothing about the session is kept in `localStorage`. The session *is* the
- * cookie, which is `httpOnly` and so unreadable from here on purpose; this
- * holds only what the server said about it, and asks again on load.
+ * Nothing about the session is kept in `localStorage`. The session is the cookie, which is
+ * `httpOnly` and so unreadable from here on purpose; this holds only what the server said about it,
+ * and asks again on load.
  *
  * The context and the hook live in `session.ts` — see the note there.
  */

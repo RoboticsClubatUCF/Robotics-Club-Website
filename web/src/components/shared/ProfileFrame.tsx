@@ -4,26 +4,22 @@ import { profileSiteName } from '../../lib/format/profileLink'
 /**
  * The square a face sits in, and the link out of it where there is one.
  *
- * Two pages draw a grid of photographs — the officer board and `/members` — and
- * both of them now answer the same question when somebody clicks a face: take
- * me to that person. Where the member has given a profile link the frame *is*
- * the anchor; where they have not it is a plain box, exactly as it was. Nothing
- * else about either card changes, which is why this takes the frame's classes
- * rather than owning them: the board's square and the roster's square are the
- * same square on purpose, and neither page has given up the right to say so.
+ * Two pages draw a grid of photographs — the officer board and `/members` — and both now answer the
+ * same question when somebody clicks a face: take me to that person. Where the member has given a
+ * profile link the frame is the anchor; where they have not it is a plain box, exactly as before.
+ * It takes the frame's classes rather than owning them: the board's square and the roster's square
+ * are the same square on purpose, and neither page has given up the right to say so.
  *
- * **The link needs a name and the photograph cannot give it one.** Every avatar
- * on this site is `alt=""` because the person's name is printed directly
- * underneath and announcing the image would read them out twice — which is
- * right for a picture and useless for a link, whose whole accessible name would
- * then be the empty string. So the anchor carries "Jane Doe on LinkedIn",
- * assembled here, and the image stays decorative.
+ * The link needs a name and the photograph cannot give it one. Every avatar on this site is
+ * `alt=""` because the person's name is printed directly underneath and announcing the image would
+ * read them out twice — right for a picture and useless for a link, whose whole accessible name
+ * would then be the empty string. So the anchor carries "Jane Doe on LinkedIn", assembled here, and
+ * the image stays decorative.
  *
- * `rel` is four values and each earns its place. `noopener` and `noreferrer`
- * are the site's standing pair for anything opening in a new tab. `nofollow`
- * and `ugc` are here because this is the one link on the site whose destination
- * an ordinary member chose: they say the club is not vouching for it, which is
- * true and is the point of the allowlist behind it as well.
+ * `rel` is four values and each earns its place. `noopener` and `noreferrer` are the site's
+ * standing pair for anything opening in a new tab. `nofollow` and `ugc` are here because this is
+ * the one link on the site whose destination an ordinary member chose: they say the club is not
+ * vouching for it.
  */
 export function ProfileFrame({
   profileUrl,

@@ -15,16 +15,14 @@ import { bodyOf, urlOf } from '../../test/stubFetch'
 /**
  * The events desk.
  *
- * The thing worth testing is who reaches what. It is the only page under
- * `/ MANAGE` a non-officer opens, so the two audiences have to differ in
- * exactly the ways the server enforces and in no others: a lead sees their own
- * projects in the picker and no publish switch; an officer sees every event,
- * the club-wide option and the switch. Anything looser here is a button that
- * lands on a 403, which is worse than no button.
+ * The thing worth testing is who reaches what. It is the only page under `/ MANAGE` a non-officer
+ * opens, so the two audiences have to differ in exactly the ways the server enforces and in no
+ * others: a lead sees their own projects in the picker and no publish switch; an officer sees every
+ * event, the club-wide option and the switch. Anything looser is a button that lands on a 403,
+ * which is worse than no button.
  *
- * The other invariant is negative and easy to lose: **a generated project
- * meeting must never appear in this list.** It has no row behind it, so EDIT
- * would PATCH an id that 404s.
+ * The other invariant is negative and easy to lose: a generated project meeting must never appear
+ * in this list. It has no row behind it, so EDIT would PATCH an id that 404s.
  */
 
 const term: ApiTerm = {

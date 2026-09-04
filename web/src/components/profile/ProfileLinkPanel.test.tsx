@@ -7,12 +7,11 @@ import { bodyOf, urlOf } from '../../test/stubFetch'
 /**
  * The profile link — where a member's photograph points on the public pages.
  *
- * Three properties, and all three are about the panel not having an opinion of
- * its own about what a valid address is. The allowlist lives on the server
- * because that is the only place it can be enforced, so this has to **send what
- * was typed**, **adopt what came back** rather than what was sent, and **print
- * the server's refusal verbatim** — a friendlier local message would be the
- * frontend inventing a rule it does not own.
+ * Three properties, and all three are about the panel not having an opinion of its own about what a
+ * valid address is. The allowlist lives on the server because that is the only place it can be
+ * enforced, so this has to send what was typed, adopt what came back rather than what was sent, and
+ * print the server's refusal verbatim — a friendlier local message would be the frontend inventing
+ * a rule it does not own.
  */
 
 const account: ApiAccount = {

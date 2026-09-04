@@ -7,23 +7,17 @@ import { MonthCalendar } from '../shared/MonthCalendar'
 /**
  * The member's calendar: the shared month grid over `/api/me/events`.
  *
- * That endpoint answers with everything the member should see on one calendar —
- * the public events, their own projects' unpublished ones, and every project
- * meeting they are entitled to. All three arrive as one sorted array, so this
- * component is now the fetch and nothing else.
+ * That endpoint answers with everything the member should see on one calendar — the public events,
+ * their own projects' unpublished ones, and every project meeting they are entitled to. All three
+ * arrive as one sorted array, so this component is now the fetch and nothing else.
  *
- * **It used to synthesise the meeting chips itself**, in `meetingsIn`, from the
- * three schedule columns on each of `/me/projects`. That has moved to
- * `server/src/projects/meetings.ts`, and the move was not a tidy-up. The browser version
- * had no way to know when a project's term ended, so it painted Tuesdays into
- * the next decade; it had no way to know when finals week was, so it never
- * paused anything; and the landing page could not use it at all, being
- * anonymous — which would have meant a second implementation of the same
- * arithmetic for the public calendar. One answer, on the server, and both
- * calendars read it.
- *
- * The `projects` prop went with it. Nothing here needs the membership list any
- * more.
+ * It used to synthesise the meeting chips itself, in `meetingsIn`, from the three schedule columns
+ * on each of `/me/projects`. That has moved to `server/src/projects/meetings.ts`, and the move was
+ * not a tidy-up. The browser version had no way to know when a project's term ended, so it painted
+ * Tuesdays into the next decade; it had no way to know when finals week was, so it never paused
+ * anything; and the landing page could not use it at all, being anonymous — which would have meant
+ * a second implementation of the same arithmetic. One answer, on the server, and both calendars
+ * read it.
  */
 export function DashboardCalendar() {
   const [month, setMonth] = useState(() => startOfMonth(new Date()))
@@ -33,14 +27,13 @@ export function DashboardCalendar() {
   const events = useApi<ApiMeEvent[]>(`/me/events?from=${from}&to=${to}`)
 
   /**
-   * The list under the grid, which runs past the month on screen — see
-   * `MonthCalendar`. `from` and no `to`, so the endpoint answers with stored
-   * rows alone: meetings and the member's own deadlines need a window at both
-   * ends, and the grid's is where those come from.
+   * The list under the grid, which runs past the month on screen — see `MonthCalendar`. `from` and
+   * no `to`, so the endpoint answers with stored rows alone: meetings and the member's own
+   * deadlines need a window at both ends, and the grid's is where those come from.
    *
-   * Pinned at mount rather than read on each render. `useApi` keys its effect
-   * on the path, and a fresh `new Date()` in the string would be a new path
-   * every render — which is a fetch every render.
+   * Pinned at mount rather than read on each render. `useApi` keys its effect on the path, and a
+   * fresh `new Date()` in the string would be a new path every render — which is a fetch every
+   * render.
    */
   const [now] = useState(() => encodeURIComponent(new Date().toISOString()))
   const upcoming = useApi<ApiMeEvent[]>(`/me/events?from=${now}&limit=200`)

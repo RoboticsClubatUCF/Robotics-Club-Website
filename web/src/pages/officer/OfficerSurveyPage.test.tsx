@@ -9,16 +9,14 @@ import { stubFetch, stubFetchNetworkError } from '../../test/stubFetch'
 /**
  * The survey desk.
  *
- * What it is *for* is placing an order, so the thing worth pinning is that a
- * count of nought is still printed. A tally that quietly drops the sizes nobody
- * picked reads as "we need none of those" to whoever is buying the shirts,
- * rather than as "nobody has asked for one" — and the two lead to different
- * boxes arriving. The server returns the zeroes for the same reason; this is
- * the half that has to show them.
+ * What it is for is placing an order, so the thing worth pinning is that a count of nought is still
+ * printed. A tally that quietly drops the sizes nobody picked reads as "we need none of those" to
+ * whoever is buying the shirts rather than as "nobody has asked for one", and the two lead to
+ * different boxes arriving. The server returns the zeroes for the same reason; this is the half
+ * that has to show them.
  *
- * The fixture below is *a* survey rather than *the* survey: the questions are
- * rows an officer edits, so this page draws a panel per question and knows the
- * name of none of them.
+ * The fixture below is *a* survey rather than *the* survey: the questions are rows an officer
+ * edits, so this page draws a panel per question and knows the name of none of them.
  */
 
 const term: ApiTerm = {

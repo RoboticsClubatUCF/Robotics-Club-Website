@@ -3,15 +3,14 @@ import type { ReactNode } from 'react'
 /**
  * The chrome every task page on this site draws the same way.
  *
- * Signing up, signing in and paying dues are the three pages that are a *task*
- * rather than something to read: one narrow column, an eyebrow, a heading, and
- * panels for the things somebody actually has to take in. Keeping the class
- * strings here rather than repeating them is what makes the three look like one
- * site, and what stops signup appearing to jump between its four screens.
+ * Signing up, signing in and paying dues are the three pages that are a task rather than something
+ * to read: one narrow column, an eyebrow, a heading, and panels for the things somebody actually
+ * has to take in. Keeping the class strings here rather than repeating them is what makes the three
+ * look like one site, and what stops signup appearing to jump between its four screens.
  *
- * This started in `components/join/` and moved out when the login page became
- * the second user — the rule in `.claude/docs/frontend.md` is that a component
- * earns `shared/` by being used on two pages, not by looking reusable.
+ * This started in `components/join/` and moved out when the login page became the second user — the
+ * rule in `.claude/docs/frontend.md` is that a component earns `shared/` by being used on two
+ * pages, not by looking reusable.
  */
 
 /** Matches the section headings on the front page: `/ EYEBROW` in mono. */
@@ -57,13 +56,11 @@ export function FormPanel({
 /**
  * A reading measure, for a page whose whole content is a sentence.
  *
- * The dashboard's own column is as wide as the monitor now — the pages in it
- * lay themselves out with `grid-fluid` and get their measure from their
- * columns. The screens that have no columns are the ones that had no layout to
- * begin with: a desk refusing somebody, a lock, a load that failed. One panel
- * of prose stretched across 1700px is what that width costs them, so they say
- * how wide they want to be. Written down once because it is the same number in
- * a dozen places and a number written twice is a number that drifts.
+ * The dashboard's own column is as wide as the monitor now — the pages in it lay themselves out
+ * with `grid-fluid` and get their measure from their columns. The screens that have no columns are
+ * the ones that had no layout to begin with: a desk refusing somebody, a lock, a load that failed.
+ * One panel of prose stretched across 1700px is what that width costs them, so they say how wide
+ * they want to be. Written down once because a number written twice is a number that drifts.
  */
 export const measureClass = 'max-w-[46rem]'
 
@@ -78,10 +75,9 @@ export const submitClass =
 /**
  * The quieter of the two buttons — "back to the front page", "cancel".
  *
- * Outlined in the page's own ink rather than in gold, because a page with two
- * gold buttons on it has no primary action. `base-content` rather than the
- * `white` this was written as: the intent was always "full-strength text
- * colour", and only in a one-theme site were those the same thing.
+ * Outlined in the page's own ink rather than in gold, because a page with two gold buttons on it
+ * has no primary action. `base-content` rather than the `white` this was written as: the intent was
+ * always "full-strength text colour", and only in a one-theme site were those the same thing.
  */
 export const secondaryClass =
   'btn btn-outline h-auto min-h-0 border-base-content/28 px-7 py-[15px] text-[13px] font-semibold tracking-[0.04em] text-base-content transition-[border-color,background-color] duration-200 hover:border-base-content hover:bg-base-content/6 hover:text-base-content'

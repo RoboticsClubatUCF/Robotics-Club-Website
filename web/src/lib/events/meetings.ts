@@ -35,12 +35,10 @@ export function formatMeetingTime(time: string): string {
 }
 
 /**
- * "6:00 – 10:00 PM", dropping the meridiem from the first half when both are
- * in the same one.
+ * "6:00 – 10:00 PM", dropping the meridiem from the first half when both are in the same one.
  *
- * "6:00 PM – 10:00 PM" is what the naive version prints and it reads as two
- * separate facts rather than one span. Losing the repeat is what makes a range
- * scan as a range.
+ * "6:00 PM – 10:00 PM" is what the naive version prints and it reads as two separate facts rather
+ * than one span. Losing the repeat is what makes a range scan as a range.
  */
 export function formatMeetingRange(start: string, end: string): string {
   const from = formatMeetingTime(start)
@@ -51,13 +49,12 @@ export function formatMeetingRange(start: string, end: string): string {
 }
 
 /**
- * "Tuesdays and Thursdays". Plural, because a weekly meeting is a habit rather
- * than a date, and that is how somebody would say it out loud.
+ * "Tuesdays and Thursdays". Plural, because a weekly meeting is a habit rather than a date, and
+ * that is how somebody would say it out loud.
  *
- * "and" rather than a trailing comma at the join: a list of at most seven
- * weekdays never needs the Oxford comma to be unambiguous, and "Mondays,
- * Wednesdays, and Fridays" is a sentence about a schedule where "Mondays,
- * Wednesdays and Fridays" is a schedule.
+ * "and" rather than a trailing comma at the join: a list of at most seven weekdays never needs the
+ * Oxford comma to be unambiguous, and "Mondays, Wednesdays, and Fridays" is a sentence about a
+ * schedule where "Mondays, Wednesdays and Fridays" is a schedule.
  */
 export function formatWeekdays(days: number[]): string {
   const names = days
@@ -113,11 +110,10 @@ export function meetingLine(
 /**
  * The lead's note about the meeting, or null.
  *
- * Gated on there being a schedule for the same reason `meetingLine` is: a note
- * about when a project meets makes no sense under a project that does not. The
- * editor clears the two together, so this only speaks to a row cleared straight
- * in the database — and it says nothing rather than leaving a stale sentence
- * about Tuesdays on a project that stopped meeting.
+ * Gated on there being a schedule for the same reason `meetingLine` is: a note about when a project
+ * meets makes no sense under a project that does not. The editor clears the two together, so this
+ * only speaks to a row cleared straight in the database — and it says nothing rather than leaving a
+ * stale sentence about Tuesdays on a project that stopped meeting.
  */
 export function meetingNote(
   project: Scheduled & Pick<ApiManagedProject, 'meetingDescription'>,

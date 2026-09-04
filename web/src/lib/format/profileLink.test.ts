@@ -2,9 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { profileSiteName } from './profileLink'
 
 /**
- * What a profile link is called, which is the link's accessible name and
- * nothing more. The address itself was checked on the server; nothing here is
- * a second opinion about whether it is allowed.
+ * What a profile link is called, which is the link's accessible name and nothing more. The address
+ * itself was checked on the server; nothing here is a second opinion about whether it is allowed.
  */
 describe('profileSiteName', () => {
   it('names the platforms worth spelling properly', () => {

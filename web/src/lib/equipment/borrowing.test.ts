@@ -11,11 +11,10 @@ import {
 /**
  * The date box hands back strings, and one of them is a trap.
  *
- * `<input type="date">` accepts a year of four *or more* digits, so a slipped
- * keystroke produces `12345-08-14`. `new Date` cannot parse that at all, and
- * everything downstream of an Invalid Date fails quietly: `NaN` compares false
- * against every bound, two values of different lengths compare backwards as
- * strings, and `.toISOString()` throws. This file is the tripwire on all three.
+ * `<input type="date">` accepts a year of four or more digits, so a slipped keystroke produces
+ * `12345-08-14`. `new Date` cannot parse that at all, and everything downstream of an Invalid Date
+ * fails quietly: `NaN` compares false against every bound, two values of different lengths compare
+ * backwards as strings, and `.toISOString()` throws. This file is the tripwire on all three.
  */
 
 const OVERLONG = '12345-08-14'
@@ -71,10 +70,10 @@ describe('the arithmetic', () => {
   })
 
   /**
-   * Both ends are the member's *local* day, so west of Greenwich the end of it
-   * is already tomorrow in UTC. That is the intent — "back by Friday" means
-   * Friday where the member is standing — and asserting on the local reading
-   * is the only way to say so without pinning the suite to one timezone.
+   * Both ends are the member's local day, so west of Greenwich the end of it is already tomorrow in
+   * UTC. That is the intent — "back by Friday" means Friday where the member is standing — and
+   * asserting on the local reading is the only way to say so without pinning the suite to one
+   * timezone.
    */
   it('brackets the chosen day in the reader’s own timezone', () => {
     const start = new Date(startOfDay('2026-08-14')!)

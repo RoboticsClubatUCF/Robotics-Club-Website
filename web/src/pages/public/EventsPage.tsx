@@ -9,29 +9,25 @@ import { useApi } from '../../lib/api/useApi'
 /**
  * `/events` — the schedule as a list, forwards and backwards.
  *
- * **Deliberately not a second calendar.** The front page has the month grid and
- * it answers "what is on this week"; the question this page answers is "what is
- * coming up" and "what did we do" — neither of which fits in thirty squares, and
- * the second of which the grid cannot reach at all without somebody pressing the
- * back arrow eight times. So: one list, ordered, with the past a chip away.
+ * Deliberately not a second calendar. The front page's month grid answers "what is on this week";
+ * this answers "what is coming up" and "what did we do" — neither of which fits in thirty squares,
+ * and the second of which the grid can't reach without pressing the back arrow eight times. So one
+ * list, ordered, with the past a chip away.
  *
- * **It draws the calendar's own row.** `AgendaRow` moved from private to
- * exported in `shared/MonthCalendar.tsx` for this — an event on the front page
- * and the same event here must not be two different objects, and the details
- * that would drift are the ones nobody would notice for a year: the
- * add-to-calendar menu, and the time label that says the day twice when a run
- * crosses midnight.
+ * It draws the calendar's own row. `AgendaRow` went from private to exported in
+ * `shared/MonthCalendar.tsx` for this — an event on the front page and the same event here must not
+ * be two different objects, and what would drift is what nobody would notice for a year: the
+ * add-to-calendar menu, and the time label that says the day twice when a run crosses midnight.
  *
- * **Project meetings are not in this list, and that is the endpoint's rule
- * rather than an omission.** A meeting is a recurrence, not a row, and
- * `GET /events` only expands one against a named window — "the next fifty
- * events" has no answer for a rule that repeats until December. Every caller
- * that wants meetings is a calendar and every calendar asks for a month, so the
- * lede points at the one on the front page.
+ * Project meetings aren't in this list, and that's the endpoint's rule rather than an omission. A
+ * meeting is a recurrence, not a row, and `GET /events` only expands one against a named window —
+ * "the next fifty events" has no answer for a rule that repeats until December. Every caller that
+ * wants meetings is a calendar and every calendar asks for a month, so the lede points at the one
+ * on the front page.
  *
- * **`when` refetches; type and the search box narrow what arrived.** Past and
- * upcoming are different rows in a different order, so that one is `?when=` and
- * the path change is what `useApi` re-runs on.
+ * `when` refetches; type and the search box narrow what arrived. Past and upcoming are different
+ * rows in a different order, so that one is `?when=` and the path change is what `useApi` re-runs
+ * on.
  */
 
 /** The server caps `limit` at 100. Past this the page wants pagination, not a
@@ -54,12 +50,11 @@ export function EventsPage() {
 
   const [when, setWhen] = useState<When>('upcoming')
   /**
-   * Typed off the wire rather than off the `EventType` enum, because the chips
-   * are built from the types the fetched rows actually carry. The union is
-   * wider than this page can ever see — `'TASK'` is a task deadline projected
-   * onto one member's own calendar and never reaches `/api/events` — but
-   * restating the enum here would be a second list to keep in step for the sake
-   * of excluding a value that cannot arrive.
+   * Typed off the wire rather than off the `EventType` enum, because the chips are built from the
+   * types the fetched rows actually carry. The union is wider than this page can ever see —
+   * `'TASK'` is a task deadline on one member's own calendar and never reaches `/api/events` — but
+   * restating the enum here would be a second list to keep in step for the sake of excluding a
+   * value that can't arrive.
    */
   const [type, setType] = useState<ApiEvent['type'] | typeof ANY>(ANY)
   const [query, setQuery] = useState('')
@@ -71,11 +66,10 @@ export function EventsPage() {
   /**
    * The types to offer, off the response rather than off the enum.
    *
-   * `EventType` has six values and a club rarely uses all six in one direction
-   * — a chip for FUNDRAISER on a page with no fundraisers on it can only ever
-   * show an empty list, which reads as broken. The same rule the officer
-   * archive's year chips follow. It also means the row follows the window:
-   * press PAST and the types that year actually used arrive with it.
+   * `EventType` has six values and a club rarely uses all six at once — a chip for FUNDRAISER on a
+   * page with no fundraisers can only ever show an empty list, which reads as broken. Same rule the
+   * officer archive's year chips follow. It also means the row follows the window: press PAST and
+   * the types that year actually used arrive with it.
    */
   const typeOptions = [
     { value: ANY, label: 'ALL TYPES' },

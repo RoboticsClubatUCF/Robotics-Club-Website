@@ -11,28 +11,25 @@ import { applyPayment, receiptUrlFor } from '../member/dues.js'
  *
  *   POST /api/stripe/webhook
  *
- * This is the half of the payment flow that does not depend on the member still
- * having the tab open. `POST /api/dues/sync` covers the common case — a card
- * that clears in two seconds while somebody watches — but a bank that takes a
- * minute over 3-D Secure, or a member who closes the laptop the moment the
- * button is pressed, is only ever credited by this.
+ * The half of the payment flow that does not depend on the member still having the tab open.
+ * `POST /api/dues/sync` covers the common case — a card that clears in two seconds while somebody
+ * watches — but a bank that takes a minute over 3-D Secure, or a member who closes the laptop the
+ * moment the button is pressed, is only ever credited by this.
  *
  * Three things about it are not like the other routes.
  *
- * **The body must stay raw.** The signature is computed over the exact bytes
- * Stripe sent, so anything that parses and re-serialises the JSON first —
- * reordering a key, changing an escape — invalidates it. Hence `c.req.text()`
- * and no `zValidator`.
+ * The body must stay raw. The signature is computed over the exact bytes Stripe sent, so anything
+ * that parses and re-serialises the JSON first — reordering a key, changing an escape —
+ * invalidates it. Hence `c.req.text()` and no `zValidator`.
  *
- * **It is unauthenticated, and the signature is the only thing standing in for
- * that.** Without `STRIPE_WEBHOOK_SECRET` there is nothing to check a delivery
- * against, so every delivery is refused: an endpoint that grants membership on
- * an unverified POST is a form anybody on the internet can fill in.
+ * It is unauthenticated, and the signature is the only thing standing in for that. Without
+ * `STRIPE_WEBHOOK_SECRET` there is nothing to check a delivery against, so every delivery is
+ * refused: an endpoint that grants membership on an unverified POST is a form anybody on the
+ * internet can fill in.
  *
- * **A 2xx means "recorded", not "agreed".** Stripe retries anything else for
- * days, so a delivery this cannot use — an event type nobody handles, an intent
- * from some other integration — is answered 200 and dropped. Only a genuine
- * failure to write is worth a retry.
+ * A 2xx means "recorded", not "agreed". Stripe retries anything else for days, so a delivery this
+ * cannot use — an unhandled event type, an intent from some other integration — is answered 200 and
+ * dropped. Only a genuine failure to write is worth a retry.
  */
 export const stripeWebhook = new Hono()
 
@@ -88,11 +85,10 @@ async function handle(event: Stripe.Event): Promise<void> {
     case 'payment_intent.processing': {
       const intent = event.data.object
 
-      // A webhook payload carries `latest_charge` as a bare id, so the hosted
-      // receipt costs one more call — and only when there is a charge to have
-      // one, which is why this is not done for the other three event types.
-      // `receiptUrlFor` swallows its own failures: the money is the point and
-      // the link is a courtesy.
+      // A webhook payload carries `latest_charge` as a bare id, so the hosted receipt costs one
+      // more call — and only when there is a charge to have one, which is why the other three event
+      // types skip it. `receiptUrlFor` swallows its own failures: the money is the point and the
+      // link is a courtesy.
       const receiptUrl =
         intent.status === 'succeeded' ? await receiptUrlFor(intent.id) : null
 
@@ -131,12 +127,11 @@ async function handle(event: Stripe.Event): Promise<void> {
 
       if (count === 0) return
 
-      // Deliberately does not shorten anybody's membership. A refund can be
-      // partial, can be a duplicate charge being tidied up, and can be a
-      // chargeback the club intends to contest — none of which mean the member
-      // should lose access this minute, and getting it wrong locks somebody out
-      // of the lab with no way to argue. It is loud instead, and an officer
-      // decides in Prisma Studio.
+      // Deliberately does not shorten anybody's membership. A refund can be partial, can be a
+      // duplicate charge being tidied up, and can be a chargeback the club intends to contest —
+      // none of which mean the member should lose access this minute, and getting it wrong locks
+      // somebody out of the lab with no way to argue. It is loud instead, and an officer decides in
+      // Prisma Studio.
       console.warn(
         `stripe webhook: ${intentId} was refunded. Membership was NOT shortened automatically — adjust users.dues_paid_through by hand if it should be.`,
       )

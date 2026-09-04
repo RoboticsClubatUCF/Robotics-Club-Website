@@ -3,17 +3,15 @@ import { readFileSync } from 'node:fs'
 /**
  * Reading a `pg_dump` file, because the old database is not running.
  *
- * The club's previous site was dumped to a `.sql` file and the server it ran on
- * is gone, so there is nothing to connect to and no second Prisma client to
- * point at it. What there is, is 380KB of `COPY … FROM stdin` blocks, which is
- * a tab-separated format with a short and completely specified escape scheme —
- * cheaper to read directly than to restore a database in order to query it, and
- * it means the import is reproducible from a file in version control rather
- * than from a machine somebody has to keep alive.
+ * The club's previous site was dumped to a `.sql` file and the server it ran on is gone, so there
+ * is nothing to connect to and no second Prisma client to point at it. What there is, is 380KB of
+ * `COPY … FROM stdin` blocks — a tab-separated format with a short and completely specified escape
+ * scheme, cheaper to read directly than to restore a database in order to query it, and it makes
+ * the import reproducible from a file in version control rather than from a machine somebody has to
+ * keep alive.
  *
- * Only `COPY` is understood. `CREATE TABLE`, the `SET` preamble, sequences and
- * constraints are all skipped, because the destination schema already exists
- * and nothing here is trying to recreate the old one.
+ * Only `COPY` is understood. `CREATE TABLE`, the `SET` preamble, sequences and constraints are
+ * skipped — the destination schema already exists and nothing here is recreating the old one.
  */
 
 /** A row, keyed by the column names the `COPY` header listed. `null` is `\N`. */
@@ -24,10 +22,9 @@ export type Tables = Map<string, Row[]>
 /**
  * `COPY public."Member" (id, "firstName", …) FROM stdin;`
  *
- * The table name is quoted for the mixed-case names the old Prisma schema
- * produced and bare for `_prisma_migrations`, so the quote is optional and
- * matched either way. Column names inside the parentheses are quoted
- * individually and unevenly, which is why they are stripped one at a time
+ * The table name is quoted for the mixed-case names the old Prisma schema produced and bare for
+ * `_prisma_migrations`, so the quote is optional and matched either way. Column names inside the
+ * parentheses are quoted individually and unevenly, which is why they are stripped one at a time
  * rather than by a regex over the whole list.
  */
 const COPY_HEADER = /^COPY public\.("?)([A-Za-z_]+)\1 \(([^)]*)\) FROM stdin;$/
@@ -35,11 +32,10 @@ const COPY_HEADER = /^COPY public\.("?)([A-Za-z_]+)\1 \(([^)]*)\) FROM stdin;$/
 /**
  * The escapes `COPY … TO` writes, in the direction that undoes them.
  *
- * This is the whole set — Postgres emits exactly these and nothing else, so a
- * backslash followed by anything not listed here is a literal backslash
- * followed by that character. Order matters only in that `\\` has to be handled
- * inside the same pass rather than before it, or `\\n` (a literal backslash
- * then an `n`) would come back as a newline.
+ * This is the whole set — Postgres emits exactly these, so a backslash followed by anything not
+ * listed here is a literal backslash and that character. Order matters only in that `\\` has to be
+ * handled inside the same pass rather than before it, or `\\n` (a literal backslash then an `n`)
+ * would come back as a newline.
  */
 const ESCAPES: Record<string, string> = {
   b: '\b',
@@ -121,15 +117,14 @@ export function parseDump(path: string): Tables {
 }
 
 /**
- * A Postgres array literal — `{}`, `{None}`, `{"Mechanical Engineering ",Other}` —
- * as a list of strings.
+ * A Postgres array literal — `{}`, `{None}`, `{"Mechanical Engineering ",Other}` — as a list of
+ * strings.
  *
- * Written out rather than pulled from a library because the old survey stored
- * five of its six answers this way and the shapes are narrow: no nesting, no
- * nulls, and quoting only where a value contains a comma, a brace, a quote or
- * leading whitespace. Values are **not** trimmed here — the old form saved
- * every option with a trailing space, and whether that matters is a decision
- * for the mapping rather than for the parser.
+ * Written out rather than pulled from a library because the old survey stored five of its six
+ * answers this way and the shapes are narrow: no nesting, no nulls, and quoting only where a value
+ * contains a comma, a brace, a quote or leading whitespace. Values are not trimmed here — the old
+ * form saved every option with a trailing space, and whether that matters is the mapping's decision
+ * rather than the parser's.
  */
 export function parseArray(literal: string | null): string[] {
   if (literal === null || literal === '' || literal === '{}') return []
@@ -171,10 +166,10 @@ export function parseArray(literal: string | null): string[] {
 /**
  * A `timestamp` column as a `Date`.
  *
- * The dump writes local wall-clock with no zone — `2026-05-31 00:00:00` — and
- * the old database stored UTC, so the `Z` is appended rather than left to the
- * runtime's timezone. Without it the same file imports differently on a machine
- * in Orlando and one in London, and dues dates would move by five hours.
+ * The dump writes local wall-clock with no zone — `2026-05-31 00:00:00` — and the old database
+ * stored UTC, so the `Z` is appended rather than left to the runtime's timezone. Without it the
+ * same file imports differently on a machine in Orlando and one in London, and dues dates move by
+ * five hours.
  */
 export function parseTimestamp(value: string | null): Date | null {
   if (value === null || value === '') return null

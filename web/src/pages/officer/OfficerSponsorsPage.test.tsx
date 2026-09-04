@@ -16,25 +16,21 @@ import { bodyOf, urlOf } from '../../test/stubFetch'
 /**
  * The desk behind `/sponsors`.
  *
- * What is worth pinning here is not the form plumbing:
+ * What's worth pinning here isn't the form plumbing:
  *
- * **That every tier gets a block, published or not.** The row an officer needs
- * in order to publish a level is exactly the one a filtered list would hide, and
- * a desk that only showed written tiers would make the club's first sponsorship
- * sheet impossible to write.
+ * That every tier gets a block, published or not. The row an officer needs in order to publish a
+ * level is exactly the one a filtered list would hide, and a desk that only showed written tiers
+ * would make the club's first sponsorship sheet impossible to write.
  *
- * **That hiding and deleting are different buttons with different weights.**
- * HIDE writes `active: false` and keeps the record of who backed the club;
- * ✕ asks first and is for a typo. A confirmation on both would teach officers to
- * click through it.
+ * That hiding and deleting are different buttons with different weights. HIDE writes
+ * `active: false` and keeps the record; the cross asks first and is for a typo. A confirmation on
+ * both would teach officers to click through it.
  *
- * **That the desk refuses a non-officer before it fetches anything**, and that a
- * lapsed officer is told about a payment rather than about permission — the
- * order every other desk uses.
+ * That the desk refuses a non-officer before it fetches anything, and that a lapsed officer is
+ * told about a payment rather than about permission.
  *
- * **That nothing published is drawn as a state rather than as an error.** An
- * officer who thinks an empty sheet is a broken page will not take a stale tier
- * down.
+ * That nothing published is drawn as a state rather than an error. An officer who thinks an empty
+ * sheet is a broken page won't take a stale tier down.
  */
 
 const term: ApiTerm = {
@@ -335,13 +331,12 @@ describe('OfficerSponsorsPage', () => {
   })
 
   /**
-   * The other half of that: a logo settled *before* the add.
+   * The other half of that: a logo settled before the add.
    *
-   * A company arrives as a name and a PNG in one email, and taking only the
-   * name leaves them on the public page as `[ LOGO ]` for as long as it takes
-   * somebody to come back to it. The row still has to exist before the upload
-   * has a path to go to, so this is two requests in one press — what matters is
-   * that the second one happens without being asked for.
+   * A company arrives as a name and a PNG in one email, and taking only the name leaves them on
+   * the public page as `[ LOGO ]` for as long as it takes somebody to come back to it. The row
+   * still has to exist before the upload has a path, so this is two requests in one press — what
+   * matters is that the second happens without being asked for.
    */
   it('carries a logo chosen before the add up with the row', async () => {
     const stub = vi.fn((input: string | URL | Request, init?: RequestInit) => {
@@ -436,10 +431,9 @@ describe('OfficerSponsorsPage', () => {
   })
 
   /**
-   * The failure that would be worst to get wrong: the row is already live when
-   * the upload falls over, so an add that reported the error and threw the
-   * sponsor away would leave an officer pressing ADD again — against a name the
-   * server now refuses as a duplicate.
+   * The failure that would be worst to get wrong: the row is already live when the upload falls
+   * over, so an add that reported the error and threw the sponsor away would leave an officer
+   * pressing ADD again — against a name the server now refuses as a duplicate.
    */
   it('lists the sponsor anyway when the logo upload fails', async () => {
     const stub = vi.fn((input: string | URL | Request, init?: RequestInit) => {

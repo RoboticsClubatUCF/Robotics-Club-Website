@@ -10,12 +10,12 @@ import { DEFAULT_FRAMING } from '../media/imageFraming'
  * How many pictures one project may show.
  *
  * Mirrors `MAX_PROJECT_IMAGES` in `server/src/routes/projects/projectManage.ts`, the way
- * `borrowing.ts` mirrors `loanWindow.ts` — the browser needs it to grey out ADD
- * and say why, and a form that offers what the route refuses is the failure
- * that convention exists to prevent. **Change one and change the other.**
+ * `borrowing.ts` mirrors `loanWindow.ts` — the browser needs it to grey out ADD and say why, and a
+ * form that offers what the route refuses is what that convention prevents. Change one and change
+ * the other.
  *
- * Twelve is a gallery, not an archive: more than any club project has needed,
- * and still under a megabyte a page once the browser has downscaled them.
+ * Twelve is a gallery, not an archive: more than any club project has needed, and still under a
+ * megabyte a page once the browser has downscaled them.
  */
 export const MAX_PROJECT_IMAGES = 12
 
@@ -33,26 +33,24 @@ export const MAX_PROJECT_DOCUMENTS = 20
 /**
  * How many slides are mounted at once: the current one and its two neighbours.
  *
- * This is the whole loading strategy, and it is a window rather than a
- * `loading="lazy"` attribute for a reason. The slides are stacked absolutely
- * inside one frame, so every one of them is *inside the viewport* as far as the
- * browser is concerned and `lazy` defers precisely nothing — all twelve
- * download on first paint. Mounting three is simultaneously "don't fetch twelve"
- * and "the next one is already there when they press ›".
+ * The whole loading strategy, and a window rather than a `loading="lazy"` attribute for a reason.
+ * The slides are stacked absolutely inside one frame, so every one of them is inside the viewport
+ * as far as the browser is concerned and `lazy` defers precisely nothing — all twelve download on
+ * first paint. Mounting three is both "do not fetch twelve" and "the next one is already there when
+ * they press ›".
  */
 export const SLIDE_WINDOW = 1
 
 /**
  * What the slideshow actually shows.
  *
- * A project with a gallery shows its gallery. A project with only the old
- * single cover shows that, framed — which is strictly better than the bare
- * `<img>` it used to get. A project with neither shows nothing.
+ * A project with a gallery shows its gallery. A project with only the old single cover shows that,
+ * framed. A project with neither shows nothing.
  *
- * `coverUrl` deliberately survives beside the gallery rather than being folded
- * into it: it is the one image that represents the project in a *list*, chosen
- * rather than "whichever got dragged to the front", and making it the first
- * slide would mean reordering the gallery silently changed the listing image.
+ * `coverUrl` deliberately survives beside the gallery rather than being folded into it: it is the
+ * one image that represents the project in a list, chosen rather than "whichever got dragged to the
+ * front", and making it the first slide would mean reordering the gallery silently changed the
+ * listing image.
  */
 export function slidesOf(
   project: Pick<ApiProjectDetail, 'images' | 'coverUrl'>,

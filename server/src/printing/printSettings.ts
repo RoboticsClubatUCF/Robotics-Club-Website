@@ -8,23 +8,22 @@ import {
 /**
  * What may be asked of the printers, as one rule both writers share.
  *
- * Two writers exist — the member's request in `routes/member/print.ts` and the
- * officer's correction in `routes/officer/officer.ts`, which records what actually
- * came off the machine — and they have to agree about what a legal
- * combination is. Written twice they would agree until one of them was edited.
+ * Two writers exist — the member's request in `routes/member/print.ts` and the officer's correction
+ * in `routes/officer/officer.ts`, which records what actually came off the machine — and they have
+ * to agree about what a legal combination is. Written twice they would agree until one of them was
+ * edited.
  *
  * The rule itself is the pairing:
  *
- * - **FDM** takes `PLA` or `PETG`, and wants an infill pattern and density.
- * - **SLA** takes `ABS_LIKE_RESIN` and *nothing else* — the club stocks one
- *   resin — and has no infill at all. A resin print is a solid or a hollowed
- *   shell; "20% gyroid" is not a thing that can be done to it, so the fields
- *   are refused rather than stored as a number nobody can act on.
+ * - FDM takes `PLA` or `PETG`, and wants an infill pattern and density.
+ * - SLA takes `ABS_LIKE_RESIN` and nothing else — the club stocks one resin — and has no infill at
+ *   all. A resin print is a solid or a hollowed shell; "20% gyroid" is not a thing that can be done
+ *   to it, so the fields are refused rather than stored as a number nobody can act on.
  *
- * A discriminated union rather than a flat object with a `superRefine`,
- * because the two shapes genuinely differ: zod then narrows the material to
- * the right pair on its own, and an SLA body carrying infill fails on the
- * field that is wrong instead of on a hand-written message about the whole.
+ * A discriminated union rather than a flat object with a `superRefine`, because the two shapes
+ * genuinely differ: zod then narrows the material to the right pair on its own, and an SLA body
+ * carrying infill fails on the field that is wrong instead of on a hand-written message about the
+ * whole.
  */
 
 /** Sane bounds. 0% is hollow and 100% is solid; both are things people ask for. */

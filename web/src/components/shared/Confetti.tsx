@@ -3,21 +3,19 @@ import { useEffect, useState, type CSSProperties } from 'react'
 /**
  * A one-off burst of confetti.
  *
- * Mount it and it runs once; it takes itself out of the DOM when the last piece
- * has landed, so there is nothing left animating behind the page afterwards.
+ * Mount it and it runs once; it takes itself out of the DOM when the last piece has landed, so
+ * there is nothing left animating behind the page afterwards.
  *
- * CSS rather than a canvas, and no dependency. Sixty absolutely positioned
- * spans on a compositor-only transform is cheap enough not to think about, a
- * canvas would need a `requestAnimationFrame` loop and a resize observer to do
- * the same job, and `getContext` is not implemented in jsdom — a test rendering
- * the welcome screen would have to stub it.
+ * CSS rather than a canvas, and no dependency. Sixty absolutely positioned spans on a
+ * compositor-only transform is cheap enough not to think about, a canvas would need a
+ * `requestAnimationFrame` loop and a resize observer to do the same job, and `getContext` is not
+ * implemented in jsdom.
  *
  * Rectangles, not circles: everything else on this site is a right angle.
  *
- * `motion-reduce:hidden` on the container and nothing else. Reduced motion is a
- * preference this can honour completely, because unlike the marquee or the FAQ
- * disclosure there is nothing underneath it — the celebration is the animation,
- * so with it off there is simply nothing to show.
+ * `motion-reduce:hidden` on the container and nothing else. Reduced motion is a preference this can
+ * honour completely, because unlike the marquee or the FAQ disclosure there is nothing underneath
+ * it — the celebration is the animation.
  */
 
 const PIECES = 64

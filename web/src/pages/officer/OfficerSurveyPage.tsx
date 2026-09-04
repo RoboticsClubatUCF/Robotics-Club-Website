@@ -17,20 +17,17 @@ import { useApi } from '../../lib/api/useApi'
 /**
  * `/dashboard/officer/survey` — what the club learned, as counts.
  *
- * The survey exists so somebody can order the right shirts and buy food nobody
- * has to refuse, and without a page like this the answers sit in Postgres where
- * only Prisma Studio can reach them. So this is deliberately not a table of
- * people: it is the tallies an order is actually placed from, and a CSV for the
- * cases a tally cannot answer.
+ * The survey exists so somebody can order the right shirts and buy food nobody has to refuse, and
+ * without a page like this the answers sit in Postgres where only Prisma Studio can reach them. So
+ * this is deliberately not a table of people: it is the tallies an order is placed from, and a CSV
+ * for the cases a tally cannot answer.
  *
- * **One panel per question, whatever the questions are.** They used to be six
- * hardcoded lists with the club's own wording over them; officers write them
- * now, at the page this one links to.
+ * One panel per question, whatever the questions are — they used to be six hardcoded lists with the
+ * club's own wording over them, and officers write them now at the page this one links to.
  *
- * **Every option is listed, including the ones on nought.** A list that omits
- * the sizes nobody picked reads as "we need none of those" rather than as
- * "nobody has asked for one", and the difference is a box of shirts. The server
- * returns the zeroes for the same reason.
+ * Every option is listed, including the ones on nought. A list that omits the sizes nobody picked
+ * reads as "we need none of those" rather than "nobody has asked for one", and the difference is a
+ * box of shirts. The server returns the zeroes for the same reason.
  */
 export function OfficerSurveyPage() {
   const { user, membership } = useOutletContext<DashboardContext>()
@@ -111,12 +108,11 @@ function Results() {
           </Link>
 
           {/*
-            A plain link, not a fetch. The file is served straight off the API
-            with its own `Content-Disposition`, and going through `getJson` would
-            mean holding the whole CSV in memory to hand it back to the browser
-            that was going to download it anyway. `apiBaseUrl` because the API is
-            a different origin — a root-relative href here would ask Vite for it
-            and get `index.html` back, which is the trap `storedFiles.ts` documents.
+            A plain link, not a fetch. The file is served straight off the API with its own
+            `Content-Disposition`, and going through `getJson` would mean holding the whole CSV in
+            memory to hand it back to the browser that was going to download it anyway.
+            `apiBaseUrl` because the API is a different origin — a root-relative href here would ask
+            Vite for it and get `index.html` back, the trap `storedFiles.ts` documents.
           */}
           <a
             href={`${apiBaseUrl}/api/officer/survey/export.csv`}
@@ -228,10 +224,9 @@ function Tally({
 /**
  * One line of a tally: the name, a bar, and the number.
  *
- * The bar is a proportion of the largest possible count rather than of the
- * largest actual one, so two panels side by side can be read against each
- * other. A row on nought draws no bar and greys its number, which is what keeps
- * "nobody picked this" visibly different from "this is a small number".
+ * The bar is a proportion of the largest possible count rather than of the largest actual one, so
+ * two panels side by side can be read against each other. A row on nought draws no bar and greys
+ * its number, which keeps "nobody picked this" visibly different from "this is a small number".
  */
 function Row({
   label,

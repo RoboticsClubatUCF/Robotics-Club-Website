@@ -18,21 +18,19 @@ import { type AuthEnv, originGuard, requireAuth } from '../../auth/session.js'
  *   POST /api/equipment/:id/loans    -> ask for one
  *   POST /api/equipment/loans/:id/cancel -> change your mind, before it is decided
  *
- * The inventory itself is officer-run — see `officer.ts` — and so is every
- * decision about a loan. This router is the counter, not the store room.
+ * The inventory and every decision about a loan are officer-run — see `officer.ts`. This router is
+ * the counter, not the store room.
  *
- * **Paid-up members only, not merely signed-in.** `requireDuesForRoute` is the
- * whole gate, and it is the same one the management pages use: the club lends
- * its own things, and an account is not a membership. This used to be a
- * stricter check of its own, `requireClubMember`, which also refused a `GUEST`
- * — that mattered when the summer granted everybody access whether or not they
- * had claimed it. It no longer does, so the two collapsed. See `authz.ts`.
+ * Paid-up members only, not merely signed-in: `requireDuesForRoute` is the whole gate, the same one
+ * the management pages use, because the club lends its own things and an account is not a
+ * membership. It used to be a stricter check of its own, `requireClubMember`, which also refused a
+ * `GUEST` — that mattered when the summer granted everybody access whether or not they had claimed
+ * it. It no longer does, so the two collapsed. See `authz.ts`.
  *
- * **A loan holds a unit from the moment it is approved**, not from collection:
- * a drill promised to somebody who has not walked over yet is not available
- * to the next person. `HOLDING` below is that rule, and it is the only
- * definition of "out" anywhere in the codebase — a reservation for next month
- * included, which `schema.prisma` explains at length.
+ * A loan holds a unit from the moment it's approved, not from collection: a drill promised to
+ * somebody who hasn't walked over yet isn't available to the next person. `HOLDING` below is that
+ * rule, and it's the only definition of "out" anywhere in the codebase — a reservation for next
+ * month included, which `schema.prisma` explains at length.
  */
 export const equipment = new Hono<AuthEnv>()
 
@@ -134,12 +132,10 @@ equipment.post(
     /**
      * The window, checked before anything is written.
      *
-     * A return date is required rather than optional, which is the change of
-     * mind here: the club has always had one — the officer typed it at
-     * approval — but it was the desk's guess at what the member wanted. Asking
-     * the person who needs the thing is both a better guess and the only way
-     * the reminder can be promised, since a loan with no due date has no day
-     * before it.
+     * A return date is required rather than optional, which is the change of mind here: the club
+     * has always had one — the officer typed it at approval — but that was the desk's guess at what
+     * the member wanted. Asking the person who needs the thing is a better guess, and the only way
+     * the reminder can be promised, since a loan with no due date has no day before it.
      */
     const now = new Date()
     const from = startsAt(startAt, now)

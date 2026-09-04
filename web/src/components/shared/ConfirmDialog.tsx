@@ -3,27 +3,25 @@ import { useEffect, useRef, type ReactNode } from 'react'
 /**
  * A confirmation the site draws itself, instead of `window.confirm`.
  *
- * The native box is the browser's, not ours: it arrives in the system font at
- * the top of the window with the origin printed above it, it cannot show the
- * numbers a decision turns on, and it blocks the whole page while it is up. For
- * "this deletes the model and puts them 20 g over" that is not enough room, and
- * the one place it appears is the one place somebody is about to do something
+ * The native box is the browser's, not ours: it arrives in the system font at the top of the window
+ * with the origin printed above it, it cannot show the numbers a decision turns on, and it blocks
+ * the whole page while it is up. For "this deletes the model and puts them 20 g over" that is not
+ * enough room, and the one place it appears is the one place somebody is about to do something
  * irreversible.
  *
- * Not a `<dialog>` element. `showModal` is exactly what this wants, and jsdom
- * does not implement it — so the queue's confirmation flow would be the one
- * thing on the page no test could reach. A plain overlay costs the two
- * behaviours `<dialog>` gives for free, both of which are below.
+ * Not a `<dialog>` element. `showModal` is exactly what this wants, and jsdom does not implement it
+ * — so the queue's confirmation flow would be the one thing on the page no test could reach. A
+ * plain overlay costs the two behaviours `<dialog>` gives for free, both of which are below.
  *
  * What it does that a bare div would not:
  *
- *   - **Escape closes it**, because a modal that can only be dismissed by
- *     aiming at a button is a modal people click through.
- *   - **The backdrop closes it**, same reason.
- *   - **Focus moves in on open and back out on close**, so a keyboard is not
- *     left pointing at a button that is no longer on screen.
- *   - **Focus lands on the dismissing button**, never the confirming one. Every
- *     use of this is destructive; a stray Enter should do nothing.
+ *   - Escape closes it, because a modal that can only be dismissed by aiming at a button is a modal
+ *     people click through.
+ *   - The backdrop closes it, same reason.
+ *   - Focus moves in on open and back out on close, so a keyboard is not left pointing at a button
+ *     that is no longer on screen.
+ *   - Focus lands on the dismissing button, never the confirming one. Every use of this is
+ *     destructive; a stray Enter should do nothing.
  */
 export function ConfirmDialog({
   title,

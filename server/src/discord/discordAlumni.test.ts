@@ -5,28 +5,22 @@ import { UserRole } from '../generated/prisma/enums.js'
 /**
  * Following the club's Discord Officer Alumni role.
  *
- * **This suite writes to the database, and one of its two queries is
- * roster-wide.** Marking is safe by construction — a candidate has to appear in
- * the stubbed guild, so a stub carrying only this file's invented snowflakes
- * can only ever mark this file's fixtures. *Clearing* is the dangerous half:
- * its candidate query is `where: { officerAlumnus: true }` across the whole
- * table, exactly the shape `discordOfficers.test.ts` warns about, so anybody
- * the stubbed roster fails to name gets the flag taken off.
+ * This suite writes to the database, and one of its two queries is roster-wide. Marking is safe
+ * by construction — a candidate has to appear in the stubbed guild. Clearing is the dangerous
+ * half: its candidate query is `where: { officerAlumnus: true }` across the whole table, so
+ * anybody the stubbed roster fails to name gets the flag taken off.
  *
- * **The isolation is the stub**, therefore, and `holders()` below takes the
- * club's real flag-holders in every call for the same reason that suite passes
- * the real board in every call. There are none today — the column was added
- * with `default false` and only the ten-minute sweep sets it — but a suite that
- * relied on that would break silently the first time somebody ran the real
- * sweep against the development database, which is a thing that will happen.
+ * The isolation is therefore the stub, and `holders()` takes the club's real flag-holders in
+ * every call for the same reason `discordOfficers.test.ts` passes the real board. There are none
+ * today — the column was added with `default false` — but a suite that relied on that would break
+ * silently the first time somebody ran the real sweep against the development database.
  *
- * **The `afterEach` tripwire repairs before it reports**, for the reason given
- * there: reporting alone would leave real accounts wrong until somebody read
- * the output.
+ * The `afterEach` tripwire repairs before it reports: reporting alone would leave real accounts
+ * wrong until somebody read the output.
  *
- * `membersWithRole` is mocked outright rather than only when unconfigured. The
- * development `.env` carries a live bot token for the club's actual guild, and
- * one unmocked call would pull 1,845 real members into the decision under test.
+ * `membersWithRole` is mocked outright rather than only when unconfigured. The development `.env`
+ * carries a live bot token, and one unmocked call would pull 1,845 real members into the decision
+ * under test.
  */
 
 const config = vi.hoisted(() => ({

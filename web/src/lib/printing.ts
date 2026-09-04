@@ -9,15 +9,12 @@ import type {
 /**
  * What the printers will do, in the words the club uses for it.
  *
- * Two pages read this — the member choosing settings and the officer
- * correcting them to what actually came off the machine — and they have to
- * offer the same choices. Written twice they would agree until one was edited.
+ * Two pages read this — the member choosing settings and the officer correcting them to what
+ * actually came off the machine — and they have to offer the same choices.
  *
- * The rule that shapes all of it: **a process decides its materials, and only
- * FDM has infill.** A resin print is a solid or a hollowed shell; "20% gyroid"
- * is not something that can be done to one. The server enforces the same
- * pairing in `server/src/printing/printSettings.ts` — this is the readable half, not a
- * second rule that could drift.
+ * The rule that shapes all of it: a process decides its materials, and only FDM has infill. A
+ * resin print is a solid or a hollowed shell; "20% gyroid" isn't something that can be done to
+ * one. The server enforces the same pairing — this is the readable half, not a second rule.
  */
 
 export const PROCESSES: {
@@ -80,23 +77,20 @@ export const INFILL_PATTERNS: { value: InfillPattern; label: string }[] = [
 ]
 
 /**
- * The densities worth offering, rather than a 0–100 box.
+ * The densities worth offering, rather than a 0-100 box.
  *
- * Nobody wants 37%. These are the figures that come up — hollow, light, the
- * common default, strong, solid — and a short list is faster to pick from than
- * a number to type. The server still takes any integer 0–100, so this is a
- * convenience and not a constraint.
+ * Nobody wants 37%. These are the figures that come up — hollow, light, the common default,
+ * strong, solid — and a short list is faster to pick from than a number to type. The server still
+ * takes any integer 0-100.
  */
 export const INFILL_DENSITIES = [0, 10, 15, 20, 25, 40, 60, 80, 100]
 
 /**
  * The defaults a fresh form starts on: the common everyday print.
  *
- * 15% is the club's figure, and it is the one number here that is a decision
- * rather than a convention — it is enough for almost anything that is not
- * load-bearing, and every request that leaves it alone is filament the club
- * did not spend. The officer's correction defaults to the same, so a job with
- * nothing typed reads consistently at both ends.
+ * 15% is the club's figure, and the one number here that's a decision rather than a convention —
+ * enough for almost anything not load-bearing, and every request that leaves it alone is filament
+ * the club didn't spend. The officer's correction defaults to the same.
  */
 export const DEFAULT_INFILL_DENSITY = 15
 
@@ -113,10 +107,9 @@ export const patternLabel = (pattern: InfillPattern): string =>
 /**
  * What a request was printed as, falling back to what was asked for.
  *
- * The `printed*` columns are null until an officer corrects something, and null
- * means "as asked" — so every reader of these fields is this `??` and it is
- * worth having in one place. `changed` is what lets a page say "asked PLA,
- * printed PETG" instead of quietly showing the second one.
+ * The `printed*` columns are null until an officer corrects something, and null means "as asked" —
+ * so every reader of these fields is this `??` and it's worth having in one place. `changed` is
+ * what lets a page say "asked PLA, printed PETG".
  */
 export function actualSettings(request: ApiPrintRequest) {
   const process = request.printedProcess ?? request.process
@@ -162,12 +155,11 @@ export function settingsLine(settings: {
 /**
  * What the officer actually did, in the words somebody would use for it.
  *
- * Named rather than left as "last moved by", because the status is not the
- * event. `REJECTED` in particular is two quite different things — refusing a
- * request nobody started, and stopping a print that was already running — and
- * `startedAt` is the only thing that tells them apart. Reading "declined the
- * request" about a print you watched come off the bed half-finished is the sort
- * of small wrongness that makes people stop trusting a page.
+ * Named rather than left as "last moved by", because the status isn't the event. `REJECTED` is two
+ * quite different things — refusing a request nobody started, and stopping a print already
+ * running — and `startedAt` is the only thing that tells them apart. Reading "declined the
+ * request" about a print you watched come off the bed half-finished is the sort of small wrongness
+ * that makes people stop trusting a page.
  */
 export function actionPhrase(
   status: PrintRequestStatus,

@@ -20,21 +20,18 @@ import { type AuthEnv, originGuard, requireAuth } from '../../auth/session.js'
  *   POST   /api/officer/survey/questions/:id/restore -> ask it again
  *   POST   /api/officer/survey/reorder             -> the order they appear in
  *
- * **Its own file rather than a sixth section of `officer.ts`**, which is
- * already the longest router here. What decided it is that half of this is the
- * *editor* for `routes/member/survey.ts` — the two files are one feature read from
- * either end, and the rules one enforces on the way in are the rules the other
- * has to be careful not to let an officer write.
+ * Its own file rather than a sixth section of `officer.ts`, because half of this is the
+ * editor for `routes/member/survey.ts` — the two are one feature read from either end,
+ * and the rules one enforces on the way in are the rules the other must not let an
+ * officer write.
  *
- * Everything is behind `requireOfficer`. That includes the reads: this desk
- * carries members' names, contact details and their allergies.
+ * Everything is behind `requireOfficer`, reads included: this desk carries members'
+ * names, contact details and their allergies.
  *
- * **Nothing here can lock anybody out, and that is a property worth keeping.**
- * `User.surveyCompletedAt` is stamped once and never moves, so adding a
- * required question does not put the club back behind the gate — it asks the
- * people who have not answered it the next time they open the form. Anything
- * added to this file that clears that column would turn a typo into a lockout
- * for the whole club.
+ * Nothing here can lock anybody out, and that's worth keeping.
+ * `User.surveyCompletedAt` is stamped once and never moves, so adding a required
+ * question doesn't put the club back behind the gate. Anything added here that cleared
+ * that column would turn a typo into a lockout for the whole club.
  */
 export const surveyAdmin = new Hono<AuthEnv>()
 
@@ -44,12 +41,11 @@ const writes = rateLimit('officer', 60)
 // -------------------------------------------------------------- what it asks
 
 /**
- * The questions as an officer sees them: archived ones included, and with the
- * counts that decide what REMOVE is going to do.
+ * The questions as an officer sees them: archived ones included, and with the counts
+ * that decide what REMOVE is going to do.
  *
- * A question nobody has answered is deleted outright and one with answers on it
- * is archived — see `SurveyQuestion.archivedAt` — so the editor has to be able
- * to say which before the press, rather than reporting it afterwards.
+ * A question nobody has answered is deleted outright and one with answers is archived,
+ * so the editor has to say which before the press rather than report it afterwards.
  */
 const editorSelect = {
   id: true,
@@ -134,9 +130,9 @@ const TOO_MANY_OTHERS =
 
 const optionInput = z.object({
   /**
-   * Absent on a new one. Present means "this row", which is what keeps the
-   * answers already given against it attached — an option edited by id keeps
-   * its tally, where a delete-and-recreate would silently reset it to nought.
+   * Absent on a new one. Present means "this row", which keeps the answers already
+   * given against it attached — an option edited by id keeps its tally, where a
+   * delete-and-recreate would silently reset it to nought.
    */
   id: z.uuid().optional(),
   label: z.string().trim().min(1).max(120),
@@ -147,13 +143,11 @@ const optionInput = z.object({
 /**
  * A whole question, options and all, in one body.
  *
- * **Not a `PATCH` of separate fields, and not separate endpoints for the
- * options.** A question and its answers are one thing an officer edits on one
- * screen and saves with one press, and the cross-field rules below — a
- * single-choice question needs at least two answers, only one of them may ask
- * for a written reply — can only be checked against the whole of it. It is also
- * the deliberate dodge of the `.partial()` trap this codebase has already paid
- * for once; see `equipmentPatch` in `routes/officer/officer.ts`.
+ * Not a `PATCH` of separate fields and not separate endpoints for the options: a
+ * question and its answers are one thing an officer edits on one screen and saves with
+ * one press, and the cross-field rules below can only be checked against the whole of
+ * it. It's also the deliberate dodge of the `.partial()` trap this codebase has already
+ * paid for once.
  */
 const questionInput = z
   .object({
@@ -206,9 +200,9 @@ const questionInput = z
     }
 
     /**
-     * Two, not one. A pick-one question with a single answer is a question
-     * whose answer is already known, and the tally it produces says nothing.
-     * A tick-any question with one answer is a yes/no and perfectly reasonable.
+     * Two, not one. A pick-one question with a single answer is a question whose answer
+     * is already known. A tick-any question with one answer is a yes/no and perfectly
+     * reasonable.
      */
     const least = body.kind === SurveyQuestionKind.SINGLE_CHOICE ? 2 : 1
 
@@ -223,8 +217,8 @@ const questionInput = z
       })
     }
 
-    // Two rows reading "Other" make a tally nobody can read and a form nobody
-    // can answer, and neither failure says which of the two it came from.
+    // Two rows reading "Other" make a tally nobody can read and a form nobody can
+    // answer, and neither failure says which of the two it came from.
     const labels = body.options.map((option) => option.label.toLowerCase())
 
     if (new Set(labels).size !== labels.length) {
@@ -254,9 +248,9 @@ surveyAdmin.post(
   async (c) => {
     const body = c.req.valid('json')
 
-    // Appended rather than inserted. Where it belongs is the reorder route's
-    // question, and a new question landing in the middle of a form somebody is
-    // halfway through answering is worse than one landing at the end.
+    // Appended rather than inserted. Where it belongs is the reorder route's question,
+    // and a new question landing in the middle of a form somebody is halfway through
+    // answering is worse than one landing at the end.
     const last = await prisma.surveyQuestion.aggregate({
       _max: { position: true },
     })
@@ -310,14 +304,13 @@ surveyAdmin.put(
     }
 
     /**
-     * The one edit that is refused outright.
+     * The one edit that's refused outright.
      *
-     * Everything else about a question can change under answers already given —
-     * the wording, the help, whether it is required — because none of that makes
-     * an existing answer *wrong*. Changing the kind does: forty ticks against a
-     * question that now wants a sentence are forty rows nothing can render, and
-     * there is no honest way to convert them. 409 rather than 400: the request
-     * is fine, the question is simply not in a state where it makes sense.
+     * Everything else about a question can change under answers already given — the
+     * wording, the help, whether it's required — because none of that makes an existing
+     * answer wrong. Changing the kind does: forty ticks against a question that now
+     * wants a sentence are forty rows nothing can render. 409 rather than 400: the
+     * request is fine, the question simply isn't in a state where it makes sense.
      */
     if (body.kind !== existing.kind && existing._count.answers > 0) {
       throw new HTTPException(409, { message: KIND_LOCKED })
@@ -331,9 +324,9 @@ surveyAdmin.put(
     )
 
     for (const optionId of sent) {
-      // An id from another question, or one already deleted. Refused rather
-      // than created under this question, which is how an option ends up with a
-      // tally belonging to a different question.
+      // An id from another question, or one already deleted. Refused rather than created
+      // under this question, which is how an option ends up with a tally belonging to a
+      // different one.
       if (!known.has(optionId)) {
         throw new HTTPException(400, {
           message: 'One of those answers does not belong to this question.',
@@ -345,11 +338,9 @@ surveyAdmin.put(
       /**
        * What the officer left out.
        *
-       * Deleted when nobody picked it, archived when somebody did — the same
-       * rule as a question, for the same reason: REMOVE means "stop offering
-       * this", never "throw away what people told us". An option that is
-       * already archived and still left out stays archived, and putting its id
-       * back in the list is how it comes back.
+       * Deleted when nobody picked it, archived when somebody did — the same rule as a
+       * question: REMOVE means "stop offering this", never "throw away what people told
+       * us". Putting its id back in the list is how it comes back.
        */
       const dropped = existing.options.filter((option) => !sent.has(option.id))
 
@@ -372,8 +363,8 @@ surveyAdmin.put(
         })
       }
 
-      // In list order, because the list *is* the order: the officer dragged
-      // them into it and the form draws them the same way.
+      // In list order, because the list is the order: the officer dragged them into it
+      // and the form draws them the same way.
       for (const [index, option] of body.options.entries()) {
         if (option.id === undefined) {
           await tx.surveyOption.create({
@@ -393,9 +384,8 @@ surveyAdmin.put(
             label: option.label,
             wantsText: option.wantsText,
             position: index,
-            // Listed is live. This is the whole of "restore an option": there
-            // is no separate verb for it, because putting it back in the list
-            // is exactly what an officer means by it.
+            // Listed is live. This is the whole of "restore an option" — putting it back
+            // in the list is exactly what an officer means by it.
             archivedAt: null,
           },
         })
@@ -439,11 +429,9 @@ surveyAdmin.delete(
     }
 
     /**
-     * Archived when anybody answered it, deleted when nobody did, and the
-     * answer goes back so the desk can say which happened. An officer pressing
-     * REMOVE means "stop asking this" — they do not mean "throw away what forty
-     * people told us", and there is nothing at the button that could tell the
-     * two apart.
+     * Archived when anybody answered it, deleted when nobody did, and the answer goes
+     * back so the desk can say which happened. An officer pressing REMOVE means "stop
+     * asking this", not "throw away what forty people told us".
      */
     if (existing._count.answers > 0) {
       await prisma.surveyQuestion.update({
@@ -479,9 +467,9 @@ surveyAdmin.post(
       throw new HTTPException(404, { message: 'No such question.' })
     }
 
-    // Back at the end rather than where it used to sit. Its old position was
-    // vacated the moment anything else moved, and a question reappearing in the
-    // middle of a form is the same surprise a new one landing there would be.
+    // Back at the end rather than where it used to sit. Its old position was vacated
+    // the moment anything else moved, and a question reappearing in the middle of a form
+    // is the same surprise a new one landing there would be.
     const last = await prisma.surveyQuestion.aggregate({
       _max: { position: true },
       where: { archivedAt: null },
@@ -515,12 +503,11 @@ surveyAdmin.post(
     /**
      * The whole live set or nothing.
      *
-     * A partial list would leave the questions it omits holding positions that
-     * now collide with the ones it names, and the form would draw them in an
-     * order nobody chose. The realistic way to send one is two officers editing
-     * at once, which is exactly the case worth refusing rather than half-
-     * applying — 409, because the request is well-formed and the survey simply
-     * is not what the sender thought it was.
+     * A partial list would leave the questions it omits holding positions that now
+     * collide with the ones it names. The realistic way to send one is two officers
+     * editing at once, which is exactly the case worth refusing rather than
+     * half-applying — 409, because the request is well-formed and the survey simply
+     * isn't what the sender thought it was.
      */
     const sent = new Set(ids)
     const agrees =
@@ -550,18 +537,14 @@ surveyAdmin.post(
 /**
  * What the club learned from the survey, as counts.
  *
- * **Tallied here in JavaScript rather than in SQL**, and that is a deliberate
- * choice about size rather than laziness. Counting ticks in Postgres means
- * grouping a join table and stitching the zeroes back on by hand, to aggregate
- * a few thousand rows belonging to a club with a few hundred members. Two
- * `findMany`s and a loop are the same answer for the same cost, in code the
- * next person can read.
+ * Tallied in JavaScript rather than SQL, which is a choice about size. Counting ticks
+ * in Postgres means grouping a join table and stitching the zeroes back on by hand, to
+ * aggregate a few thousand rows belonging to a club with a few hundred members. Two
+ * `findMany`s and a loop are the same answer for the same cost, in readable code.
  *
- * Every list is returned **whole, including the zeroes**, in the order the
- * officer put the options in. A tally that omits the sizes nobody picked is a
- * tally somebody reads as "we do not need any XS" rather than "nobody has asked
- * for XS", and the difference matters when the numbers are being turned into a
- * shirt order.
+ * Every list comes back whole, including the zeroes, in the officer's order. A tally
+ * that omits the sizes nobody picked reads as "we don't need any XS" rather than
+ * "nobody has asked for XS", and the difference matters in a shirt order.
  */
 surveyAdmin.get('/', requireAuth, requireOfficer, async (c) => {
   const [questions, answers, responded, outstanding, years] = await Promise.all([
@@ -591,11 +574,9 @@ surveyAdmin.get('/', requireAuth, requireOfficer, async (c) => {
     /**
      * Who still owes one, counted rather than listed.
      *
-     * `active` and not `GUEST`, which is the same population the roster query
-     * uses — somebody who signed up and never came back is not a gap in the
-     * club's data. Admins are excluded because they are exempt from the gate,
-     * so counting them would put a number on this page that can never reach
-     * zero.
+     * `active` and not `GUEST`, the same population the roster query uses — somebody who
+     * signed up and never came back isn't a gap in the club's data. Admins are excluded
+     * because counting them would put a number on this page that can never reach zero.
      */
     prisma.user.count({
       where: {
@@ -635,10 +616,9 @@ surveyAdmin.get('/', requireAuth, requireOfficer, async (c) => {
       kind: question.kind,
       answered: answered.get(question.id) ?? 0,
       /**
-       * How many pressed NONE, or null where there is no NONE to press. It is a
-       * count in its own right rather than an option row, because there is no
-       * NONE option — an empty set of ticks is what "none" is stored as, and
-       * the reasoning is on `SurveyQuestion.allowNone`.
+       * How many pressed NONE, or null where there is no NONE to press. A count in its
+       * own right rather than an option row, because there is no NONE option — an empty
+       * set of ticks is what "none" is stored as.
        */
       none: question.allowNone ? (nones.get(question.id) ?? 0) : null,
       options: question.options
@@ -649,18 +629,17 @@ surveyAdmin.get('/', requireAuth, requireOfficer, async (c) => {
           count: picks.get(option.id) ?? 0,
         }))
         /**
-         * A retired option is still counted **when anybody picked it**. Every
-         * live one is listed including the zeroes, for the reason above; a
-         * retired one on nought is a row about a question nobody is being
-         * asked, and dropping the ones people did pick would leave a column
-         * that does not add up to the number who answered.
+         * A retired option is still counted when anybody picked it. Every live one is
+         * listed including the zeroes; a retired one on nought is a row about a question
+         * nobody is being asked, and dropping the ones people did pick would leave a
+         * column that doesn't add up to the number who answered.
          */
         .filter((option) => !option.archived || option.count > 0),
     })),
     /**
-     * Graduation years as a sparse list rather than a fixed range, because the
-     * range is whatever the club's members typed and a fixed one would either
-     * clip the mature student or print fifteen empty rows.
+     * Graduation years as a sparse list rather than a fixed range, because the range is
+     * whatever the club's members typed and a fixed one would either clip the mature
+     * student or print fifteen empty rows.
      */
     gradYears: [
       ...years
@@ -677,13 +656,12 @@ surveyAdmin.get('/', requireAuth, requireOfficer, async (c) => {
 })
 
 /**
- * A cell of CSV, quoted and — the part that is not obvious — defanged.
+ * A cell of CSV, quoted and — the part that isn't obvious — defanged.
  *
- * Some of these columns are free text a member typed, and this file is opened
- * in Excel or Sheets by whoever is ordering the shirts. A cell beginning `=`,
- * `+`, `-` or `@` is a *formula* to both of them, so an allergy note reading
- * `=cmd|...` is a live thing rather than a string. Prefixing with an apostrophe
- * is the standard defence: the spreadsheet shows the text and runs nothing.
+ * Some of these columns are free text a member typed, and this file is opened in Excel
+ * or Sheets by whoever is ordering the shirts. A cell beginning `=`, `+`, `-` or `@` is
+ * a formula to both, so an allergy note reading `=cmd|...` is a live thing rather than
+ * a string. Prefixing with an apostrophe is the standard defence.
  */
 const cell = (value: unknown): string => {
   const text = value === null || value === undefined ? '' : String(value)
@@ -696,17 +674,15 @@ const cell = (value: unknown): string => {
 /**
  * The raw answers, one row per member, for the person doing the ordering.
  *
- * Names and contact details are on it deliberately: the job this exists for is
- * "who has not picked a size" and "who do I ask about the nut allergy", and a
- * spreadsheet of anonymous sizes answers neither. It is behind `requireOfficer`
- * like every other desk, and it is the one route on the site that hands out a
- * file of members' personal details — so it stays a download an officer asks
- * for, never something linked from a page anybody else can reach.
+ * Names and contact details are on it deliberately: the job this exists for is "who
+ * hasn't picked a size" and "who do I ask about the nut allergy". It's the one route on
+ * the site that hands out a file of members' personal details, so it stays a download
+ * an officer asks for, never something linked from a page anybody else can reach.
  *
- * **One column per question**, named by the question. Which is why it is built
- * from the questions rather than from the rows: a member who answered before a
- * question existed has nothing in that column, and a column that appeared only
- * once somebody had answered would shift the header under the reader.
+ * One column per question, named by the question — which is why it's built from the
+ * questions rather than the rows: a member who answered before a question existed has
+ * nothing in that column, and a column that appeared only once somebody had answered
+ * would shift the header under the reader.
  */
 surveyAdmin.get('/export.csv', requireAuth, requireOfficer, async (c) => {
   const [questions, rows] = await Promise.all([
@@ -762,25 +738,24 @@ surveyAdmin.get('/export.csv', requireAuth, requireOfficer, async (c) => {
       ...questions.map((question) => {
         const answer = byQuestion.get(question.id)
 
-        // No row at all: this member was never asked, or was not required to
-        // answer and did not. Blank either way, which is the honest cell.
+        // No row at all: this member was never asked, or wasn't required to answer and
+        // didn't. Blank either way, which is the honest cell.
         if (answer === undefined) return ''
 
         const labels = [...answer.picked]
           .sort((a, b) => a.option.position - b.option.position)
           .map((pick) => pick.option.label)
 
-        // "None" rather than an empty cell, because an empty set here is an
-        // answer somebody gave — the form will not save one without NONE
-        // pressed — and a blank would read as a question they skipped.
+        // "None" rather than an empty cell, because an empty set here is an answer
+        // somebody gave — the form won't save one without NONE pressed — and a blank
+        // would read as a question they skipped.
         if (labels.length === 0) {
           return question.allowNone ? 'None' : (answer.text ?? '')
         }
 
-        // The free-text half of an OTHER, in brackets after the answer that
-        // asked for it. One cell, because a spreadsheet with a second column
-        // per question that is empty for everybody but three people is a
-        // spreadsheet nobody scrolls to the end of.
+        // The free-text half of an OTHER, in brackets after the answer that asked for
+        // it. One cell, because a spreadsheet with a second column per question that's
+        // empty for everybody but three people is one nobody scrolls to the end of.
         return answer.text === null
           ? labels.join(', ')
           : `${labels.join(', ')} (${answer.text})`
@@ -789,8 +764,8 @@ surveyAdmin.get('/export.csv', requireAuth, requireOfficer, async (c) => {
     ].map(cell)
   })
 
-  // CRLF, because that is what RFC 4180 says and what Excel wants; a lone \n
-  // is read as one enormous cell by some versions of it.
+  // CRLF, because that's what RFC 4180 says and what Excel wants; a lone \n is read as
+  // one enormous cell by some versions of it.
   const csv = [header.map(cell), ...body].map((line) => line.join(',')).join('\r\n')
 
   c.header('Content-Type', 'text/csv; charset=utf-8')

@@ -13,12 +13,11 @@ import {
 /**
  * The first step of signing up.
  *
- * Two things here cost the club members rather than pixels, and both are what
- * these tests are for. The eligibility requirement has to be read before the
- * form can be used, because someone who signs up with a Gmail address has
- * wasted their time and ours. And the confirmation has to say that the email
- * lands in spam — that is the single most common reason a signup is started and
- * never finished, and nobody comes back to a page to find out why.
+ * Two things here cost the club members rather than pixels, and both are what these tests are for.
+ * The eligibility requirement has to be read before the form can be used, because someone signing
+ * up with a Gmail address has wasted their time and ours. And the confirmation has to say the email
+ * lands in spam — the single most common reason a signup is started and never finished, and nobody
+ * comes back to a page to find out why.
  */
 
 const SENT = {
@@ -44,12 +43,11 @@ const restart = () => screen.getByRole('button', { name: /start again/i })
 /**
  * Let a stubbed fetch settle and React commit the result.
  *
- * `findBy*` is not safe in this file. Under fake timers Testing Library polls
- * by advancing the fake clock, so its one-second budget is spent in a few real
- * milliseconds — routinely before a promise chain has flushed, which made
- * whichever test happened to lose the race fail about one run in three.
- * Advancing inside `act` flushes the microtasks and the render together, and is
- * the same thing being asserted with none of the racing.
+ * `findBy*` isn't safe in this file. Under fake timers Testing Library polls by advancing the fake
+ * clock, so its one-second budget is spent in a few real milliseconds — routinely before a promise
+ * chain has flushed, which failed whichever test lost the race about one run in three. Advancing
+ * inside `act` flushes the microtasks and the render together, and asserts the same thing with none
+ * of the racing.
  */
 const settle = async () => {
   await act(async () => {

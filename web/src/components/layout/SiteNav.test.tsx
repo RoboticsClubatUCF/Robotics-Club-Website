@@ -13,24 +13,19 @@ import { SessionProvider } from '../../lib/auth/auth'
 import { stubFetch } from '../../test/stubFetch'
 
 /**
- * The nav renders its links twice — once in the row that shows above the
- * breakpoint, once in the panel that shows below it — and CSS picks. Only one is
- * ever in the accessibility tree, because `display: none` takes the other out of
- * it, but jsdom applies no CSS, so every query here has to say which one it
- * means.
+ * The nav renders its links twice — once in the row that shows above the breakpoint, once in the
+ * panel that shows below it — and CSS picks. Only one is ever in the accessibility tree, but jsdom
+ * applies no CSS, so every query here has to say which one it means.
  */
 
 /**
- * The nav is in the layout on every route, so half its links are `<Link>`s and
- * those throw outside a router. `MemoryRouter` keeps the history in memory,
- * which is what lets a test assert on where a link points without jsdom trying
- * to navigate anywhere.
+ * The nav is in the layout on every route, so half its links are `<Link>`s and those throw outside
+ * a router. `MemoryRouter` keeps the history in memory, which lets a test assert on where a link
+ * points without jsdom trying to navigate.
  *
- * `SessionProvider` is here for the same reason: the bar asks who is signed in,
- * so it needs the context the app puts around it. Every assertion below is
- * about the signed-out bar — which is what these synchronous queries see, since
- * `/auth/me` has not resolved by the time they run, and is also the state the
- * overwhelming majority of visitors are in.
+ * `SessionProvider` is here for the same reason: the bar asks who is signed in. Every assertion
+ * below is about the signed-out bar — which is what these synchronous queries see, and the state
+ * the overwhelming majority of visitors are in.
  */
 const render = () => {
   vi.stubGlobal('fetch', stubFetch({ '/auth/me': { user: null } }))
@@ -151,11 +146,10 @@ describe('SiteNav', () => {
   })
 
   /**
-   * The links are two lists, not one: the left half scrolls the front page and
-   * the right half leaves it. The rule between them says so to anybody looking
-   * at the bar, and is `aria-hidden` — "vertical line" read out between two
-   * lists says nothing — so the labels are what carry it to everybody else.
-   * Lose those and the split becomes decoration.
+   * The links are two lists, not one: the left half scrolls the front page and the right half
+   * leaves it. The rule between them says so to anybody looking at the bar, and is `aria-hidden` —
+   * "vertical line" read out between two lists says nothing — so the labels carry it to everybody
+   * else. Lose those and the split becomes decoration.
    */
   it('splits the links into the sections of this page and the pages', () => {
     render()
@@ -215,13 +209,12 @@ describe('SiteNav', () => {
   })
 
   /**
-   * Signed in, that button is an avatar instead, and the last page link becomes
-   * the way to the section rather than the way in.
+   * Signed in, that button is an avatar instead, and the last page link becomes the way to the
+   * section rather than the way in.
    *
-   * At that point the bar's job is "who am I, and how do I get to my things",
-   * and spelling it out as MY DASHBOARD was the widest possible way to say it.
-   * The initials are the accessible name's job to *not* carry — the label names
-   * the destination, and "RT" read out on its own tells nobody anything.
+   * At that point the bar's job is "who am I, and how do I get to my things", and spelling it out
+   * as MY DASHBOARD was the widest possible way to say it. The initials are the accessible name's
+   * job to not carry — "RT" read out on its own tells nobody anything.
    */
   it('becomes an avatar once somebody is signed in', async () => {
     renderSignedIn()
@@ -234,13 +227,12 @@ describe('SiteNav', () => {
   })
 
   /**
-   * "Dashboard" takes the slot "Sign in" had — last of the pages, immediately
-   * before the avatar — because it is the link that slot is for: the one route
-   * this visitor can reach that the bar does not otherwise offer. It points at
-   * the section, not at the avatar's own page.
+   * "Dashboard" takes the slot "Sign in" had — last of the pages, immediately before the avatar —
+   * because it's the link that slot is for: the one route this visitor can reach that the bar
+   * doesn't otherwise offer. It points at the section, not the avatar's own page.
    *
-   * Signed out it is absent rather than pointing somewhere: `/dashboard`
-   * redirects to `/login`, which is what the link already sitting there says.
+   * Signed out it's absent rather than pointing somewhere: `/dashboard` redirects to `/login`,
+   * which is what the link already sitting there says.
    */
   it('swaps the way in for the way to the dashboard once signed in', async () => {
     renderSignedIn()

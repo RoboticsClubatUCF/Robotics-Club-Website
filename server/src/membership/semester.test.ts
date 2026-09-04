@@ -13,31 +13,25 @@ import { Season } from '../generated/prisma/enums.js'
 /**
  * The dues year, with UCF's calendar stubbed.
  *
- * This is the file that decides what a member is charged and until when, so it
- * is the one place where getting the arithmetic wrong costs somebody money
- * rather than a rendering glitch. Every case below is a club rule stated as an
- * assertion: summer is free, the gap between terms is free, a term's first
- * three weeks are free, and $50 buys the two terms that are not.
+ * This is the file that decides what a member is charged and until when, so it's the one
+ * place where wrong arithmetic costs somebody money rather than a rendering glitch. Every
+ * case below is a club rule stated as an assertion: summer is free, the gap between terms is
+ * free, a term's first three weeks are free, and $50 buys the two terms that aren't.
  *
- * `fetch` is stubbed rather than the module being mocked. The parsing of UCF's
- * feed — preferring the main session, reading the term's *last* event as its
- * end — is half of what this file does, and a mocked `getTerm` would test none
- * of it.
+ * `fetch` is stubbed rather than the module being mocked. Parsing UCF's feed — preferring the
+ * main session, reading the term's last event as its end — is half of what this file does,
+ * and a mocked `getTerm` would test none of it.
  *
- * Dates are written without a timezone so they parse as local, which is what
- * `startOfDay` and `endOfDay` work in. A term boundary is a *day* here, not an
- * instant, and pinning these to UTC would make the suite pass or fail on where
- * the machine running it happens to be.
+ * Dates are written without a timezone so they parse as local, which is what `startOfDay` and
+ * `endOfDay` work in. A term boundary is a day here, not an instant.
  */
 
 /**
  * A term as UCF publishes one, cut down to the events that matter.
  *
- * `classesEnd` is optional and defaults to a week before housing closes, which
- * is roughly what UCF publishes and exactly what finals week hangs off. It does
- * not move `endsAt`: `findDate` prefers "On-Campus Housing Closes" and only
- * falls back to "Classes End", so every assertion below about a term's last day
- * means the same thing it did before this event was in the fixture.
+ * `classesEnd` is optional and defaults to a week before housing closes, which is roughly what
+ * UCF publishes and exactly what finals week hangs off. It doesn't move `endsAt`: `findDate`
+ * prefers "On-Campus Housing Closes" and only falls back to "Classes End".
  */
 function feed(
   classesBegin: string,
@@ -73,10 +67,9 @@ function feed(
 }
 
 /**
- * Two academic years of plausible UCF dates. The exact days do not matter —
- * what matters is that spring runs January to May, summer May to August, and
- * fall August to December, because every rule below is about which of those a
- * date falls in.
+ * Two academic years of plausible UCF dates. The exact days don't matter — what matters is
+ * that spring runs January to May, summer May to August, and fall August to December, because
+ * every rule below is about which of those a date falls in.
  */
 const TERMS: Record<string, unknown> = {
   '2026/spring': feed('2026-01-12T08:00:00', '2026-05-06T09:00:00'),
@@ -164,9 +157,9 @@ describe('reading UCFs calendar', () => {
   })
 
   /**
-   * A failure has to be cached or it is a multiplier, not a timeout: one dues
-   * page asks about several terms, and without this each one waits on its own
-   * five-second deadline against a server already known to be down.
+   * A failure has to be cached or it's a multiplier, not a timeout: one dues page asks about
+   * several terms, and without this each waits on its own five-second deadline against a
+   * server already known to be down.
    */
   it('does not re-ask for a term it has just failed to read', async () => {
     await getTerm(2031, Season.FALL)
@@ -199,11 +192,10 @@ describe('which term it is', () => {
   })
 
   /**
-   * The behaviour during a break is the load-bearing one, and it looks wrong
-   * until you see why: on 20 December this answers "spring", weeks before
-   * spring begins. That is what makes the gap between terms free without
-   * anything having to special-case it — everything downstream compares against
-   * `startsAt` and finds it still in the future.
+   * The behaviour during a break is the load-bearing one, and it looks wrong until you see
+   * why: on 20 December this answers "spring", weeks before spring begins. That's what makes
+   * the gap between terms free without anything special-casing it — everything downstream
+   * compares against `startsAt` and finds it still in the future.
    */
   it('names the term ahead during the winter break', async () => {
     const term = await currentTerm(at('2026-12-20'))
@@ -253,11 +245,10 @@ describe('who owes what', () => {
   /**
    * The opening weeks are the tail of the same window, not a second one.
    *
-   * There used to be a `TRIAL` status here for exactly those weeks, sitting
-   * beside `FREE` for the summer and the gaps. One continuous window from the
-   * end of one dues-bearing term to three weeks into the next made the split
-   * meaningless: it is the same offer, claimable on the same press, and the
-   * only thing that ever differed was the sentence on the page.
+   * There used to be a `TRIAL` status for exactly those weeks, sitting beside `FREE`. One
+   * continuous window from the end of one dues-bearing term to three weeks into the next made
+   * the split meaningless: same offer, same press, and the only thing that differed was the
+   * sentence on the page.
    */
   it('keeps the window open through the first weeks of a term', async () => {
     const standing = await membershipStanding(none, at('2026-08-30'))
@@ -273,11 +264,9 @@ describe('who owes what', () => {
   /**
    * Claiming a free window.
    *
-   * The summer used to be free *silently* — the calendar covered everybody,
-   * every stale account included, and claiming only changed what the
-   * membership read as. Now it is the difference between access and none, and
-   * it is still not a second kind of record: it is `duesPaidThrough` moved to
-   * the day the window shuts. Everything below is what that one date buys.
+   * The summer used to be free silently — the calendar covered everybody, every stale account
+   * included. Now it's the difference between access and none, and it's still not a second
+   * kind of record: it's `duesPaidThrough` moved to the day the window shuts.
    */
   describe('claiming a free window', () => {
     /**
@@ -343,10 +332,9 @@ describe('who owes what', () => {
     })
 
     /**
-     * A claim carries through the opening weeks rather than handing over to
-     * them. This is the case that flipped: the date used to stop on the term's
-     * first day and let the blanket trial take the weeks after, which only
-     * worked while the trial was blanket.
+     * A claim carries through the opening weeks rather than handing over to them. This is the
+     * case that flipped: the date used to stop on the term's first day and let the blanket
+     * trial take the weeks after, which only worked while the trial was blanket.
      */
     it('carries straight through the term’s first weeks', async () => {
       const standing = await membershipStanding(
@@ -420,10 +408,9 @@ describe('who owes what', () => {
   })
 
   /**
-   * Paid comes before free in the order of tests, and it has to. A member who
-   * bought the year still reads as paid through the summer rather than as
-   * "nobody owes anything" — they paid for it, and a status that forgets is a
-   * status somebody will argue with.
+   * Paid comes before free in the order of tests, and it has to. A member who bought the year
+   * still reads as paid through the summer rather than as "nobody owes anything" — they paid
+   * for it, and a status that forgets is one somebody will argue with.
    */
   it('still reads as paid during the free summer', async () => {
     const standing = await membershipStanding(
@@ -498,11 +485,9 @@ describe('what a payment buys', () => {
    * wrong — its `validSemester` returned a date hardcoded to 2024.
    */
   it('rolls a second semester forward instead of selling the same one twice', async () => {
-    // Taken from the term rather than typed out. `coverageFor` is what sets
-    // `duesPaidThrough` in the first place, so the only value a member can
-    // actually hold is this one — and a hand-written `23:59:59` is a
-    // millisecond short of it, which is a different case entirely: somebody
-    // paid up to *most* of fall still has fall left to buy.
+    // Taken from the term rather than typed out. `coverageFor` is what sets `duesPaidThrough`
+    // in the first place, so the only value a member can hold is this one — and a hand-written
+    // `23:59:59` is a millisecond short of it, which is a different case entirely.
     const alreadyPaid = (await getTerm(2026, Season.FALL)).endsAt
     const coverage = await coverageFor('SEMESTER', at('2026-09-30'), alreadyPaid)
 
@@ -524,16 +509,14 @@ describe('what a payment buys', () => {
 /**
  * A payment buys the term it was made in, however late in it that is.
  *
- * The club used to roll a late payment forward: past a term's midpoint the $25
- * bought the *next* term and the tail of the current one came along free. That
- * is gone — dues cover the semester you are sitting in and end with it — and
- * this block is the assertion that it stays gone, because the arithmetic that
- * would bring it back is a one-line change nobody would notice in review.
+ * The club used to roll a late payment forward: past a term's midpoint the $25 bought the next
+ * term and the tail of the current one came along free. That's gone, and this block is the
+ * assertion that it stays gone — the arithmetic that would bring it back is a one-line change
+ * nobody would notice in review.
  *
- * The dates are checked against the stubbed calendar rather than guessed: fall
- * 2026 runs 24 August to 13 December, so the old midpoint was around 18
- * October, and spring 2026 runs 12 January to 6 May, midpoint around 9 March.
- * Every case below sits deliberately *past* one of those.
+ * The dates are checked against the stubbed calendar rather than guessed: fall 2026 runs 24
+ * August to 13 December, spring 2026 runs 12 January to 6 May. Every case below sits
+ * deliberately past one of those midpoints.
  */
 describe('buying late in a term', () => {
   it('buys the term itself in the first half', async () => {
@@ -561,9 +544,8 @@ describe('buying late in a term', () => {
   /**
    * Cover ends with the term, and the member is out in January.
    *
-   * This is the whole change stated once. The same call used to answer May
-   * 2027, carrying somebody who paid in November through a spring they never
-   * bought.
+   * The whole change stated once. The same call used to answer May 2027, carrying somebody who
+   * paid in November through a spring they never bought.
    */
   it('ends cover at the end of the term it was bought in', async () => {
     const coverage = await coverageFor('SEMESTER', at('2026-11-10'))
@@ -584,13 +566,12 @@ describe('buying late in a term', () => {
   })
 
   /**
-   * The accepted cost of dropping the rollover, written down as a test so that
-   * nobody meets it in production and files it as a bug.
+   * The accepted cost of dropping the rollover, written down as a test so nobody meets it in
+   * production and files it as a bug.
    *
-   * Dues bought in the last week of a term buy the last week of a term. The
-   * club would rather sell that than explain why a November payment reads as
-   * spring; if it ever stops being worth it, the fix is a prorated price, not
-   * a second answer to which term this is.
+   * Dues bought in the last week of a term buy the last week of a term. The club would rather
+   * sell that than explain why a November payment reads as spring; if it ever stops being worth
+   * it, the fix is a prorated price, not a second answer to which term this is.
    */
   it('sells the tail of a term for a full term of dues', async () => {
     const coverage = await coverageFor('SEMESTER', at('2026-12-08'))
@@ -615,10 +596,9 @@ describe('buying late in a term', () => {
   })
 
   /**
-   * Between terms there is no term to be late in, so the money buys the one
-   * ahead. This behaviour is unchanged and it is the reason the rollover could
-   * be deleted rather than replaced: `currentTerm` already points at what is
-   * coming during a break.
+   * Between terms there's no term to be late in, so the money buys the one ahead. Unchanged,
+   * and the reason the rollover could be deleted rather than replaced: `currentTerm` already
+   * points at what's coming during a break.
    */
   it('buys the term ahead during an intermission', async () => {
     const august = await billableTerm(at('2026-08-15'))
@@ -639,12 +619,10 @@ describe('buying late in a term', () => {
   })
 
   /**
-   * **The free window does not reopen in November.** It never did, but it used
-   * to take a two-term split inside `membershipStanding` to keep it shut: the
-   * window hung off fall while the quote hung off spring, and pointing the
-   * window at the term being sold would have advertised free membership from
-   * mid-October to late January. One term answers both now, and this is the
-   * case that would catch anyone reintroducing the second.
+   * The free window doesn't reopen in November. It never did, but it used to take a two-term
+   * split inside `membershipStanding` to keep it shut: the window hung off fall while the quote
+   * hung off spring, and pointing the window at the term being sold would have advertised free
+   * membership from mid-October to late January.
    */
   it('does not offer a free window in the second half of a term', async () => {
     const standing = await membershipStanding(null, at('2026-11-10'))
@@ -659,15 +637,12 @@ describe('buying late in a term', () => {
 })
 
 /**
- * Finals week: the one thing on the term that is allowed to have no answer.
+ * Finals week: the one thing on the term allowed to have no answer.
  *
- * Everything else here falls back — a term whose feed is unreadable still has a
- * start and an end, because a dues page that cannot say when the semester is
- * would be worse than one saying a date a week out. Finals is the opposite
- * case. It only ever *removes* things: a finals week nobody set would delete a
- * fortnight of meetings from the public calendar, and the failure would look
- * exactly like a broken calendar rather than like a missing date. So it stays
- * null, and the terms desk says so in words.
+ * Everything else falls back — a term whose feed is unreadable still has a start and an end.
+ * Finals is the opposite case: it only ever removes things, so a finals week nobody set would
+ * delete a fortnight of meetings from the public calendar, and the failure would look exactly
+ * like a broken calendar rather than a missing date.
  */
 describe('finals week', () => {
   it('runs from the day after classes end to the end of the term', async () => {

@@ -40,16 +40,14 @@ const pitch = (over: Partial<ApiSponsorship> = {}): ApiSponsorship => ({
 })
 
 /**
- * The page's two reads, plus the one `ContactForm` makes at the foot of it: it
- * asks whether this visitor has any messages left today before drawing its
- * fields, and every case here renders it. Answered permissively, because none
- * of these tests are about the limit — the one that is lives beside the
- * component.
+ * The page's two reads, plus the one `ContactForm` makes at the foot of it: it asks whether this
+ * visitor has any messages left today before drawing its fields, and every case here renders it.
+ * Answered permissively, because none of these tests are about the limit.
  *
- * **`/sponsorship` is listed before `/sponsors` and has to be.** `stubFetch`
- * matches on `includes` and takes the first key that hits, and every
- * `/sponsorship` URL contains `/sponsors` — the other way round, the pitch is
- * answered with a list of companies and the page renders `undefined.length`.
+ * `/sponsorship` is listed before `/sponsors` and has to be. `stubFetch` matches on `includes`
+ * and takes the first key that hits, and every `/sponsorship` URL contains `/sponsors` — the
+ * other way round, the pitch is answered with a list of companies and the page renders
+ * `undefined.length`.
  */
 const page = (routes: Record<string, unknown>) =>
   stubFetch({
@@ -80,10 +78,9 @@ describe('SponsorsPage', () => {
   })
 
   /**
-   * The price belongs to the level, not to the company, so it comes off the
-   * pitch read — which is the page's *other* request. Both halves of the answer
-   * are asserted here: the tier that has a sheet says what it costs, and the
-   * one that has none is a bare heading rather than an empty separator.
+   * The price belongs to the level, not the company, so it comes off the pitch read — the page's
+   * other request. Both halves are asserted here: the tier that has a sheet says what it costs,
+   * and the one that has none is a bare heading rather than an empty separator.
    */
   it('prints what a tier costs beside its name over the roll', async () => {
     vi.stubGlobal(
@@ -347,11 +344,10 @@ describe('SponsorsPage', () => {
   })
 
   /**
-   * Both reads fail together here, and the two halves answer differently on
-   * purpose: the list says it could not load, and the pitch falls into the same
-   * place an unpublished one does. A visitor deciding whether to sponsor a
-   * robotics club is not owed the difference between "not settled yet" and "the
-   * API is down" — both end in "ask an officer", which is what the panel says.
+   * Both reads fail together here, and the two halves answer differently on purpose: the list says
+   * it couldn't load, and the pitch falls into the same place an unpublished one does. A visitor
+   * deciding whether to sponsor a robotics club isn't owed the difference between "not settled
+   * yet" and "the API is down".
    */
   it('degrades to a message when the API is unreachable', async () => {
     vi.stubGlobal('fetch', stubFetchNetworkError())

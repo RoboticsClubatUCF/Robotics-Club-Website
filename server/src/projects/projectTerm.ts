@@ -5,16 +5,15 @@ import { currentTerm } from '../membership/semester.js'
 /**
  * Which term a project belongs to, on the wire.
  *
- * Two columns on `Project` say something about when, and they are not the same
- * kind of statement. `season` is free text a lead types — "Spring 2026",
- * "Season-long", "Year-round" all appear in the club's own rows — and it prints
- * under a title and compares to nothing. `(termYear, termSeason)` is the pair
- * `DuesPayment` already carries, and it is the one thing that can answer "is
- * this one of ours *now*". **`season` prints; this decides.**
+ * Two columns on `Project` say something about when, and they are not the same kind of statement.
+ * `season` is free text a lead types — "Spring 2026", "Season-long", "Year-round" all appear in the
+ * club's own rows — and it prints under a title and compares to nothing. `(termYear, termSeason)`
+ * is the pair `DuesPayment` already carries, and it is the one thing that can answer "is this one
+ * of ours now". `season` prints; this decides.
  *
- * Shared by the create route and the edit route rather than written twice: the
- * pairing rule below is the sort of validation that gets copied once correctly
- * and once not, and the second copy is a project nobody can find.
+ * Shared by the create route and the edit route rather than written twice: the pairing rule below
+ * is the sort of validation that gets copied once correctly and once not, and the second copy is a
+ * project nobody can find.
  */
 export const termFields = {
   /**
@@ -49,10 +48,9 @@ export const TERM_PAIRED = {
 /**
  * The term to stamp on something being written now.
  *
- * `currentTerm` names the term *ahead* during a break, and that is the right
- * default here for the same reason it is right on the dues page: a project
- * entered over winter break is a spring project, and nobody creating one on
- * 3 January means "last term".
+ * `currentTerm` names the term ahead during a break, and that is the right default here for the
+ * same reason it is right on the dues page: a project entered over winter break is a spring
+ * project, and nobody creating one on 3 January means "last term".
  */
 export async function termFor(
   named: NamedTerm,

@@ -10,26 +10,21 @@ import { createSession } from '../../auth/session.js'
 /**
  * Managing your own account, against the live database.
  *
- * The properties worth pinning are the ones that are invisible from the site
- * and expensive to get wrong:
+ * The properties worth pinning are the ones invisible from the site and expensive to get wrong:
  *
- *   - the Discord field does not call somebody's own handle taken, which is the
- *     one thing that separates this check from signup's;
- *   - changing a password ends the *other* sessions and not this one;
- *   - an email does not move until the link is followed, and the link works
- *     exactly once;
- *   - deleting refuses while the club is owed a thing, and takes the stored
- *     photo with it when it does go.
+ *   - the Discord field doesn't call somebody's own handle taken, which is the one thing that
+ *     separates this check from signup's;
+ *   - changing a password ends the other sessions and not this one;
+ *   - an email doesn't move until the link is followed, and the link works exactly once;
+ *   - deleting refuses while the club is owed a thing, and takes the stored photo with it.
  */
 
 /**
- * **`../discord.js` is mocked outright, not optionally.** Two routes here reach
- * `pushRoles`/`stripManagedRoles`, which *write roles* in the club's real
- * Discord server — the dev `.env` carries a live bot token, and a role change
- * alters what an actual person can see. The Discord answer is also keyed on the
- * handle rather than flat: the confirmed id is written back to the row, so a
- * stub answering "connected" to anything would hand this suite's invented
- * snowflake to whoever else is in the database.
+ * `../discord.js` is mocked outright, not optionally. Two routes here reach
+ * `pushRoles`/`stripManagedRoles`, which write roles in the club's real Discord server — the dev
+ * `.env` carries a live bot token. The Discord answer is keyed on the handle rather than flat:
+ * the confirmed id is written back to the row, so a stub answering "connected" to anything would
+ * hand this suite's invented snowflake to whoever else is in the database.
  */
 vi.mock('../../discord/discord.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../discord/discord.js')>()),
@@ -62,13 +57,12 @@ const NEW_EMAIL = `${PREFIX}moved@ucf.edu`
 const PASSWORD = 'a-long-enough-password'
 
 /**
- * Invented and namespaced: `discordUsername` is unique against a database of
- * real people, and the confirmed id is written back to the row.
+ * Invented and namespaced: `discordUsername` is unique against a database of real people, and
+ * the confirmed id is written back to the row.
  *
- * Underscores rather than the suite's own hyphenated prefix, because a Discord
- * handle is `[a-z0-9._]` and a hyphen makes `isHandleShaped` refuse it — which
- * comes back as `not_found` and looks like the check failing rather than the
- * fixture being illegal.
+ * Underscores rather than the suite's own hyphenated prefix, because a Discord handle is
+ * `[a-z0-9._]` and a hyphen makes `isHandleShaped` refuse it — which comes back as `not_found`
+ * and looks like the check failing rather than the fixture being illegal.
  */
 const MY_HANDLE = 'test_account_mine'
 const OTHER_HANDLE = 'test_account_theirs'
@@ -113,12 +107,10 @@ function uploadPhoto(
   framing?: Record<string, string>,
 ) {
   const form = new FormData()
-  // Prefixed, because `clearRows` finds stored files by `originalName` and
-  // nothing else can find them: `StoredFile.createdById` is `SetNull`, so
-  // deleting the fixture's user leaves the row behind rather than cascading it.
-  // The cleanup was always written for a prefixed name; the fixture was not,
-  // and six 11-byte `face.png` rows per run had been collecting in the club's
-  // development database as a result.
+  // Prefixed, because `clearRows` finds stored files by `originalName` and nothing else can:
+  // `StoredFile.createdById` is `SetNull`, so deleting the fixture's user leaves the row behind.
+  // The cleanup was always written for a prefixed name; the fixture wasn't, and six 11-byte
+  // `face.png` rows per run had been collecting in the club's development database.
   form.append('file', new File([bytes], `${PREFIX}face.png`, { type: 'image/png' }))
   // As the browser sends it: framed before the upload, so the numbers ride in
   // the same body as the picture rather than following it.

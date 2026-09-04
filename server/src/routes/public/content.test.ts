@@ -14,22 +14,20 @@ import { clearCalendarCache } from '../../membership/semester.js'
 
 /**
  * Integration tests against a live database — see the note in vitest.config.ts.
- * `app.request()` drives the real Hono app in-process, so no port is bound and
- * no server has to be running.
+ * `app.request()` drives the real Hono app in-process, so no port is bound.
  *
- * These deliberately assert on invariants rather than on specific numbers. The
- * database they run against is whatever the last seed left behind, and a test
- * that hard-codes "5 projects" is a test that breaks the first time someone
- * adds one.
+ * These assert on invariants rather than specific numbers: the database is whatever the
+ * last seed left behind, and a test that hard-codes "5 projects" breaks the first time
+ * somebody adds one.
  */
 
 /**
- * `Response.json()` is typed `unknown`, so callers say what they expect. These
- * shapes are only as much of each payload as the assertions below touch.
+ * `Response.json()` is typed `unknown`, so callers say what they expect. These shapes are
+ * only as much of each payload as the assertions touch.
  */
 type Stats = { projects: number; members: number; events: number }
-/** `slug` is nullable, and is null for almost everybody — it means "has a
-    public profile URL", not "is on the roster". See `rosterSelect`. */
+/** `slug` is nullable and null for almost everybody — it means "has a public profile URL",
+    not "is on the roster". */
 type Member = {
   id: string
   slug: string | null
@@ -83,12 +81,10 @@ const sameDay = (a: string, b: string) => a.slice(0, 10) === b.slice(0, 10)
 /**
  * Which academic year a term began in, August to August.
  *
- * Written out here rather than imported so that it is an independent statement
- * of the rule: the route windows on this in SQL and
- * `web/src/lib/officerTerms.ts` groups on it in the browser, and a test that
- * shared an implementation with either could not notice them drifting apart.
- * UTC, for the reason that file gives — midnight on 1 August is the previous
- * July in Orlando.
+ * Written out here rather than imported so it's an independent statement of the rule: the
+ * route windows on this in SQL and `web/src/lib/officerTerms.ts` groups on it in the
+ * browser, and a test sharing an implementation with either couldn't notice them drifting.
+ * UTC, because midnight on 1 August is the previous July in Orlando.
  */
 const academicYearOf = (iso: string): number => {
   const at = new Date(iso)
@@ -118,24 +114,20 @@ describe('GET /api/stats', () => {
   })
 
   /**
-   * The contract the landing page is built on: a stat cell links to a listing,
-   * and the number on the cell is how many rows that listing has. If a filter
-   * is ever added to one side and not the other, this is what catches it.
-   * `limit` is pushed past the defaults so a large table can't make a genuine
-   * disagreement look like pagination.
+   * The contract the landing page is built on: a stat cell links to a listing, and the
+   * number on the cell is how many rows that listing has. `limit` is pushed past the
+   * defaults so a large table can't make a genuine disagreement look like pagination.
    *
-   * **`members` is held to it again.** It was the documented exception for as
-   * long as the listing defaulted to every account; the default is the club's
-   * active membership now — the same clause `/stats` counts — so the cell and
-   * the page it opens are one claim and this asserts it as one.
+   * `members` is held to it again. It was the documented exception for as long as the
+   * listing defaulted to every account; the default is the club's active membership now.
    */
   it('counts exactly what the matching listing lists', async () => {
     const stats = await get<Stats>('/api/stats')
 
     const [projects, members, events] = await Promise.all([
       get<Project[]>('/api/projects?limit=100'),
-      // The default `status`, deliberately not spelled out: the point is that
-      // whatever the listing opens on is what the cell counted.
+      // The default `status`, deliberately not spelled out: the point is that whatever the
+      // listing opens on is what the cell counted.
       get<Member[]>('/api/members?limit=1000'),
       get<unknown[]>('/api/events?limit=100'),
     ])
@@ -171,11 +163,10 @@ describe('GET /api/projects', () => {
   })
 
   /**
-   * The gallery and the resource links are the detail route's by default. The
-   * listing answers up to a hundred rows, so a `select` that grew them there
-   * unconditionally would ship every project's whole gallery to anyone opening
-   * `/projects` — which is exactly the kind of change that looks harmless in a
-   * diff. `images=true` is the one way past it, tested below.
+   * The gallery and the resource links are the detail route's by default. The listing
+   * answers up to a hundred rows, so a `select` that grew them there unconditionally would
+   * ship every project's whole gallery to anyone opening `/projects` — exactly the kind of
+   * change that looks harmless in a diff.
    */
   it('carries the gallery and links on the detail route and not on the list', async () => {
     const [first] = await get<Project[]>('/api/projects?limit=1')
@@ -193,11 +184,10 @@ describe('GET /api/projects', () => {
   })
 
   /**
-   * The array order *is* the display order, which is why neither list carries a
-   * sort key. Sending one as well would give the client a second opinion to
-   * disagree with. The framing, by contrast, has to be on the wire: the public
-   * page is what draws these, and without it every gallery reverts to a plain
-   * centred crop for exactly the visitors it was framed for.
+   * The array order is the display order, which is why neither list carries a sort key —
+   * sending one as well would give the client a second opinion to disagree with. The
+   * framing has to be on the wire: the public page draws these, and without it every
+   * gallery reverts to a centred crop for exactly the visitors it was framed for.
    */
   it('carries the framing but not the sort key', async () => {
     const [first] = await get<Project[]>('/api/projects?limit=1')
@@ -220,9 +210,9 @@ describe('GET /api/projects', () => {
   })
 
   /**
-   * The two heavy columns are independent flags, and asking for one must not
-   * drag in the other: `/projects` wants pictures and writing for the current
-   * term but only the writing for the archive, which is forty-odd rows.
+   * The two heavy columns are independent flags, and asking for one must not drag in the
+   * other: `/projects` wants pictures and writing for the current term but only the writing
+   * for the archive, which is forty-odd rows.
    */
   it('carries the gallery when the list asks for it, and nothing else', async () => {
     const listed = await get<Record<string, unknown>[]>(
@@ -239,11 +229,9 @@ describe('GET /api/projects', () => {
   })
 
   /**
-   * `summary` is the column the schema calls the one-liner for cards, and it is
-   * what `/projects` prints now — it went unfilled on every project the club had
-   * created until the migration seeded it, which is why the list printed the
-   * write-up instead for a while. The flag stays for any caller that wants the
-   * prose; it simply has none today.
+   * `summary` is the column the schema calls the one-liner for cards, and what `/projects`
+   * prints now — it went unfilled on every project until the migration seeded it, which is
+   * why the list printed the write-up instead for a while.
    */
   it('carries the write-up when the list asks for it, and no pictures with it', async () => {
     const listed = await get<Record<string, unknown>[]>(
@@ -257,10 +245,9 @@ describe('GET /api/projects', () => {
   })
 
   /**
-   * **`cover=true` is `images=true` capped at one row.** A card draws one still
-   * rather than a slideshow, so twelve times the payload for eleven pictures
-   * nothing renders is what the separate flag exists to avoid. It answers on the
-   * same `images` key so the browser has one shape to read either way.
+   * `cover=true` is `images=true` capped at one row. A card draws one still rather than a
+   * slideshow, so twelve times the payload for eleven pictures nothing renders is what the
+   * separate flag avoids. It answers on the same `images` key.
    */
   it('carries at most one picture when the list asks for a cover', async () => {
     const listed = await get<Record<string, unknown>[]>(
@@ -275,9 +262,9 @@ describe('GET /api/projects', () => {
     }
   })
 
-  /** The superset wins when both are sent: a caller who asked for the whole
-      gallery has already been given the first picture, and answering `take: 1`
-      would quietly break a promise of twelve. */
+  /** The superset wins when both are sent: a caller who asked for the whole gallery has
+      already been given the first picture, and answering `take: 1` would quietly break a
+      promise of twelve. */
   it('gives the whole gallery when both flags are sent', async () => {
     const [withCover, withImages] = await Promise.all([
       get<Record<string, unknown>[]>('/api/projects?cover=true&images=true&limit=100'),
@@ -291,9 +278,9 @@ describe('GET /api/projects', () => {
   })
 
   /**
-   * The cover is four columns read as one rule (`coverOf` in the browser), so
-   * all four have to be on every row of both lists — a flag that sent half would
-   * make the listing and a project's own page disagree about the same picture.
+   * The cover is four columns read as one rule (`coverOf` in the browser), so all four have
+   * to be on every row of both lists — a flag that sent half would make the listing and a
+   * project's own page disagree about the same picture.
    */
   it('always carries the cover columns and the section headings', async () => {
     const listed = await get<Record<string, unknown>[]>('/api/projects?limit=100')
@@ -315,10 +302,9 @@ describe('GET /api/projects', () => {
   })
 
   /**
-   * **The repository is not a column any more.** It printed as a fixed SOURCE
-   * CODE row above the resource list and drew a fixed box in the editor, so the
-   * section could never be empty on a site where most of what the club builds
-   * has no repository. The migration folded every value into a `ProjectLink`.
+   * The repository isn't a column any more. It printed as a fixed SOURCE CODE row above the
+   * resource list and drew a fixed box in the editor, so the section could never be empty
+   * on a site where most of what the club builds has no repository.
    */
   it('no longer carries a repository column', async () => {
     const [first] = await get<Project[]>('/api/projects?limit=1')
@@ -331,12 +317,12 @@ describe('GET /api/projects', () => {
   })
 
   /**
-   * **The roster says who leads, and not what they do in the club.**
+   * The roster says who leads, and not what they do in the club.
    *
-   * `rank` is the column every permission on a project is decided by, and the
-   * page prints it. `User.title` used to ride along beside it — the club-wide
-   * title, written by nothing in the product, which is how an officer's "Lab
-   * Manager" ended up on somebody's rover page meaning nothing there.
+   * `rank` is the column every permission on a project is decided by, and the page prints
+   * it. `User.title` used to ride along beside it — the club-wide title, written by nothing
+   * in the product, which is how an officer's "Lab Manager" ended up on somebody's rover
+   * page meaning nothing there.
    */
   it('carries a member rank and team, and not their club title', async () => {
     const [first] = await get<Project[]>('/api/projects?limit=1')
@@ -347,22 +333,21 @@ describe('GET /api/projects', () => {
     for (const member of detail.members) {
       expect(Object.keys(member).sort()).toEqual(['rank', 'team', 'title', 'user'])
       expect(['PROJECT_LEAD', 'TEAM_LEAD', 'MEMBER']).toContain(member.rank)
-      // No user ids either — this is an anonymous payload, and anything that
-      // writes by id reads `GET /projects/:id/team` instead.
+      // No user ids either — this is an anonymous payload, and anything that writes by id
+      // reads `GET /projects/:id/team` instead.
       expect(Object.keys(member.user).sort()).toEqual(['fullName', 'photoUrl', 'slug'])
     }
   })
 
   /**
-   * The public list is one term with the rest behind a button, and the two
-   * halves have to cover the whole table between them — a project on neither
-   * is a project on no page at all, which is why `other` is the negation of
-   * `current` rather than "everything before it".
+   * The public list is one term with the rest behind a button, and the two halves have to
+   * cover the whole table between them — a project on neither is a project on no page at
+   * all, which is why `other` is the negation of `current`.
    */
   it('splits the whole list between term=current and term=other', async () => {
-    // Sequential rather than in parallel: both term filters resolve the
-    // current term off the academic calendar, and asking three times at once
-    // is three cold reads of it that need not agree.
+    // Sequential rather than in parallel: both term filters resolve the current term off the
+    // academic calendar, and asking three times at once is three cold reads that need not
+    // agree.
     const all = await get<Term[]>('/api/projects?limit=100')
     const current = await get<Term[]>('/api/projects?term=current&limit=100')
     const other = await get<Term[]>('/api/projects?term=other&limit=100')
@@ -384,9 +369,8 @@ describe('GET /api/projects', () => {
   })
 
   /**
-   * The archive is read downwards by term, so it is ordered by term — not by
-   * `featured`, which is landing-page curation, and not by `startedAt`, which
-   * no route here writes.
+   * The archive is read downwards by term, so it's ordered by term — not by `featured`,
+   * which is landing-page curation, and not by `startedAt`, which no route here writes.
    */
   it('orders term=other newest term first', async () => {
     const other = await get<Term[]>('/api/projects?term=other&limit=100')
@@ -402,32 +386,30 @@ describe('GET /api/projects', () => {
   })
 })
 
-/** The board answers `{ seats, officers }` — how many chairs there are, and who
-    is sitting. Both are the database's answer; neither is a frontend list. */
+/** The board answers `{ seats, officers }` — how many chairs there are, and who is sitting.
+    Both are the database's answer; neither is a frontend list. */
 type Board = { seats: string[]; officers: OfficerTerm[] }
 
 describe('GET /api/officers', () => {
   /**
-   * **The size of the board comes from the enum.** It was a constant in
-   * `web/src/content/home.ts`, so the club could not change the shape of its
-   * own board without a frontend edit. Adding a value to `OfficerPosition` has
-   * to reach the page on its own.
+   * The size of the board comes from the enum. It was a constant in
+   * `web/src/content/home.ts`, so the club couldn't change the shape of its own board
+   * without a frontend edit.
    */
   it('sends the seats there are, in the order the enum declares them', async () => {
     const board = await get<Board>('/api/officers')
 
     expect(board.seats.length).toBeGreaterThan(0)
-    // President first: the enum is declared in board order and this route reads
-    // it straight, so a reordering of the schema reorders the page.
+    // President first: the enum is declared in board order and this route reads it straight,
+    // so a reordering of the schema reorders the page.
     expect(board.seats[0]).toBe('PRESIDENT')
     expect(new Set(board.seats).size).toBe(board.seats.length)
   })
 
   /**
-   * A seat holds one person. There is no unique index enforcing it — a partial
-   * one over open terms is not something Prisma can express, so the seat route
-   * checks instead — which makes this the tripwire on that check rather than on
-   * a constraint.
+   * A seat holds one person. There's no unique index enforcing it — a partial one over open
+   * terms isn't something Prisma can express, so the seat route checks instead — which makes
+   * this the tripwire on that check rather than on a constraint.
    */
   it('returns at most one person per seat', async () => {
     const { officers } = await get<Board>('/api/officers')
@@ -437,8 +419,8 @@ describe('GET /api/officers', () => {
   })
 
   /**
-   * Open terms only, and that is the definition of the board. A closed one
-   * appearing here would put somebody who left back in a chair.
+   * Open terms only, and that's the definition of the board. A closed one appearing here
+   * would put somebody who left back in a chair.
    */
   it('answers with open terms and nothing else', async () => {
     const { officers } = await get<Board>('/api/officers')
@@ -451,11 +433,9 @@ describe('GET /api/officers', () => {
   })
 
   /**
-   * **An officer holding no named seat is on the board.** The Discord sync
-   * promotes somebody the moment they carry the role and gives them no chair —
-   * an officer does that, later — so a route that dropped them would make a
-   * real officer invisible on the front page while they were an officer
-   * everywhere else on the site.
+   * An officer holding no named seat is on the board. The Discord sync promotes somebody the
+   * moment they carry the role and gives them no chair — an officer does that later — so a
+   * route that dropped them would make a real officer invisible on the front page.
    */
   it('keeps an officer who holds no seat', async () => {
     const seatless = await prisma.officerTerm.findFirst({
@@ -469,10 +449,9 @@ describe('GET /api/officers', () => {
   })
 
   /**
-   * The seat and the permission level are different axes, which is the reason
-   * this route exists rather than reusing `/members?role=OFFICER` — the faculty
-   * advisor sits on the board as a plain `MEMBER`, and an admin can sit on it
-   * without `UserRole` being able to say so at all.
+   * The seat and the permission level are different axes, which is why this route exists
+   * rather than reusing `/members?role=OFFICER`: the faculty advisor sits on the board as a
+   * plain `MEMBER`, and an admin can sit on it without `UserRole` being able to say so.
    */
   it('is not the same set as the officers by role', async () => {
     const [board, byRole] = await Promise.all([
@@ -483,8 +462,8 @@ describe('GET /api/officers', () => {
     expect(board.length).toBeGreaterThan(0)
     expect(byRole.every((member) => member.role === 'OFFICER')).toBe(true)
 
-    // The board is read from a different table, so it can hold somebody the
-    // role filter does not. If these ever match exactly, the two have converged.
+    // The board is read from a different table, so it can hold somebody the role filter
+    // doesn't. If these ever match exactly, the two have converged.
     const seated = new Set(board.map((term) => term.fullName))
     const byRoleNames = new Set(byRole.map((member) => member.fullName))
     expect([...seated].some((name) => !byRoleNames.has(name))).toBe(true)
@@ -508,15 +487,13 @@ describe('GET /api/officers/past', () => {
   /**
    * The archive's own fixture, because the archive can legitimately be empty.
    *
-   * It was not, once: the seed invented fifteen past terms and every assertion
-   * here leaned on them. The club's real database has no officer history in it
-   * at all — the old site recorded who held a seat *now* and never who had —
-   * so after the import there is a full board and an empty archive, and the
-   * shape assertions below had nothing to run against.
+   * It wasn't, once: the seed invented fifteen past terms and every assertion leaned on
+   * them. The club's real database has no officer history at all — the old site recorded who
+   * held a seat now and never who had — so after the import there's a full board and an
+   * empty archive.
    *
-   * Making the test conditional would have been the smaller change and the
-   * wrong one: a case that skips itself when the table is empty stops checking
-   * the thing it is named after. So it brings its own closed term.
+   * Making the test conditional would have been the smaller change and the wrong one: a case
+   * that skips itself when the table is empty stops checking the thing it's named after.
    */
   const ARCHIVED = 'test-content-archive-officer'
 
@@ -526,9 +503,8 @@ describe('GET /api/officers/past', () => {
       data: {
         fullName: ARCHIVED,
         position: 'PRESIDENT',
-        // Long enough ago to be outside the two-year default window, so the
-        // `older` count above has something to count and the windowing cases
-        // are not quietly asserting against zero.
+        // Long enough ago to be outside the two-year default window, so the `older` count
+        // has something to count and the windowing cases aren't asserting against zero.
         startedAt: new Date('2019-08-01T00:00:00Z'),
         endedAt: new Date('2020-05-31T00:00:00Z'),
         source: 'MANUAL',
@@ -541,9 +517,9 @@ describe('GET /api/officers/past', () => {
   })
 
   /**
-   * Two academic years by default, and the *rest is still reachable*. A window
-   * that could not be widened would make the archive a claim the site does not
-   * keep, and `older` is what tells the page there is more.
+   * Two academic years by default, and the rest is still reachable. A window that couldn't
+   * be widened would make the archive a claim the site doesn't keep, and `older` is what
+   * tells the page there's more.
    */
   it('windows to the two most recent years, and says how much is outside', async () => {
     const [windowed, everything] = await Promise.all([
@@ -561,9 +537,9 @@ describe('GET /api/officers/past', () => {
   })
 
   /**
-   * **The window counts years that exist, not years off the clock.** A club that
-   * has not rotated since 2025 would get an empty page from a window measured
-   * against today, which is the one thing a default must never do.
+   * The window counts years that exist, not years off the clock. A club that hasn't rotated
+   * since 2025 would get an empty page from a window measured against today, which is the
+   * one thing a default must never do.
    */
   it('never comes back empty while the archive has anything in it', async () => {
     const everything = await get<Archive>('/api/officers/past?all=1')
@@ -580,11 +556,10 @@ describe('GET /api/officers/past', () => {
     expect(years.size).toBeLessThanOrEqual(1)
   })
   /**
-   * The seat order the board is drawn in is the enum's declaration order, and
-   * Postgres sorts an enum by exactly that — which is the whole reason neither
-   * this route nor the page carries a lookup table of ranks. Asserted against
-   * `/api/officers`, because that route leans on the same property and the two
-   * must not be able to disagree about what board order is.
+   * The seat order the board is drawn in is the enum's declaration order, and Postgres sorts
+   * an enum by exactly that — which is why neither this route nor the page carries a lookup
+   * table of ranks. Asserted against `/api/officers`, because that route leans on the same
+   * property and the two must not be able to disagree.
    */
   it('comes back newest first, in board order inside a start date', async () => {
     const [archive, board] = await Promise.all([
@@ -592,9 +567,8 @@ describe('GET /api/officers/past', () => {
       get<Board>('/api/officers').then((b) => b.officers),
     ])
 
-    // The seat ranking is read off the board rather than written down here,
-    // because it is the enum's declaration order and Postgres sorts on that —
-    // which is the whole reason neither route carries a lookup table.
+    // The seat ranking is read off the board rather than written down here, because it's the
+    // enum's declaration order and Postgres sorts on that.
     const rank = new Map(board.map((term, index) => [term.position, index]))
 
     for (const [index, term] of archive.entries()) {
@@ -608,9 +582,9 @@ describe('GET /api/officers/past', () => {
         continue
       }
 
-      // Same start, different end: the longer term sorts first. This is the
-      // advisor who held a seat across four years landing above the president
-      // who held one for two from the same August.
+      // Same start, different end: the longer term sorts first. This is the advisor who held
+      // a seat across four years landing above the president who held one for two from the
+      // same August.
       const endA = Date.parse(previous.endedAt ?? '')
       const endB = Date.parse(term.endedAt ?? '')
       if (endA !== endB) {
@@ -629,9 +603,9 @@ describe('GET /api/officers/past', () => {
   })
 
   /**
-   * The archive is a different table from the board, not a filter on it. If
-   * this ever comes back as roster entries, `officerPosition` is being read as
-   * history again — which it cannot be, because it is unique.
+   * The archive is a different table from the board, not a filter on it. If this ever comes
+   * back as roster entries, `officerPosition` is being read as history again — which it
+   * can't be, because it's unique.
    */
   it('answers with terms rather than with people', async () => {
     const { terms: archive } = await get<Archive>('/api/officers/past?all=1')
@@ -647,8 +621,8 @@ describe('GET /api/officers/past', () => {
         'profileUrl',
         'startedAt',
       ])
-      // A term nobody held, one still open, or one that ended before it began
-      // is a row that got in past the page rather than through it.
+      // A term nobody held, one still open, or one that ended before it began is a row that
+      // got in past the page rather than through it.
       expect(term.fullName.trim().length).toBeGreaterThan(0)
       expect(term.endedAt).not.toBeNull()
       expect(Date.parse(term.endedAt ?? '')).toBeGreaterThanOrEqual(
@@ -670,11 +644,10 @@ describe('GET /api/officers/past', () => {
   })
 
   /**
-   * The route settles which of the two photos answered so the browser never has
-   * to, **and the account's is the one that wins**. A photograph filed against
-   * one term is a copy nothing keeps up to date; the account's is the picture
-   * its owner can change. The term's own is the fallback, which is what still
-   * answers for the archive rows with nobody behind them.
+   * The route settles which of the two photos answered so the browser never has to, and the
+   * account's is the one that wins. A photograph filed against one term is a copy nothing
+   * keeps up to date; the account's is the picture its owner can change. The term's own is
+   * the fallback, which still answers for the archive rows with nobody behind them.
    */
   it('prefers the linked account photo over the one stored on the term', async () => {
     const linked = await prisma.officerTerm.findFirst({
@@ -682,8 +655,8 @@ describe('GET /api/officers/past', () => {
       select: { id: true, user: { select: { photoUrl: true } } },
     })
 
-    // Nothing to prove if no seeded officer has a photo — none do until real
-    // headshots go in, and a test that demanded one would fail on a fresh clone.
+    // Nothing to prove if no seeded officer has a photo — none do until real headshots go in,
+    // and a test that demanded one would fail on a fresh clone.
     if (!linked) return
 
     const { terms: archive } = await get<Archive>('/api/officers/past?all=1')
@@ -692,8 +665,8 @@ describe('GET /api/officers/past', () => {
     expect(term?.photoUrl).toBe(linked.user?.photoUrl)
   })
 
-  /** A term with no account behind it keeps whatever headshot the row carries,
-      which is most of the archive and the whole reason the column survives. */
+  /** A term with no account behind it keeps whatever headshot the row carries, which is most
+      of the archive and the whole reason the column survives. */
   it('keeps the term headshot where no account is linked', async () => {
     const unlinked = await prisma.officerTerm.findFirst({
       where: { endedAt: { not: null }, userId: null, photoUrl: { not: null } },
@@ -706,19 +679,18 @@ describe('GET /api/officers/past', () => {
     const term = archive.find((row) => row.id === unlinked.id)
 
     expect(term?.photoUrl).toBe(unlinked.photoUrl)
-    // Nowhere for it to come from: a link belongs to an account, and a term
-    // with no account behind it has none. Never the term's own column — there
-    // is no such column and there should not be one, because a link is a live
-    // address rather than a record of a year.
+    // Nowhere for it to come from: a link belongs to an account, and a term with no account
+    // has none. Never the term's own column — there is no such column and there shouldn't
+    // be, because a link is a live address rather than a record of a year.
     expect(term?.profileUrl).toBeNull()
   })
 })
 
 describe('GET /api/events date range', () => {
   /**
-   * The calendar asks for one month at a time and expects every event that
-   * *touches* it, not only the ones that start inside it — otherwise a
-   * multi-day competition disappears from the month it finishes in.
+   * The calendar asks for one month at a time and expects every event that touches it, not
+   * only the ones that start inside it — otherwise a multi-day competition disappears from
+   * the month it finishes in.
    */
   it('includes an event that starts before the window but runs into it', async () => {
     const all = await get<Event[]>('/api/events?when=all&limit=100')
@@ -760,9 +732,8 @@ describe('GET /api/events date range', () => {
 
 describe('GET /api/sponsors', () => {
   /**
-   * The landing page shows "the top five sponsors" by asking for five rows, so
-   * the ordering has to be the server's job — the first five must be the five
-   * highest tiers, not five arbitrary ones.
+   * The landing page shows "the top five sponsors" by asking for five rows, so the ordering
+   * has to be the server's job — the first five must be the five highest tiers.
    */
   it('orders by tier, so a limit takes the top of the list', async () => {
     const tiers = ['PROCESSOR_PATRON', 'CIRCUIT_SUPPORTER', 'BOLT_BACKER', 'ALUMINUM_ALLY']
@@ -781,9 +752,9 @@ describe('GET /api/sponsors', () => {
 
 describe('public routes and private columns', () => {
   /**
-   * The one rule in this file worth failing a deploy over. `User` holds logins
-   * and roster entries in one table, so every public select is one careless
-   * `...user` away from publishing an email address or a password hash.
+   * The one rule in this file worth failing a deploy over. `User` holds logins and roster
+   * entries in one table, so every public select is one careless `...user` away from
+   * publishing an email address or a password hash.
    */
   it('never returns an email or a password hash from the roster', async () => {
     const members = await get<Member[]>('/api/members?status=all&limit=100')
@@ -794,9 +765,9 @@ describe('public routes and private columns', () => {
       expect(member).not.toHaveProperty('passwordHash')
     }
 
-    // Same again for a single profile, which selects a wider set of columns.
-    // Whoever *has* a slug rather than whoever came first: the listing is the
-    // whole club now and most of it has no profile URL at all.
+    // Same again for a single profile, which selects a wider set of columns. Whoever has a
+    // slug rather than whoever came first: the listing is the whole club now and most of it
+    // has no profile URL at all.
     const withSlug = members.find((member) => member.slug !== null)
     expect(withSlug, 'no member has a slug to fetch a profile with').toBeDefined()
 
@@ -806,13 +777,12 @@ describe('public routes and private columns', () => {
   })
 
   /**
-   * The inverse of the test this replaced, which asserted that accounts without
-   * a slug stayed out. That filter is gone — it was the reason the page showed
-   * sixty of six hundred and eighty-eight — and it is exactly the sort of thing
-   * somebody tidying reinstates. Counting against the table is what catches it.
+   * The inverse of the test this replaced, which asserted that accounts without a slug stayed
+   * out. That filter is gone — it was the reason the page showed sixty of six hundred and
+   * eighty-eight — and it's exactly the sort of thing somebody tidying reinstates.
    *
-   * `status=all` on purpose: the default narrowed to the club's membership and
-   * this is about the chip that does not narrow at all.
+   * `status=all` on purpose: the default narrowed to the club's membership and this is about
+   * the chip that doesn't narrow at all.
    */
   it('lists every account under EVERYONE, guests and people with no slug included', async () => {
     const members = await get<Member[]>('/api/members?status=all&limit=1000')
@@ -823,10 +793,9 @@ describe('public routes and private columns', () => {
   })
 
   /**
-   * What "active member" means, spelled out here rather than shared with the
-   * route so a change to the clause has to be made twice on purpose. It is dues
-   * standing and the alumni flag — never `role === 'MEMBER'`, which would drop
-   * every officer off the front page.
+   * What "active member" means, spelled out here rather than shared with the route so a
+   * change to the clause has to be made twice on purpose. It's dues standing and the alumni
+   * flag — never `role === 'MEMBER'`, which would drop every officer off the front page.
    */
   it('counts the active membership in /stats, and lists the same people', async () => {
     const { members } = await get<Stats>('/api/stats')
@@ -836,8 +805,8 @@ describe('public routes and private columns', () => {
 
     expect(members).toBe(expected)
 
-    // And the roster opens on it. The pair above is the definition; this is
-    // that the ACTIVE MEMBERS chip is reading the same one.
+    // And the roster opens on it. The pair above is the definition; this is that the ACTIVE
+    // MEMBERS chip is reading the same one.
     const listed = await get<Member[]>('/api/members?limit=1000')
     expect(listed).toHaveLength(expected)
   })
@@ -851,17 +820,15 @@ describe('public routes and private columns', () => {
 })
 
 /**
- * Project meetings on the *public* calendar.
+ * Project meetings on the public calendar.
  *
- * This is the one place the site's "the front page is officer-curated" rule
- * bends, so the gate on it is worth pinning from the outside: `meetingsPublic`
- * decides, one project at a time, and it is an officer's switch. Everything
- * else about the public calendar is unchanged — the unpublished-event invariant
- * a few tests up still holds, and these rows are not events at all.
+ * The one place the site's "the front page is officer-curated" rule bends, so the gate is
+ * worth pinning from the outside: `meetingsPublic` decides, one project at a time, and it's
+ * an officer's switch. Everything else about the public calendar is unchanged.
  *
- * UCF's calendar is stubbed rather than reached. Fixtures sit in 2035, which
- * the real feed has never heard of, so without a stub this would depend on a
- * 404 falling back to the right guessed dates.
+ * UCF's calendar is stubbed rather than reached. Fixtures sit in 2035, which the real feed
+ * has never heard of, so without a stub this would depend on a 404 falling back to the right
+ * guessed dates.
  */
 describe('GET /api/events with project meetings', () => {
   const PREFIX = 'test-content-meetings-'
@@ -957,11 +924,9 @@ describe('GET /api/events with project meetings', () => {
   })
 
   /**
-   * A recurrence has no answer to "the next 50 events", so meetings are only
-   * expanded for a window with both ends named. Every caller that wants them is
-   * a calendar and every calendar asks for a month; `?when=upcoming` keeps
-   * meaning exactly what it meant, which is what keeps `limit`, `offset` and
-   * `GET /stats` honest.
+   * A recurrence has no answer to "the next 50 events", so meetings are only expanded for a
+   * window with both ends named. Every caller that wants them is a calendar and every
+   * calendar asks for a month; `?when=upcoming` keeps meaning exactly what it meant.
    */
   it('expands nothing without both ends of a window', async () => {
     await makeProject('unwindowed', true)
@@ -983,27 +948,25 @@ describe('GET /api/events with project meetings', () => {
 })
 
 /**
- * The roster's three chips: what ACTIVE MEMBERS narrows to, what ALUMNI means
- * since it stopped meaning `active: false`, and that the two overlap.
+ * The roster's three chips: what ACTIVE MEMBERS narrows to, what ALUMNI means since it
+ * stopped meaning `active: false`, and that the two overlap.
  *
- * ALUMNI is the club's Discord **Officer Alumni** role, mirrored into
- * `User.officerAlumnus` by `discord/discordAlumni.ts`. The fixtures make the
- * two facts different people on purpose, because reading `active` for this is
- * the mistake the column exists to prevent — `membershipUpdateFor` sets
- * `active` back to true on every payment, so it can never mean "used to run the
- * club", and somebody can be both.
+ * ALUMNI is the club's Discord Officer Alumni role, mirrored into `User.officerAlumnus`. The
+ * fixtures make the two facts different people on purpose, because reading `active` for this
+ * is the mistake the column exists to prevent — every payment sets `active` back to true, so
+ * it can never mean "used to run the club".
  *
- * No Discord anywhere near this: the sweep writes the column and these tests
- * write it directly, which is the boundary worth testing on this side.
+ * No Discord anywhere near this: the sweep writes the column and these tests write it
+ * directly, which is the boundary worth testing on this side.
  */
 describe('GET /api/members and its three chips', () => {
   const PREFIX = 'test-content-roster-'
   const email = (name: string) => `${PREFIX}${name}@ucf.edu`
 
   /**
-   * `role` defaults to GUEST in the schema, so a fixture that wants to be on
-   * the ACTIVE MEMBERS list has to say so — which is the filter, stated by the
-   * fixtures rather than assumed by them.
+   * `role` defaults to GUEST in the schema, so a fixture that wants to be on the ACTIVE
+   * MEMBERS list has to say so — which is the filter, stated by the fixtures rather than
+   * assumed by them.
    */
   const make = (
     name: string,
@@ -1031,18 +994,17 @@ describe('GET /api/members and its three chips', () => {
     const alumni = await get<Member[]>('/api/members?status=alumni&limit=1000')
 
     expect(named(alumni, 'past')).toBe(true)
-    // The whole point of the column: a retired account is not an officer
-    // alumnus, and this is the pair that used to be one boolean.
+    // The whole point of the column: a retired account isn't an officer alumnus, and this is
+    // the pair that used to be one boolean.
     expect(named(alumni, 'retired')).toBe(false)
     expect(named(alumni, 'current')).toBe(false)
     expect(alumni.every((row) => row.officerAlumnus)).toBe(true)
   })
 
   /**
-   * ACTIVE MEMBERS is the club's paid-up membership and nothing else: `active`
-   * and not a GUEST, the clause `/stats` counts. Somebody who signed up and
-   * went no further is not in the club, and a lapsed account is not either —
-   * both are under EVERYONE, which is where the honest answer for them lives.
+   * ACTIVE MEMBERS is the club's paid-up membership and nothing else: `active` and not a
+   * GUEST, the clause `/stats` counts. Somebody who signed up and went no further isn't in
+   * the club, and a lapsed account isn't either — both are under EVERYONE.
    */
   it('lists the paid-up membership under active and nobody else', async () => {
     await make('paid', { role: UserRole.MEMBER })
@@ -1057,11 +1019,10 @@ describe('GET /api/members and its three chips', () => {
   })
 
   /**
-   * Somebody can hold the Discord role *and* be a paid-up member — one of the
-   * twenty-seven people carrying it in the club's guild is also a sitting
-   * officer — and both chips list them. ACTIVE MEMBERS used to negate the flag
-   * to keep the two disjoint, which meant paying dues could not put somebody on
-   * the list of people who pay dues.
+   * Somebody can hold the Discord role and be a paid-up member — one of the twenty-seven
+   * people carrying it in the club's guild is also a sitting officer — and both chips list
+   * them. ACTIVE MEMBERS used to negate the flag to keep the two disjoint, which meant
+   * paying dues couldn't put somebody on the list of people who pay dues.
    */
   it('lists a paid-up officer alumnus under both chips', async () => {
     await make('both', { officerAlumnus: true, role: UserRole.MEMBER })
@@ -1073,8 +1034,8 @@ describe('GET /api/members and its three chips', () => {
     expect(named(current, 'both')).toBe(true)
   })
 
-  /** The other half of the overlap: an officer alumnus who stopped paying is
-      still an officer alumnus, and is not in the membership. */
+  /** The other half of the overlap: an officer alumnus who stopped paying is still an officer
+      alumnus, and isn't in the membership. */
   it('keeps a lapsed officer alumnus under alumni alone', async () => {
     await make('gone', { officerAlumnus: true })
 

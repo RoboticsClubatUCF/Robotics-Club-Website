@@ -1,17 +1,14 @@
 /**
  * A row of one-of-these chips, the way every queue on the dashboard draws it.
  *
- * The print queue and the borrowing queue both grew a status row of these, and
- * then both grew a second row underneath for narrowing what the status row
- * left. Four copies of the same fifteen lines is how one of them ends up a
- * pixel different from the others, so they became this — which is the rule in
- * `.claude/docs/frontend.md`: a component earns `shared/` by being used twice,
- * and this is used four times.
+ * The print queue and the borrowing queue both grew a status row of these, and then both grew a
+ * second row underneath for narrowing what the status row left. Four copies of the same fifteen
+ * lines is how one of them ends up a pixel different from the others — and the rule in
+ * `.claude/docs/frontend.md` is that a component earns `shared/` by being used twice.
  *
- * Buttons rather than a `<select>`. The whole point of these is that the
- * options are *visible* — an officer scanning for the resin filter should see
- * that resin is a thing they can filter by without opening anything, and a
- * select box hides exactly that.
+ * Buttons rather than a `<select>`. The whole point is that the options are visible — an officer
+ * scanning for the resin filter should see that resin is a thing they can filter by without opening
+ * anything, and a select box hides exactly that.
  */
 export function FilterChips<T extends string>({
   label,
@@ -21,10 +18,9 @@ export function FilterChips<T extends string>({
   disabled = false,
 }: {
   /**
-   * The mono caption in front of the row. Optional because the status row at
-   * the top of a queue *is* the queue's own heading and does not want one —
-   * the rows below it do, or PERSONAL and FDM sit side by side with nothing
-   * saying they answer different questions.
+   * The mono caption in front of the row. Optional because the status row at the top of a queue is
+   * the queue's own heading and does not want one — the rows below it do, or PERSONAL and FDM sit
+   * side by side with nothing saying they answer different questions.
    */
   label?: string
   options: readonly { value: T; label: string }[]

@@ -61,11 +61,9 @@ beforeEach(async () => {
       fullName: 'Files Lead',
       email: `${PREFIX}lead@ucf.edu`,
       role: UserRole.MEMBER,
-      // Pinned to 2035, per `testing.md`: every fixture that has to get through
-      // a gate needs both dates now. These suites used to pass without a dues
-      // date because the summer and a term's opening weeks let everybody in —
-      // which is exactly the accident that rule was written to stop — and the
-      // member survey is a second gate in front of that one.
+      // Pinned to 2035, per `testing.md`: every fixture that has to get through a gate needs both
+      // dates now. These suites used to pass without a dues date because the summer and a term's
+      // opening weeks let everybody in — exactly the accident that rule was written to stop.
       duesPaidThrough: new Date('2035-12-31T00:00:00'),
       surveyCompletedAt: new Date('2035-09-01T00:00:00'),
     },
@@ -310,11 +308,9 @@ describe('gallery uploads', () => {
   })
 
   /**
-   * The one this suite exists for. `ProjectImage`'s cascade takes the rows when
-   * a project goes; nothing in Postgres knows the `url` column is a reference,
-   * so without the hand-written sweep in the delete route these files would sit
-   * in `stored_files` forever with nothing pointing at them and no way to find
-   * them again.
+   * The one this suite exists for. `ProjectImage`'s cascade takes the rows when a project goes;
+   * nothing in Postgres knows the `url` column is a reference, so without the hand-written sweep in
+   * the delete route these files would sit in `stored_files` for ever with no way to find them.
    */
   it('deleting the project takes every uploaded gallery picture with it', async () => {
     const [one, two] = await Promise.all([
@@ -368,11 +364,10 @@ describe('storedUrl round-trip', () => {
 })
 
 /**
- * The cache boundary that used to leak. `publicApi`'s cache middleware runs
- * for anything registered after it, and it once wrapped the whole API —
- * `/api/auth/me` went out `public, s-maxage=300`, which is one CDN away from
- * serving somebody their predecessor's session. Registration order in
- * `app.ts` is the fix, and this is the tripwire on it.
+ * The cache boundary that used to leak. `publicApi`'s cache middleware runs for anything
+ * registered after it, and it once wrapped the whole API — `/api/auth/me` went out
+ * `public, s-maxage=300`, which is one CDN away from serving somebody their predecessor's session.
+ * Registration order in `app.ts` is the fix, and this is the tripwire on it.
  */
 describe('cache boundaries', () => {
   it('keeps per-caller answers out of shared caches', async () => {

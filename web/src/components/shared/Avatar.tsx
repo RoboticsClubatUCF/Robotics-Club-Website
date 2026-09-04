@@ -5,24 +5,21 @@ import { imageSrc } from '../../lib/media/storedFiles'
 /**
  * The signed-in person: their photograph, or a tile of their initials.
  *
- * **Square, not a circle.** Every other edge on this site is the theme's 2px
- * cut — `styling.md` is emphatic that the layout is built from straight rules
- * and right angles — and a round avatar would be the one curved thing in the
- * whole design. That was written when this drew initials and nothing else, and
- * a photograph inherits the same square.
+ * Square, not a circle. Every other edge on this site is the theme's 2px cut — `styling.md` is
+ * emphatic that the layout is built from straight rules and right angles — and a round avatar would
+ * be the one curved thing in the design. That was written when this drew initials and nothing else,
+ * and a photograph inherits the same square.
  *
- * **The square is also why framing exists.** A headshot is not square, so
- * something is always cropped away; `object-cover` picks the middle, which
- * beheads about half the photographs a phone takes. The three numbers are the
- * member's own answer to that, chosen in `ImageFramer` against this exact
- * shape, and applied here as CSS at display time — never baked into the file.
+ * The square is also why framing exists: a headshot is not square, so something is always cropped
+ * away, and `object-cover` picks the middle, which beheads about half the photographs a phone
+ * takes. The three numbers are the member's own answer, chosen in `ImageFramer` against this exact
+ * shape and applied here as CSS at display time — never baked into the file.
  *
- * Two tones because it is drawn in two places that want opposite weights. The
- * nav bar's is `solid`: it replaced the gold call-to-action button and is the
- * only thing anchoring the right-hand end of the bar. The dashboard rail's is
- * `outline`, because the rail is a list of links and a filled gold square at
- * the top of it would out-shout every one of them. Neither tone shows once
- * there is a photograph: the picture is the whole tile.
+ * Two tones because it is drawn in two places that want opposite weights. The nav bar's is `solid`:
+ * it replaced the gold call-to-action button and is the only thing anchoring the right-hand end of
+ * the bar. The dashboard rail's is `outline`, because the rail is a list of links and a filled gold
+ * square at the top would out-shout every one of them. Neither tone shows once there is a
+ * photograph.
  */
 export function Avatar({
   fullName,

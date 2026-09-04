@@ -12,30 +12,26 @@ import { createSession } from '../../auth/session.js'
 /**
  * Signing in, against the live database.
  *
- * What the suite is actually for is the handful of properties that are easy to
- * lose in a refactor and impossible to notice by using the site:
+ * The properties that are easy to lose in a refactor and impossible to notice by using the
+ * site:
  *
- *   - every way of failing gives the same answer, so the form cannot be used to
- *     ask whether a given student is a member;
- *   - the session cookie is `httpOnly`, which is what makes a cross-site
- *     scripting bug stop short of stealing sessions;
+ *   - every way of failing gives the same answer, so the form can't be used to ask whether a
+ *     given student is a member;
+ *   - the session cookie is `httpOnly`, which is what makes a cross-site scripting bug stop
+ *     short of stealing sessions;
  *   - nothing in a response carries a password hash;
- *   - and now: signing in follows the club's Discord officer role, promoting
- *     only, so somebody handed the role a minute ago does not wait out a sweep.
+ *   - and signing in follows the club's Discord officer role, promoting only.
  */
 
 /**
- * **This path leaves the process now, and it did not use to.** `/login` and
- * `/auth/me` both call `refreshOfficerStanding`, which asks Discord about one
- * account — on the dev `.env`'s live bot token, against the club's real guild,
- * where the answers are about real people. Everything that could reach it is
- * stubbed.
+ * This path leaves the process now, and it didn't use to. `/login` and `/auth/me` both call
+ * `refreshOfficerStanding`, which asks Discord about one account — on the dev `.env`'s live
+ * bot token, against the club's real guild. Everything that could reach it is stubbed.
  *
- * The role id is invented and the sync is forced *on*, because the property
- * under test is what happens when it is configured. `guildMemberRoles` and
- * `checkDiscordHandle` are bare `vi.fn()`s given a default in `beforeEach`, so
- * a test that forgets to say what Discord answered gets "unchecked" — which
- * writes nothing — rather than a real call.
+ * The role id is invented and the sync is forced on, because the property under test is what
+ * happens when it's configured. `guildMemberRoles` and `checkDiscordHandle` are bare
+ * `vi.fn()`s given a default in `beforeEach`, so a test that forgets to say what Discord
+ * answered gets "unchecked" rather than a real call.
  */
 const OFFICER_ROLE = '111111111111111111'
 
@@ -45,17 +41,15 @@ vi.mock('../../discord/discord.js', async (importOriginal) => ({
   officerRoleId: '111111111111111111',
   guildMemberRoles: vi.fn(),
   checkDiscordHandle: vi.fn(),
-  // Standing somebody down asks this first — see `officerRoleExists`. Unmocked
-  // it is a live call to the club's guild, and worse, it *refuses* every
-  // demotion, so the half of this suite about losing the role would pass for
-  // entirely the wrong reason.
+  // Standing somebody down asks this first — see `officerRoleExists`. Unmocked it's a live
+  // call to the club's guild, and worse, it refuses every demotion, so the half of this suite
+  // about losing the role would pass for entirely the wrong reason.
   guildRoles: vi.fn(),
 }))
 
 /**
- * **Postmark is configured in the development `.env`**, so an unmocked run of
- * the reset flow makes a real send to a fixture address every time. Same
- * reasoning as `signup.test.ts`: a test suite must never send mail.
+ * Postmark is configured in the development `.env`, so an unmocked run of the reset flow
+ * makes a real send to a fixture address every time. A test suite must never send mail.
  */
 vi.mock('../../email/mail.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../email/mail.js')>()),
@@ -72,12 +66,11 @@ const PASSWORD = 'a-long-enough-password'
 const NO_PASSWORD_EMAIL = 'test-login-roster@ucf.edu'
 
 /**
- * An account as it arrived from the club's previous site: the password is
- * right, but it is stored as bcrypt rather than scrypt.
+ * An account as it arrived from the club's previous site: the password is right, but stored
+ * as bcrypt rather than scrypt.
  *
- * Pinned rather than generated, so this is a fixed cost-12 `$2b$` string of
- * exactly the shape the import carried — 699 of them — and not whatever
- * `bcryptjs` happens to emit today. It hashes `PASSWORD`.
+ * Pinned rather than generated, so this is a fixed cost-12 `$2b$` string of exactly the shape
+ * the import carried — 699 of them — and not whatever `bcryptjs` happens to emit today.
  */
 const LEGACY_EMAIL = 'test-login-legacy@ucf.edu'
 const LEGACY_HASH = '$2b$12$1zCW8SFMsM.UndMzwGUzBuLE/.vT88Xbq9kdO4S80sfKU6jehpwzu'
@@ -100,10 +93,9 @@ function cookieFrom(response: Response): string {
 }
 
 /**
- * Both budgets, every time. The counters live in Postgres and outlive the
- * process, so without this a second run inside the window fails for reasons
- * that have nothing to do with the code — and the per-account one is keyed on
- * the address, so it survives even a different machine.
+ * Both budgets, every time. The counters live in Postgres and outlive the process, so without
+ * this a second run inside the window fails for reasons that have nothing to do with the code
+ * — and the per-account one is keyed on the address, so it survives a different machine.
  */
 const clearWindows = () =>
   prisma.rateLimit.deleteMany({
@@ -111,11 +103,9 @@ const clearWindows = () =>
       OR: [
         { key: { startsWith: 'login:' } },
         { key: { startsWith: 'login-account:' } },
-        // The reset flow's three, and the address-keyed one survives even a
-        // different machine. The `-burst:` window is thirty seconds, which is
-        // short enough to expire during a slow suite and long enough to refuse
-        // the next test that asks — so it is cleared like the rest rather than
-        // waited out.
+        // The reset flow's three, and the address-keyed one survives a different machine. The
+        // `-burst:` window is thirty seconds, short enough to expire during a slow suite and
+        // long enough to refuse the next test that asks — so it's cleared rather than waited out.
         { key: { startsWith: 'password-reset:' } },
         { key: { startsWith: 'password-reset-burst:' } },
         { key: { startsWith: 'password-reset-address:' } },
@@ -124,14 +114,12 @@ const clearWindows = () =>
   })
 
 /**
- * The officer-sync fixtures, and every value on them is invented and
- * namespaced.
+ * The officer-sync fixtures, and every value on them is invented and namespaced.
  *
- * `discordId` and `discordUsername` are both `@unique` against a database with
- * the club's real members in it, so a snowflake that looked plausible could
- * collide with a real person's account — and the promotion path *writes*
- * `discordId` back. These cannot match anybody: the ids are a repeated digit
- * and the handles carry the suite's prefix.
+ * `discordId` and `discordUsername` are both `@unique` against a database with the club's real
+ * members in it, so a snowflake that looked plausible could collide with a real person's
+ * account — and the promotion path writes `discordId` back. These can't match anybody: the ids
+ * are a repeated digit and the handles carry the suite's prefix.
  */
 const WITH_ID_EMAIL = 'test-login-officer@ucf.edu'
 const WITH_ID_SNOWFLAKE = '222222222222222222'
@@ -154,8 +142,8 @@ const FIXTURE_EMAILS = [
 ]
 
 const clearRows = async () => {
-  // `OfficerTerm.userId` is `SetNull`, so deleting the people would leave their
-  // terms behind as orphaned rows on the public archive. Terms first.
+  // `OfficerTerm.userId` is `SetNull`, so deleting the people would leave their terms behind as
+  // orphaned rows on the public archive. Terms first.
   await prisma.officerTerm.deleteMany({
     where: { user: { email: { in: FIXTURE_EMAILS } } },
   })
@@ -204,9 +192,8 @@ beforeEach(async () => {
     data: { fullName: 'Roster Only', email: NO_PASSWORD_EMAIL },
   })
 
-  // Written straight in, deliberately. `hashPassword` cannot produce a bcrypt
-  // string and must not be able to — the only way one gets into this column is
-  // the import, so that is what the fixture does.
+  // Written straight in, deliberately. `hashPassword` can't produce a bcrypt string and must
+  // not be able to — the only way one gets into this column is the import.
   await prisma.user.create({
     data: {
       fullName: 'Test Legacy',
@@ -251,10 +238,9 @@ beforeEach(async () => {
     ],
   })
 
-  // The sitting officer needs an open term as well as the role: `role` is what
-  // they may do and the term is that they are on the board, and after this
-  // change the two are written by different halves of the sync. A fixture with
-  // only the role is a state the sync itself would never leave behind.
+  // The sitting officer needs an open term as well as the role: `role` is what they may do and
+  // the term is that they're on the board, and the two are written by different halves of the
+  // sync. A fixture with only the role is a state the sync itself would never leave behind.
   const sitting = await prisma.user.findUnique({
     where: { email: SITTING_EMAIL },
     select: { id: true, fullName: true },
@@ -287,8 +273,8 @@ describe('POST /api/auth/login', () => {
 
     const setCookie = response.headers.get('set-cookie') ?? ''
     expect(setCookie).toContain(env.SESSION_COOKIE_NAME)
-    // The one property that turns a cross-site scripting bug from "somebody's
-    // session is stolen" into "somebody's page looked wrong".
+    // The one property that turns a cross-site scripting bug from "somebody's session is
+    // stolen" into "somebody's page looked wrong".
     expect(setCookie).toMatch(/httponly/i)
     expect(setCookie).toMatch(/samesite=lax/i)
 
@@ -296,11 +282,10 @@ describe('POST /api/auth/login', () => {
   })
 
   /**
-   * The invariant this suite exists for. A wrong password, an address with no
-   * account, and a roster entry that has never had a password set are three
-   * different situations and one answer — anything else turns the login form
-   * into a way to ask "is this person in the Robotics Club", one UCF address at
-   * a time.
+   * The invariant this suite exists for. A wrong password, an address with no account, and a
+   * roster entry that has never had a password set are three different situations and one
+   * answer — anything else turns the login form into a way to ask "is this person in the
+   * Robotics Club", one UCF address at a time.
    */
   it.each([
     ['a wrong password', { email: EMAIL, password: 'not-the-password' }],
@@ -335,27 +320,22 @@ describe('POST /api/auth/login', () => {
   })
 
   /**
-   * The limit that actually protects a member, and the one that cannot be
-   * demonstrated by hammering from here.
+   * The limit that actually protects a member, and the one that can't be demonstrated by
+   * hammering from here.
    *
-   * A botnet trying one common password against every account in turn never
-   * trips a per-caller limit and never has to, so the budget that matters is
-   * keyed on the account being guessed at. Every request in this process
-   * arrives from the same unidentifiable caller — `app.request()` has no
-   * socket, so `clientAddress` puts them all in the `unknown` bucket — which
-   * means the per-caller limit would fire first and prove nothing about this
-   * one. So the account's budget is spent directly, the way ten different
-   * machines would spend it, and then one sign-in is attempted from a caller
-   * that has spent almost nothing.
+   * A botnet trying one common password against every account never trips a per-caller limit,
+   * so the budget that matters is keyed on the account being guessed at. Every request in this
+   * process arrives from the same unidentifiable caller — `app.request()` has no socket — so
+   * the per-caller limit would fire first and prove nothing. The account's budget is spent
+   * directly, the way ten different machines would spend it.
    */
   it('stops guessing at one account however many callers are trying', async () => {
     for (let spent = 0; spent < 10; spent++) {
       await consume(`login-account:${EMAIL}`, 10, env.RATE_LIMIT_WINDOW_SECONDS)
     }
 
-    // The *correct* password, deliberately: the budget is consumed before the
-    // password is checked, so a right guess on the eleventh attempt is worth no
-    // more than a wrong one.
+    // The correct password, deliberately: the budget is consumed before the password is
+    // checked, so a right guess on the eleventh attempt is worth no more than a wrong one.
     const blocked = await login({ email: EMAIL, password: PASSWORD })
 
     expect(blocked.status).toBe(429)
@@ -366,15 +346,14 @@ describe('POST /api/auth/login', () => {
   })
 
   /**
-   * The other budget: one caller working through a list of addresses. Wider
-   * than the site's default of five on purpose — a login is a whole building
-   * behind one campus address, not one person doing one thing.
+   * The other budget: one caller working through a list of addresses. Wider than the site's
+   * default of five on purpose — a login is a whole building behind one campus address.
    */
   it('stops one caller working through a list of addresses', async () => {
     for (let attempt = 0; attempt < 20; attempt++) {
       const response = await login({
-        // A different address each time, so this can only be the per-caller
-        // budget running out and never the per-account one.
+        // A different address each time, so this can only be the per-caller budget running out
+        // and never the per-account one.
         email: `nobody-${attempt}@ucf.edu`,
         password: 'wrong',
       })
@@ -385,11 +364,9 @@ describe('POST /api/auth/login', () => {
   })
 
   /**
-   * The cross-site request forgery guard. It does nothing while the cookie is
-   * `SameSite=Lax`, and is the only thing standing between a forged page and a
-   * member's session the day somebody sets `SESSION_COOKIE_SAMESITE=none` for a
-   * cross-domain deploy — which is a change in a `.env` file a long way from
-   * this route.
+   * The cross-site request forgery guard. It does nothing while the cookie is `SameSite=Lax`,
+   * and is the only thing between a forged page and a member's session the day somebody sets
+   * `SESSION_COOKIE_SAMESITE=none` for a cross-domain deploy.
    */
   it('refuses a request from an origin the site is not served from', async () => {
     const response = await login(
@@ -402,13 +379,12 @@ describe('POST /api/auth/login', () => {
 })
 
 /**
- * The imported accounts, and the one property that decides whether the club can
- * use this site at all: **the password people already have still works.**
+ * The imported accounts, and the one property that decides whether the club can use this site
+ * at all: the password people already have still works.
  *
- * The failure this guards against is not loud. `verifyPassword` returns `false`
- * for a stored value it cannot parse, so a bcrypt row it could not read would
- * refuse a correct password with the same 401 as a wrong one — 699 people
- * locked out, and nothing anywhere saying why.
+ * The failure this guards against isn't loud. `verifyPassword` returns `false` for a stored
+ * value it can't parse, so a bcrypt row it couldn't read would refuse a correct password with
+ * the same 401 as a wrong one — 699 people locked out, and nothing saying why.
  */
 describe('an account imported from the old site', () => {
   it('signs in with the password it already had', async () => {
@@ -437,9 +413,8 @@ describe('an account imported from the old site', () => {
     })
 
     expect(after?.passwordHash?.startsWith('scrypt$')).toBe(true)
-    // The conversion is worth nothing if the converted row does not open — and
-    // this is the half a rehash written from the *hash* rather than the
-    // plaintext would fail.
+    // The conversion is worth nothing if the converted row doesn't open — and this is the half
+    // a rehash written from the hash rather than the plaintext would fail.
     expect(await verifyPassword(PASSWORD, after!.passwordHash!)).toBe(true)
 
     await clearWindows()
@@ -469,9 +444,8 @@ describe('an account imported from the old site', () => {
 
 describe('GET /api/auth/me', () => {
   /**
-   * 200 with a null user rather than a 401. Not being signed in is the ordinary
-   * state of the front page, and treating it as an error puts a red line in
-   * every visitor's console on every load.
+   * 200 with a null user rather than a 401. Not being signed in is the ordinary state of the
+   * front page, and treating it as an error puts a red line in every visitor's console.
    */
   it('says nobody is signed in without calling it a failure', async () => {
     const response = await app.request('/api/auth/me')
@@ -503,15 +477,15 @@ describe('POST /api/auth/logout', () => {
 
     expect((await post('/api/auth/logout', {}, { cookie })).status).toBe(200)
 
-    // The row is gone, so the cookie is worthless even to somebody who kept a
-    // copy of it. Clearing the browser's cookie alone would not be signing out.
+    // The row is gone, so the cookie is worthless even to somebody who kept a copy of it.
+    // Clearing the browser's cookie alone wouldn't be signing out.
     const after = await app.request('/api/auth/me', { headers: { cookie } })
     expect(await after.json()).toEqual({ user: null })
   })
 
   /**
-   * Signing out has to work from a session the server has already forgotten, or
-   * a stale cookie is a browser that can never get back to a clean state.
+   * Signing out has to work from a session the server has already forgotten, or a stale cookie
+   * is a browser that can never get back to a clean state.
    */
   it('works when there is no session to end', async () => {
     expect((await post('/api/auth/logout', {})).status).toBe(200)
@@ -529,9 +503,8 @@ describe('an expired session', () => {
     const response = await app.request('/api/auth/me', { headers: { cookie } })
 
     expect(await response.json()).toEqual({ user: null })
-    // Cleared then and there rather than left to the sweep: the browser is
-    // here, and clearing it is the difference between signing in again and
-    // wondering why nothing happens.
+    // Cleared then and there rather than left to the sweep: the browser is here, and clearing
+    // it is the difference between signing in again and wondering why nothing happens.
     expect(response.headers.get('set-cookie') ?? '').toContain(
       env.SESSION_COOKIE_NAME,
     )
@@ -541,12 +514,10 @@ describe('an expired session', () => {
 /**
  * Following the club's Discord officer role at the moment somebody arrives.
  *
- * The ten-minute sweep in `discordOfficers.ts` is what keeps the board right in
- * general; this is the half that matters to a person, and the asymmetry is the
- * thing to protect. It promotes on the spot and it must never demote — one
- * member's role list cannot tell a board that rotated from a role id somebody
- * mistyped, and a per-user demotion would stand the whole board down one
- * sign-in at a time.
+ * The ten-minute sweep keeps the board right in general; this is the half that matters to a
+ * person, and the asymmetry is the thing to protect. It promotes on the spot and must never
+ * demote — one member's role list can't tell a board that rotated from a role id somebody
+ * mistyped, and a per-user demotion would stand the whole board down one sign-in at a time.
  */
 describe('officer role, followed live', () => {
   const roleOf = async (email: string) =>
@@ -557,17 +528,17 @@ describe('officer role, followed live', () => {
       })
     )?.role
 
-  /** The open term, or null. This is what "currently on the board" means, and
-      it is a different question from `roleOf` above. */
+  /** The open term, or null. This is what "currently on the board" means, and it's a different
+      question from `roleOf` above. */
   const openTermOf = async (email: string) =>
     prisma.officerTerm.findFirst({
       where: { user: { email }, endedAt: null },
       select: { id: true, source: true, position: true },
     })
 
-  /** Keyed on the snowflake, never a flat answer — the promotion writes back
-      what it is told, so a stub that says yes to everything hands one
-      fixture's identity to whoever else is in the database. */
+  /** Keyed on the snowflake, never a flat answer — the promotion writes back what it's told, so
+      a stub that says yes to everything hands one fixture's identity to whoever else is in the
+      database. */
   const carriedBy = (snowflake: string, roles: string[]) => {
     memberRoles.mockImplementation((id: string) =>
       Promise.resolve(
@@ -584,9 +555,8 @@ describe('officer role, followed live', () => {
     const response = await login({ email: WITH_ID_EMAIL, password: PASSWORD })
 
     expect(response.status).toBe(200)
-    // In the answer, not only in the database: the dashboard draws its rail
-    // from exactly this, and a stale role here is a member staring at a page
-    // with no officer desks on it.
+    // In the answer, not only in the database: the dashboard draws its rail from exactly this,
+    // and a stale role here is a member staring at a page with no officer desks on it.
     expect(await response.json()).toMatchObject({ user: { role: 'OFFICER' } })
     expect(await roleOf(WITH_ID_EMAIL)).toBe('OFFICER')
   })
@@ -600,29 +570,27 @@ describe('officer role, followed live', () => {
     expect(await roleOf(WITH_ID_EMAIL)).toBe('GUEST')
   })
 
-  /** The other direction, live: the role goes in Discord and the desks go on
-      the same request rather than within ten minutes. */
+  /** The other direction, live: the role goes in Discord and the desks go on the same request
+      rather than within ten minutes. */
   it('stands a sitting officer down when the role is gone', async () => {
     carriedBy(SITTING_SNOWFLAKE, [])
 
     const response = await login({ email: SITTING_EMAIL, password: PASSWORD })
 
-    // Back to whatever the dues loop says about them — `standingRole` decides
-    // that, not this route. The fixture has never paid, so: GUEST.
+    // Back to whatever the dues loop says about them — `standingRole` decides that, not this
+    // route. The fixture has never paid, so: GUEST.
     expect(await response.json()).toMatchObject({ user: { role: 'GUEST' } })
     expect(await roleOf(SITTING_EMAIL)).toBe('GUEST')
   })
 
   /**
-   * **The guard the whole live half rests on, and the one this file exists to
-   * protect.**
+   * The guard the whole live half rests on, and the one this file exists to protect.
    *
-   * From one member's role list, "not an officer" and "the role id in `.env` is
-   * a typo, or names a role somebody deleted" are identical — Discord returns
-   * neither an error nor a hint for the second. So before anybody is stood
-   * down, `officerRoleExists` checks the id against the guild's own role list.
-   * Without this, one wrong character in `.env` would empty the board one
-   * sign-in at a time, quietly.
+   * From one member's role list, "not an officer" and "the role id in `.env` is a typo, or names
+   * a role somebody deleted" are identical — Discord returns neither an error nor a hint for the
+   * second. So before anybody is stood down, `officerRoleExists` checks the id against the
+   * guild's own role list. Without this, one wrong character would empty the board one sign-in
+   * at a time, quietly.
    */
   it('refuses to stand anybody down when the role id is not a role in the guild', async () => {
     carriedBy(SITTING_SNOWFLAKE, [])
@@ -650,9 +618,9 @@ describe('officer role, followed live', () => {
   })
 
   /**
-   * A `MANUAL` term is somebody's deliberate appointment on the roles desk —
-   * the faculty advisor sits on the board carrying no Discord role at all — and
-   * the sync closing those would stand them down on its first pass.
+   * A `MANUAL` term is somebody's deliberate appointment on the roles desk — the faculty advisor
+   * sits on the board carrying no Discord role at all — and the sync closing those would stand
+   * them down on its first pass.
    */
   it('leaves a hand-appointed term alone however Discord answers', async () => {
     const advisor = await prisma.user.findUnique({
@@ -671,13 +639,12 @@ describe('officer role, followed live', () => {
   })
 
   /**
-   * **An officer can also be an admin, and this is the case that proves it.**
+   * An officer can also be an admin, and this is the case that proves it.
    *
-   * `UserRole` has one slot per person and `ADMIN` sits above `OFFICER`, so the
-   * ladder cannot hold both facts at once — which is why officer-hood is a
-   * *term* now. An admin carrying the Discord role gains one exactly as anybody
-   * else does, and their `role` is never written in either direction, keeping
-   * the "a human in Prisma Studio" invariant whole.
+   * `UserRole` has one slot per person and `ADMIN` sits above `OFFICER`, so the ladder can't hold
+   * both facts at once — which is why officer-hood is a term now. An admin carrying the Discord
+   * role gains one exactly as anybody else does, and their `role` is never written in either
+   * direction.
    */
   it('gives an admin a term without ever writing their role', async () => {
     carriedBy(ADMIN_SNOWFLAKE, [OFFICER_ROLE])
@@ -689,8 +656,8 @@ describe('officer role, followed live', () => {
     expect(await openTermOf(ADMIN_EMAIL)).not.toBeNull()
   })
 
-  /** The other direction, and the one that would be easy to get wrong: losing
-      the role closes an admin's term and still leaves them an admin. */
+  /** The other direction, and the one that would be easy to get wrong: losing the role closes an
+      admin's term and still leaves them an admin. */
   it('closes an admin’s term when the role goes, and leaves them an admin', async () => {
     carriedBy(ADMIN_SNOWFLAKE, [OFFICER_ROLE])
     await login({ email: ADMIN_EMAIL, password: PASSWORD })
@@ -705,9 +672,9 @@ describe('officer role, followed live', () => {
   })
 
   /**
-   * A row that predates the signup check has a handle and no snowflake. It goes
-   * through the same search signup uses, which answers with the id and the
-   * roles together — so the id is backfilled on the way past at no extra call.
+   * A row that predates the signup check has a handle and no snowflake. It goes through the same
+   * search signup uses, which answers with the id and the roles together — so the id is
+   * backfilled on the way past at no extra call.
    */
   it('resolves a handle-only account and stores the snowflake it found', async () => {
     handleCheck.mockImplementation((handle: string) =>
@@ -746,9 +713,8 @@ describe('officer role, followed live', () => {
   })
 
   /**
-   * The other half: somebody handed the role while already signed in never
-   * posts to `/login` again, and `/auth/me` is the one request every page of
-   * theirs makes.
+   * The other half: somebody handed the role while already signed in never posts to `/login`
+   * again, and `/auth/me` is the one request every page of theirs makes.
    */
   it('promotes a browser that was already signed in, on the next page load', async () => {
     const cookie = cookieFrom(await login({ email: WITH_ID_EMAIL, password: PASSWORD }))
@@ -765,9 +731,9 @@ describe('officer role, followed live', () => {
   })
 
   /**
-   * `/auth/me` runs on every page load of every signed-in browser. Without the
-   * throttle a busy afternoon is one Discord call per navigation, which is a
-   * rate limit nobody would connect to the page they were on.
+   * `/auth/me` runs on every page load of every signed-in browser. Without the throttle a busy
+   * afternoon is one Discord call per navigation, which is a rate limit nobody would connect to
+   * the page they were on.
    */
   it('asks Discord once per person, not once per page load', async () => {
     carriedBy(WITH_ID_SNOWFLAKE, ['999999999999999999'])
@@ -783,10 +749,9 @@ describe('officer role, followed live', () => {
   })
 
   /**
-   * A sitting officer used to be skipped without a call, back when this could
-   * only promote and they had nothing to gain. They are now exactly the people
-   * worth asking about — skipping them is how an ex-officer keeps their desks
-   * until the sweep notices — and the throttle is what keeps that affordable.
+   * A sitting officer used to be skipped without a call, back when this could only promote and
+   * they had nothing to gain. They're now exactly the people worth asking about — skipping them
+   * is how an ex-officer keeps their desks until the sweep notices.
    */
   it('does ask about a sitting officer, which is what makes demotion live', async () => {
     carriedBy(SITTING_SNOWFLAKE, [OFFICER_ROLE])
@@ -800,8 +765,8 @@ describe('officer role, followed live', () => {
     expect(memberRoles).toHaveBeenCalled()
   })
 
-  /** An account with no Discord identity at all cannot be looked up, so nothing
-      is asked about them however often they reload. */
+  /** An account with no Discord identity at all can't be looked up, so nothing is asked about
+      them however often they reload. */
   it('never asks about somebody it cannot look up', async () => {
     const cookie = cookieFrom(await login({ email: EMAIL, password: PASSWORD }))
     memberRoles.mockClear()
@@ -817,18 +782,17 @@ describe('officer role, followed live', () => {
 
 
 /**
- * The way back in, for somebody who cannot sign in.
+ * The way back in, for somebody who can't sign in.
  *
- * The property worth pinning hardest is the first one: an unknown address and a
- * real one must be indistinguishable, or this endpoint is a membership lookup —
- * type an address, learn whether that person is in the club — which is exactly
- * what the one-answer rule on the form beside it exists to prevent.
+ * The property worth pinning hardest is the first: an unknown address and a real one must be
+ * indistinguishable, or this endpoint is a membership lookup — type an address, learn whether
+ * that person is in the club.
  */
 describe('password reset', () => {
   const forgot = (email: string) => post('/api/auth/password/forgot', { email })
 
-  /** Stand in for the emailed link: the row a `forgot` would have written. The
-      token is stored as a hash and is deliberately never in a response. */
+  /** Stand in for the emailed link: the row a `forgot` would have written. The token is stored as
+      a hash and is deliberately never in a response. */
   async function pendingReset(email: string) {
     const { createHash, randomBytes } = await import('node:crypto')
     const token = randomBytes(32).toString('base64url')
@@ -861,8 +825,8 @@ describe('password reset', () => {
 
   it('answers the same way for an address that has no account', async () => {
     const real = await forgot(EMAIL)
-    // Two requests back to back is exactly what the cooldown below exists to
-    // stop, and this case is about the *answers* rather than the pacing.
+    // Two requests back to back is exactly what the cooldown below exists to stop, and this case
+    // is about the answers rather than the pacing.
     await clearCooldown()
     const nobody = await forgot('test-login-nobody@ucf.edu')
 
@@ -874,9 +838,8 @@ describe('password reset', () => {
   })
 
   /**
-   * A roster entry an officer typed in has no `passwordHash` and cannot sign
-   * in at all. This is how it becomes a login — the case the login page used to
-   * send people to Discord for.
+   * A roster entry an officer typed in has no `passwordHash` and can't sign in at all. This is
+   * how it becomes a login — the case the login page used to send people to Discord for.
    */
   it('works for a roster entry that has never had a password', async () => {
     expect((await forgot(NO_PASSWORD_EMAIL)).status).toBe(202)
@@ -906,9 +869,8 @@ describe('password reset', () => {
   })
 
   /**
-   * Every session, with no exception. If the reason for the reset is that
-   * somebody else got in, leaving that somebody signed in is the one outcome
-   * the whole flow exists to prevent.
+   * Every session, with no exception. If the reason for the reset is that somebody else got in,
+   * leaving that somebody signed in is the one outcome the whole flow exists to prevent.
    */
   it('ends every session the account had', async () => {
     const { token, userId } = await pendingReset(EMAIL)
@@ -934,14 +896,13 @@ describe('password reset', () => {
   })
 
   /**
-   * The five-in-ten-minutes budget says nothing about shape: all five can be
-   * spent in the same second, at five different addresses, which is five people
-   * opening an inbox to a link they did not ask for. This is the floor under
-   * it.
+   * The five-in-ten-minutes budget says nothing about shape: all five can be spent in the same
+   * second, at five different addresses, which is five people opening an inbox to a link they
+   * didn't ask for. This is the floor under it.
    *
-   * The same address twice, deliberately. The per-address budget allows three,
-   * so a 429 on the second can only be the cooldown — and the first request
-   * proves there was mail on the other end of the one that was refused.
+   * The same address twice, deliberately. The per-address budget allows three, so a 429 on the
+   * second can only be the cooldown — and the first request proves there was mail on the other
+   * end of the one that was refused.
    */
   it('makes a caller wait half a minute before asking again', async () => {
     expect((await forgot(EMAIL)).status).toBe(202)

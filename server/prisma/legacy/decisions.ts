@@ -4,24 +4,19 @@ import { type Decisions, NO_TERM } from './plan.js'
 /**
  * The answers to the special cases the import refuses to guess at.
  *
- * Every entry is a decision about a real person's account, so every entry says
- * who it is about and why. `import-legacy.ts` will not write while a blocking
- * case is missing from here — run it with no arguments to see what is left.
+ * Every entry is a decision about a real person's account, so every entry says who it's about and
+ * why. `import-legacy.ts` won't write while a blocking case is missing from here.
  *
- * The ids are the old database's `Member.id`. They are unreadable on purpose:
- * an email address is what somebody changes, and this file has to still mean
- * the same thing after they do.
+ * The ids are the old database's `Member.id`. They're unreadable on purpose: an email address is
+ * what somebody changes, and this file has to still mean the same thing after they do.
  */
 export const DECISIONS: Decisions = {
   /**
-   * Accounts that do not come across.
+   * Accounts that don't come across.
    *
-   * Thirteen are signup spam: an address of random letters on a
-   * disposable-mail domain, a display name that matches neither, no survey and
-   * no dues. Four are the club's own test accounts, one of which
-   * (`nah@nah.com`) filled the survey in with "old account no touchy pls delete
-   * me ty", and one of which is the shared `officers@rccf.club` address used to
-   * test the form — its survey answers are "your mom" and "help meeeee".
+   * Thirteen are signup spam: an address of random letters on a disposable-mail domain, a display
+   * name that matches neither, no survey and no dues. Four are the club's own test accounts, one
+   * of which filled the survey in with "old account no touchy pls delete me ty".
    */
   drop: [
     '1ec187cd-fa0a-4434-a5dc-667f976ac57e', // "Alessandra" <TNJldy.hqwqqdc@rushlight.cfd> @Brayden Vincent
@@ -46,12 +41,10 @@ export const DECISIONS: Decisions = {
   /**
    * Flagged by the domain check, looked at, and real.
    *
-   * Five are typing mistakes nobody ever noticed — `gmail.con`, `gmail.comi`,
-   * `gamil.com` — and they are **left exactly as typed**. That address is the
-   * one on the account and therefore the one that signs in; correcting it would
-   * hand somebody a working mailbox and take away their login on the same day.
-   * The rest are people who signed up with a work address rather than a
-   * student one, and all but two answered the survey.
+   * Five are typing mistakes nobody ever noticed — `gmail.con`, `gmail.comi`, `gamil.com` — and
+   * they're left exactly as typed. That address is the one on the account and therefore the one
+   * that signs in; correcting it would hand somebody a working mailbox and take away their login
+   * on the same day. The rest signed up with a work address rather than a student one.
    */
   keep: [
     '78de88a4-24cf-421a-ab6b-99b00813dc3f', // Jeffrey Donovan <jeff.donovan@kdfrobotics.com>
@@ -66,16 +59,13 @@ export const DECISIONS: Decisions = {
   ],
 
   /**
-   * Fourteen people with two accounts each — a personal address and then a
-   * `@ucf.edu` one, or the same handle typed with a different capital. The old
-   * database allowed both because its unique index was case-sensitive; `email`
-   * and `discord_username` here are not, so one row of each pair has to go.
+   * Fourteen people with two accounts each — a personal address and then a `@ucf.edu` one, or the
+   * same handle typed with a different capital. The old database allowed both because its unique
+   * index was case-sensitive; `email` and `discord_username` here are not.
    *
-   * The one that is kept is the one that answered the survey; where both did or
-   * neither did, the one with the later dues date. `mergeUsers` then takes the
-   * truest value of every field from *both* rows — the later dues, the earlier
-   * join date, whichever password and handle exist — so nothing is lost by the
-   * choice of which row is nominally the survivor.
+   * The one kept is the one that answered the survey; where both did or neither did, the one with
+   * the later dues date. `mergeUsers` then takes the truest value of every field from both rows,
+   * so nothing is lost by the choice of which row is nominally the survivor.
    */
   mergeInto: {
     // Amy — both accounts guests, neither surveyed; the `@ucf.edu` one paid later.
@@ -112,18 +102,15 @@ export const DECISIONS: Decisions = {
   },
 
   /**
-   * Discord handles that cannot be imported as they stand.
+   * Discord handles that can't be imported as they stand.
    *
-   * Thirty-four rows hold something that is not a handle: a display name with
-   * spaces, an email address, a legacy `name#1234`, or `|`. All of them import
-   * as no handle at all, which is the default and needs no entry here — the
-   * cost is one Discord notification they will not receive, and the dues page
-   * says the same thing.
+   * Thirty-four rows hold something that isn't a handle: a display name with spaces, an email
+   * address, a legacy `name#1234`, or `|`. All import as no handle at all, which is the default —
+   * the cost is one Discord notification they won't receive.
    *
-   * A `#1234` could be stripped to the part before it, and that is exactly why
-   * it is not: `angle#2784` and `Jarvis#6431` were somebody's handle *in 2023*,
-   * before Discord retired discriminators, and there is no reason to think
-   * `angle` or `Jarvis` belongs to the same person today. Handing one member's
+   * A `#1234` could be stripped to the part before it, and that's exactly why it isn't:
+   * `angle#2784` was somebody's handle in 2023, before Discord retired discriminators, and
+   * there's no reason to think `angle` belongs to the same person today. Handing one member's
    * notifications to a stranger is worse than sending none.
    */
   handles: {},
@@ -131,15 +118,13 @@ export const DECISIONS: Decisions = {
   /**
    * The nine people with a `position` on the old site.
    *
-   * Seven map straight onto a seat. Two do not, and both are the reason
-   * `OfficerPosition` and `UserRole` are separate enums:
+   * Seven map straight onto a seat. Two don't, and both are why `OfficerPosition` and `UserRole`
+   * are separate enums:
    *
-   * - **Crystal Maraj** is the faculty advisor, who sits on the board without
-   *   officer permissions. `MEMBER` plus a `FACULTY_ADVISOR` term, which is the
-   *   case the schema comment on `OfficerPosition` is written about.
-   * - **Dwight Howard, II** held "The Robot Man", which is not an office. He
-   *   keeps `ADMIN` and the title on his profile, and gets no term: the board
-   *   is eight chairs and he was not in one.
+   * - Crystal Maraj is the faculty advisor, who sits on the board without officer permissions.
+   *   `MEMBER` plus a `FACULTY_ADVISOR` term.
+   * - Dwight Howard, II held "The Robot Man", which isn't an office. He keeps `ADMIN` and the
+   *   title on his profile, and gets no term.
    */
   seats: {
     'e12f27a7-4ebf-4211-89cd-78ed1cf1c238': OfficerPosition.PRESIDENT, // Gavin Fitzgerald
@@ -157,16 +142,13 @@ export const DECISIONS: Decisions = {
     /**
      * Crystal Maraj, the faculty advisor.
      *
-     * Her old `membershipExpDate` reads **3026**, which is a typo for 2026 —
-     * and correcting it to 2026 would lock her out of the site tomorrow, since
-     * `requireCurrentDues` reads that column and nothing else. A far-future
-     * date is what the advisor should have anyway — she is not on dues — so
-     * the typo is kept as an intention and tidied to a year that does not read
-     * as corrupt data in every export.
+     * Her old `membershipExpDate` reads 3026, which is a typo for 2026 — and correcting it to 2026
+     * would lock her out tomorrow, since `requireCurrentDues` reads that column and nothing else.
+     * A far-future date is what the advisor should have anyway, so the typo is kept as an
+     * intention and tidied to a year that doesn't read as corrupt data in every export.
      *
-     * `MEMBER`, not `ADMIN`: the old site gave her the top permission level
-     * because it had no way to say "on the board, not an officer". This one
-     * does, and it is the term.
+     * `MEMBER`, not `ADMIN`: the old site gave her the top permission level because it had no way
+     * to say "on the board, not an officer". This one does, and it's the term.
      */
     '908c56f9-a1fa-4b2f-b989-f93b69b05d92': {
       role: 'MEMBER',
@@ -176,14 +158,12 @@ export const DECISIONS: Decisions = {
     /**
      * Caicheng Li, who exists in both databases.
      *
-     * The address is the `@ucf.edu` one from the new database — it is what the
-     * signup rules require and what his own survey gives as his UCF address.
-     * The password stays the bcrypt hash from the old site, so the password he
-     * already has still opens the account; it is only the address that moves.
+     * The address is the `@ucf.edu` one from the new database — what the signup rules require and
+     * what his own survey gives. The password stays the bcrypt hash from the old site, so the
+     * password he already has still opens the account; only the address moves.
      *
-     * The dues date is the newer one: $25 paid for a semester, and the payment
-     * record is carried across separately rather than being cascaded away with
-     * the rest of the seed.
+     * The dues date is the newer one, and the payment record is carried across separately rather
+     * than cascaded away with the rest of the seed.
      */
     'a407aa2f-c791-4319-baff-618a6f202a9c': {
       email: 'ca741790@ucf.edu',
@@ -193,10 +173,9 @@ export const DECISIONS: Decisions = {
     /**
      * Matthew Barrs, also in both.
      *
-     * The old database has him covered to September; the new one has a real
-     * SUCCEEDED Stripe payment of $50 for a full year, to 2027-05-05. A
-     * payment that happened outranks a date that predates it. His address stays
-     * the old one, which is where his password is.
+     * The old database has him covered to September; the new one has a real SUCCEEDED Stripe
+     * payment of $50 to 2027-05-05. A payment that happened outranks a date that predates it. His
+     * address stays the old one, which is where his password is.
      */
     'e6a82399-ac82-4e2a-b301-9786475551a2': {
       duesPaidThrough: new Date('2027-05-05T03:59:59.999Z'),
@@ -204,13 +183,12 @@ export const DECISIONS: Decisions = {
   },
 
   /**
-   * Matthew Barrs signed up on this site as `matthew.barrs@ucf.edu` and paid
-   * under it; the old database has him as `matthewbarrs@ucf.edu`, and that is
-   * the address his password is attached to, so it is the one he keeps.
+   * Matthew Barrs signed up on this site as `matthew.barrs@ucf.edu` and paid under it; the old
+   * database has him as `matthewbarrs@ucf.edu`, which is where his password is, so that's the one
+   * he keeps.
    *
-   * Without this line his $50 is matched to nobody and silently thrown away
-   * with the rest of the seed. Caicheng Li needs no entry: his override moves
-   * him onto the same `@ucf.edu` address he paid under.
+   * Without this line his $50 is matched to nobody and silently thrown away with the rest of the
+   * seed.
    */
   paymentEmails: {
     'matthew.barrs@ucf.edu': 'matthewbarrs@ucf.edu',

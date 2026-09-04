@@ -1,18 +1,15 @@
 /**
  * The HTML the club actually sends.
  *
- * Email is not the web and none of the site's tooling survives the trip:
- * there is no Tailwind, no stylesheet, no `@font-face`, and no `flex` or `grid`
- * worth relying on. Outlook still renders through Word. So this is tables,
- * inline styles and hex literals — the one place in the codebase where the rule
- * about colour never appearing as a literal cannot hold, because there is
- * nowhere to declare a token.
+ * Email isn't the web and none of the site's tooling survives the trip: no Tailwind, no
+ * stylesheet, no `@font-face`, and no `flex` or `grid` worth relying on. Outlook still renders
+ * through Word. So this is tables, inline styles and hex literals — the one place in the codebase
+ * where the rule about colour never appearing as a literal can't hold, because there's nowhere to
+ * declare a token.
  *
- * The palette is `web/src/index.css` translated, with the two text tiers
- * flattened against the page colour. `--color-dim` is white at 60% over
- * `#0b0b0b`, which is `#9d9d9d`; `--color-faint` at 42% is `#717171`; the
- * hairline at 10% is `#232323`. Alpha itself is not safe here — several clients
- * drop `rgba()` and land on black text on a black background.
+ * The palette is `web/src/index.css` translated, with the two text tiers flattened against the
+ * page colour. Alpha itself isn't safe here — several clients drop `rgba()` and land on black text
+ * on a black background.
  */
 
 const PAGE = '#0b0b0b'
@@ -55,20 +52,16 @@ export interface VerificationEmail {
 /**
  * One link email, in both renderings.
  *
- * The three messages this file sends — confirm your address, set a new
- * password, confirm your new address — are the same page with different words
- * in it, so they share one builder rather than three copies of a table layout
- * that would drift the first time anybody adjusted the padding.
+ * The three messages this file sends — confirm your address, set a new password, confirm your new
+ * address — are the same page with different words in it, so they share one builder rather than
+ * three copies of a table layout that would drift the first time anybody adjusted the padding.
  *
- * Both bodies are built together and say the same thing, because they are two
- * renderings of one message rather than a real one and a fallback — plenty of
- * people read mail as plain text on purpose, and Postmark sends whichever the
- * client asks for.
+ * Both bodies are built together and say the same thing, because they're two renderings of one
+ * message rather than a real one and a fallback — plenty of people read mail as plain text on
+ * purpose.
  *
- * The URL appears twice in the HTML on purpose: once as the button, once as
- * copyable text underneath. Buttons are the first thing a locked-down mail
- * client strips, and a link email whose only affordance has been removed is a
- * dead end.
+ * The URL appears twice in the HTML on purpose: once as the button, once as copyable text
+ * underneath. Buttons are the first thing a locked-down mail client strips.
  */
 interface LinkEmail {
   /** The inbox preview line. Without one, clients pull the first text in the
@@ -206,10 +199,9 @@ export function signupVerificationEmail(
 /**
  * Set a new password.
  *
- * Unlike the signup link, this one arrives at an account that already exists,
- * so the ignore line has to do real work: the reflex on receiving one of these
- * unprompted is to click it and see what it does, and the answer has to be that
- * doing nothing is safe and the password has not moved.
+ * Unlike the signup link, this one arrives at an account that already exists, so the ignore line
+ * has to do real work: the reflex on receiving one unprompted is to click it and see what it does,
+ * and the answer has to be that doing nothing is safe.
  */
 export function passwordResetEmail(
   link: string,

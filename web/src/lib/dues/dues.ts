@@ -4,34 +4,29 @@ import type { ApiState } from '../api/useApi'
 /**
  * Turning what the dues API says into what a page prints.
  *
- * All of it is formatting and nothing here decides anything. Prices, dates and
- * status come from the server — a page that worked out its own coverage dates
- * would eventually disagree with the one the member was charged against, and
- * the member would be right.
+ * All formatting; nothing here decides anything. Prices, dates and status come from
+ * the server — a page that worked out its own coverage dates would eventually
+ * disagree with the one the member was charged against, and the member would be right.
  */
 
 /**
- * `en-US` explicitly rather than the browser's locale.
- *
- * This is a Florida club and the dates are UCF's, so a member abroad reading
- * "5/9/2027" and wondering whether that is May or September helps nobody. It
- * also keeps the tests from depending on whatever locale the runner has.
+ * `en-US` explicitly rather than the browser's locale. This is a Florida club and the
+ * dates are UCF's, so a member abroad reading "5/9/2027" and wondering whether that's
+ * May or September helps nobody. It also keeps the tests off the runner's locale.
  */
 const LOCALE = 'en-US'
 
 /**
  * The club's clock, pinned for the same reason `LOCALE` is.
  *
- * These dates are end-of-day boundaries in Orlando — `duesPaidThrough` is
- * 23:59:59 there, which is already the next day in UTC — so the reader's own
- * timezone must not be what decides which day gets printed. Left to the
- * browser, a member reading this from anywhere east of Eastern was told their
- * membership runs a day longer than it does, and the tests agreed with them
- * only because the machine they were written on is in Eastern.
+ * These are end-of-day boundaries in Orlando — `duesPaidThrough` is 23:59:59 there,
+ * already the next day in UTC — so the reader's own timezone must not decide which day
+ * gets printed. Left to the browser, a member east of Eastern was told their
+ * membership runs a day longer than it does.
  *
- * Spelled again rather than shared with `lib/events/calendarLinks.ts`, which
- * names the same zone for a different job: that one is a label an `.ics` file
- * format demands, this one is a rule about how to read a stored date.
+ * Spelled again rather than shared with `lib/events/calendarLinks.ts`, which names the
+ * same zone for a different job: that one is a label an `.ics` demands, this is a rule
+ * about how to read a stored date.
  */
 const CAMPUS_ZONE = 'America/New_York'
 
@@ -103,88 +98,74 @@ export function countdown(iso: string, now: number = Date.now()): string {
 /**
  * The label on the status chip, and its colour.
  *
- * **`FREE` is not a good state to be in**, and the word has to carry that. It
- * used to mean "the club is charging nobody, you are covered" and it now means
- * "the club is charging nobody, and you have not claimed it" — the same three
- * letters, the opposite answer to *may I get in*. So the chip reads FREE TO
- * CLAIM rather than NO DUES DUE, and it is the same warning colour the club
- * uses for anything that needs a press.
+ * `FREE` is not a good state to be in, and the word has to carry that. It used to mean
+ * "the club is charging nobody, you are covered" and now means "and you haven't
+ * claimed it" — the same three letters, the opposite answer to *may I get in*. So the
+ * chip reads FREE TO CLAIM, in the colour the club uses for anything needing a press.
  *
- * `TRIAL` is gone with the status it labelled. One continuous window from the
- * end of one dues-bearing term to three weeks into the next made the split
- * between "the gap" and "the opening weeks" meaningless — same offer, same press.
+ * `TRIAL` is gone with the status it labelled: one continuous window made the split
+ * between "the gap" and "the opening weeks" meaningless.
  *
- * `ACTIVE` used to read PAID, and that was wrong for a whole season a year: a
- * membership can be active without a payment behind it — a claimed window is
- * as covering as anything bought. The word has to be about the membership, not
- * about the money.
+ * `ACTIVE` used to read PAID, which was wrong for a season a year — a claimed window
+ * is as covering as anything bought. The word has to be about the membership, not the
+ * money.
  */
 /**
- * Whether dues have lapsed and the dashboard is down to its two open pages,
- * mirroring `requireCurrentDues` on the server.
+ * Whether dues have lapsed and the dashboard is down to its two open pages, mirroring
+ * `requireCurrentDues` on the server.
  *
- * The club's line: with dues owed you get **dues & payments** and **your own
- * projects**, and nothing else. Printing, borrowing and every management tool
- * sit behind this — the first two because they are the club spending money on
- * you, the last because running things is for paid-up members.
+ * The club's line: with dues owed you get dues & payments and your own projects, and
+ * nothing else. Printing and borrowing sit behind this because they're the club
+ * spending money on you; the management tools because running things is for paid-up
+ * members.
  *
- * Presentation only. Every route behind a lock re-checks server-side, and this
- * exists so the rail can grey a link out rather than let somebody click through
- * to a 403. Anything but `ready` reads as unlocked, so nothing flashes a padlock
- * at a paid-up member while their standing is still on the wire.
+ * Presentation only — every route re-checks server-side, and this exists so the rail
+ * can grey a link out rather than let somebody click through to a 403. Anything but
+ * `ready` reads as unlocked, so nothing flashes a padlock at a paid-up member.
  *
- * `ADMIN` is exempt, here and there. Whoever can fix a membership must not be
- * lockable out by one.
+ * `ADMIN` is exempt, here and there: whoever can fix a membership must not be lockable
+ * out by one.
  */
 export function duesLocked(
   membership: ApiState<ApiMembership>,
   role: UserRole,
 ): boolean {
-  // The boolean face of `accessLock` below, and deliberately not a second read
-  // of `hasAccess`: the rail and the page it links to must lock on the same
-  // condition or one of them is lying.
+  // The boolean face of `accessLock` below, and deliberately not a second read of
+  // `hasAccess`: the rail and the page it links to must lock on the same condition or
+  // one of them is lying.
   return accessLock(membership, role) !== null
 }
 
 /**
- * Why a page is shut, or `null` when it is not.
+ * Why a page is shut, or `null` when it isn't.
  *
- * **One predicate with three sentences**, mirroring `requireCurrentDues` in
- * `server/src/auth/authz.ts`, which decides exactly the same three ways. There used
- * to be two predicates: `duesLocked` for the management pages and a stricter
- * `memberLocked` for printing and borrowing, which also refused a `GUEST`
- * outright. That mattered while the summer and the opening weeks reported
- * `hasAccess: true` for everybody — coverage alone would have let an account
- * made ten minutes ago order prints. Access is the dues date now, and nothing
- * sets that date without promoting the account in the same transaction, so the
- * role check had become one that could never fail for anybody who got past the
- * date. Two locks that always agree are one lock and a place for them to stop
- * agreeing.
+ * One predicate with three sentences, mirroring `requireCurrentDues` in
+ * `server/src/auth/authz.ts`. There used to be two: `duesLocked` for the management
+ * pages and a stricter `memberLocked` that also refused a `GUEST` outright. That
+ * mattered while summer reported `hasAccess: true` for everybody. Access is the dues
+ * date now, and nothing sets that date without promoting the account in the same
+ * transaction — so the role check had become one that could never fail. Two locks that
+ * always agree are one lock and a place for them to stop agreeing.
  *
- * There was briefly a fourth reason, `survey`, and it is worth saying where it
- * went: the one-time member survey used to sit in front of dues on the server,
- * so every page in here drew a padlock for it and the dues page was shut behind
- * it too. The survey is an invitation now — `surveyPending` on the membership
- * is what the dashboard prompts on, and it locks nothing.
+ * There was briefly a fourth reason, `survey`, from when the one-time survey sat in
+ * front of dues on the server. It's an invitation now and locks nothing.
  *
- * The three reasons are not decoration. They are the difference between telling
- * somebody the club wants money, telling them it does not want any right now,
- * and telling somebody two years in that they were never a member:
+ * The three reasons are the difference between telling somebody the club wants money,
+ * telling them it doesn't want any right now, and telling somebody two years in that
+ * they were never a member:
  *
- *   - `claim` — a free window is running. Quoting a price would be false; they
- *     are one press from being let in, and it costs nothing.
+ *   - `claim` — a free window is running. Quoting a price would be false.
  *   - `dues` — a date that has run out. A member, on hold, nothing taken away.
  *   - `newcomer` — no date, ever, and nothing free on offer.
  */
 export type AccessLock = 'claim' | 'dues' | 'newcomer' | null
 
 /**
- * Why this membership is not cover, ignoring who is looking.
+ * Why this membership isn't cover, ignoring who is looking.
  *
  * Split out from `accessLock` because two callers need the reason without the
- * exemption: the overview's button, which should say CLAIM rather than PAY to
- * an admin who has genuinely not claimed, and the join panel on a public
- * project page, which has a membership and no dashboard context.
+ * exemption: the overview's button, which should say CLAIM rather than PAY to an admin
+ * who genuinely hasn't claimed, and the join panel on a public project page.
  */
 export function coverGap(membership: ApiMembership): AccessLock {
   if (membership.hasAccess) return null
@@ -197,8 +178,8 @@ export function accessLock(
   membership: ApiState<ApiMembership>,
   role: UserRole,
 ): AccessLock {
-  // Lock nothing until the standing has actually arrived, so no padlock
-  // flashes at a paid-up member while their status is still on the wire.
+  // Lock nothing until the standing has actually arrived, so no padlock flashes at a
+  // paid-up member while their status is still on the wire.
   if (membership.status !== 'ready' || role === 'ADMIN') return null
 
   return coverGap(membership.data)
@@ -207,12 +188,10 @@ export function accessLock(
 /**
  * The words each reason gets, in one place.
  *
- * Every one of these lived somewhere else until the free window stopped
- * granting access on its own. Before that, "no cover" only ever happened when
- * money was genuinely owed, so a hardcoded PAY MY DUES was correct wherever it
- * appeared — five pages had one, and all five became wrong on the same day. The
- * button is what has to be right: telling somebody to pay for a thing that is
- * free and one press away is the version of this bug people notice.
+ * Every one of these lived somewhere else until the free window stopped granting
+ * access on its own. Before that "no cover" only happened when money was owed, so a
+ * hardcoded PAY MY DUES was correct wherever it appeared — five pages had one, and all
+ * five became wrong on the same day.
  */
 export const LOCK_COPY: Record<
   NonNullable<AccessLock>,
@@ -235,15 +214,13 @@ export const LOCK_COPY: Record<
 /**
  * Whether to put the survey prompt up over the dashboard.
  *
- * **Deliberately not an `AccessLock`.** It sits in this file because it reads
- * the same membership object and follows the same "nothing until it is `ready`"
- * rule, and nowhere near `coverGap` because it decides something else entirely:
- * every reason above shuts a page, and this one only asks a question. Somebody
- * this returns true for can do everything on the site.
+ * Deliberately not an `AccessLock`. It's in this file because it reads the same
+ * membership object and follows the same "nothing until `ready`" rule, and nowhere
+ * near `coverGap` because every reason there shuts a page and this one only asks a
+ * question. Somebody this returns true for can do everything on the site.
  *
- * No `ADMIN` exemption either, which is the other half of that: the exemption
- * exists so whoever fixes memberships cannot be locked out by one, and there is
- * no lock here to be let past.
+ * No `ADMIN` exemption either: that exists so whoever fixes memberships can't be
+ * locked out by one, and there's no lock here to be let past.
  */
 export function surveyPrompt(membership: ApiState<ApiMembership>): boolean {
   if (membership.status !== 'ready') return false

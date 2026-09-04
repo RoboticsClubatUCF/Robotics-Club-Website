@@ -41,29 +41,24 @@ import { DISCORD_TAKEN, handleStatus, uniqueConflict } from './signup.js'
  *   POST   /api/account/email/confirm  { token }            -> { user }
  *   DELETE /api/account                { password }         -> 200
  *
- * Everything here is somebody acting on their own row, so `requireAuth` is the
- * whole authorisation story and there is no officer path in this file — an
- * officer editing somebody *else* is the roles desk, and a different question.
+ * Everything here is somebody acting on their own row, so `requireAuth` is the whole
+ * authorisation story. An officer editing somebody else is the roles desk.
  *
- * **Nothing here is dues-gated.** The club's line is that a lapsed member keeps
- * their dues page, their own projects and this page; being behind on dues is
- * not a reason somebody cannot change their password or leave.
+ * Nothing here is dues-gated: being behind on dues isn't a reason somebody can't
+ * change their password or leave.
  *
- * Mounted outside `publicApi`, with the other authenticated routers. Every
- * answer is per-caller, and a cached one served to the next visitor would be
- * somebody else's account.
+ * Mounted outside `publicApi`. Every answer is per-caller, and a cached one served to
+ * the next visitor would be somebody else's account.
  *
- * The three writes that touch a credential — password, email, deletion — all
- * ask for the current password first. That is what keeps a session somebody
- * walked away from at a lab bench from being enough to take an account over,
- * and it is also why there is no "your address was changed" notice email: with
- * the password required, there is no version of this a stolen session can do
- * quietly.
+ * The three writes that touch a credential — password, email, deletion — all ask for
+ * the current password first. That's what keeps a session somebody walked away from
+ * at a lab bench from being enough to take an account over, and it's why there's no
+ * "your address was changed" notice email.
  */
 export const account = new Hono<AuthEnv>()
 
-/** The ordinary writes. Ten rather than five: this is a settings page, and
-    somebody tidying up their profile does four or five things in a sitting. */
+/** The ordinary writes. Ten rather than five: this is a settings page, and somebody
+    tidying up their profile does four or five things in a sitting. */
 const writes = rateLimit('account', 10)
 
 /** The field that re-checks itself as a typo is corrected, same as signup's. */
@@ -79,12 +74,11 @@ const hashToken = (token: string) =>
 const WRONG_PASSWORD = 'That password is not right.'
 
 /**
- * Prove it is really them before a credential moves.
+ * Prove it's really them before a credential moves.
  *
- * An account with no `passwordHash` — a roster entry an officer typed in —
- * cannot pass this and is not meant to: it also cannot sign in, so nobody is
- * standing here holding one. If that ever changes, refusing is the safe
- * direction, and the reset link is the way through.
+ * An account with no `passwordHash` — a roster entry an officer typed in — can't pass
+ * this and isn't meant to: it also can't sign in, so nobody is standing here holding
+ * one. Refusing is the safe direction, and the reset link is the way through.
  */
 async function requirePassword(userId: string, password: string): Promise<void> {
   const row = await prisma.user.findUnique({
@@ -99,15 +93,13 @@ async function requirePassword(userId: string, password: string): Promise<void> 
 
 /** Everything the profile page edits, plus the two facts it cannot derive. */
 /**
- * A year, loosely. The bounds are there to stop a typo becoming a roster entry
- * that graduated in the year 202 — not to have an opinion about how long
- * somebody has been at UCF.
+ * A year, loosely. The bounds stop a typo becoming a roster entry that graduated in
+ * the year 202 — not to have an opinion about how long somebody has been at UCF.
  *
  * Exported because the member survey asks the same question and writes the same
- * column. Two writers of `User.gradYear` spelling the bounds separately is how
- * one of them eventually accepts something the other refuses; the survey asks
- * for it as required and this page allows null, which is the only difference
- * between them and is expressed at each call site rather than in here.
+ * column. Two writers spelling the bounds separately is how one eventually accepts
+ * what the other refuses; the survey requires it and this page allows null, which is
+ * the only difference and is expressed at each call site.
  */
 export const gradYearField = z.coerce.number().int().min(1960).max(2100)
 
@@ -151,17 +143,14 @@ account.get('/', requireAuth, async (c) => {
     /**
      * Whether there is a password to change, rather than the hash itself.
      *
-     * False for a roster entry an officer created by hand, and the page says
-     * "set a password" instead of asking for a current one it knows does not
-     * exist. The hash never leaves this process.
+     * False for a roster entry an officer created by hand, and the page says "set a
+     * password" instead of asking for a current one it knows doesn't exist.
      */
     passwordSet: passwordHash !== null,
     /**
-     * An address waiting on its confirmation link, or null.
-     *
-     * Without it the page has nothing to show between asking for a change and
-     * following the link, and "I asked and nothing happened" is what somebody
-     * concludes from a form that reset itself.
+     * An address waiting on its confirmation link, or null. Without it the page has
+     * nothing to show between asking for a change and following the link, and "I asked
+     * and nothing happened" is what somebody concludes from a form that reset itself.
      */
     pendingEmail:
       pending && pending.expiresAt > new Date() ? pending.newEmail : null,
@@ -180,9 +169,9 @@ account.patch(
     z.object({
       fullName: z.string().trim().min(1).max(100),
       /**
-       * Nullable as well as optional, and the empty string counts as null:
-       * clearing a bio is a thing somebody does, and a row holding `''` reads
-       * as an empty paragraph on the public roster rather than as no bio.
+       * Nullable as well as optional, and the empty string counts as null: clearing a
+       * bio is a thing somebody does, and a row holding `''` reads as an empty
+       * paragraph on the public roster rather than as no bio.
        */
       bio: z
         .string()
@@ -207,22 +196,17 @@ account.patch(
 /**
  * Where this member's photograph points, or nothing.
  *
- * **Its own route rather than a fourth field on `/profile`**, and the account
- * page's rule is why: a panel is one decision with one save, and putting a link
- * to somebody's LinkedIn in the same press as their name and bio is the shape
- * that makes people careful about pressing anything. It is also the one field
- * here that can be *refused* on its content, so it wants an answer line of its
- * own to be refused on.
+ * Its own route rather than a fourth field on `/profile`: a panel is one decision with
+ * one save, and putting a link to somebody's LinkedIn in the same press as their name
+ * and bio is the shape that makes people careful about pressing anything. It's also
+ * the one field here that can be refused on its content.
  *
- * `socialUrl` is the whole check and the reasoning is on it: an allowlist,
- * because this is the only column an ordinary member writes that ends up in an
- * `href` on a public page. `null` clears it — the panel sends that for an empty
- * box rather than `''`, same as every other nullable address on this API.
+ * `socialUrl` is the whole check — an allowlist, because this is the only column an
+ * ordinary member writes that ends up in an `href` on a public page. `null` clears it.
  *
- * The answer is the stored address and not `shape(user)`, which is deliberate.
- * Nothing on the session draws this — the nav bar's avatar goes to the
- * dashboard and always will — so putting it there would mean every page load in
- * the club carrying a field two public pages use.
+ * The answer is the stored address and not `shape(user)`, deliberately: nothing on the
+ * session draws this, so putting it there would mean every page load in the club
+ * carrying a field two public pages use.
  */
 account.patch(
   '/profile-link',
@@ -250,10 +234,9 @@ const handleSchema = z.object({
 /**
  * The signup check, with the caller excused.
  *
- * Its own route rather than a flag on the public one, because "do not count
- * this account" has to be decided from a session and never from the request
- * body — a parameter naming the row to skip would be a way to claim anybody's
- * handle. `handleStatus` is the shared rule; `requireAuth` supplies the id.
+ * Its own route rather than a flag on the public one, because "don't count this
+ * account" has to be decided from a session and never from the request body — a
+ * parameter naming the row to skip would be a way to claim anybody's handle.
  */
 account.post(
   '/discord-check',
@@ -271,11 +254,10 @@ account.post(
 /**
  * Change the Discord handle on file.
  *
- * The same refusals as `signup/complete`, deliberately: `not_found` is a typo
- * or a display name and gets said so, `unavailable` means Discord did not
- * answer and is refused rather than guessed at — a handle stored while Discord
- * was down looks exactly like a confirmed one from then on, and nearly
- * everything the club builds joins on this string.
+ * The same refusals as `signup/complete`, deliberately: `not_found` is a typo or a
+ * display name, `unavailable` means Discord didn't answer and is refused rather than
+ * guessed at — a handle stored while Discord was down looks exactly like a confirmed
+ * one from then on, and nearly everything the club builds joins on this string.
  */
 account.post(
   '/discord',
@@ -313,28 +295,25 @@ account.post(
           /**
            * Only written when Discord actually answered.
            *
-           * Left alone on `unchecked`, and that is the deliberate half: the
-           * snowflake is the *account* and does not change when somebody
-           * renames themselves, so clearing it on an unverifiable edit would
-           * throw away the one durable thing on the row to no purpose. It gets
-           * re-resolved from the handle by `discordRecipient` if it is ever
-           * wrong.
+           * Left alone on `unchecked`: the snowflake is the account and doesn't change
+           * when somebody renames themselves, so clearing it on an unverifiable edit
+           * would throw away the one durable thing on the row. `discordRecipient`
+           * re-resolves it from the handle if it's ever wrong.
            */
           ...(check.status === 'connected' ? { discordId: check.id } : {}),
         },
         select: profileSelect,
       })
 
-      // The site may now match them to a different guild member, so what they
-      // should be carrying is worth recomputing. Fire-and-forget, as everywhere
-      // else: nothing on this request depends on Discord answering.
+      // The site may now match them to a different guild member, so what they should be
+      // carrying is worth recomputing. Fire-and-forget: nothing on this request depends
+      // on Discord answering.
       pushRoles(me.id, 'discord username changed')
 
       return c.json({ user: shape(user) })
     } catch (error) {
-      // Both columns are unique. `discord-check` already said this, but that
-      // answer went to a browser and came back, and the constraint is what
-      // actually decides it.
+      // Both columns are unique. `discord-check` already said this, but that answer went
+      // to a browser and came back, and the constraint is what actually decides it.
       if (uniqueConflict(error) === 'discord') {
         throw new HTTPException(409, { message: DISCORD_TAKEN })
       }
@@ -350,15 +329,15 @@ const NOT_AN_IMAGE =
   'That file is not an image the site can show. PNG, JPEG, GIF or WebP.'
 
 /**
- * A profile photo, which is the same job as a project cover and is done the
- * same way — see `projectManage.ts`. `bodyLimit` runs before anything else,
- * because the cap has to refuse the body before this process is holding it.
+ * A profile photo, the same job as a project cover and done the same way — see
+ * `projectManage.ts`. `bodyLimit` runs first, because the cap has to refuse the body
+ * before this process is holding it.
  *
- * **The framing arrives with the picture**, exactly as it does for a gallery
- * image added from the create page. It has to: the browser frames the file
- * *before* sending it, so that a photo somebody picked by accident costs them
- * nothing — and framing arriving as a second request could fail on its own and
- * leave the new photo cropped by the old one's numbers.
+ * The framing arrives with the picture, exactly as for a gallery image added from the
+ * create page. It has to: the browser frames the file before sending it, so a photo
+ * somebody picked by accident costs them nothing — and framing arriving as a second
+ * request could fail on its own and leave the new photo cropped by the old one's
+ * numbers.
  */
 account.post(
   '/photo',
@@ -388,9 +367,9 @@ account.post(
       throw new HTTPException(400, { message: NOT_AN_IMAGE })
     }
 
-    // Multipart carries no types, so this reads the three numbers back out of
-    // strings and drops anything unparseable — the picture is the point of the
-    // request, and a column default is a correct answer for how it is framed.
+    // Multipart carries no types, so this reads the three numbers back out of strings
+    // and drops anything unparseable — the picture is the point of the request, and a
+    // column default is a correct answer for how it's framed.
     const { focalX, focalY, zoom } = framingFromBody(body)
 
     const { url } = await storeFile(FileKind.IMAGE, file, me.id)
@@ -399,9 +378,9 @@ account.post(
       where: { id: me.id },
       data: {
         photoUrl: url,
-        // Written every time, defaults included. A new photo must not inherit
-        // the crop of the one it replaced: the numbers were chosen against a
-        // different picture, and the result is a face half out of frame.
+        // Written every time, defaults included. A new photo must not inherit the crop
+        // of the one it replaced: the numbers were chosen against a different picture,
+        // and the result is a face half out of frame.
         photoFocalX: focalX ?? 50,
         photoFocalY: focalY ?? 50,
         photoZoom: zoom ?? 1,
@@ -409,9 +388,8 @@ account.post(
       select: profileSelect,
     })
 
-    // After the write, and only if the old value was ours. A replacement mints
-    // a new id, which is what makes the `immutable` cache header on
-    // `/api/files/:id` honest.
+    // After the write, and only if the old value was ours. A replacement mints a new id,
+    // which is what makes the `immutable` cache header on `/api/files/:id` honest.
     await deleteIfStored(me.photoUrl)
 
     return c.json({ user: shape(user) })
@@ -421,13 +399,12 @@ account.post(
 /**
  * Move the crop on the photo already on file, without sending it again.
  *
- * The other half of framing being metadata rather than a crop baked into the
- * bytes: somebody can change their mind about it a year later, from any device,
- * without having the original file to hand.
+ * The other half of framing being metadata rather than a crop baked into the bytes:
+ * somebody can change their mind a year later, from any device, without the original
+ * file to hand.
  *
- * Every field is optional and applied only when sent, matching the gallery's
- * edit route — so a future caller adjusting zoom alone cannot silently re-centre
- * a photo somebody has already framed.
+ * Every field is optional and applied only when sent, matching the gallery's edit
+ * route — so a future caller adjusting zoom alone can't silently re-centre a photo.
  */
 account.patch(
   '/photo',
@@ -466,8 +443,8 @@ account.delete('/photo', originGuard, requireAuth, writes, async (c) => {
     where: { id: me.id },
     data: {
       photoUrl: null,
-      // Back to centred with it. Framing left behind belongs to a picture that
-      // no longer exists, and the next upload would start half-cropped by it.
+      // Back to centred with it. Framing left behind belongs to a picture that no longer
+      // exists, and the next upload would start half-cropped by it.
       photoFocalX: 50,
       photoFocalY: 50,
       photoZoom: 1,
@@ -491,9 +468,9 @@ account.post(
     'json',
     z.object({
       currentPassword: z.string().min(1).max(200),
-      /** Long, and nothing else — signup's rule, and its comment is the
-          argument. This is a point where a password is set, which is the only
-          place such a rule belongs. */
+      /** Long, and nothing else — signup's rule, and its comment is the argument. This
+          is a point where a password is set, which is the only place such a rule
+          belongs. */
       newPassword: z.string().min(10).max(200),
     }),
   ),
@@ -508,9 +485,9 @@ account.post(
       data: { passwordHash: await hashPassword(newPassword) },
     })
 
-    // Everywhere but here. Somebody changing a password because another person
-    // has it needs that other person signed out; somebody changing it for
-    // tidiness should not be signed out of the tab they are looking at.
+    // Everywhere but here. Somebody changing a password because another person has it
+    // needs that other person signed out; somebody changing it for tidiness shouldn't be
+    // signed out of the tab they're looking at.
     const ended = await dropOtherSessions(me.id, c.get('sessionToken'))
 
     return c.json({ status: 'changed', otherSessionsEnded: ended })
@@ -524,15 +501,13 @@ const EMAIL_TAKEN = 'There is already an account for that email.'
 /**
  * Ask to move the address the account signs in with.
  *
- * Two steps with an email in between, exactly as signup is, and for a reason
- * that is if anything sharper here: a mistyped address on signup is a link that
- * never arrives, while a mistyped address written straight onto an existing
- * account is somebody locked out of a site they are a member of.
+ * Two steps with an email in between, exactly as signup is, and the reason is sharper
+ * here: a mistyped address on signup is a link that never arrives, while a mistyped
+ * address written onto an existing account is somebody locked out of a site they're a
+ * member of.
  *
- * No `@ucf.edu` restriction, unlike signup. The login page explains why —
- * roster entries an officer typed in and the seeded admin account are real
- * logins on other domains, and a rule here would strand them the first time
- * they touched this page.
+ * No `@ucf.edu` restriction, unlike signup — roster entries an officer typed in and
+ * the seeded admin account are real logins on other domains.
  */
 account.post(
   '/email',
@@ -571,8 +546,8 @@ account.post(
     )
     const tokenHash = hashToken(token)
 
-    // Keyed on the account, so asking again replaces the pending change. A
-    // mistyped address must not leave a live link pointing at the typo.
+    // Keyed on the account, so asking again replaces the pending change. A mistyped
+    // address must not leave a live link pointing at the typo.
     await prisma.emailChange.upsert({
       where: { userId: me.id },
       update: { newEmail: email, tokenHash, expiresAt },
@@ -606,9 +581,8 @@ account.post(
       )
     }
 
-    // 202: the link is out and nothing has moved yet. The expiry goes back so
-    // the page can say how long they have without hardcoding this server's
-    // configuration.
+    // 202: the link is out and nothing has moved yet. The expiry goes back so the page
+    // can say how long they have without hardcoding this server's configuration.
     return c.json(
       {
         status: 'sent',
@@ -623,14 +597,13 @@ account.post(
 /**
  * Spend the link, and move the address.
  *
- * **Deliberately not `requireAuth`.** The token is the proof and it arrives in
- * an inbox, which is very often a phone that has never signed into this site.
- * Requiring a session would mean the confirmation only works from the browser
- * the change was started in, which is not where email gets read.
+ * Deliberately not `requireAuth`. The token is the proof and it arrives in an inbox,
+ * very often on a phone that has never signed into this site. Requiring a session
+ * would mean the confirmation only works from the browser the change was started in.
  *
- * It is safe to leave open because the token is the credential: 256 bits, kept
- * as a hash, single use, and it can only ever set the one address it was minted
- * for onto the one account that asked.
+ * Safe to leave open because the token is the credential: 256 bits, kept as a hash,
+ * single use, and it can only ever set the one address it was minted for onto the one
+ * account that asked.
  */
 account.post(
   '/email/confirm',
@@ -643,8 +616,8 @@ account.post(
       select: { id: true, userId: true, newEmail: true, expiresAt: true },
     })
 
-    // Expired, unknown and already-spent are one 410 with one sentence, as
-    // everywhere else: they are the same thing from where the reader stands.
+    // Expired, unknown and already-spent are one 410 with one sentence, as everywhere
+    // else: they're the same thing from where the reader stands.
     if (!pending || pending.expiresAt <= new Date()) {
       throw new HTTPException(410, {
         message:
@@ -659,15 +632,15 @@ account.post(
           data: { email: pending.newEmail },
           select: profileSelect,
         }),
-        // In the same transaction as the change: a spent link left live is a
-        // second way to move an address nobody is expecting to move again.
+        // In the same transaction as the change: a spent link left live is a second way
+        // to move an address nobody is expecting to move again.
         prisma.emailChange.delete({ where: { id: pending.id } }),
       ])
 
       return c.json({ user: shape(user) })
     } catch (error) {
-      // Checked when the change was asked for, so reaching this means somebody
-      // else took the address in between. The constraint is what decides it.
+      // Checked when the change was asked for, so reaching this means somebody else took
+      // the address in between. The constraint is what decides it.
       if (uniqueConflict(error) === 'email') {
         throw new HTTPException(409, { message: EMAIL_TAKEN })
       }
@@ -682,25 +655,21 @@ account.post(
 /**
  * Delete the account, and mean it.
  *
- * The cascades take the sessions, the dues payments, the print requests, the
- * loans and the project memberships with the row. Closed officer terms survive
- * with the name already written on them and a null `userId`, which is what
- * `SetNull` on that relation is for — the club's archive is not somebody's to
- * delete by leaving.
+ * The cascades take the sessions, dues payments, print requests, loans and project
+ * memberships with the row. Closed officer terms survive with the name already written
+ * on them and a null `userId` — the club's archive isn't somebody's to delete by
+ * leaving.
  *
- * Two things are refused rather than cascaded, and both are cases where
- * deleting would leave the club holding a problem it cannot see:
+ * Two things are refused rather than cascaded, both cases where deleting leaves the
+ * club holding a problem it can't see. Equipment still out: the loan row is the only
+ * record that a thing left the lab, so the club would be short a drill with nothing to
+ * say who has it. And an open officer term: standing down is the board's business, and
+ * a seat vacated this way leaves a card on the public page with a null account behind
+ * it.
  *
- *   - **Equipment still out.** The loan row is the only record that a thing
- *     left the lab, and deleting the borrower deletes it. The club would be
- *     short a drill and have nothing at all to say who has it.
- *   - **An open officer term.** Standing down is the board's business and there
- *     is a desk for it; a seat vacated this way leaves a card on the public
- *     page with a null account behind it and no term-end date.
- *
- * The Discord roles are taken back separately, because nothing else can: the
- * role sweep skips anybody it cannot match to a row, so an account that has
- * just deleted its row would keep Members and Project Leads for ever.
+ * The Discord roles are taken back separately, because nothing else can: the role
+ * sweep skips anybody it can't match to a row, so an account that has just deleted its
+ * row would keep Members and Project Leads for ever.
  */
 account.delete(
   '/',
@@ -743,11 +712,10 @@ account.delete(
     /**
      * Read before the row goes, because none of it is knowable afterwards.
      *
-     * The stored files are the half the cascades get wrong:
-     * `StoredFile.createdById` is `SetNull`, so their bytes would stay in
-     * Postgres owned by nobody. Only what this account *points at* — its photo,
-     * and the models behind its own print requests. A project's gallery images
-     * belong to the project, whoever happened to upload them.
+     * The stored files are the half the cascades get wrong: `StoredFile.createdById` is
+     * `SetNull`, so their bytes would stay in Postgres owned by nobody. Only what this
+     * account points at — its photo, and the models behind its own print requests. A
+     * project's gallery images belong to the project, whoever uploaded them.
      */
     const owned = await prisma.user.findUniqueOrThrow({
       where: { id: me.id },
@@ -766,26 +734,24 @@ account.delete(
 
     await prisma.user.delete({ where: { id: me.id } })
 
-    // After the account is actually gone. Cleanup that can fail the request it
-    // rides on is worse than a stray row, which is the rule `deleteIfStored`
-    // already follows.
+    // After the account is actually gone. Cleanup that can fail the request it rides on
+    // is worse than a stray row, which is the rule `deleteIfStored` already follows.
     await deleteIfStored(owned.photoUrl)
 
     if (fileIds.length > 0) {
       await prisma.storedFile.deleteMany({ where: { id: { in: fileIds } } })
     }
 
-    // The snowflake read above, since the row it came from no longer exists.
-    // Null for anyone the site never matched to a Discord account, which is the
-    // ordinary state of a roster entry and of an unconfigured bot.
+    // The snowflake read above, since the row it came from no longer exists. Null for
+    // anyone the site never matched to a Discord account, which is the ordinary state of
+    // a roster entry and of an unconfigured bot.
     if (owned.discordId) {
       pushRoleStrip(owned.discordId, owned.fullName, 'account deleted')
     }
 
-    // The session went with the row; the cookie is this browser's and has to be
-    // told. Without it the next request arrives with a token pointing at
-    // nothing, which resolves to signed-out anyway — but leaves a dead cookie
-    // sitting there looking like a session.
+    // The session went with the row; the cookie is this browser's and has to be told.
+    // Without it the next request arrives with a token pointing at nothing, which
+    // resolves to signed-out anyway — but leaves a dead cookie looking like a session.
     clearSessionCookie(c)
 
     return c.json({ status: 'deleted' })

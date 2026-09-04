@@ -9,19 +9,16 @@ import {
 /**
  * What somebody sees behind a lock while membership is free for the asking.
  *
- * The third sentence, and the one that did not used to exist. When the summer
- * and the opening weeks granted access to the whole club whether or not
- * anybody claimed anything, there was nothing to say here — the page simply
- * opened. Access is the dues date now, so a member who has not pressed the
- * button is locked out of a club that is charging them nothing, which is a
- * state that has to explain itself or it reads as a bug.
+ * The third sentence, and the one that did not used to exist. When the summer and the opening weeks
+ * granted access to the whole club whether or not anybody claimed anything, there was nothing to
+ * say here — the page simply opened. Access is the dues date now, so a member who has not pressed
+ * the button is locked out of a club that is charging them nothing, which is a state that has to
+ * explain itself or it reads as a bug.
  *
- * Its own component rather than a variant of `DuesLocked` or `MembersOnly`,
- * for the reason those two are separate from each other: the sentences are not
- * the same sentence with a word swapped. This one must not mention money at
- * all — quoting a price to somebody who owes nothing is how they close the tab
- * — and it must make the press sound like what it is, which is one click and
- * no card.
+ * Its own component rather than a variant of `DuesLocked` or `MembersOnly`, for the reason those
+ * two are separate from each other: the sentences are not the same sentence with a word swapped.
+ * This one must not mention money at all — quoting a price to somebody who owes nothing is how they
+ * close the tab — and it must make the press sound like what it is, which is one click and no card.
  */
 export function ClaimFree({
   eyebrow,

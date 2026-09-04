@@ -9,19 +9,17 @@ import {
 /**
  * What a guest sees where 3D printing or equipment borrowing would be.
  *
- * Its own component rather than a variant of `DuesLocked`, because the two
- * states are not the same thing said differently. A lapsed member is being told
- * that something they had is on hold and comes straight back; a guest is being
- * told what membership *is*, having never had it. Sharing a component would
- * have meant swapping every sentence anyway.
+ * Its own component rather than a variant of `DuesLocked`, because the two states are not the same
+ * thing said differently. A lapsed member is being told that something they had is on hold and
+ * comes straight back; a guest is being told what membership is, having never had it. Sharing a
+ * component would have meant swapping every sentence anyway.
  *
- * The whole page rather than a banner over a disabled form, for the reason
- * `DuesLocked` gives: every control under it would 403, and one clear sentence
- * beats a screen of buttons that all fail.
+ * The whole page rather than a banner over a disabled form, for the reason `DuesLocked` gives:
+ * every control under it would 403, and one clear sentence beats a screen of buttons that all fail.
  *
- * It does not scold and it does not oversell. Having an account is a perfectly
- * reasonable place to be — plenty of people look around for a term first — so
- * the page says what the line is and where the door is, and stops.
+ * It does not scold and it does not oversell. Having an account is a perfectly reasonable place to
+ * be — plenty of people look around for a term first — so the page says what the line is and where
+ * the door is, and stops.
  */
 export function MembersOnly({
   eyebrow,

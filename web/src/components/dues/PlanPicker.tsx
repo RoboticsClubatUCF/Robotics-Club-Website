@@ -4,15 +4,13 @@ import { formatDate, formatMoney, termsLabel } from '../../lib/dues/dues'
 /**
  * The two things somebody can buy.
  *
- * Each card says what it costs, which terms it covers and the date cover runs
- * to, because "a year" is not a year here — it is fall and spring, or spring
- * and fall, with a free summer in the middle that the price does not pay for.
- * Somebody buying in January is buying through the following December, and a
- * card that said "1 year" would be quietly wrong about that.
+ * Each card says what it costs, which terms it covers and the date cover runs to, because "a year"
+ * is not a year here — it is fall and spring, or spring and fall, with a free summer in the middle
+ * the price does not pay for. Somebody buying in January is buying through the following December,
+ * and a card that said "1 year" would be quietly wrong about that.
  *
- * The prices and the dates are the server's, from `GET /api/dues/status`. This
- * component computes neither: the number on the card has to be the number that
- * gets charged.
+ * The prices and the dates are the server's, from `GET /api/dues/status`. This component computes
+ * neither: the number on the card has to be the number that gets charged.
  */
 export function PlanPicker({
   plans,

@@ -3,18 +3,15 @@ import type { ApiStats } from '../lib/api/api'
 /**
  * Landing page configuration — and, at this point, almost no copy.
  *
- * The rule of thumb has been applied down to the bone: if an officer would want
- * to change it without a deploy, it belongs in the database. The project list
- * went first, then the officer board, then the sponsors, then the hero's
- * photographs — and now the headline, the lede, the FAQ and the partner
- * programs, which is everything on the page somebody wrote in sentences.
+ * The rule of thumb has been applied down to the bone: if an officer would want to change it
+ * without a deploy, it belongs in the database. The project list went first, then the officer
+ * board, then the sponsors, then the hero's photographs — and now the headline, the lede, the FAQ
+ * and the partner programs.
  *
- * **What is left is not copy, and each piece says why it stays.** The nav's two
- * lists are the page's own table of contents and have to match the order of the
- * sections in `HomePage`. The stat strip's cells are a label bound to a count
- * the server computes, so editing one without the other would be a number that
- * lies about what it counts. The social links are the club's own accounts,
- * printed by a footer that renders before any request comes back.
+ * What's left isn't copy, and each piece says why it stays. The nav's two lists are the page's
+ * own table of contents. The stat strip's cells are a label bound to a count the server computes.
+ * The social links are the club's own accounts, printed by a footer that renders before any
+ * request comes back.
  */
 
 export type NavLink = {
@@ -23,37 +20,28 @@ export type NavLink = {
 }
 
 /**
- * The nav's links, in two lists, because they are two different promises.
+ * The nav's links, in two lists, because they're two different promises.
  *
- * One list scrolls you down the front page and the other leaves it, and a bar
- * that mixes them makes every link a coin toss — you cannot tell from the word
- * "Projects" whether pressing it will move the page under you or replace it.
- * `SiteNav` draws a rule between the two and labels them, which is the whole
- * reason they are separate exports rather than one array with a flag on it.
+ * One list scrolls you down the front page and the other leaves it, and a bar that mixes them
+ * makes every link a coin toss. `SiteNav` draws a rule between the two and labels them, which is
+ * why they're separate exports rather than one array with a flag on it.
  *
- * They are written `/#events` rather than `#events` because the nav is in the
- * layout and shows on every route. A bare `#events` on the join page scrolls to
- * nothing; `/#events` goes home and lands on the section from wherever you are,
- * and on the front page itself the browser still treats it as the in-page jump
- * it always was.
+ * They're written `/#events` rather than `#events` because the nav is in the layout and shows on
+ * every route. A bare `#events` on the join page scrolls to nothing.
  */
 
 /**
- * In the order the sections appear on the landing page, and it has to stay that
- * way. This is a table of contents — a reader who presses the third word and
- * lands above the thing the second word named has been told the page is in an
- * order it is not. `pages/public/HomePage.tsx` is the order to match.
+ * In the order the sections appear on the landing page, and it has to stay that way. This is a
+ * table of contents — a reader who presses the third word and lands above the thing the second
+ * word named has been told the page is in an order it isn't.
  *
- * The hero and the stat strip are deliberately absent: the first is what you
- * are already looking at, and the second is a row of links itself.
+ * The hero and the stat strip are deliberately absent: the first is what you're already looking
+ * at, and the second is a row of links itself.
  *
- * **`/#partners` is the one entry that can point at nothing.** The partner
- * section takes itself off the page when the club lists no programs, which is a
- * state officers can now reach from the front-page desk — and a nav that fetched
- * the page's copy on every route to find that out would be a request on the
- * login screen to decide whether to grey out a word. The link is left, the cost
- * is a jump that does not move, and the section's own note carries the other
- * half of this.
+ * `/#partners` is the one entry that can point at nothing. The partner section takes itself off
+ * the page when the club lists no programs — and a nav that fetched the page's copy on every
+ * route to find that out would be a request on the login screen to decide whether to grey out a
+ * word.
  */
 export const sectionLinks: NavLink[] = [
   { href: '/#sponsors', label: 'Sponsors' },
@@ -64,10 +52,9 @@ export const sectionLinks: NavLink[] = [
 ]
 
 /**
- * Somewhere else on the site. "Sign in" joins these in `SiteNav` while nobody
- * is signed in, and the gold join button is the last of them — it is not in
- * this list because it is a button and it changes into an avatar, neither of
- * which a list of words can say.
+ * Somewhere else on the site. "Sign in" joins these in `SiteNav` while nobody is signed in, and
+ * the gold join button is the last of them — not in this list because it's a button and it
+ * changes into an avatar, neither of which a list of words can say.
  */
 export const pageLinks: NavLink[] = [{ href: '/projects', label: 'Projects' }]
 
@@ -75,11 +62,9 @@ export type Stat = {
   /** Set uppercase here, not with `text-transform` — these are written as
       labels, and the roman-numeral-ish look of the mono face depends on it. */
   label: string
-  /** Each cell links to the page it counts, and all four now exist — the strip
-      draws them as `<Link>`s. A count here and the default filter on the page
-      it points at have to stay in step; `GET /stats` is where that is kept.
-      The members cell is the one exception, and its label carries the
-      difference — see the list below. */
+  /** Each cell links to the page it counts, and all four now exist. A count here and the default
+      filter on the page it points at have to stay in step; `GET /stats` is where that's kept. The
+      members cell is the one exception, and its label carries the difference. */
   href: string
   /** Draws the number in gold. Exactly one stat should set this. */
   accent?: boolean
@@ -98,11 +83,9 @@ export type Stat = {
 
 export const stats: Stat[] = [
   { countOf: 'projects', label: 'PROJECTS', href: '/projects' },
-  // **The label is doing real work here**, and `/members` now repeats it on the
-  // chip it opens with. The count is the active membership and so is that
-  // default list; the whole table is a chip further on. Labelling the cell
-  // MEMBERS would promise the table and deliver the club. `GET /stats` in
-  // `routes/public/content.ts` carries the matching note.
+  // The label is doing real work here, and `/members` repeats it on the chip it opens with. The
+  // count is the active membership and so is that default list; the whole table is a chip further
+  // on. Labelling the cell MEMBERS would promise the table and deliver the club.
   { countOf: 'members', label: 'ACTIVE MEMBERS', href: '/members' },
   // Says what it counts, like the members cell beside it: `GET /stats` counts
   // `when=upcoming` and `/events` opens on the same, so the cell, the number
@@ -119,41 +102,30 @@ export const stats: Stat[] = [
  */
 
 /**
- * The officer board's seats used to be listed here, and are not any longer.
+ * The officer board's seats used to be listed here, and aren't any longer.
  *
- * It said there were eight and what they were called, which made the frontend
- * the authority on the shape of the board — a ninth seat in `OfficerPosition`
- * would not have appeared until this file was edited, and an officer holding no
- * seat at all could not be drawn. Both now come from the database:
- * `GET /api/officers` sends the seats *and* the sitting officers, and
- * `seatLabel` in `src/lib/officerTerms.ts` works the wording out from the enum
- * value. This note is here because the list is exactly the sort of thing that
- * gets added back.
+ * It said there were eight and what they were called, which made the frontend the authority on
+ * the shape of the board — a ninth seat in `OfficerPosition` wouldn't have appeared until this
+ * file was edited, and an officer holding no seat couldn't be drawn. Both come from the database
+ * now. This note is here because the list is exactly the sort of thing that gets added back.
  */
 
 /**
- * The partner programs and the FAQ used to be here, and they are
- * `partner_programs` and `faqs` now.
+ * The partner programs and the FAQ used to be here, and they're `partner_programs` and `faqs` now.
  *
- * They were the two clearest cases against the rule at the top of this file. The
- * FAQ carried the price of membership, the lab's address and a person's name —
- * three things that change without the site being deployed — and its own note
- * said it should be the first thing to move. The partner cards were placeholder
- * blurbs waiting on words from somebody who is not a developer. Both are written
- * at `/dashboard/officer/front-page` now and read through
- * `GET /api/front-page`; `ApiFaq` and `ApiPartnerProgram` in `src/lib/api/api.ts`
- * are the shapes.
+ * They were the two clearest cases against the rule at the top of this file. The FAQ carried the
+ * price of membership, the lab's address and a person's name — three things that change without
+ * the site being deployed. The partner cards were placeholder blurbs waiting on words from
+ * somebody who isn't a developer.
  */
 
 /**
- * The club's own accounts. **These are real and are no longer placeholders** —
- * the note that used to sit here outlived the four invented hrefs it was
- * written about, which is the way a stale caveat does damage: it invites the
- * next person to treat a working link as scaffolding and replace it.
+ * The club's own accounts. These are real and are no longer placeholders — the note that used to
+ * sit here outlived the four invented hrefs it was written about, which is the way a stale caveat
+ * does damage: it invites the next person to treat a working link as scaffolding.
  *
- * They are here rather than in the database on the rule at the top of this
- * file. A club changes its Instagram handle roughly never, and the footer that
- * prints these has to render before any request comes back.
+ * They're here rather than in the database on the rule at the top of this file. A club changes
+ * its Instagram handle roughly never, and the footer has to render before any request comes back.
  */
 export const socialLinks: NavLink[] = [
   { href: 'https://www.instagram.com/ucf_robotics/?hl=en', label: 'INSTAGRAM' },

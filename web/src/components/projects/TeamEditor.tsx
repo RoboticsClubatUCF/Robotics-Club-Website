@@ -6,24 +6,21 @@ import type { ProjectRoster } from '../../lib/projects/useProjectRoster'
 import { useSectionSave, type SaveRegistry } from '../../lib/projects/editorSaves'
 
 /**
- * The `/ THE TEAM` section of the editor: what each person is called on this
- * project.
+ * The `/ THE TEAM` section of the editor: what each person is called on this project.
  *
- * **`ProjectMember.title` has had a route since the model existed and no page
- * has ever sent one**, so the column was empty everywhere and the public roster
- * printed the club-wide `User.title` instead — which is how "Lab Manager" ended
- * up beside somebody's name on a rover page. This is the form that fills the
- * right column in, and the public page no longer draws the wrong one.
+ * `ProjectMember.title` has had a route since the model existed and no page has ever sent one, so
+ * the column was empty everywhere and the public roster printed the club-wide `User.title` instead
+ * — which is how "Lab Manager" ended up beside somebody's name on a rover page. This is the form
+ * that fills the right column in.
  *
- * **Rank is shown and not edited, and that is a boundary rather than an
- * omission.** Who leads a project is the board's decision and lives on the roles
- * desk; who leads a team is the project lead's and lives on the manage page. The
- * route behind this section refuses `PROJECT_LEAD` in its own schema, so a form
- * offering it here would be offering something the server will not do.
+ * Rank is shown and not edited, which is a boundary rather than an omission. Who leads a project is
+ * the board's decision and lives on the roles desk; who leads a team is the project lead's and
+ * lives on the manage page. The route behind this section refuses `PROJECT_LEAD` in its own schema,
+ * so a form offering it here would be offering something the server will not do.
  *
- * Written on the page's SAVE, and only for the rows that actually changed. It
- * used to save on blur, one field at a time, which was defensible on its own and
- * indefensible on a page where four other sections waited for a button.
+ * Written on the page's SAVE, and only for the rows that actually changed. It used to save on blur,
+ * one field at a time, which was defensible on its own and indefensible on a page where four other
+ * sections waited for a button.
  */
 export function TeamEditor({
   project,
@@ -46,10 +43,9 @@ export function TeamEditor({
   /**
    * The typed titles, keyed by user.
    *
-   * Held here rather than in the roster, because the roster is the server's
-   * answer and this is what somebody is in the middle of typing. Seeded when the
-   * read lands, and only then — seeding from an empty roster would blank every
-   * box the moment it arrived.
+   * Held here rather than in the roster, because the roster is the server's answer and this is what
+   * somebody is in the middle of typing. Seeded when the read lands, and only then — seeding from
+   * an empty roster would blank every box the moment it arrived.
    */
   const [titles, setTitles] = useState<Record<string, string>>({})
 

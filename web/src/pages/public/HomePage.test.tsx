@@ -9,28 +9,24 @@ import { stubFetch } from '../../test/stubFetch'
 /**
  * The landing page, as a table of contents.
  *
- * Every other suite here renders one section with its neighbours stubbed out,
- * which is the right default and cannot see the one thing this page owes the
- * nav: `sectionLinks` claims to list the sections of this page **in the order
- * they appear on it**. Nothing else checks that. A section added, renamed or
- * moved leaves the nav pointing somewhere that no longer exists or listing the
- * page in an order it is not in, and both fail silently — an anchor to a
+ * Every other suite here renders one section with its neighbours stubbed out, which is the right
+ * default and cannot see the one thing this page owes the nav: `sectionLinks` claims to list the
+ * sections of this page in the order they appear on it. Nothing else checks that, and a section
+ * added, renamed or moved leaves the nav pointing somewhere that no longer exists — an anchor to a
  * missing id scrolls nowhere at all, which reads as a dead link.
  *
  * So: the ids on the page, in document order, against the hrefs in the nav.
  */
 
 /**
- * Eight requests land on this page. Most of them do not matter here — a section
- * draws its own chrome, id included, before its data arrives — but an unstubbed
- * `fetch` rejects with "no stub for …" and fills the run with noise.
+ * Eight requests land on this page. Most of them do not matter here — a section draws its own
+ * chrome, id included, before its data arrives — but an unstubbed `fetch` rejects with "no stub
+ * for …" and fills the run with noise.
  *
- * **`/front-page` is the exception and has to carry a partner program.** That
- * section is the one that is not on the page until there is something to put on
- * it, so an empty answer would take `#partners` with it and this suite would be
- * asserting the nav against a page the club is not in. Officers emptying that
- * list is a real state and a nav link with nothing behind it is its one cost;
- * see the note on `sectionLinks` in `content/home.ts`.
+ * `/front-page` is the exception and has to carry a partner program. That section is the one that
+ * is not on the page until there is something to put on it, so an empty answer would take
+ * `#partners` with it and this suite would be asserting the nav against a page the club is not in.
+ * See the note on `sectionLinks` in `content/home.ts`.
  */
 const renderPage = () => {
   vi.stubGlobal(

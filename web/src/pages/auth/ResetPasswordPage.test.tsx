@@ -8,10 +8,9 @@ import { bodyOf, urlOf } from '../../test/stubFetch'
 /**
  * Getting back in without a password.
  *
- * One route, two halves, keyed on `?token`. What this pins is the pair of
- * properties that are easy to lose and impossible to see from the page: the
- * answer for an address with no account is the *same* answer, and a token is
- * posted rather than spent by the GET that opened the link.
+ * One route, two halves, keyed on `?token`. What this pins is the pair of properties that are easy
+ * to lose and impossible to see from the page: the answer for an address with no account is the
+ * same answer, and a token is posted rather than spent by the GET that opened the link.
  */
 
 const SENT =
@@ -96,10 +95,9 @@ describe('asking for a link', () => {
   })
 
   /**
-   * The whole security property of this page. An answer that differed for an
-   * address with no account would make the form a membership lookup, one
-   * address at a time — which is exactly what the sign-in form next door is
-   * careful not to be.
+   * The whole security property of this page. An answer that differed for an address with no
+   * account would make the form a membership lookup, one address at a time — which is what the
+   * sign-in form next door is careful not to be.
    */
   it('says the same thing for an address that has no account', async () => {
     stubApi()

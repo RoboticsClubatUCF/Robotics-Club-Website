@@ -46,51 +46,31 @@ import { imageSrc, isStoredUpload } from '../../lib/media/storedFiles'
 /**
  * `/dashboard/officer/front-page` — the landing page, as far as it is content.
  *
- * **Four sections, and they are the four things on that page nobody outside a
- * pull request could change.** The photographs beside the headline came first;
- * the headline itself, the FAQ and the partner programs followed it out of
- * `web/src/content/home.ts` for exactly the same reason. Two of the club's eight
- * questions name a price and one names a person, and the partner cards were
- * placeholder blurbs waiting on words from somebody who does not write code.
+ * Four sections, and they're the four things on that page nobody outside a pull request could
+ * change. The photographs came first; the headline, the FAQ and the partner programs followed
+ * out of `web/src/content/home.ts` for the same reason — two of the club's eight questions
+ * name a price and one names a person.
  *
- * They sit on one screen because they are one page. An officer here is working
- * top to bottom through what a first-time visitor sees, not through four tables
- * — the same call `OfficerSponsorsPage` makes about the three behind
- * `/sponsors`.
+ * They sit on one screen because they're one page. An officer here is working top to bottom
+ * through what a first-time visitor sees, not through four tables.
  *
- * **The photographs and the words are two reads and two routers**, which is the
- * one seam a reader will notice: `GET /api/hero-slides` and
- * `POST /api/officer/hero-slides` on one side, `GET /api/front-page` and
- * `/api/officer/front-page` on the other. Bytes with a frame around them and
- * sentences are different enough that folding them together would put the image
- * framer in the same file as the FAQ.
+ * The photographs and the words are two reads and two routers, which is the one seam a reader
+ * will notice. Bytes with a frame around them and sentences are different enough that folding
+ * them together would put the image framer in the same file as the FAQ.
  *
- * **The words save differently in the two places they are edited, and the
- * difference is deliberate.** The headline is a form with a SAVE — it is two
- * boxes that read as one sentence, so a field that wrote itself on the way past
- * would put half a rewrite on the front page. The lists below blur-save per
- * field, the way the sponsor desk does, because a question and its answer are
- * independent facts and eight SAVE buttons is eight things to forget to press.
+ * The words save differently in the two places they're edited, deliberately. The headline is a
+ * form with a SAVE — two boxes that read as one sentence, so a field that wrote itself would
+ * put half a rewrite on the front page. The lists blur-save per field, because a question and
+ * its answer are independent facts and eight SAVE buttons is eight things to forget.
  *
- * What follows is the photographs.
+ * The right half of the hero used to be a commit: two rings and a wireframe trace drawn from
+ * an asset in the bundle, and the answer to "can we put the rover on the front page" was a
+ * pull request. Removing every photograph is a supported thing to do, and the page says so —
+ * the artwork comes back rather than the hero developing a hole.
  *
- * **The right half of the hero used to be a commit.** It was two rings and a
- * wireframe trace of the club mark, drawn from an asset in the bundle, and the
- * answer to "can we put the rover on the front page" was a pull request. This is
- * that answer becoming yes: officers add, reorder, caption, frame and remove the
- * photographs, and the site shows them in this order.
- *
- * **Removing every photograph is a supported thing to do**, and the page says so
- * — the artwork comes back rather than the hero developing a hole. That matters
- * because it is the difference between an officer deleting a bad picture and an
- * officer not daring to.
- *
- * The editor is deliberately *not* the project gallery's, though it is plainly
- * the same shape. That one lives inside a larger form, is gated per project, and
- * carries its section's own save semantics; folding the two together means one
- * component that has to know which of two feature's rules it is under. When a
- * third slideshow appears, extract then — with two, the duplication is the
- * cheaper of the two mistakes.
+ * The editor is deliberately not the project gallery's, though it's plainly the same shape.
+ * That one lives inside a larger form, is gated per project, and carries its own save
+ * semantics. When a third slideshow appears, extract then.
  */
 export function OfficerFrontPagePage() {
   const { user, membership } = useOutletContext<DashboardContext>()
@@ -109,10 +89,9 @@ export function OfficerFrontPagePage() {
 }
 
 /**
- * The whole screen: the eyebrow and heading, then the photographs, then the
- * words. Two components rather than one because they read from two routes and
- * neither should wait on the other — a slow answer for the FAQ must not hold up
- * an officer rearranging photographs.
+ * The whole screen: the eyebrow and heading, then the photographs, then the words. Two
+ * components rather than one because they read from two routes and neither should wait on the
+ * other — a slow answer for the FAQ must not hold up an officer rearranging photographs.
  */
 function Desk() {
   return (
@@ -146,12 +125,10 @@ function Photos() {
   const [framing, setFraming] = useState<string | null>(null)
 
   /**
-   * Read from the public endpoint rather than a second officer-only one — there
-   * is one list and it is not a secret — but read **fresh**. That route is
-   * `s-maxage=300` for everybody, so without `no-store` an officer who adds a
-   * photograph and reloads this page can be handed the answer from before they
-   * did, which looks exactly like a save that failed. The same trap
-   * `projects.md` records for the project editor.
+   * Read from the public endpoint rather than a second officer-only one — there's one list and
+   * it isn't a secret — but read fresh. That route is `s-maxage=300` for everybody, so without
+   * `no-store` an officer who adds a photograph and reloads can be handed the answer from
+   * before they did, which looks exactly like a save that failed.
    */
   useEffect(() => {
     const controller = new AbortController()
@@ -177,10 +154,9 @@ function Photos() {
   const full = held.length >= MAX_HERO_SLIDES
 
   /**
-   * The reorder is debounced, and it is the one debounce here that earns itself:
-   * the route takes the *whole* order, so it is idempotent and a lost
-   * intermediate press costs nothing, while five arrow presses in a row would
-   * otherwise be five writes.
+   * The reorder is debounced, and it's the one debounce here that earns itself: the route takes
+   * the whole order, so it's idempotent and a lost intermediate press costs nothing, while five
+   * arrow presses in a row would otherwise be five writes.
    */
   const pending = useRef<number | null>(null)
   useEffect(
@@ -271,10 +247,9 @@ function Photos() {
     })
 
   /**
-   * Written once, on DONE. Panning is continuous, so saving as it moved would be
-   * a request per frame of a drag — and the route sends only the three framing
-   * fields, so a caption typed but not yet blurred is not overwritten by the
-   * picture being moved.
+   * Written once, on DONE. Panning is continuous, so saving as it moved would be a request per
+   * frame of a drag — and the route sends only the three framing fields, so a caption typed but
+   * not yet blurred isn't overwritten by the picture being moved.
    */
   const saveFraming = (slide: ApiHeroSlide, next: Framing) =>
     run(async () => {
@@ -301,10 +276,9 @@ function Photos() {
               {loadError === '' ? 'Loading…' : loadError}
             </p>
           ) : held.length === 0 ? (
-            /* The empty well is drawn here and not on the front page, which is
-               the difference between the two: this is the thing somebody is
-               about to put a picture into, and out there it is a hero that has
-               its artwork back. */
+            /* The empty well is drawn here and not on the front page, which is the difference
+               between the two: this is the thing somebody is about to put a picture into, and
+               out there it's a hero that has its artwork back. */
             <p className="bg-hatch border-rule text-faint flex aspect-[16/10] w-full items-center justify-center border font-mono text-[11px] font-medium tracking-[0.14em]">
               [ NO PHOTOS YET ]
             </p>
@@ -422,11 +396,9 @@ function Photos() {
                 disabled={busy || full || slides === null}
                 onChange={(event) => {
                   const chosen = event.target.files?.[0]
-                  // Cleared straight away, and before the upload rather than
-                  // after, so choosing the *same* file again still fires a
-                  // change event — an input whose value has not moved does not
-                  // emit one, which is how a retry after a failure silently does
-                  // nothing.
+                  // Cleared before the upload rather than after, so choosing the same file again
+                  // still fires a change event — an input whose value hasn't moved doesn't emit
+                  // one, which is how a retry after a failure silently does nothing.
                   event.target.value = ''
                   if (chosen) void uploadChosen(chosen)
                 }}
@@ -482,11 +454,9 @@ function Photos() {
           <p className={`${panelLabel} mb-4`}>/ PREVIEW</p>
 
           {held.length > 0 ? (
-            /* The real component, not a picture of it. Anything hand-drawn here
-               would be a second thing to keep in step with the front page, and
-               the first time it drifted this desk would be lying about what
-               visitors see. It rotates here exactly as it does out there —
-               pausing under the pointer, which is where an officer's is. */
+            /* The real component, not a picture of it. Anything hand-drawn here would be a
+               second thing to keep in step with the front page, and the first time it drifted
+               this desk would be lying about what visitors see. */
             <HeroSlideshow slides={held} />
           ) : (
             <FormPanel>
@@ -536,18 +506,15 @@ function Photos() {
 }
 
 /**
- * The half of this desk that is words rather than pictures.
+ * The half of this desk that's words rather than pictures.
  *
- * One read for all three sections, because the route is one read: the headline,
- * the FAQ and the partner programs are one page's copy, and three fetches would
- * be three loading states for a screen that means nothing with any of them
- * missing. The same call the sponsor desk makes.
+ * One read for all three sections, because the route is one read: the headline, the FAQ and the
+ * partner programs are one page's copy, and three fetches would be three loading states for a
+ * screen that means nothing with any of them missing.
  *
- * Read from the **public** endpoint rather than an officer-only twin — there is
- * one landing page and it is not a secret — but read `fresh`. That route is
- * `s-maxage=300` for everybody, so without it an officer who rewrites the
- * headline and reloads can be handed the answer from before they did, which
- * looks exactly like a save that failed.
+ * Read from the public endpoint rather than an officer-only twin, but read `fresh` — that route
+ * is `s-maxage=300`, so without it an officer who rewrites the headline and reloads can be
+ * handed the answer from before they did.
  */
 function Words() {
   const [page, setPage] = useState<ApiFrontPage | null>(null)
@@ -617,11 +584,9 @@ type FrontPageCopy = Pick<
 /**
  * The headline, the paragraph under it, and the line above the partner cards.
  *
- * A form with a SAVE rather than the blur-saves the lists below use, and the
- * reason is the headline: it is two boxes that read as one sentence, so a field
- * that wrote itself on the way past would put half a rewrite on the front page
- * for as long as it took to reach the second box. `PUT` takes the four together
- * for the same reason.
+ * A form with a SAVE rather than the blur-saves the lists use, and the reason is the headline:
+ * it's two boxes that read as one sentence, so a field that wrote itself would put half a
+ * rewrite on the front page for as long as it took to reach the second box.
  */
 function Copy({
   page,
@@ -766,12 +731,10 @@ function Copy({
 
         <div>
           <p className={`${panelLabel} mb-4`}>/ PREVIEW</p>
-          {/* Not the real component, unlike the slideshow above — the hero is a
-              two-column layout with a lab sign, a slideshow and two buttons in
-              it, and dropping that into a desk column would be previewing the
-              layout rather than the words. What is copied is the one thing the
-              two boxes cannot show on their own: where the line breaks and
-              which half is gold. */}
+          {/* Not the real component, unlike the slideshow above — the hero is a two-column
+              layout with a lab sign, a slideshow and two buttons, and dropping that into a desk
+              column would be previewing the layout rather than the words. What's copied is the
+              one thing the two boxes can't show: where the line breaks and which half is gold. */}
           <div className="border-rule bg-base-200 border p-5">
             <p className="text-[clamp(1.5rem,3vw,2.25rem)] leading-[0.94] font-bold tracking-[-0.03em] text-pretty">
               {headline}
@@ -791,11 +754,10 @@ function Copy({
 /**
  * The FAQ.
  *
- * Blur-saves per field, the idiom the sponsor desk and the captions above use: a
- * question and its answer are independent facts, an officer correcting a price
- * is changing one of them, and a SAVE button per row would be eight buttons for
- * a page somebody edits one line of. The trade is that there is nothing to
- * cancel — which is why the ✕ asks first.
+ * Blur-saves per field, the idiom the sponsor desk and the captions above use: a question and
+ * its answer are independent facts, and a SAVE button per row would be eight buttons for a page
+ * somebody edits one line of. The trade is that there's nothing to cancel — which is why the
+ * cross asks first.
  */
 function Questions({
   faqs,
@@ -873,9 +835,8 @@ function Questions({
 
       <div className="border-rule bg-base-200 mb-4 border p-4">
         <p className="text-dim text-[13px] leading-[1.6] text-pretty">
-          Every box here saves when you click out of it. The order is the order
-          they are read in on the page — the arrows move a question, and the
-          first two or three are the ones most people get to.
+          Every box here saves when you click out of it. The arrows set the
+          order they are read in on the page.
         </p>
       </div>
 
@@ -1057,12 +1018,11 @@ function Questions({
 }
 
 /**
- * The partner programs — what somebody does when they cannot join the club.
+ * The partner programs — what somebody does when they can't join the club.
  *
- * The same blur-saves as the questions above, plus artwork, which works the way
- * a sponsor's logo does rather than the way a hero photograph does: a program is
- * a row that has a picture, so choosing a file replaces whatever was there
- * instead of the remove-then-add the slideshow uses.
+ * The same blur-saves as the questions, plus artwork, which works the way a sponsor's logo does
+ * rather than the way a hero photograph does: a program is a row that has a picture, so
+ * choosing a file replaces whatever was there.
  */
 function Partners({
   partners,
@@ -1106,10 +1066,9 @@ function Partners({
   }
 
   /**
-   * A new program arrives with the two things a card cannot be drawn without —
-   * a name and somewhere to send the reader. The audience line, the blurb and
-   * the artwork are filled in on the row afterwards, which is what stops the add
-   * form being a second copy of the whole card.
+   * A new program arrives with the two things a card can't be drawn without — a name and
+   * somewhere to send the reader. The audience line, the blurb and the artwork are filled in
+   * afterwards, which is what stops the add form being a second copy of the whole card.
    */
   const add = () =>
     run(async () => {
@@ -1353,10 +1312,9 @@ function Partners({
                     disabled={busy}
                     onChange={(event) => {
                       const chosen = event.target.files?.[0]
-                      // Cleared before the upload rather than after, so choosing
-                      // the *same* file again still fires a change event — an
-                      // input whose value has not moved does not emit one, which
-                      // is how a retry after a failure silently does nothing.
+                      // Cleared before the upload rather than after, so choosing the same file
+                      // again still fires a change event — an input whose value hasn't moved
+                      // doesn't emit one.
                       event.target.value = ''
                       if (chosen) void upload(program, chosen)
                     }}

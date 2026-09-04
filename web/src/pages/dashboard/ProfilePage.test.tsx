@@ -15,16 +15,13 @@ import { bodyOf, urlOf } from '../../test/stubFetch'
 /**
  * The account page.
  *
- * It was a placeholder with one button on it and is now six independent writes,
- * so this suite is about the handful of things that are easy to get wrong and
- * invisible from the page itself:
+ * It was a placeholder with one button on it and is now six independent writes, so this suite is
+ * about the handful of things that are easy to get wrong and invisible from the page itself:
  *
- *   - signing out leaves the dashboard first, or the layout answers "sign out"
- *     with a sign-in form;
- *   - the delete warning names what is actually destroyed, and the button is
- *     behind a confirmation that wants the password;
- *   - a refusal shows the server's own sentence, because only it knows which
- *     thing has to come back first;
+ *   - signing out leaves the dashboard first, or the layout answers "sign out" with a sign-in form;
+ *   - the delete warning names what is actually destroyed, and the button wants the password;
+ *   - a refusal shows the server's own sentence, because only it knows which thing has to come
+ *     back first;
  *   - and all three states of the one read render.
  */
 
@@ -169,10 +166,9 @@ describe('ProfilePage', () => {
     expect(screen.getByDisplayValue('Builds things.')).toBeInTheDocument()
     expect(screen.getByDisplayValue('2027')).toBeInTheDocument()
     expect(screen.getByDisplayValue('rowan')).toBeInTheDocument()
-    // PROFILE LINK replaced the PUBLIC PROFILE row that used to sit in YOUR
-    // STANDING. That row printed "No profile page yet" to almost everybody and
-    // could print nothing else — a slug is an officer's to set and
-    // `/members/:slug` is unbuilt — so what is asserted now is the field that
+    // PROFILE LINK replaced the PUBLIC PROFILE row that used to sit in YOUR STANDING. That row
+    // printed "No profile page yet" to almost everybody and could print nothing else — a slug is an
+    // officer's to set and `/members/:slug` is unbuilt — so what is asserted now is the field that
     // took its place, empty for an account that has given no link.
     expect(screen.queryByText(/no profile page yet/i)).not.toBeInTheDocument()
     expect(screen.getByLabelText('YOUR LINK')).toHaveValue('')

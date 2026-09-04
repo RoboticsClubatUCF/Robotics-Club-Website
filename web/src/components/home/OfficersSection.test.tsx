@@ -14,13 +14,11 @@ import { stubFetch, stubFetchNetworkError, stubFetchPending } from '../../test/s
 const render = (ui: ReactNode) => renderBare(<MemoryRouter>{ui}</MemoryRouter>)
 
 /**
- * The seats there are, as the route sends them — the `OfficerPosition` enum in
- * board order.
+ * The seats there are, as the route sends them — the `OfficerPosition` enum in board order.
  *
- * **The frontend keeps no list of these any more**, which is what these tests
- * are mostly about: how many seats the club has is the database's answer, so
- * this fixture is standing in for the database rather than mirroring a constant
- * the page also reads.
+ * The frontend keeps no list of these any more, which is what these tests are mostly about: how
+ * many seats the club has is the database's answer, so this fixture stands in for the database
+ * rather than mirroring a constant the page also reads.
  */
 const SEATS = [
   'PRESIDENT',
@@ -110,11 +108,10 @@ describe('OfficersSection', () => {
   })
 
   /**
-   * **An officer with no seat is on the board.** This is the other thing the
-   * fixed eight made impossible: the Discord sync promotes somebody the moment
-   * they carry the role, and until an officer gives them a chair they held no
-   * position — so a real officer was invisible here while being an officer
-   * everywhere else on the site.
+   * An officer with no seat is on the board. This is the other thing the fixed eight made
+   * impossible: the Discord sync promotes somebody the moment they carry the role, and until an
+   * officer gives them a chair they held no position — so a real officer was invisible here while
+   * being an officer everywhere else.
    */
   it('draws an officer who holds no named seat', async () => {
     stub([
@@ -192,10 +189,9 @@ describe('OfficersSection', () => {
   })
 
   /**
-   * The caption is the seat and the name, full stop. Everything else about a
-   * term — when it started, who linked it — is deliberately dropped, and it
-   * would be easy to add the dates back "just for the president" and end up
-   * with a board of uneven cards.
+   * The caption is the seat and the name, full stop. Everything else about a term is deliberately
+   * dropped, and it would be easy to add the dates back "just for the president" and end up with a
+   * board of uneven cards.
    */
   it('captions a card with the seat and the name and nothing else', async () => {
     stub([officer('PRESIDENT', { startedAt: '2019-08-01T00:00:00.000Z' })], ['PRESIDENT'])

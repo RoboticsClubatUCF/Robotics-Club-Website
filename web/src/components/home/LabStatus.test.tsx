@@ -114,14 +114,12 @@ describe('LabStatus', () => {
   })
 
   /**
-   * **The sign says open or closed and nothing else.**
+   * The sign says open or closed and nothing else.
    *
-   * Two things it deliberately does not say overnight. "4 HR AGO" at two in the
-   * morning answers a question nobody asked — and OPENS 8AM, which used to
-   * stand in its place, was worse: the building being unlocked at eight is not
-   * the lab being staffed at eight, and an officer might come at noon or not at
-   * all. A closed sign that quietly commits somebody to an hour is worse than a
-   * closed sign.
+   * Two things it deliberately doesn't say overnight. "4 HR AGO" at two in the morning answers a
+   * question nobody asked — and OPENS 8AM, which used to stand in its place, was worse: the
+   * building being unlocked at eight isn't the lab being staffed at eight, and an officer might
+   * come at noon or not at all.
    */
   it('says only that the lab is closed while the building is shut', async () => {
     vi.stubGlobal(
@@ -158,19 +156,15 @@ describe('LabStatus', () => {
 })
 
 /**
- * The lab is the one endpoint on this site whose answer changes without the
- * reader doing anything — and increasingly it changes because somebody pressed
- * a button in *Discord* rather than on the site. A page that only asked on
- * mount would sit saying CLOSED over a channel that had said OPEN for twenty
- * minutes, which is the walk across campus this whole feature exists to
- * prevent.
+ * The lab is the one endpoint on this site whose answer changes without the reader doing anything
+ * — and increasingly it changes because somebody pressed a button in Discord. A page that only
+ * asked on mount would sit saying CLOSED over a channel that had said OPEN for twenty minutes.
  *
- * **Fake timers go in before `render`, and that is the whole trick.** The
- * polling interval is created by the mount effect, so installing them
- * afterwards leaves a real interval that `advanceTimersByTime` cannot move —
- * and the test then passes or fails on nothing at all. Everything is flushed
- * with an explicit `act` rather than `findByText`, because `waitFor` under fake
- * timers is a second thing to get right for no gain here.
+ * Fake timers go in before `render`, and that's the whole trick. The polling interval is created
+ * by the mount effect, so installing them afterwards leaves a real interval that
+ * `advanceTimersByTime` can't move — and the test then passes or fails on nothing at all.
+ * Everything is flushed with an explicit `act`, because `waitFor` under fake timers is a second
+ * thing to get right for no gain.
  */
 describe('LabStatus keeps asking', () => {
   /** Let the mount fetch, or a poll, settle. `act` flushes microtasks on the

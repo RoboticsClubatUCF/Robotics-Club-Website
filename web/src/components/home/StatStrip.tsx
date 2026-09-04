@@ -4,29 +4,24 @@ import type { ApiStats } from '../../lib/api/api'
 import { useApi } from '../../lib/api/useApi'
 
 /**
- * Full-bleed strip of headline numbers, each cell a link into the page it
- * counts. Three of the four come from `GET /api/stats`; the founding year is a
- * constant.
+ * Full-bleed strip of headline numbers, each cell a link into the page it counts. Three of the four
+ * come from `GET /api/stats`; the founding year is a constant.
  *
- * **All four destinations exist now**, so the cells are `<Link>`s rather than
- * plain anchors — the whole strip used to reload the document into a 404. Each
- * count is deliberately the number of rows its page shows by default: `/stats`
- * applies the same filters the listing routes apply, so the number you read
- * here is the number you find when you land. Change one and change the other.
+ * All four destinations exist now, so the cells are `<Link>`s rather than plain anchors — the whole
+ * strip used to reload the document into a 404. Each count is deliberately the number of rows its
+ * page shows by default: `/stats` applies the same filters the listing routes apply, so the number
+ * you read here is the number you find when you land. Change one and change the other.
  *
- * **ACTIVE MEMBERS used to be the one cell that broke that**, and its label was
- * how: `/members` listed every account, guests included, while the count was
- * the club's membership. That page defaults to the same membership now and the
- * two agree. The label stays — it is what the number is — and it stays in
- * `content/home.ts` beside the count it belongs to rather than being derived
- * here, because the roster's chip carries the same two words and the two are
- * meant to be read as one claim.
+ * ACTIVE MEMBERS used to be the one cell that broke that, and its label was how: `/members` listed
+ * every account, guests included, while the count was the club's membership. That page defaults to
+ * the same membership now and the two agree. The label stays — it is what the number is — and it
+ * stays in `content/home.ts` beside the count rather than being derived here, because the roster's
+ * chip carries the same two words and the two are meant to be read as one claim.
  *
- * Hand-rolled rather than DaisyUI's `stats`: that component is an `inline-grid`
- * with its own radius, dashed dividers and horizontal scroll, so using it here
- * would mean overriding all four. The dividers are the container's background
- * showing through a 1px grid gap, which gets the rules right at both column
- * counts without any nth-child arithmetic.
+ * Hand-rolled rather than DaisyUI's `stats`: that component is an `inline-grid` with its own
+ * radius, dashed dividers and horizontal scroll, so using it here would mean overriding all four.
+ * The dividers are the container's background showing through a 1px grid gap, which gets the rules
+ * right at both column counts without any nth-child arithmetic.
  */
 export function StatStrip() {
   const counts = useApi<ApiStats>('/stats')

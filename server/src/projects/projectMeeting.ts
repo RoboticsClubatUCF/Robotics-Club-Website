@@ -3,23 +3,18 @@ import { z } from 'zod'
 /**
  * When a project meets, on the wire.
  *
- * Shared by the create route and the edit route rather than written twice, for
- * the reason `projectTerm.ts` gives about the same problem: the pairing rules
- * below are the sort of validation that gets copied once correctly and once
- * not, and the second copy is a project whose calendar quietly disagrees with
- * what its lead typed.
+ * Shared by the create route and the edit route rather than written twice: the pairing rules below
+ * are the sort of validation that gets copied once correctly and once not, and the second copy is
+ * a project whose calendar quietly disagrees with what its lead typed.
  *
- * Three shapes exist and only two are legal. A schedule is **days plus a range
- * plus optionally a place and a note**, or it is **nothing at all**. What it
- * may not be half of one: days with no times is a project that meets on
- * Tuesdays at no o'clock, and `expandMeetings` would skip it silently — a
- * project that reads as scheduled everywhere and appears on no calendar.
+ * Three shapes exist and only two are legal. A schedule is days plus a range plus optionally a
+ * place and a note, or it's nothing at all. What it may not be is half of one: days with no times
+ * is a project that meets on Tuesdays at no o'clock, and `expandMeetings` would skip it silently.
  *
- * **Creating a project requires one; editing one may clear it.** Those are
- * different rules on purpose. Nobody starts a build without knowing when it
- * meets, and asking at creation is the one moment somebody is already thinking
- * about it — but a project that has finished, or moved to Discord for a term,
- * should be able to say so rather than keep a stale Tuesday on the front page.
+ * Creating a project requires one; editing one may clear it. Nobody starts a build without knowing
+ * when it meets, and asking at creation is the one moment somebody is already thinking about it —
+ * but a project that has finished should be able to say so rather than keep a stale Tuesday on
+ * the front page.
  */
 
 /** A wall-clock time on a 24-hour clock. Not a moment — see `Project.meetingStartTime`. */
@@ -43,18 +38,15 @@ const weekdays = z
   .transform((days) => [...new Set(days)].sort((a, b) => a - b))
 
 /**
- * The lead's own words about the meeting, and the one part of a schedule that
- * stays optional at creation.
+ * The lead's own words about the meeting, and the one part of a schedule that stays optional at
+ * creation.
  *
- * Longer than the location because it is a sentence or three rather than a room
- * number, and short enough that it stays a note: this is what somebody reads on
- * a calendar chip beside the time, not a second write-up. `description` is the
- * column for a write-up and it holds 20,000 characters.
+ * Longer than the location because it's a sentence or three rather than a room number, and short
+ * enough that it stays a note: this is what somebody reads on a calendar chip beside the time.
  *
- * Empty is the same as absent — a textarea that has been typed into and cleared
- * sends `''`, and storing that would be a project whose calendar carries a blank
- * line. `.transform` rather than a `.refine` refusing it, because clearing the
- * note is a thing a lead means to do.
+ * Empty is the same as absent — a textarea typed into and cleared sends `''`, and storing that
+ * would be a project whose calendar carries a blank line. `.transform` rather than a `.refine`
+ * refusing it, because clearing the note is a thing a lead means to do.
  */
 const note = z
   .string()
@@ -113,15 +105,13 @@ export const MEETING_WHOLE = {
 /**
  * Ends after it starts.
  *
- * String comparison, not `Date`. These are wall-clock times zero-padded to the
- * same width, so `'18:00' < '22:00'` is exactly the comparison wanted, and
- * turning either into a `Date` to compare them is how the DST bugs this whole
- * design avoids get back in.
+ * String comparison, not `Date`. These are wall-clock times zero-padded to the same width, so
+ * `'18:00' < '22:00'` is exactly the comparison wanted, and turning either into a `Date` is how
+ * the DST bugs this whole design avoids get back in.
  *
- * A meeting that runs past midnight is refused rather than accommodated. The
- * expander can read one — it rolls the end forward a day — but a lead who types
- * 20:00 to 01:00 has far more often mistyped than genuinely booked the lab
- * overnight, and the club's building shuts at ten regardless.
+ * A meeting that runs past midnight is refused rather than accommodated. The expander can read one
+ * — it rolls the end forward a day — but a lead who types 20:00 to 01:00 has far more often
+ * mistyped, and the building shuts at ten regardless.
  */
 export function meetingRunsForward(value: MeetingShape): boolean {
   const { meetingStartTime: start, meetingEndTime: end } = value

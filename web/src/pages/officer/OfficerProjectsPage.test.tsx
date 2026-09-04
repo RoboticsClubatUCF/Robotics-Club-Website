@@ -14,19 +14,16 @@ import { urlOf } from '../../test/stubFetch'
 /**
  * The projects desk.
  *
- * Creating one is two steps, and it is two steps because it has to be: a
- * picture and a link both hang off a project id that does not exist until the
- * project does. The tests that matter are about the seam that creates — the
- * project is live between the steps, and somebody who stops halfway has to be
- * told so and given a way out.
+ * Creating one is two steps, and it has to be: a picture and a link both hang off a project id
+ * that doesn't exist until the project does. The tests that matter are about the seam that
+ * creates — the project is live between the steps, and somebody who stops halfway has to be told
+ * so and given a way out.
  *
- * The second panel is duplication, which exists because the dashboard became
- * term-scoped: a build that runs for years is one row per term now, and this is
- * how the next row gets made.
+ * The second panel is duplication, which exists because the dashboard became term-scoped: a
+ * build that runs for years is one row per term now.
  *
- * Appointing a lead used to be tested here and is not any more — it moved to
- * the roles desk, and so did its tests. What is left on this page is entirely
- * about projects.
+ * Appointing a lead used to be tested here and isn't any more — it moved to the roles desk, and
+ * so did its tests.
  */
 
 const term: ApiTerm = {
@@ -144,10 +141,9 @@ const renderPage = (dashboard = context()) =>
   )
 
 /**
- * The create panel, scoped — the duplicate panel below it is on screen at the
- * same time, and both are forms about a project. Its fields are labelled NEW
- * TITLE and NEW SLUG so the two do not collide, but scoping is still what makes
- * these queries say which form they mean.
+ * The create panel, scoped — the duplicate panel is on screen at the same time, and both are
+ * forms about a project. Its fields are labelled NEW TITLE and NEW SLUG so the two don't
+ * collide, but scoping is still what makes these queries say which form they mean.
  */
 const createPanel = () =>
   within(screen.getByText('CREATE A PROJECT').closest('div')!)
@@ -156,13 +152,11 @@ const duplicatePanel = () =>
   within(screen.getByText('RUN ONE AGAIN NEXT TERM').closest('div')!)
 
 /**
- * Fills the create form and submits it. No lead is picked: the field is
- * optional now, and the flows these tests are about do not turn on it.
+ * Fills the create form and submits it. No lead is picked: the field is optional now.
  *
- * **The meeting is not optional**, which is why it is filled in here rather
- * than in the two tests that are about it. Every flow below has to get past the
- * form's own refusal to submit without one, so leaving it out of this helper
- * would mean twelve tests failing for a reason none of them is about.
+ * The meeting is not optional, which is why it's filled in here rather than in the two tests
+ * that are about it. Every flow below has to get past the form's own refusal to submit without
+ * one, so leaving it out would mean twelve tests failing for a reason none of them is about.
  */
 async function createProject() {
   const panel = createPanel()
@@ -187,9 +181,9 @@ async function createProject() {
 /**
  * Tuesdays and Thursdays, 6 till 10 — the club's own example.
  *
- * The days are checkboxes queried by role rather than by label text: the visible
- * chip is a `<label>` wrapping an `sr-only` input, and `getByLabelText` would
- * match the `<legend>` just as readily. `testing.md` names this exact trap.
+ * The days are checkboxes queried by role rather than label text: the visible chip is a
+ * `<label>` wrapping an `sr-only` input, and `getByLabelText` would match the `<legend>` just as
+ * readily. `testing.md` names this exact trap.
  */
 function fillMeeting() {
   const panel = createPanel()
@@ -206,10 +200,9 @@ function fillMeeting() {
 }
 
 /**
- * A desk that answers like the real one — which the publish sequence needs, not
- * just the create call: the links route answers with the set it stored and the
- * gallery route with the row it made, and the panel puts both straight into the
- * editor rather than re-reading them.
+ * A desk that answers like the real one — which the publish sequence needs, not just the create
+ * call: the links route answers with the set it stored and the gallery route with the row it
+ * made, and the panel puts both straight into the editor rather than re-reading them.
  */
 function stubDesk(over: Record<string, unknown> = {}) {
   let images = 0
@@ -275,11 +268,9 @@ afterEach(() => {
 
 describe('OfficerProjectsPage', () => {
   /**
-   * The desk is officers only, all of it. It briefly had a second audience —
-   * somebody carrying a `PROJECT_LEAD` roster label could start one project of
-   * their own — and both that label and the delegation are gone. **Leading a
-   * project confers nothing here**, which is the row worth keeping: authority
-   * inside a project and permission to make another are different things.
+   * The desk is officers only, all of it. It briefly had a second audience — somebody carrying a
+   * `PROJECT_LEAD` roster label could start one project of their own — and both that label and
+   * the delegation are gone. Leading a project confers nothing here.
    */
   it.each([
     ['a plain member', [] as ApiMyProject[]],
@@ -294,10 +285,9 @@ describe('OfficerProjectsPage', () => {
   })
 
   /**
-   * The whole project is fillable before it exists, and **nothing on the page
-   * is gated**. Links and pictures cannot be stored yet, so they are held in
-   * the browser and sent by the same press — which is what stops anything typed
-   * here being lost by not getting far enough.
+   * The whole project is fillable before it exists, and nothing on the page is gated. Links and
+   * pictures can't be stored yet, so they're held in the browser and sent by the same press —
+   * which is what stops anything typed here being lost by not getting far enough.
    */
   it('offers every section before the project exists', () => {
     vi.stubGlobal('fetch', stubDesk())
@@ -316,10 +306,9 @@ describe('OfficerProjectsPage', () => {
   })
 
   /**
-   * The write-up is a column on the project and needs no id, so it does not wait
-   * for one — that is what makes the gate narrow enough to be honest. The
-   * repository used to go up in this same request and is a resource link now,
-   * held in the draft with the others.
+   * The write-up is a column on the project and needs no id, so it doesn't wait for one — that's
+   * what makes the gate narrow enough to be honest. The repository used to go up in this same
+   * request and is a resource link now, held in the draft with the others.
    */
   it('sends the write-up with the project itself', async () => {
     const fetchMock = stubDesk()
@@ -839,14 +828,12 @@ describe('the project Discord role', () => {
 
 
 /**
- * The way into managing a project the officer is not on.
+ * The way into managing a project the officer isn't on.
  *
- * The rail lists the projects you are a member of and draws MANAGE under a
- * lead's rank, so an officer who is on nothing had no link to
- * `/dashboard/projects/:slug/manage` at all — the page has always accepted
- * them, and the only way to reach it was to type the address. These cover the
- * link, and that it points at the lead's own URL rather than an officer-only
- * copy of the page.
+ * The rail lists the projects you're a member of and draws MANAGE under a lead's rank, so an
+ * officer who is on nothing had no link to `/dashboard/projects/:slug/manage` at all — the page
+ * has always accepted them, and the only way to reach it was to type the address. These cover
+ * the link, and that it points at the lead's own URL.
  */
 describe('reaching any project from the desk', () => {
   /** This semester's build. Handed to the stub *second* so the assertions

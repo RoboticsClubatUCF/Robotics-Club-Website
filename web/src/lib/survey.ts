@@ -7,23 +7,22 @@ import type {
 /**
  * The member survey's rules, and the shape the form holds an answer in.
  *
- * A mirror of what `server/src/routes/member/survey.ts` enforces, in the sense the
- * other files in this group are: the server is what actually refuses, and this
- * exists so the form does not offer something the route will reject.
+ * A mirror of what `server/src/routes/member/survey.ts` enforces: the server is what
+ * actually refuses, and this exists so the form doesn't offer something the route will
+ * reject.
  *
- * **The questions are not here any more.** They used to be five hardcoded
- * option lists with the club's own wording on them; they are rows an officer
- * edits now, and they arrive with the payload. What is left in this file is
- * everything that is true of a question *whatever it asks* — which of the two
- * fields its kind uses, what counts as having answered it, and what to send.
+ * The questions aren't here any more. They used to be five hardcoded option lists; they
+ * are rows an officer edits now, and they arrive with the payload. What's left is
+ * everything true of a question whatever it asks — which field its kind uses, what
+ * counts as having answered it, and what to send.
  */
 
 /**
  * One question's answer, mid-edit.
  *
- * `text` is a string rather than `string | null` because it is bound straight
- * to an input, and a controlled input whose value can be null is the React
- * warning everybody has seen. It becomes null on the way out, in `answersFor`.
+ * `text` is a string rather than `string | null` because it's bound straight to an
+ * input, and a controlled input whose value can be null is the React warning everybody
+ * has seen. It becomes null on the way out, in `answersFor`.
  */
 export type SurveyEntry = {
   optionIds: string[]
@@ -31,10 +30,9 @@ export type SurveyEntry = {
   /**
    * The NONE box, for a tick-any question that offers one.
    *
-   * **There is no NONE option in the payload — an empty set of ticks is
-   * "none".** This flag is the whole reason the box can exist: it makes "none"
-   * something somebody *presses*, rather than the state you are left in by not
-   * reading the question. That distinction matters here more than it would on
+   * There is no NONE option in the payload — an empty set of ticks is "none". This flag
+   * is what lets the box exist: it makes "none" something somebody presses rather than
+   * the state you're left in by not reading the question. That matters here more than on
    * most forms, because the club reads the answers before it buys food.
    */
   none: boolean
@@ -54,9 +52,9 @@ export const offersNone = (question: ApiSurveyQuestion) =>
 /**
  * Ticking an option in a set.
  *
- * NONE and the real options are mutually exclusive in both directions, and the
- * two callers below are what enforce that: pressing NONE empties the set, and
- * pressing anything else takes NONE off.
+ * NONE and the real options are mutually exclusive in both directions, and the two
+ * callers below enforce that: pressing NONE empties the set, and pressing anything else
+ * takes NONE off.
  */
 export function toggle<T extends string>(picked: T[], value: T): T[] {
   return picked.includes(value)
@@ -88,10 +86,9 @@ export const pickNone = (entry: SurveyEntry): SurveyEntry => ({
 /**
  * Whether a question has been answered at all.
  *
- * The one that needs saying is the tick-any case. An empty set with NONE
- * unticked is somebody who scrolled past, and it is indistinguishable at the
- * server from a deliberate "no allergies" — the answer row either exists or it
- * does not. So the form insists on the press, and this is the check it insists
+ * The one that needs saying is the tick-any case. An empty set with NONE unticked is
+ * somebody who scrolled past, and it's indistinguishable at the server from a deliberate
+ * "no allergies". So the form insists on the press, and this is the check it insists
  * with.
  */
 export function answered(
@@ -115,15 +112,13 @@ export const wantsText = (
   )
 
 /**
- * What is still wrong with a draft, as one sentence, or null when it is ready.
+ * What's still wrong with a draft, as one sentence, or null when it's ready.
  *
- * The same rules `checkAnswers` refuses with on the server, checked here so the
- * page can say so beside the field instead of round-tripping a 400 — which
- * `lib/api/api.ts` already notes is a debugging aid rather than something to put in
- * front of anybody.
+ * The same rules `checkAnswers` refuses with on the server, checked here so the page can
+ * say so beside the field instead of round-tripping a 400.
  *
- * In question order, so the sentence somebody gets is about the first thing
- * they missed on the way down rather than the last.
+ * In question order, so the sentence somebody gets is about the first thing they missed
+ * on the way down rather than the last.
  */
 export function surveyProblem(
   questions: ApiSurveyQuestion[],
@@ -140,8 +135,8 @@ export function surveyProblem(
         : `Pick an answer to “${question.prompt}”.`
     }
 
-    // The rule that is about safety rather than tidiness on the food questions:
-    // an unexplained "other allergy" is a warning the club cannot act on.
+    // The rule that's about safety rather than tidiness: an unexplained "other allergy"
+    // is a warning the club can't act on.
     if (wantsText(question, entry) && entry.text.trim() === '') {
       return `You picked an answer to “${question.prompt}” that asks you to say which — fill that box in.`
     }
@@ -158,8 +153,8 @@ export function answersFor(
   return questions.flatMap((question): ApiSurveyAnswer[] => {
     const entry = draft[question.id] ?? empty()
 
-    // Nothing to send. The answer row existing is what "answered" means, so an
-    // untouched optional question is an absence rather than an empty row.
+    // Nothing to send. The answer row existing is what "answered" means, so an untouched
+    // optional question is an absence rather than an empty row.
     if (!answered(question, entry)) return []
 
     if (isText(question)) {
@@ -170,10 +165,9 @@ export function answersFor(
       {
         questionId: question.id,
         optionIds: entry.optionIds,
-        // Cleared unless something picked actually asked for it — a stale
-        // "Business" left behind a switch back to a listed answer is a row that
-        // contradicts itself. The server does the same, and this only keeps the
-        // request honest.
+        // Cleared unless something picked actually asked for it — a stale "Business" left
+        // behind a switch back to a listed answer is a row that contradicts itself. The
+        // server does the same; this only keeps the request honest.
         text: wantsText(question, entry) ? entry.text.trim() : null,
       },
     ]
@@ -201,9 +195,9 @@ export function draftFrom(
           optionIds: answer.optionIds,
           text: answer.text ?? '',
           /**
-           * A stored answer with an empty list *is* a deliberate "none" — it
-           * could not have been saved otherwise — so re-opening the form shows
-           * the box ticked rather than making somebody answer it again.
+           * A stored answer with an empty list is a deliberate "none" — it couldn't have
+           * been saved otherwise — so re-opening the form shows the box ticked rather
+           * than making somebody answer it again.
            */
           none: offersNone(question) && answer.optionIds.length === 0,
         },
@@ -215,9 +209,9 @@ export function draftFrom(
 /**
  * One stored answer as a sentence, for anywhere that prints one back.
  *
- * Null means the question was not answered, which the caller says out loud in
- * its own words — this cannot, because a dash on the account page and a blank
- * cell in a spreadsheet are not the same silence.
+ * Null means the question wasn't answered, which the caller says in its own words — this
+ * can't, because a dash on the account page and a blank cell in a spreadsheet aren't the
+ * same silence.
  */
 export function answerLine(
   question: ApiSurveyQuestion,
@@ -231,17 +225,15 @@ export function answerLine(
     .filter((option) => answer.optionIds.includes(option.id))
     .map((option) => option.label)
 
-  // "None" rather than a dash. An empty list here is an answer somebody gave —
-  // the form will not save one without NONE ticked — and a dash would read as a
-  // question they skipped.
+  // "None" rather than a dash. An empty list here is an answer somebody gave — the form
+  // won't save one without NONE ticked — and a dash would read as a question they skipped.
   if (labels.length === 0) return offersNone(question) ? 'None' : null
 
   /**
-   * OTHER is a placeholder for an answer rather than an answer — printing
-   * "Other" at somebody who typed "Biomedical Engineering" is the site telling
-   * them it did not keep what they said. So on a pick-one question their words
-   * replace the label outright; on a tick-any one they go after it, because the
-   * other ticks still have to be listed.
+   * OTHER is a placeholder for an answer rather than an answer — printing "Other" at
+   * somebody who typed "Biomedical Engineering" is the site telling them it didn't keep
+   * what they said. So on a pick-one question their words replace the label outright; on
+   * a tick-any one they go after it, because the other ticks still have to be listed.
    */
   if (answer.text !== null && answer.text !== '') {
     return question.kind === 'SINGLE_CHOICE'
@@ -253,19 +245,15 @@ export function answerLine(
 }
 
 /**
- * The survey asks for a graduation year, and one page does not carry the field.
+ * The survey asks for a graduation year, and one page doesn't carry the field.
  *
- * The account page leaves it to ABOUT YOU, so a member who cleared it there is
- * holding a survey with a hole in it — an answer the club asked for and no
- * longer has. `PUT /api/survey` answers 409 for exactly this, and the sentence
- * is mirrored here because nothing else on the site would ever mention it: the
- * SURVEY panel prints it beside the answers, which is the one place somebody
- * looks at the survey without being asked to fill anything in.
+ * The account page leaves it to ABOUT YOU, so a member who cleared it there is holding a
+ * survey with a hole in it. `PUT /api/survey` answers 409 for exactly this, and the
+ * sentence is mirrored here because nothing else would ever mention it: the SURVEY panel
+ * is the one place somebody looks at the survey without being asked to fill it in.
  *
- * It names ABOUT YOU rather than the survey page, though both can fix it. That
- * field is a scroll away on the screen they are already reading.
- *
- * Only the account page needs this. `/dashboard/survey` has the field on it.
+ * It names ABOUT YOU rather than the survey page, though both can fix it — that field is
+ * a scroll away on the screen they're already reading.
  */
 export const NO_GRAD_YEAR =
   'Your graduation year is missing, and the survey asks for it. Set it under ABOUT YOU above.'

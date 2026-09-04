@@ -1,26 +1,20 @@
 import { useSyncExternalStore } from 'react'
 
 /**
- * Which of the two themes is on, and how that is decided.
+ * Which of the two themes is on, and how that's decided.
  *
- * **The names are DaisyUI's, because the value goes straight into
- * `data-theme`.** `index.css` declares both blocks under exactly these strings;
- * a third theme means a block there and a member of this union, and nothing
- * else on the site learns about it.
+ * The names are DaisyUI's, because the value goes straight into `data-theme`. `index.css`
+ * declares both blocks under exactly these strings; a third theme means a block there and a
+ * member of this union, and nothing else on the site learns about it.
  *
- * **There are two themes and three states.** Somebody who has never touched the
- * toggle is *following the system*, and keeps following it — change the OS
- * setting with the tab open and the page changes under them, which is what that
- * setting is for. Pressing the toggle is what ends that: from then on the
- * choice is theirs, it is in `localStorage`, and the system is no longer
- * consulted. There is deliberately no third button to get back to "follow the
- * system": it would be a control most people would never press, explaining a
- * state they were already in.
+ * There are two themes and three states. Somebody who has never touched the toggle is following
+ * the system, and keeps following it — change the OS setting with the tab open and the page
+ * changes under them. Pressing the toggle ends that: from then on the choice is theirs, it's in
+ * `localStorage`, and the system isn't consulted. There's deliberately no third button to get
+ * back to "follow the system": it would be a control most people would never press.
  *
- * **The dark theme is the fallback everywhere.** No stored choice and no
- * `matchMedia` — a very old browser, a test environment — lands on dark, which
- * is the theme the site has always had and the one `index.css` marks
- * `default: true`.
+ * The dark theme is the fallback everywhere. No stored choice and no `matchMedia` lands on dark,
+ * which is the theme the site has always had.
  */
 export type Theme = 'rccf' | 'rccf-light'
 
@@ -28,13 +22,11 @@ export const DARK: Theme = 'rccf'
 export const LIGHT: Theme = 'rccf-light'
 
 /**
- * **Mirrored by hand in `index.html`, and it has to stay that way.** That
- * inline script runs before first paint and settles the theme so the page never
- * flashes the wrong one; it cannot import this module, because a module is
- * fetched and by then the paint has happened. So the key, the two names and the
- * order the two sources are consulted in exist twice. Change one, change the
- * other — `theme.test.ts` pins the pair against each other, which is the only
- * thing that can.
+ * Mirrored by hand in `index.html`, and it has to stay that way. That inline script runs before
+ * first paint and settles the theme so the page never flashes the wrong one; it can't import this
+ * module, because a module is fetched and by then the paint has happened. So the key, the two
+ * names and the order the two sources are consulted in exist twice. `theme.test.ts` pins the pair
+ * against each other, which is the only thing that can.
  */
 export const STORAGE_KEY = 'rccf-theme'
 
@@ -67,22 +59,17 @@ export const currentTheme = (): Theme => storedTheme() ?? systemTheme()
 /**
  * Put a theme on the document.
  *
- * Two things move, not one. `data-theme` is what every colour on the page hangs
- * off, and `theme-color` is what paints the browser's own chrome on a phone —
- * left alone, the address bar stays near-black over a white page, which looks
- * like the page failed to load rather than like a bar we forgot.
+ * Two things move, not one. `data-theme` is what every colour hangs off, and `theme-color` is
+ * what paints the browser's own chrome on a phone — left alone, the address bar stays near-black
+ * over a white page, which looks like the page failed to load.
  *
- * `color-scheme` is deliberately *not* set here: each theme block in
- * `index.css` declares its own, so the scrollbars and form controls follow the
- * attribute along with everything else.
+ * `color-scheme` is deliberately not set here: each theme block in `index.css` declares its own,
+ * so scrollbars and form controls follow the attribute along with everything else.
  *
- * The two hexes are `--color-base-100` from those blocks, copied. They are the
- * third copy of that pair on the site — the others are `index.html`, which
- * paints the bar before this module exists, and `stripeAppearance.ts`, which
- * hands colours to another origin. All three are hand-kept for the same reason:
- * the value has to be available somewhere the stylesheet is not. `index.css` is
- * the original of all of them. Reading the computed property off the element
- * instead was tried and gives nothing under a test runner that does not process
+ * The two hexes are `--color-base-100` from those blocks, copied. They're the third copy of that
+ * pair on the site — the others are `index.html` and `stripeAppearance.ts` — all hand-kept
+ * because the value has to be available somewhere the stylesheet isn't. Reading the computed
+ * property off the element was tried and gives nothing under a test runner that doesn't process
  * CSS, which trades a documented copy for a silent empty string.
  */
 export function applyTheme(theme: Theme): void {
@@ -95,19 +82,14 @@ export function applyTheme(theme: Theme): void {
 /**
  * Subscribers, so anything drawing the theme is redrawn when it changes.
  *
- * **The switch is not the only thing that changes the theme, which is why this
- * exists.** There is one toggle on the site — in the footer — and if a press
- * were the only way the theme ever moved, the press could just re-render it.
- * But `followSystem` below changes it too: somebody who has never chosen is
- * still following their operating system, and an OS that flips at sunset flips
- * the page under an open tab. Without this the page would change and the button
- * would go on offering the theme it is already in.
+ * The switch isn't the only thing that changes the theme, which is why this exists. There's one
+ * toggle on the site, and if a press were the only way the theme ever moved, the press could just
+ * re-render it. But `followSystem` changes it too: somebody who has never chosen is still
+ * following their operating system, and an OS that flips at sunset flips the page under an open
+ * tab. Without this the button would go on offering the theme it's already in.
  *
- * It also keeps any two toggles in step, should a second one ever be drawn.
- *
- * A plain `Set` rather than a context: the theme is a property of the document,
- * not of a React subtree, and a provider would put every page under a re-render
- * for something that is already global.
+ * A plain `Set` rather than a context: the theme is a property of the document, not of a React
+ * subtree, and a provider would put every page under a re-render for something already global.
  */
 const listeners = new Set<() => void>()
 
@@ -129,12 +111,11 @@ export function setTheme(theme: Theme): void {
 }
 
 /**
- * Watch the operating system, for as long as the visitor has not overruled it.
+ * Watch the operating system, for as long as the visitor hasn't overruled it.
  *
- * Called once from `main.tsx` rather than from a component, because it is about
- * the document and has to keep working on a page with no toggle rendered on it.
- * The guard is re-read inside the handler rather than captured: somebody can
- * press the toggle after this is wired up, and the listener has to notice.
+ * Called once from `main.tsx` rather than from a component, because it's about the document and
+ * has to keep working on a page with no toggle rendered on it. The guard is re-read inside the
+ * handler rather than captured: somebody can press the toggle after this is wired up.
  */
 export function followSystem(): () => void {
   const query = darkQuery()
@@ -155,11 +136,9 @@ export function followSystem(): () => void {
 /**
  * The theme, for a component that draws it.
  *
- * `useSyncExternalStore` rather than `useState` plus an effect, because the
- * value already exists outside React — it is an attribute on `<html>`, put
- * there before this bundle was parsed. The server snapshot is the constant
- * `DARK`: there is no server rendering here today, and the honest answer to
- * "what theme is it" without a document is the one the site defaults to.
+ * `useSyncExternalStore` rather than `useState` plus an effect, because the value already exists
+ * outside React — it's an attribute on `<html>`, put there before this bundle was parsed. The
+ * server snapshot is the constant `DARK`: there's no server rendering here today.
  */
 export function useTheme(): Theme {
   return useSyncExternalStore(

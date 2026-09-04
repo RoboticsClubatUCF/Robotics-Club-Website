@@ -7,16 +7,14 @@ import type { ApiState } from '../../lib/api/useApi'
 /**
  * The partner programs.
  *
- * **The cards are a prop now**, not an import — `HomePage` fetches the page's
- * copy in one request and hands each section its slice. What is worth pinning is
- * the part the section exists for: the join page links at `/#partners`, and the
- * two things that make that link work — the anchor being on this section, and
- * every card carrying a way out to the program itself — are exactly the things a
+ * The cards are a prop now, not an import — `HomePage` fetches the page's copy in one request and
+ * hands each section its slice. What is worth pinning is the part the section exists for: the join
+ * page links at `/#partners`, and the two things that make that link work — the anchor being on
+ * this section, and every card carrying a way out to the program itself — are exactly what a
  * refactor drops without breaking anything visible.
  *
- * And the new one: this section has **no** loading or error state. It is not on
- * the page until there is something to put on it, which is a deliberate choice
- * rather than an oversight, so it is worth a test that says so.
+ * And the new one: this section has no loading or error state. It is not on the page until there is
+ * something to put on it, which is a choice rather than an oversight, so it is worth saying so.
  */
 const partners: ApiPartnerProgram[] = [
   {
@@ -104,10 +102,9 @@ describe('PartnersSection', () => {
   })
 
   /**
-   * Three states, one answer, and it is nothing at all. Reserving a bordered
-   * box for a section that may turn out not to exist is worse than a section
-   * that arrives a moment late — and a visitor cannot act on the difference
-   * between "the club listed none" and "the request failed".
+   * Three states, one answer, and it is nothing at all. Reserving a bordered box for a section that
+   * may turn out not to exist is worse than a section that arrives a moment late — and a visitor
+   * cannot act on the difference between "the club listed none" and "the request failed".
    */
   it('stays off the page while loading, on failure, and when there are none', () => {
     const { container: waiting } = render(

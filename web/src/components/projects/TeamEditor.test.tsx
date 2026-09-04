@@ -68,10 +68,10 @@ const roster = (over: Partial<ProjectRoster> = {}): ProjectRoster => ({
 })
 
 /**
- * The roster is held in state here for the reason `ProjectEditor` holds it in
- * state: this section's baseline for "has this box changed" is the roster
- * itself, so the save has to move it. Building a fresh one on every render would
- * also re-seed the boxes on every render, which is a loop rather than a test.
+ * The roster is held in state here for the reason `ProjectEditor` holds it in state: this section's
+ * baseline for "has this box changed" is the roster itself, so the save has to move it. Building a
+ * fresh one on every render would also re-seed the boxes on every render, which is a loop rather
+ * than a test.
  */
 function Show({
   over = {},
@@ -143,12 +143,11 @@ describe('TeamEditor', () => {
   })
 
   /**
-   * `ProjectMember.title` has had a route since the model existed and no page
-   * had ever sent one, so the column was empty everywhere and the public roster
-   * printed the club-wide title instead. This is the write that fills it in —
-   * under the page's SAVE now rather than on blur, because a page where one
-   * field writes as you leave it and the four sections around it wait for a
-   * button is a page nobody can predict.
+   * `ProjectMember.title` has had a route since the model existed and no page had ever sent one, so
+   * the column was empty everywhere and the public roster printed the club-wide title instead. This
+   * is the write that fills it in — under the page's SAVE now rather than on blur, because a page
+   * where one field writes as you leave it and four sections around it wait for a button is a page
+   * nobody can predict.
    */
   it('holds a title until the page is saved, then writes it by user id', async () => {
     const fetchMock = vi.fn((_input: string | URL | Request, _init?: RequestInit) => ok())

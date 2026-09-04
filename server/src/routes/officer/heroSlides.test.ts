@@ -11,24 +11,19 @@ import { MAX_HERO_SLIDES } from './heroSlides.js'
 /**
  * The front page's slideshow.
  *
- * **`hero_slides` is a global table and this suite writes it**, which puts it in
- * the same company as `lab.test.ts` borrowing the one lab row and
- * `surveyAdmin.test.ts` borrowing the club's questions: a fixture here is a real
- * photograph on the club's real landing page for the length of a test. Three
- * things keep that safe, and all three are load-bearing.
+ * `hero_slides` is a global table and this suite writes it, which puts it in the same company as
+ * `lab.test.ts` borrowing the one lab row: a fixture here is a real photograph on the club's real
+ * landing page for the length of a test. Three things keep that safe:
  *
- * - Every linked fixture's URL starts with `LINK`, every uploaded one is a
- *   `stored_files` row whose `original_name` starts with the same prefix, and
- *   cleanup deletes exactly those. Nothing here selects "all slides".
- * - The rows are cleared in `beforeEach` **as well as** `afterAll`, so a run
- *   that dies half way leaves nothing the next run does not sweep up.
- * - The reorder case rewrites `sort_order` on every row there is, the club's own
- *   included — that is what the route does — so the order is read before each
- *   test and put back in `afterEach`.
+ * - Every linked fixture's URL starts with `LINK`, every uploaded one is a `stored_files` row
+ *   whose `original_name` starts with the same prefix, and cleanup deletes exactly those.
+ * - The rows are cleared in `beforeEach` as well as `afterAll`, so a run that dies half way
+ *   leaves nothing the next run doesn't sweep up.
+ * - The reorder case rewrites `sort_order` on every row there is, the club's own included, so the
+ *   order is read before each test and put back in `afterEach`.
  *
- * **Nothing counts absolutely.** The club may have photographs up; the cap case
- * fills the room that is actually left rather than assuming eight are free, and
- * the listing cases assert the *relative* order of this suite's own rows.
+ * Nothing counts absolutely. The cap case fills the room that's actually left rather than
+ * assuming eight are free.
  */
 
 const PREFIX = 'test-hero-'
@@ -52,10 +47,10 @@ const clearWindows = () =>
 /**
  * The suite's own rows and nothing else.
  *
- * Uploaded fixtures are found by `original_name` rather than through the officer
- * who uploaded them: `stored_files.created_by_id` is `SetNull`, so a run that
- * died after creating the file and before deleting the user leaves bytes with no
- * owner, and an owner-based sweep would never find them again.
+ * Uploaded fixtures are found by `original_name` rather than through the officer who uploaded
+ * them: `stored_files.created_by_id` is `SetNull`, so a run that died after creating the file and
+ * before deleting the user leaves bytes with no owner, and an owner-based sweep would never find
+ * them again.
  */
 const clearRows = async () => {
   const files = await prisma.storedFile.findMany({

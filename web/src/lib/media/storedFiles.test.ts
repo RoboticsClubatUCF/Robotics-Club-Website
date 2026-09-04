@@ -3,12 +3,11 @@ import { apiBaseUrl } from '../api/api'
 import { imageSrc, isStoredUpload, storedFileUrl } from './storedFiles'
 
 /**
- * The asymmetry these exist to remove: an upload's address is root-relative and
- * an external one is absolute, so without `imageSrc` the first resolves against
- * the *page* rather than the API and silently never loads — while the second
- * works perfectly. "Links display, uploads don't" is exactly what that looks
- * like from the outside, and nothing in the console says why: the dev server
- * answers with `index.html` at a cheerful 200.
+ * The asymmetry these exist to remove: an upload's address is root-relative and an external one is
+ * absolute, so without `imageSrc` the first resolves against the page rather than the API and
+ * silently never loads — while the second works perfectly. "Links display, uploads don't" is what
+ * that looks like from the outside, and nothing in the console says why: the dev server answers
+ * with `index.html` at a cheerful 200.
  */
 describe('imageSrc', () => {
   it('puts the API origin in front of a stored upload', () => {

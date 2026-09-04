@@ -10,49 +10,33 @@ import { type Interaction, handleLabInteraction } from '../lab/labInteraction.js
 /**
  * The bot's connection to Discord, held open, so a button press reaches us.
  *
- * ## Why this exists at all
+ * The rest of this codebase talks to Discord over REST and holds nothing open. Buttons
+ * are the exception, and not by preference: a bot is told about a press in exactly two
+ * ways, and there is no third. Either Discord POSTs it to a public HTTPS URL registered
+ * on the application, or it delivers it down a WebSocket the bot already holds open.
  *
- * The rest of this codebase talks to Discord over REST and holds nothing open —
- * see the note at the top of `src/discord/discord.ts`, which is right about everything
- * it was written for. Buttons are the exception, and not by preference:
- *
- * **A bot is told about a button press in exactly two ways, and there is no
- * third.** Either Discord POSTs it to a public HTTPS URL registered on the
- * application, or it delivers it down a WebSocket the bot is already holding
- * open. The first needs the site to be reachable from the internet, with a
- * signature checked on every delivery and a tunnel in development — an amount
- * of setup out of all proportion to a light switch, and impossible while the
- * site has never been deployed. The second needs this file and nothing else:
- * no public address, no `DISCORD_PUBLIC_KEY`, no endpoint URL, nothing to
- * configure. The bot token it already has is the whole of the authentication,
- * because the connection is authenticated once at IDENTIFY rather than per
- * message.
+ * The first needs the site reachable from the internet, a signature checked on every
+ * delivery, and a tunnel in development — out of all proportion to a light switch, and
+ * impossible while the site has never been deployed. The second needs this file and
+ * nothing else: no public address, no key, nothing to configure, because the connection
+ * is authenticated once at IDENTIFY by the bot token.
  *
  * So the club runs on this, and `routes/webhooks/discordInteractions.ts` stays for the
- * day the API is on a real domain. **They cannot both be live**: an application
- * with an interactions endpoint URL has every interaction POSTed there and the
- * gateway is told nothing, so this only connects when there is no URL set. That
- * is checked once at startup, not guessed at.
+ * day the API is on a real domain. They can't both be live: an application with an
+ * interactions endpoint URL has every interaction POSTed there, so this only connects
+ * when there's no URL set — checked once at startup rather than guessed at.
  *
- * ## What is deliberately not here
+ * No `discord.js`. What a library gives you is sharding, a member cache and an event
+ * surface for a hundred things this club doesn't do. What's needed is connect, identify,
+ * heartbeat, notice when the connection has died, and resume.
  *
- * No `discord.js`. What a library gives you is sharding, a cache of every
- * guild member, and an event surface for a hundred things this club does not
- * do. What is actually needed is: connect, identify, heartbeat, notice when the
- * connection has died, and resume. That is this file, against `WebSocket` from
- * the Node runtime, with no dependency added.
+ * No intents. `intents: 0` isn't an oversight — interactions are delivered regardless of
+ * intents, and asking for message content would be asking for privileged access to run a
+ * light switch.
  *
- * **No intents.** `intents: 0` is not an oversight — interactions are delivered
- * to every bot regardless of intents, and asking for message content or member
- * lists would be asking for privileged access to run a light switch.
- *
- * ## One connection, one process
- *
- * Every instance that runs this opens its own connection and every one of them
- * is told about every press, so three API instances would flip the lab three
- * times over. At club scale there is one instance. Past that, the answer is to
- * put the API on a domain and register an interactions endpoint URL, which
- * turns this off by itself and is the shape that scales.
+ * Every instance that runs this opens its own connection and is told about every press,
+ * so three API instances would flip the lab three times over. At club scale there's one.
+ * Past that, the answer is an interactions endpoint URL, which turns this off by itself.
  */
 
 const GATEWAY = 'wss://gateway.discord.gg/?v=10&encoding=json'
@@ -72,9 +56,9 @@ const OP = {
 /**
  * Close codes Discord uses to say "do not come back".
  *
- * Reconnecting on one of these is how a bot spends its daily identify budget in
- * a loop and gets the token disabled, so they stop the retry rather than
- * lengthening it. Every other close is a network event and is retried.
+ * Reconnecting on one of these is how a bot spends its daily identify budget in a loop
+ * and gets the token disabled, so they stop the retry rather than lengthening it. Every
+ * other close is a network event and is retried.
  */
 const FATAL = new Set([4004, 4010, 4011, 4012, 4013, 4014])
 
@@ -90,20 +74,19 @@ let heartbeat: NodeJS.Timeout | null = null
 /** The last sequence number seen, which is what a RESUME is anchored to. */
 let sequence: number | null = null
 let sessionId: string | null = null
-/** Where to reconnect to keep a session — Discord hands this out at READY and
-    it is not the same host as the one you first connect to. */
+/** Where to reconnect to keep a session — Discord hands this out at READY and it isn't
+    the same host as the one you first connect to. */
 let resumeUrl: string | null = null
-/** Set when a heartbeat goes out, cleared when Discord acknowledges it. A
-    heartbeat sent while this is still set means the connection is a zombie:
-    open at the socket level, and nothing is reading the other end. */
+/** Set when a heartbeat goes out, cleared when Discord acknowledges it. A heartbeat sent
+    while this is still set means the connection is a zombie: open at the socket level,
+    and nothing reading the other end. */
 let awaitingAck = false
 let attempts = 0
 let stopped = false
 
 const backoff = () =>
-  // A few seconds, then longer, capped. Discord rate-limits identify hard, and
-  // a tight reconnect loop against an outage is how one bot becomes the
-  // outage's problem too.
+  // A few seconds, then longer, capped. Discord rate-limits identify hard, and a tight
+  // reconnect loop against an outage is how one bot becomes the outage's problem too.
   Math.min(30_000, 1_000 * 2 ** Math.min(attempts, 5)) + Math.random() * 1_000
 
 function send(payload: Payload): void {
@@ -119,9 +102,9 @@ function startHeartbeat(interval: number): void {
   stopHeartbeat()
   awaitingAck = false
 
-  // The first one is jittered across the interval, which is Discord's own
-  // instruction: every bot in the world reconnecting after an outage would
-  // otherwise heartbeat in lockstep.
+  // The first one is jittered across the interval, which is Discord's own instruction:
+  // every bot in the world reconnecting after an outage would otherwise heartbeat in
+  // lockstep.
   setTimeout(() => {
     if (socket?.readyState !== WebSocket.OPEN) return
     beat()
@@ -131,8 +114,8 @@ function startHeartbeat(interval: number): void {
 
 function beat(): void {
   if (awaitingAck) {
-    // Nothing has acknowledged the last one. The socket is open and dead, which
-    // is the failure a keepalive exists to catch — close it and resume.
+    // Nothing has acknowledged the last one. The socket is open and dead, which is the
+    // failure a keepalive exists to catch — close it and resume.
     console.warn('discord gateway: no heartbeat ack, reconnecting')
     socket?.close(4000, 'heartbeat timeout')
     return
@@ -147,8 +130,8 @@ function identify(): void {
     op: OP.IDENTIFY,
     d: {
       token: env.DISCORD_BOT_TOKEN,
-      // See the note at the top: interactions arrive regardless of intents, and
-      // asking for more would be asking for privileged access to run a switch.
+      // See the note at the top: interactions arrive regardless of intents, and asking
+      // for more would be asking for privileged access to run a switch.
       intents: 0,
       properties: { os: process.platform, browser: 'rccf-website', device: 'rccf-website' },
     },
@@ -196,9 +179,9 @@ function connect(): void {
           heartbeat_interval: number
         }
         startHeartbeat(interval)
-        // Resume if there is a session to resume; Discord replays whatever was
-        // missed. A press that arrived while the connection was down is not
-        // lost, which is the whole reason to bother resuming.
+        // Resume if there's a session to resume; Discord replays whatever was missed. A
+        // press that arrived while the connection was down isn't lost, which is the whole
+        // reason to bother resuming.
         if (sessionId) resume()
         else identify()
         return
@@ -218,8 +201,8 @@ function connect(): void {
         return
 
       case OP.INVALID_SESSION:
-        // `d` is whether the session is resumable. Not, usually — so drop it
-        // and identify fresh after the delay Discord asks for.
+        // `d` is whether the session is resumable. Not, usually — so drop it and identify
+        // fresh after the delay Discord asks for.
         if (payload.d !== true) {
           sessionId = null
           resumeUrl = null
@@ -241,14 +224,14 @@ function connect(): void {
   })
 
   ws.addEventListener('open', () => {
-    // Not connected until READY or RESUMED; the socket being open only means
-    // Discord is listening, not that it has accepted the token.
+    // Not connected until READY or RESUMED; the socket being open only means Discord is
+    // listening, not that it has accepted the token.
     console.log('discord gateway: socket open')
   })
 
   ws.addEventListener('error', () => {
-    // The close event follows and carries the reason, so this only exists to
-    // stop an unhandled error event taking the process down.
+    // The close event follows and carries the reason, so this only exists to stop an
+    // unhandled error event taking the process down.
   })
 
   ws.addEventListener('close', (event) => {
@@ -259,8 +242,8 @@ function connect(): void {
     if (stopped) return
 
     if (FATAL.has(event.code)) {
-      // Almost always a bad token or intents the application has not been
-      // granted. Retrying spends the identify budget and changes nothing.
+      // Almost always a bad token or intents the application hasn't been granted.
+      // Retrying spends the identify budget and changes nothing.
       console.error(
         `discord gateway: closed ${event.code} ${event.reason} — not reconnecting. Lab buttons are off until this is fixed and the server restarted.`,
       )
@@ -314,9 +297,9 @@ function onDispatch(payload: Payload): void {
 
   const interaction = payload.d as Interaction
 
-  // Deliberately not awaited, and the reason is the same three-second deadline
-  // the HTTP route has: `handleLabInteraction` answers without touching Discord
-  // and fires the flip off behind itself.
+  // Deliberately not awaited, for the same three-second deadline the HTTP route has:
+  // `handleLabInteraction` answers without touching Discord and fires the flip off
+  // behind itself.
   void handleLabInteraction(interaction)
     .then(async (response) => {
       if (!interaction.id || !interaction.token) return
@@ -330,9 +313,9 @@ function onDispatch(payload: Payload): void {
 /**
  * Open the connection, if this is the instance that should hold one.
  *
- * Called once at startup with whether the application has an HTTP interactions
- * endpoint. It does, and this stays shut: Discord would send the press there
- * and nothing would ever arrive here.
+ * Called once at startup with whether the application has an HTTP interactions endpoint.
+ * If it does, this stays shut: Discord would send the press there and nothing would ever
+ * arrive here.
  */
 export function startDiscordGateway(hasHttpEndpoint: boolean): void {
   if (!discordConfigured) return
@@ -348,8 +331,8 @@ export function startDiscordGateway(hasHttpEndpoint: boolean): void {
   connect()
 }
 
-/** For shutdown, so a closing process does not look like a dropped connection
-    and does not hold the event loop open. */
+/** For shutdown, so a closing process doesn't look like a dropped connection and doesn't
+    hold the event loop open. */
 export function stopDiscordGateway(): void {
   stopped = true
   stopHeartbeat()

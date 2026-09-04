@@ -28,22 +28,18 @@ import {
 /**
  * The profile photo, framed before it is sent.
  *
- * **This deliberately does not follow the project editor's "choosing the file
- * *is* the upload" rule, and the difference is what makes it the right call
- * here.** A gallery upload appends a picture to a list, so a mis-picked file
- * costs one press to remove. An avatar *replaces* — the old photo's bytes are
- * deleted the moment the new one lands — so an accidental pick is destructive
- * before anybody has looked at it.
+ * Deliberately not the project editor's "choosing the file *is* the upload" rule. A gallery upload
+ * appends a picture to a list, so a mis-picked file costs one press to remove. An avatar replaces —
+ * the old photo's bytes are deleted the moment the new one lands — so an accidental pick is
+ * destructive before anybody has looked at it.
  *
- * So this is `DraftGallery`'s flow instead, which is the same shape for the
- * same reason: the file is held in the browser as an object URL, framed against
- * the square it will actually appear in, and only sent when somebody says so.
- * The framing travels **with** the picture in the multipart body rather than as
- * a second request, so a photo cannot arrive correctly and then be left cropped
- * by a follow-up that failed on its own.
+ * So this is `DraftGallery`'s flow instead, for the same reason: the file is held in the browser as
+ * an object URL, framed against the square it will actually appear in, and only sent when somebody
+ * says so. The framing travels with the picture in the multipart body rather than as a second
+ * request, so a photo cannot arrive correctly and then be left cropped by a follow-up that failed.
  *
- * An existing photo can be re-framed without sending anything, which is the
- * other half of framing being metadata rather than a crop baked into the bytes.
+ * An existing photo can be re-framed without sending anything, which is the other half of framing
+ * being metadata rather than a crop baked into the bytes.
  */
 export function ProfilePhotoPanel({
   account,
@@ -74,10 +70,9 @@ export function ProfilePhotoPanel({
   /**
    * Hand the browser back the memory behind a preview.
    *
-   * An object URL pins the whole file until it is revoked, so half a dozen
-   * photos tried and abandoned would otherwise sit in memory for the life of
-   * the tab. Read through a ref so the cleanup does not re-run — and revoke the
-   * preview still on screen — every time anything else on the panel changes.
+   * An object URL pins the whole file until it is revoked, so half a dozen photos tried and
+   * abandoned would sit in memory for the life of the tab. Read through a ref so the cleanup does
+   * not re-run — and revoke the preview still on screen — whenever anything else changes.
    */
   const held = useRef(chosen)
   held.current = chosen
@@ -113,12 +108,11 @@ export function ProfilePhotoPanel({
   }
 
   /**
-   * Shrink the moment a file is picked rather than at upload time.
+   * Shrink when the file is picked rather than at upload time.
    *
-   * It is the same work either way, and doing it here means the picture being
-   * framed is the picture that will be sent — a photo too large to send is
-   * found out about while there is still a form to fix it in, and the framer is
-   * never showing a source the upload will not match.
+   * Same work either way, and doing it here means the picture being framed is the picture that will
+   * be sent: a photo too large to send is found out about while there is still a form to fix it in,
+   * and the framer is never showing a source the upload will not match.
    */
   const choose = async (picked: File) => {
     setBusy(true)

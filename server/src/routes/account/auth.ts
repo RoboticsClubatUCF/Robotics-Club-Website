@@ -36,54 +36,48 @@ import {
  *   POST /api/auth/password/forgot   { email }              -> 202, whatever it finds
  *   POST /api/auth/password/reset    { token, password }    -> 200
  *
- * Outside `publicApi`, like signup: none of it is cacheable, and an etag on
- * "who am I" would be actively wrong.
+ * Outside `publicApi`, like signup: none of it is cacheable, and an etag on "who am
+ * I" would be actively wrong.
  *
- * There is no registration here — creating an account is `POST /api/signup/*`,
- * which has always written a password hash. This is the half that was missing.
+ * No registration here — creating an account is `POST /api/signup/*`.
  */
 export const auth = new Hono<AuthEnv>()
 
 /**
- * Two budgets, because password guessing comes in two shapes and only one of
- * them is stopped by counting callers.
+ * Two budgets, because password guessing comes in two shapes and only one is stopped
+ * by counting callers.
  *
- * `attempts` is per caller and stops one browser working through a list of
- * addresses. It is deliberately *wider* than the site's default of five: a
- * signup or a contact message is one person doing one thing, but a login is a
- * whole building. Campus wifi, a dorm, and anything behind a NAT all arrive
- * from one address, so five would mean five sign-ins per ten minutes shared
- * between everyone on it — a limit that bites a lecture theatre and not one
- * attacker.
+ * `attempts` is per caller and stops one browser working through a list of addresses.
+ * Deliberately wider than the site's default five: a login is a whole building.
+ * Campus wifi, a dorm and anything behind a NAT arrive from one address, so five
+ * would bite a lecture theatre and not one attacker.
  *
- * `PER_ACCOUNT_MAX` is the one that actually protects a member, and it is the
- * tighter of the two on purpose. The attack worth worrying about is spread
- * across callers — a botnet trying `Knights2024!` against every account in turn
- * never trips a per-caller limit and never has to — so the budget that matters
- * is keyed on the account being guessed at. Ten, because the person most likely
- * to spend it is somebody who genuinely cannot remember which password they
- * used.
+ * `PER_ACCOUNT_MAX` is what actually protects a member, and it's the tighter of the
+ * two on purpose. The attack worth worrying about is spread across callers — a
+ * botnet trying `Knights2024!` against every account in turn never trips a per-caller
+ * limit — so the budget that matters is keyed on the account being guessed at. Ten,
+ * because the person most likely to spend it is somebody who can't remember which
+ * password they used.
  */
 const attempts = rateLimit('login', 20)
 const PER_ACCOUNT_MAX = 10
 
 const credentials = z.object({
-  // Trimmed and lowercased before validation, the same way signup does it, so
-  // the address someone types matches the one the unique constraint stored.
+  // Trimmed and lowercased before validation, the same way signup does it, so the
+  // address someone types matches the one the unique constraint stored.
   email: z.string().trim().toLowerCase().pipe(z.email().max(200)),
-  // No minimum. The rule belongs at the point a password is *set*; applying it
-  // here would refuse to even check the passwords of any account created before
-  // the rule, and tell an attacker the shape of what they are looking for.
+  // No minimum. The rule belongs where a password is set; applying it here would
+  // refuse to even check passwords of accounts created before the rule, and tell an
+  // attacker the shape of what they're looking for.
   password: z.string().min(1).max(200),
 })
 
 /**
  * One sentence for every way sign-in can fail.
  *
- * No account, wrong password, and an account that has never had a password set
- * — a roster entry an officer typed in — are one answer on purpose. Telling
- * them apart turns the login form into a way to ask whether a given student is
- * a member, one address at a time.
+ * No account, wrong password, and an account that has never had a password set are
+ * one answer on purpose. Telling them apart turns the login form into a way to ask
+ * whether a given student is a member, one address at a time.
  */
 const REFUSED = 'That email and password do not match an account.'
 
@@ -91,14 +85,12 @@ const REFUSED = 'That email and password do not match an account.'
  * What the browser is told about whoever is signed in.
  *
  * Exported, because `routes/account/account.ts` answers with the same object after
- * every write that changes one of these fields — the page adopts it straight
- * into the session context rather than re-reading `/auth/me`, and two spellings
- * of "the current user" is how the nav ends up disagreeing with the page under
- * it.
+ * every write that changes one of these fields — the page adopts it into the session
+ * context rather than re-reading `/auth/me`, and two spellings of "the current user"
+ * is how the nav ends up disagreeing with the page under it.
  *
- * `photoUrl` and its framing are here and the rest of the profile is not: the
- * nav bar and the dashboard rail draw an avatar and have nothing else to go on,
- * while nothing outside the profile page has any use for a bio.
+ * `photoUrl` and its framing are here and the rest of the profile isn't: the nav bar
+ * and the dashboard rail draw an avatar and have nothing else to go on.
  */
 export const shape = (user: {
   id: string
@@ -125,14 +117,12 @@ export const shape = (user: {
 })
 
 /**
- * The account as it is *after* the officer sync has had its say.
+ * The account as it is after the officer sync has had its say.
  *
- * Only when something moved, which is nearly never — a promotion or a demotion
- * is twice a year per person and this route runs on every page load. Read back
- * from the database rather than patched in place: a promotion is always
- * `OFFICER`, but a demotion lands on whatever the dues loop says about them,
- * and working that out a second time here is how the two answers start to
- * disagree.
+ * Only when something moved, which is nearly never. Read back from the database
+ * rather than patched in place: a promotion is always `OFFICER`, but a demotion lands
+ * on whatever the dues loop says, and working that out again here is how the two
+ * answers start to disagree.
  */
 async function reread<T extends { id: string; role: string }>(
   user: T,
@@ -158,9 +148,9 @@ auth.post(
   async (c) => {
     const { email, password } = c.req.valid('json')
 
-    // Keyed on the address rather than the caller, which is the whole point of
-    // the second budget. Consumed before the password is checked so a correct
-    // guess on the eleventh attempt is worth no more than a wrong one.
+    // Keyed on the address rather than the caller, which is the point of the second
+    // budget. Consumed before the password is checked, so a correct guess on the
+    // eleventh attempt is worth no more than a wrong one.
     const account = await consume(
       `login-account:${email}`,
       PER_ACCOUNT_MAX,
@@ -192,9 +182,9 @@ auth.post(
       },
     })
 
-    // Run scrypt even with nobody to check against. Returning early here would
-    // make a missing account roughly a hundred milliseconds faster than a wrong
-    // password, and that difference is a membership lookup for anyone timing it.
+    // Run scrypt even with nobody to check against. Returning early would make a
+    // missing account roughly a hundred milliseconds faster than a wrong password, and
+    // that difference is a membership lookup for anyone timing it.
     const ok = await verifyPassword(password, user?.passwordHash ?? NO_SUCH_PASSWORD)
 
     if (!user || !user.passwordHash || !ok) {
@@ -204,17 +194,13 @@ auth.post(
     /**
      * Convert an imported bcrypt row to scrypt, now that the plaintext exists.
      *
-     * This is the only moment it can be done. A hash cannot be converted from
-     * the outside — the old digest is not reversible, and re-hashing the *hash*
-     * would produce something no password opens. So it happens here, on the one
-     * request per account where a correct password has just been proved, and
-     * then never again for that row.
+     * The only moment it can be done: a hash can't be converted from the outside, and
+     * re-hashing the hash would produce something no password opens. So it happens on
+     * the one request per account where a correct password has just been proved.
      *
-     * Deliberately not awaited into the response's critical path any further
-     * than it already is, and deliberately swallowed on failure: the sign-in
-     * has already succeeded, the old hash still works, and the next sign-in
-     * gets another attempt. Failing the request here would cost somebody their
-     * session over bookkeeping.
+     * Swallowed on failure: the sign-in has already succeeded, the old hash still
+     * works, and the next sign-in gets another attempt. Failing here would cost
+     * somebody their session over bookkeeping.
      */
     if (needsRehash(user.passwordHash)) {
       try {
@@ -230,33 +216,27 @@ auth.post(
     /**
      * Follow the club's Discord officer role before answering.
      *
-     * The sweep that does this for everybody runs every ten minutes, and the
-     * person most likely to be standing in that window is the one who has just
-     * been handed the role and told to sign in. They would arrive to a
-     * dashboard with no officer desks on it, which reads as the site being
-     * broken rather than as a queue.
+     * The sweep runs every ten minutes, and the person most likely to be standing in
+     * that window is the one just handed the role and told to sign in. They'd arrive
+     * to a dashboard with no officer desks, which reads as broken rather than queued.
      *
-     * It follows the role **both ways** — somebody stood down in Discord loses
-     * the desks here on the same request — and it can only do that safely
-     * because it checks the configured role id against the guild's own role
-     * list before standing anybody down. `discordOfficers.ts` has the argument.
+     * It follows the role both ways, and can only do that safely because it checks the
+     * configured role id against the guild's own role list first —
+     * `discordOfficers.ts` has the argument.
      *
-     * `force`, because the throttle behind this exists for the page-load read
-     * below and a sign-in is neither frequent nor free to get wrong. It refuses
-     * silently when Discord is unreachable or the sync is not configured, so
-     * nothing about signing in depends on Discord answering.
+     * `force`, because the throttle behind this exists for the page-load read below.
+     * It refuses silently when Discord is unreachable, so nothing about signing in
+     * depends on Discord answering.
      */
     const officer = await refreshOfficerStanding(user.id, { force: true })
 
     const { token, expiresAt } = await createSession(user.id)
     setSessionCookie(c, token, expiresAt)
 
-    // Re-read only when something actually changed, so the ordinary sign-in is
-    // no more queries than it was. `shape` would otherwise print the role that
-    // was true a moment before, and the dashboard draws its rail from exactly
-    // this answer. Read back rather than patched: a demotion lands on whatever
-    // the dues loop says, which is `standingRole`'s decision and not one this
-    // route should be repeating.
+    // Re-read only when something actually changed, so the ordinary sign-in is no more
+    // queries than it was. `shape` would otherwise print the role that was true a
+    // moment before. Read back rather than patched: a demotion lands on whatever the
+    // dues loop says, which is `standingRole`'s decision.
     return c.json({ user: shape(await reread(user, officer)) })
   },
 )
@@ -264,9 +244,9 @@ auth.post(
 // ------------------------------------------------------------------ logout
 
 /**
- * `requireAuth` deliberately not used: signing out has to work from a session
- * the server has already forgotten, or a stale cookie is a browser that can
- * never get back to a clean state. The cookie is cleared either way.
+ * `requireAuth` deliberately not used: signing out has to work from a session the
+ * server has already forgotten, or a stale cookie is a browser that can never get
+ * back to a clean state. The cookie is cleared either way.
  */
 auth.post('/logout', originGuard, async (c) => {
   const token = getCookie(c, env.SESSION_COOKIE_NAME)
@@ -280,9 +260,9 @@ auth.post('/logout', originGuard, async (c) => {
 // ---------------------------------------------------------------------- me
 
 /**
- * `{ user: null }` and a 200 rather than a 401, because not being signed in is
- * the ordinary state of somebody reading the front page — not a failure, and
- * not something to put a red line in their console about on every load.
+ * `{ user: null }` and a 200 rather than a 401, because not being signed in is the
+ * ordinary state of somebody reading the front page — not a failure, and not
+ * something to put a red line in their console about on every load.
  */
 auth.get('/me', optionalAuth, async (c) => {
   const user = c.get('user')
@@ -290,16 +270,13 @@ auth.get('/me', optionalAuth, async (c) => {
   if (!user) return c.json({ user: null })
 
   /**
-   * The other half of following the officer role live: somebody handed it
-   * while already signed in never posts to `/login` again, and this is the one
-   * request every page of theirs makes.
+   * The other half of following the officer role live: somebody handed it while
+   * already signed in never posts to `/login` again, and this is the one request
+   * every page of theirs makes.
    *
-   * Not `force`, so it is throttled to one Discord lookup per person every few
-   * minutes, and it returns before any call at all for anyone whose role *and*
-   * tenure are already settled — which is most of the people reloading a
-   * dashboard. Everything else about this route is unchanged: it still answers
-   * 200 with whatever it knows, and a Discord outage costs it nothing it does
-   * not already survive.
+   * Not `force`, so it's throttled to one Discord lookup per person every few minutes,
+   * and it returns before any call at all for anyone whose role and tenure are already
+   * settled — most of the people reloading a dashboard.
    */
   const officer = await refreshOfficerStanding(user.id)
 
@@ -312,14 +289,13 @@ auth.get('/me', optionalAuth, async (c) => {
 /**
  * Getting back in without a password.
  *
- * The same shape as signup's verification and for the same reasons: a link
- * mailed to an address, stored only as a SHA-256, spent by a POST the reset
- * page makes rather than by the GET that opens it — mail scanners follow every
- * URL in an incoming message, and against a GET endpoint that would use the
- * link up before the student ever clicked it.
+ * The same shape as signup's verification and for the same reasons: a link mailed to
+ * an address, stored only as a SHA-256, spent by a POST the reset page makes rather
+ * than by the GET that opens it — mail scanners follow every URL in an incoming
+ * message, and against a GET endpoint that spends the link before the student clicks.
  *
- * Until this existed the login page told people to ask an officer, who set a
- * hash by hand in Prisma Studio.
+ * Until this existed the login page told people to ask an officer, who set a hash by
+ * hand in Prisma Studio.
  */
 
 const resetRequests = rateLimit('password-reset', 5)
@@ -327,25 +303,17 @@ const resetRequests = rateLimit('password-reset', 5)
 /**
  * And a floor under those five: thirty seconds between one caller's requests.
  *
- * `resetRequests` is a ten-minute allowance, and an allowance says nothing
- * about *shape* — all five of it can be spent in the same second, at five
- * different addresses, which is five people opening their inbox to a reset
- * link they did not ask for. A script does that in the time the page takes to
- * settle. Thirty seconds is longer than a mail round trip and shorter than
- * anyone's patience for one they genuinely missed, so it costs a real person
- * nothing and costs the loop its whole rate.
+ * `resetRequests` is a ten-minute allowance, and an allowance says nothing about
+ * shape — all five can be spent in the same second at five different addresses, which
+ * is five people opening their inbox to a reset link they didn't ask for. Thirty
+ * seconds is longer than a mail round trip and shorter than anyone's patience.
  *
- * Its own scope, because it is a different window on the same caller and a
- * scope holds one row per caller. Middleware rather than a `consume` in the
- * handler — unlike the contact form's daily budget, spending this on a
- * malformed body is right: nothing about the shape of a request tells you
- * whether it came from a person.
+ * Its own scope, because it's a different window on the same caller. Middleware
+ * rather than a `consume` in the handler: spending this on a malformed body is right,
+ * since nothing about a request's shape tells you whether a person sent it.
  *
- * Deliberately *not* on `/password/reset` below, which shares `resetRequests`
- * with this one. That endpoint mails nobody — it spends a token somebody is
- * holding — and the password it is given can be refused for being too short.
- * A thirty-second wait between attempts at your own new password is a punishment
- * for typing, and there is no spam on the other end of it to prevent.
+ * Deliberately not on `/password/reset`, which mails nobody — a thirty-second wait
+ * between attempts at your own new password is a punishment for typing.
  */
 const RESET_COOLDOWN_SECONDS = 30
 
@@ -356,14 +324,12 @@ const resetCooldown = rateLimit('password-reset-burst', 1, {
 })
 
 /**
- * The second budget, keyed on the *address* rather than the caller.
+ * The second budget, keyed on the address rather than the caller.
  *
- * Login has two for one reason and this has two for another. This endpoint
- * sends mail to somebody else's inbox, so the thing worth limiting is how often
- * one address can be made to receive it — a per-caller budget alone lets a
- * botnet mail one person a reset link all afternoon from a different address
- * every time. Three, because nobody legitimately needs a fourth link in ten
- * minutes; the third one is already the "check your spam" attempt.
+ * This endpoint sends mail to somebody else's inbox, so the thing worth limiting is
+ * how often one address can be made to receive it — a per-caller budget alone lets a
+ * botnet mail one person a reset link all afternoon from a different address every
+ * time. Three, because the third is already the "check your spam" attempt.
  */
 const PER_ADDRESS_MAX = 3
 
@@ -372,12 +338,11 @@ const hashToken = (token: string) =>
   createHash('sha256').update(token).digest('hex')
 
 /**
- * One answer whatever is found, and it is the whole security property.
+ * One answer whatever is found, and it's the whole security property.
  *
- * A 404 for an unknown address would turn this into a membership lookup — type
- * an address, learn whether that person is in the club — which is exactly what
- * `REFUSED` above exists to prevent on the form next to it. So the sentence is
- * about what *would* happen rather than what did.
+ * A 404 for an unknown address would turn this into a membership lookup — type an
+ * address, learn whether that person is in the club. So the sentence is about what
+ * would happen rather than what did.
  */
 const SENT =
   'If there is an account for that address, a link to set a new password is on its way.'
@@ -410,9 +375,9 @@ auth.post(
       select: { id: true },
     })
 
-    // Nobody by that address. Answered exactly as a hit is, and deliberately
-    // without the ~100ms of scrypt the login route spends matching its timing:
-    // nothing is hashed on either branch here, so both cost one indexed read.
+    // Nobody by that address. Answered exactly as a hit is, and deliberately without
+    // the ~100ms of scrypt the login route spends matching its timing: nothing is
+    // hashed on either branch here, so both cost one indexed read.
     if (!user) return c.json({ status: 'sent', message: SENT }, 202)
 
     const token = randomBytes(32).toString('base64url')
@@ -421,9 +386,9 @@ auth.post(
     )
     const tokenHash = hashToken(token)
 
-    // Upsert on the account, so asking again replaces the pending reset rather
-    // than leaving two live links — the same reasoning as signup's upsert on
-    // the address, and what makes "I never got it, send it again" safe.
+    // Upsert on the account, so asking again replaces the pending reset rather than
+    // leaving two live links — the same reasoning as signup's upsert, and what makes
+    // "I never got it, send it again" safe.
     await prisma.passwordReset.upsert({
       where: { userId: user.id },
       update: { tokenHash, expiresAt },
@@ -453,10 +418,10 @@ auth.post(
         })
       }
 
-      // Development with no Postmark account, which is the normal state of a
-      // checkout. The link goes to the log so the flow can be walked end to
-      // end; it is never put in the response, because a token handed to the
-      // caller proves nothing about the address it was meant for.
+      // Development with no Postmark account, which is the normal state of a checkout.
+      // The link goes to the log so the flow can be walked end to end; never into the
+      // response, because a token handed to the caller proves nothing about the
+      // address it was meant for.
       console.log(
         `password reset ${email}: no mailer configured — reset link is ${env.passwordResetUrl}?token=${encodeURIComponent(token)}`,
       )
@@ -475,9 +440,8 @@ auth.post(
     z.object({
       token: z.string().min(1).max(200),
       /**
-       * Long, and nothing else — the same rule as signup, and the comment there
-       * is the argument. It belongs here because this is a point where a
-       * password is *set*, which is the only place a length rule ever belongs.
+       * Long, and nothing else — the same rule as signup, and the comment there is the
+       * argument. It belongs here because this is a point where a password is set.
        */
       password: z.string().min(10).max(200),
     }),
@@ -490,9 +454,9 @@ auth.post(
       select: { id: true, userId: true, expiresAt: true },
     })
 
-    // Expired, unknown and already-spent are one 410 with one sentence, exactly
-    // as signup does it: they are the same thing from where the person is
-    // standing, and telling them apart would confirm which tokens exist.
+    // Expired, unknown and already-spent are one 410 with one sentence, exactly as
+    // signup does it: they're the same thing from where the person is standing, and
+    // telling them apart would confirm which tokens exist.
     if (!pending || pending.expiresAt <= new Date()) {
       throw new HTTPException(410, {
         message:
@@ -502,8 +466,8 @@ auth.post(
 
     const passwordHash = await hashPassword(password)
 
-    // One transaction: a password set beside a link that still works is a
-    // second way in that nobody knows about.
+    // One transaction: a password set beside a link that still works is a second way
+    // in that nobody knows about.
     await prisma.$transaction([
       prisma.user.update({
         where: { id: pending.userId },
@@ -512,10 +476,9 @@ auth.post(
       prisma.passwordReset.delete({ where: { id: pending.id } }),
     ])
 
-    // Every session, with no exception — the reset page has none of its own to
-    // keep, and if the reason for the reset is that somebody else got in, then
-    // leaving that somebody signed in is the one outcome this flow exists to
-    // prevent. They sign in with the new password, which is what the page says.
+    // Every session, with no exception. The reset page has none of its own to keep, and
+    // if the reason for the reset is that somebody else got in, leaving that somebody
+    // signed in is the one outcome this flow exists to prevent.
     await dropAllSessions(pending.userId)
 
     return c.json({ status: 'reset' })

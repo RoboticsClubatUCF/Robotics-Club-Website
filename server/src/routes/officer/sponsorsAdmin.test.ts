@@ -10,36 +10,27 @@ import { MAX_IN_KIND } from './sponsorsAdmin.js'
 /**
  * The sponsor desk, and the two public reads it feeds.
  *
- * **Three global tables, isolated three different ways**, and none of them is
- * optional — a fixture here is a real company on the club's real front page, or
- * a real price on the sheet a real business is reading, for the length of a test.
+ * Three global tables, isolated three different ways, and none of it is optional — a fixture
+ * here is a real company on the club's real front page, or a real price on the sheet a real
+ * business is reading, for the length of a test.
  *
- * - `sponsors` is namespaced. Every fixture's name starts with the prefix and
- *   cleanup deletes exactly those. Nothing selects "all sponsors".
- * - `sponsor_tier_offers` **cannot be namespaced** — it is four rows keyed by
- *   the enum, and they are the club's. So this suite borrows exactly one of
- *   them, `ALUMINUM_ALLY`, reads it before each test and puts it back (or
- *   deletes it, if there was none) after. Same shape as `lab.test.ts` borrowing
- *   the one lab row, and the reason it is one tier rather than four: clearing
- *   the table would be cheaper to write and would leave the club with no price
+ * - `sponsors` is namespaced. Every fixture's name starts with the prefix and cleanup deletes
+ *   exactly those. Nothing selects "all sponsors".
+ * - `sponsor_tier_offers` can't be namespaced — it's four rows keyed by the enum, and they're
+ *   the club's. So this suite borrows exactly one, reads it before each test and puts it back.
+ *   One tier rather than four because clearing the table would leave the club with no price
  *   list at all if a run died in the middle.
- * - `in_kind_offers` is namespaced by title **and** its order is borrowed, for
- *   the reason `heroSlides.test.ts` borrows the slideshow's: the reorder route
- *   rewrites `sort_order` on every row there is, the club's included.
- * - `sponsorship_sheet` is the club's fine print in a single row keyed
- *   `current`, so it is borrowed outright — the same as the tier, and the same
- *   as `lab.test.ts` with the lab row. "Absent" is one of the states it is
- *   restored to, because a club that has written no footnotes has no row.
+ * - `in_kind_offers` is namespaced by title and its order is borrowed, because the reorder
+ *   route rewrites `sort_order` on every row there is.
+ * - `sponsorship_sheet` is the club's fine print in a single row, so it's borrowed outright.
+ *   "Absent" is one of the states it's restored to, because a club that has written no
+ *   footnotes has no row.
  *
- * **Nothing counts absolutely.** The club may have sponsors listed and ways to
- * help written; the cap case fills the room that is actually left rather than
- * assuming six slots are free, and the listing cases assert on this suite's own
- * rows.
+ * Nothing counts absolutely. The cap case fills the room that's actually left rather than
+ * assuming six slots are free.
  *
- * Nothing here reaches Discord — no route on this desk messages anybody or
- * writes a role — but `fetch` is stubbed to fail all the same, because
- * `requireCurrentDues` reads UCF's calendar and session resolution can ask
- * Discord about an officer's standing.
+ * Nothing here reaches Discord, but `fetch` is stubbed to fail all the same, because
+ * `requireCurrentDues` reads UCF's calendar.
  */
 
 const PREFIX = 'test-sponsor-'
@@ -341,11 +332,10 @@ describe('the sponsor desk', () => {
   })
 
   /**
-   * The address bar has not shown `https://` since about 2018, so `example.com`
-   * is what somebody copying a sponsor's website off a business card types —
-   * and `z.url()` refused it, taking the whole add down with it. The scheme is
-   * added rather than demanded, and what is stored is the corrected address, so
-   * the box reads back the way the link will resolve.
+   * The address bar hasn't shown `https://` since about 2018, so `example.com` is what somebody
+   * copying a sponsor's website off a business card types — and `z.url()` refused it, taking the
+   * whole add down with it. The scheme is added rather than demanded, and what's stored is the
+   * corrected address.
    */
   it('accepts a website with no scheme and stores it with one', async () => {
     const sponsor = await addSponsor('northgate', { websiteUrl: 'northgate.example' })
@@ -357,10 +347,10 @@ describe('the sponsor desk', () => {
   })
 
   /**
-   * `z.url()` on its own calls `javascript:alert(1)` a perfectly good URL, and
-   * this column is printed into an `href` on the front page. Officers are the
-   * only people who can write it, so this is a lock on the inside — but it is
-   * the difference between a stored script in the club's own markup and a 400.
+   * `z.url()` on its own calls `javascript:alert(1)` a perfectly good URL, and this column is
+   * printed into an `href` on the front page. Officers are the only people who can write it, so
+   * this is a lock on the inside — but it's the difference between a stored script in the club's
+   * own markup and a 400.
    */
   it('refuses a scheme that is not http', async () => {
     const response = await send('POST', '/api/officer/sponsors', officerCookie, {
@@ -375,12 +365,10 @@ describe('the sponsor desk', () => {
   })
 
   /**
-   * **The refusal has to be a sentence.** `zValidator` answers a bad body with
-   * `{ success: false, error: <ZodError> }`, and the browser only lifts `error`
-   * when it is a string — so every schema failure on this site reached the
-   * officer as "That change did not go through. Try again in a moment.", which
-   * is advice for a broken server and useless for a typo. `validate` in
-   * `core/validate.ts` is what makes this one name the field it was about.
+   * The refusal has to be a sentence. `zValidator` answers a bad body with
+   * `{ success: false, error: <ZodError> }`, and the browser only lifts `error` when it's a
+   * string — so every schema failure reached the officer as "That change did not go through. Try
+   * again in a moment.", which is advice for a broken server and useless for a typo.
    */
   it('names the field when the body is refused', async () => {
     const response = await send('POST', '/api/officer/sponsors', officerCookie, {

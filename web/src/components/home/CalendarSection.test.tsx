@@ -95,11 +95,10 @@ const agendaRow = async (title: string) =>
   (await agendaEntry(title)).closest('article')!
 
 /**
- * The square's own button — the overlay that sits behind its contents, and no
- * longer the only button in the cell: every chip is one now, and so is the "add
- * to calendar" trigger on each chip's card. Matched on the count at the end of
- * its label rather than on the whole of it, because the date in front is a
- * localised string and would tie these to whichever locale the runner has.
+ * The square's own button — the overlay behind its contents, and no longer the only button in the
+ * cell: every chip is one now, and so is the add-to-calendar trigger on each chip's card. Matched
+ * on the count at the end of its label rather than the whole of it, because the date in front is
+ * a localised string and would tie these to whichever locale the runner has.
  */
 const dayButton = (day: number) =>
   within(cellFor(day)).getByRole('button', { name: /\d+ events?$/ })
@@ -462,10 +461,9 @@ describe('CalendarSection', () => {
   })
 
   /**
-   * The square is a target and a day with nothing on it is not one: there is
-   * nothing to open, and thirty empty tab stops between the ones that matter
-   * help nobody. On a phone the chips are not rendered at all, so the square is
-   * the only way to reach an event from the grid.
+   * The square is a target and a day with nothing on it isn't one: there's nothing to open, and
+   * thirty empty tab stops between the ones that matter help nobody. On a phone the chips aren't
+   * rendered at all, so the square is the only way to reach an event from the grid.
    */
   it('makes a day with events pressable, and one without it not', async () => {
     vi.stubGlobal('fetch', stubFetch({ '/events': [event()] }))

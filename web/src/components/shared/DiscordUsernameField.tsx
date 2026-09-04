@@ -4,24 +4,19 @@ import { fieldClass, labelClass } from './formChrome'
 import instructionsUrl from '../../assets/DiscordInstructions.png'
 
 /**
- * The Discord handle, checked against the club's server while it is typed.
+ * The Discord handle, checked against the club's server while it's typed.
  *
- * This field gets more machinery than the rest of the form put together, and it
- * earns it: nearly everything the club plans to build on an account joins on
- * this string, so a handle that is one character out is a member who quietly
- * never gets added to anything. Finding that out here costs a correction;
- * finding it out in April costs somebody's semester.
+ * This field gets more machinery than the rest of the form put together, and it earns it: nearly
+ * everything the club plans to build on an account joins on this string, so a handle one character
+ * out is a member who quietly never gets added to anything. Finding that out here costs a
+ * correction; finding it out in April costs somebody's semester.
  *
- * Two mistakes account for almost all of them. Typing the display name instead
- * of the username — Discord shows the display name everywhere and the username
- * almost nowhere — which is what the screenshot beside the label is for. And
- * not being in the club's server at all, which is why the answer comes from a
- * search of that server and sits directly under the invite QR code.
+ * Two mistakes account for almost all of them. Typing the display name instead of the username —
+ * which is what the screenshot beside the label is for. And not being in the club's server at all,
+ * which is why the answer comes from a search of that server and sits under the invite QR code.
  *
- * It lives in `shared/` because two pages use it now — signup, and the profile
- * page editing the handle on an account that already exists. That is the rule
- * `formChrome` came from: a component earns this folder by being used twice,
- * not by looking reusable.
+ * It lives in `shared/` because two pages use it: signup, and the profile page editing the handle
+ * on an account that already exists.
  */
 
 type CheckState =
@@ -97,12 +92,10 @@ export function DiscordUsernameField({
   /**
    * Which endpoint answers "is this handle free".
    *
-   * The default is signup's, which is unauthenticated and calls a handle taken
-   * if *any* account holds it. The profile page passes `/account/discord-check`
-   * instead, which excuses the caller — without that, somebody re-saving the
-   * handle they already have is told it is taken by themselves, which reads as
-   * the field being broken. Which row to excuse is decided from the session on
-   * the server and is deliberately not something this can ask for.
+   * The default is signup's, which is unauthenticated and calls a handle taken if any account
+   * holds it. The profile page passes `/account/discord-check` instead, which excuses the caller —
+   * without that, somebody re-saving the handle they already have is told it's taken by
+   * themselves. Which row to excuse is decided from the session on the server.
    */
   checkPath?: string
 }) {

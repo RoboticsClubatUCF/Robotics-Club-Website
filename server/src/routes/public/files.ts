@@ -11,30 +11,25 @@ import { type AuthEnv, optionalAuth } from '../../auth/session.js'
  *
  *   GET /api/files/:id -> the bytes
  *
- * Access follows `kind`. An IMAGE is public — it is a project cover on a
- * public page, and hiding it there would just break the page. A DOCUMENT is
- * public for the same reason: it hangs off a project's documentation page,
- * which anybody may read. A PRINT_MODEL is somebody's part: its uploader and
- * the officers who print it, nobody else.
+ * Access follows `kind`. An IMAGE is public — it is a project cover on a public page, and hiding it
+ * there would just break the page. A DOCUMENT is public for the same reason: it hangs off a
+ * project's documentation page, which anybody may read. A PRINT_MODEL is somebody's part: its
+ * uploader and the officers who print it, nobody else.
  *
- * Cache headers follow the same split. Images and documents are `immutable`
- * because an id is minted per upload and never reused — replacing either is a
- * new id, so a cached copy can never go stale, only unreferenced. Models are
- * `no-store`: they get deleted when the job settles, and a browser cache
- * holding a part the club was asked to stop storing misses the point of
- * deleting it.
+ * Cache headers follow the same split. Images and documents are `immutable` because an id is minted
+ * per upload and never reused — replacing either is a new id, so a cached copy can never go stale,
+ * only unreferenced. Models are `no-store`: they get deleted when the job settles, and a browser
+ * cache holding a part the club was asked to stop storing misses the point of deleting it.
  *
- * **A DOCUMENT is the one kind served inline, and that is the whole reason it
- * is the one kind carrying security headers.** Rendering a member-supplied PDF
- * in an `<iframe>` runs it on *this* origin — the origin the session cookie
- * lives on — and PDF viewers execute script. `Content-Security-Policy: sandbox`
- * drops the response into an opaque origin so it can reach nothing of ours, and
- * the PDF still renders. `nosniff`, plus a Content-Type decided from the
- * filename rather than read out of `mimeType`, closes the other half: that
- * column is whatever the uploading browser claimed it was.
+ * A DOCUMENT is the one kind served inline, and that is why it is the one kind carrying security
+ * headers. Rendering a member-supplied PDF in an `<iframe>` runs it on this origin — the origin the
+ * session cookie lives on — and PDF viewers execute script. `Content-Security-Policy: sandbox`
+ * drops the response into an opaque origin so it can reach nothing of ours, and the PDF still
+ * renders. `nosniff`, plus a Content-Type decided from the filename rather than read out of
+ * `mimeType`, closes the other half: that column is whatever the uploading browser claimed.
  *
- * Mounted outside `publicApi` so the etag/public-cache middleware never
- * touches these responses — this route sets its own headers.
+ * Mounted outside `publicApi` so the etag/public-cache middleware never touches these responses —
+ * this route sets its own headers.
  */
 export const files = new Hono<AuthEnv>()
 
@@ -70,14 +65,12 @@ files.get('/:id', optionalAuth, async (c) => {
     /**
      * Saving rather than viewing, asked for in the query string.
      *
-     * `?download=1` exists because the obvious way does not work: `<a download>`
-     * is **ignored on a cross-origin link**, and the site and the API are always
-     * different origins here. So the only thing that can turn a viewable
-     * document into a saved one is this header, and the only way the browser can
-     * ask for it is the URL. A PDF is otherwise served `inline` — an `<iframe>`
-     * pointed at an `attachment` downloads the file instead of rendering it, so
-     * the whole viewer hangs off that. Anything else has no browser viewer to
-     * reach and arrives as a download either way.
+     * `?download=1` exists because the obvious way does not work: `<a download>` is ignored on a
+     * cross-origin link, and the site and the API are always different origins here. So the only
+     * thing that can turn a viewable document into a saved one is this header, and the only way the
+     * browser can ask for it is the URL. A PDF is otherwise served `inline` — an `<iframe>` pointed
+     * at an `attachment` downloads the file instead of rendering it, so the whole viewer hangs off
+     * that. Anything else has no browser viewer to reach and arrives as a download either way.
      */
     const saving = c.req.query('download') === '1'
 

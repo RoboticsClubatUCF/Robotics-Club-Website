@@ -6,10 +6,9 @@ import type { ApiMembership, ApiTerm, ApiUser, UserRole } from '../../lib/api/ap
 import { bodyOf, stubFetch, urlOf } from '../../test/stubFetch'
 
 /**
- * The panel is two things stacked, and they are gated differently: the state is
- * for everybody and the switch is for officers. Both halves are asserted here,
- * because the split is the only role branch on the whole overview and the
- * reason it exists is not obvious from the markup.
+ * The panel is two things stacked, gated differently: the state is for everybody and the switch is
+ * for officers. Both halves are asserted here, because the split is the only role branch on the
+ * whole overview and the reason for it is not obvious from the markup.
  */
 
 const userWith = (role: UserRole): ApiUser =>

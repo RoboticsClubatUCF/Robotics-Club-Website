@@ -33,21 +33,18 @@ export const SessionContext = createContext<SessionContextValue | null>(null)
 /**
  * On the board, as the site draws it.
  *
- * `UserRole` has one slot per person with `ADMIN` above `OFFICER`, so "is this
- * an officer" is those two values and there is no third. It was written out as
- * that pair in ten components, which is nine chances to type one of them and
- * forget the other — and the failure is silent in the worst direction: an admin
- * who is missed simply loses a desk, with nothing in the build to say so.
+ * `UserRole` has one slot per person with `ADMIN` above `OFFICER`, so "is this an officer" is those
+ * two values and there is no third. It was written out as that pair in ten components, which is
+ * nine chances to type one of them and forget the other — and the failure is silent in the worst
+ * direction: an admin who is missed simply loses a desk, with nothing in the build to say so.
  *
- * **The mirror of `isOfficer` in `server/src/auth/authz.ts`, and only that
- * server copy decides anything.** Every route behind an officer desk goes
- * through `requireOfficer`; this one chooses what to *draw*. Hiding is never
- * enforcing, and the two are allowed to be written separately for that reason —
- * but they must agree, or the site offers a control the API refuses.
+ * The mirror of `isOfficer` in `server/src/auth/authz.ts`, and only that server copy decides
+ * anything. Every route behind an officer desk goes through `requireOfficer`; this one chooses what
+ * to draw. Hiding is never enforcing, and the two are allowed to be written separately for that
+ * reason — but they must agree, or the site offers a control the API refuses.
  *
- * Takes the role rather than the user, because half the callers hold a
- * `DashboardContext` and half a bare `ApiUser`, and the role is the whole of
- * what it reads.
+ * Takes the role rather than the user, because half the callers hold a `DashboardContext` and half
+ * a bare `ApiUser`.
  */
 export const isOfficer = (role: ApiUser['role']): boolean =>
   role === 'ADMIN' || role === 'OFFICER'

@@ -194,10 +194,9 @@ describe('MembersPage', () => {
   })
 
   /**
-   * A `?subteam=` used to narrow this page and is gone with the club divisions
-   * it named. A stale link must land on the roster rather than on nothing —
-   * which it does by the parameter being read by nobody, and that is worth a
-   * test because the failure it prevents is a bookmark that opens an empty
+   * A `?subteam=` used to narrow this page and is gone with the club divisions it named. A stale
+   * link has to land on the roster rather than on nothing — which it does by the parameter being
+   * read by nobody. Worth a test because the failure it prevents is a bookmark that opens an empty
    * page.
    */
   it('ignores a stale filter left in the URL', async () => {
@@ -225,10 +224,10 @@ describe('MembersPage', () => {
   })
 
   /**
-   * Per chip, because the default one is a filter. "Nobody has an account yet"
-   * in answer to an empty membership would be a claim about the whole table
-   * made by a query that never looked at it — and a club with three hundred
-   * signups and nobody paid up is a real state, at the start of a term.
+   * Per chip, because the default one is a filter. "Nobody has an account yet" in answer to an
+   * empty membership would be a claim about the whole table made by a query that never looked at it
+   * — and a club with three hundred signups and nobody paid up is a real state at the start of a
+   * term.
    */
   it('says which list is empty, not that the club is', async () => {
     vi.stubGlobal('fetch', stubFetch({ '/members': [] }))

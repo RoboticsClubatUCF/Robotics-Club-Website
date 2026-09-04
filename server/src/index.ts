@@ -32,18 +32,17 @@ import { stripeConfigured, webhooksConfigured } from './payments/stripe.js'
 
 const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
   console.log(`API listening on http://localhost:${info.port}/api`)
-  // Said out loud at startup because the alternative is finding out from an
-  // officer who never got a message. Unconfigured is a supported state, not a
-  // broken one — the row is still written either way.
+  // Said out loud at startup because the alternative is finding out from an officer who
+  // never got a message. Unconfigured is supported, not broken — the row is still
+  // written either way.
   console.log(
     mailConfigured
       ? `Contact notifications → ${env.CONTACT_TO_EMAIL ?? ''}`
       : 'Contact notifications OFF (no POSTMARK_TOKEN) — messages are stored only',
   )
-  // Signup is the case where no mailer is not survivable: the verification link
-  // is the flow, not a notification on top of it. In development the link goes
-  // to this log instead, which is worth saying before somebody goes looking for
-  // an email that was never sent.
+  // Signup is the case where no mailer isn't survivable: the verification link is the
+  // flow, not a notification on top of it. In development the link goes to this log,
+  // which is worth saying before somebody hunts for an email that was never sent.
   if (!mailConfigured) {
     console.log(
       env.NODE_ENV === 'production'
@@ -51,35 +50,33 @@ const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
         : 'Signup verification links go to this log (no POSTMARK_TOKEN)',
     )
   }
-  // An unchecked Discord handle is stored looking exactly like a checked one,
-  // and everything the club builds on top of it joins on that string.
+  // An unchecked Discord handle is stored looking exactly like a checked one, and
+  // everything the club builds on top of it joins on that string.
   console.log(
     discordConfigured
       ? `Discord username checks → guild ${env.DISCORD_GUILD_ID ?? ''}`
       : 'Discord username checks OFF (no DISCORD_BOT_TOKEN) — handles are stored unconfirmed',
   )
-  // Who is an officer is a permission level, and this is the setting that
-  // decides whether Discord or a person answers that. Worth a line either way:
-  // switched on, somebody carrying the role is promoted and somebody who has
-  // lost it is stood down on their very next request, with the ten-minute sweep
-  // as the backstop for everyone not currently browsing. The first sweep after
-  // it is switched on is the one to watch.
+  // Who is an officer is a permission level, and this setting decides whether Discord
+  // or a person answers that. Switched on, somebody carrying the role is promoted and
+  // somebody who lost it is stood down on their next request, with the ten-minute sweep
+  // as backstop. The first sweep after it goes on is the one to watch.
   console.log(
     officerSyncConfigured
       ? `Discord officer sync → role ${env.DISCORD_OFFICER_ROLE_ID ?? ''}`
       : 'Discord officer sync OFF (no DISCORD_OFFICER_ROLE_ID) — officers are set by hand',
   )
-  // Same direction, one column, and worth its own line because when it is off
-  // the roster's ALUMNI chip is simply empty — which reads exactly like a page
-  // that is broken rather than a feature nobody switched on.
+  // Same direction, one column, and worth its own line because when it's off the
+  // roster's ALUMNI chip is simply empty — which reads exactly like a broken page
+  // rather than a feature nobody switched on.
   console.log(
     alumniSyncConfigured
       ? `Discord alumni sync → role ${env.DISCORD_OFFICER_ALUMNI_ROLE_ID ?? ''}`
       : 'Discord alumni sync OFF (no DISCORD_OFFICER_ALUMNI_ROLE_ID) — the roster’s ALUMNI chip will be empty',
   )
-  // The only thing here that writes to somebody else's service, so it says
-  // which of the three club roles it is allowed to touch rather than a bare
-  // on/off. A project's own role is not listed — that lives on the row.
+  // The only thing here that writes to somebody else's service, so it says which of the
+  // three club roles it may touch rather than a bare on/off. A project's own role isn't
+  // listed — that lives on the row.
   const pushed = [
     memberRoleId && 'member',
     projectLeadRoleId && 'project lead',
@@ -90,26 +87,23 @@ const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
       ? `Discord role sync → ${pushed.join(', ')}${roleSyncDryRun ? ' (DRY RUN — nothing is written)' : ''}`
       : 'Discord role sync OFF (no role ids) — only projects carrying a role are synced',
   )
-  // The lab sign. Off is a supported state — officers still open and close the
-  // lab on the site and the landing page still says which — so this says which
-  // of the two is running, because from inside the dashboard they look
-  // identical.
+  // The lab sign. Off is supported — officers still open and close the lab on the site
+  // and the landing page still says which — so this says which of the two is running,
+  // because from inside the dashboard they look identical.
   console.log(
     labChannelConfigured
       ? `Lab status → Discord channel ${env.DISCORD_LAB_CHANNEL_ID ?? ''} (Discord is the record; the site follows it)`
       : 'Lab status Discord sign OFF (no DISCORD_LAB_CHANNEL_ID) — the site still tracks whether the lab is open',
   )
-  // The other half of the sign, and the half that is invisible when it is
-  // missing: without it the message carries no buttons at all, so "there is no
-  // button in Discord" and "the endpoint is wrong" look identical from the
-  // channel. Said here as well as warned about in `env.ts`, because this is the
-  // line somebody reads when an officer asks where the button went.
+  // The other half of the sign, and the half that's invisible when missing: without it
+  // the message carries no buttons, so "there is no button in Discord" and "the endpoint
+  // is wrong" look identical from the channel. This is the line somebody reads when an
+  // officer asks where the button went.
   //
-  // **A bot is told about a button press in exactly two ways and there is no
-  // third**, and which one is running is a fact about the *application* rather
-  // than a setting here: an application with an interactions endpoint URL has
-  // every press POSTed there and its gateway told nothing. So Discord is asked
-  // once, at startup, and the answer decides whether to hold a socket open.
+  // A bot is told about a press in exactly two ways, and which one is running is a fact
+  // about the application rather than a setting here: an application with an
+  // interactions endpoint URL has every press POSTed there and its gateway told
+  // nothing. So Discord is asked once, at startup.
   void confirmInteractionEndpoint()
     .then((check) => {
       switch (check.status) {
@@ -120,10 +114,9 @@ const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
           return
 
         case 'endpoint_unusable':
-          // The worst of the four states, and the only one worth a stack of
-          // words: presses go to that URL, this server refuses every one of
-          // them, and the gateway is not told either. Nothing works, and from
-          // inside the channel it looks exactly like a button nobody wired up.
+          // The worst of the four states: presses go to that URL, this server refuses
+          // every one, and the gateway isn't told either. Nothing works, and from inside
+          // the channel it looks exactly like a button nobody wired up.
           console.error(
             `Lab buttons BROKEN — the application POSTs presses to ${check.url} and ${check.reason}. Either fix that, or clear the Interactions Endpoint URL in the developer portal and restart, which puts the buttons on the gateway and needs no public address at all.`,
           )
@@ -131,8 +124,8 @@ const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
           return
 
         case 'no_endpoint':
-          // The road the club runs on. No public address, no key, nothing to
-          // configure — the bot token is the whole of it.
+          // The road the club runs on. No public address, no key, nothing to configure —
+          // the bot token is the whole of it.
           startDiscordGateway(false)
           return
 
@@ -141,9 +134,8 @@ const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
           return
 
         default:
-          // Asked and not answered. Buttons stay off rather than being attached
-          // on a guess, and the next restart that can reach Discord turns them
-          // on.
+          // Asked and not answered. Buttons stay off rather than being attached on a
+          // guess, and the next restart that can reach Discord turns them on.
           console.log(
             `Lab buttons OFF — could not ask Discord which way presses are delivered (${check.reason}). They come back on the next restart that can.`,
           )
@@ -153,8 +145,8 @@ const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
     .catch((error: unknown) => {
       console.error('discord: interactions endpoint check failed', error)
     })
-  // A dues page that cannot take a card looks exactly like one that can, right
-  // up to the moment somebody tries.
+  // A dues page that can't take a card looks exactly like one that can, right up to the
+  // moment somebody tries.
   console.log(
     stripeConfigured
       ? `Dues → Stripe (${(env.DUES_SEMESTER_CENTS / 100).toFixed(2)}/semester, ${(env.DUES_YEAR_CENTS / 100).toFixed(2)}/year)${webhooksConfigured ? '' : ', webhooks OFF'}`
@@ -168,17 +160,16 @@ const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
     )
   }
 
-  // Which term the server thinks it is, said out loud, because it is the first
-  // thing anyone asks when the dues page quotes a date that looks wrong.
+  // Which term the server thinks it is, said out loud, because it's the first thing
+  // anyone asks when the dues page quotes a date that looks wrong.
   void primeCalendar().catch((error: unknown) => {
     console.error('ucf calendar: initial fetch failed', error)
   })
 })
 
-// Closed rate-limit windows and expired signup links are dead rows. Every
-// instance sweeps; the deletes are idempotent, so overlapping runs are
-// harmless. unref() keeps the timer from holding the process open during
-// shutdown.
+// Closed rate-limit windows and expired signup links are dead rows. Every instance
+// sweeps; the deletes are idempotent, so overlapping runs are harmless. unref() keeps
+// the timer from holding the process open during shutdown.
 const sweep = setInterval(
   () => {
     void sweepRateLimits().catch((error: unknown) => {
@@ -187,9 +178,9 @@ const sweep = setInterval(
     void sweepSignups().catch((error: unknown) => {
       console.error('signup verification sweep failed', error)
     })
-    // The other two hashed-token tables. Same reasoning as the signup one:
-    // these rows are a live way into somebody's account, and an expired one is
-    // not something to leave sitting in a table.
+    // The other two hashed-token tables. Same reasoning as the signup one: these rows
+    // are a live way into somebody's account, and an expired one isn't something to
+    // leave sitting in a table.
     void sweepPasswordResets().catch((error: unknown) => {
       console.error('password reset sweep failed', error)
     })
@@ -201,16 +192,15 @@ const sweep = setInterval(
     })
     forgetFinishedTerms()
 
-    // These three run in *sequence*, unlike everything else on this tick, and
-    // the order is the point. Dues decide what somebody is; the club's Discord
-    // role decides whether they are an officer on top of that; only once both
-    // have settled is it worth telling Discord which roles they should carry.
-    // Firing them together would push a state that the next two lines were
-    // about to change, and the club would see a role flicker every ten minutes.
+    // These three run in sequence, unlike everything else on this tick, and the order is
+    // the point. Dues decide what somebody is; the Discord role decides whether they're
+    // an officer on top of that; only once both have settled is it worth telling Discord
+    // which roles they should carry. Firing them together would push a state the next
+    // two lines were about to change, and the club would see a role flicker every ten
+    // minutes.
     //
-    // It also means `sweepLapsedMembers` needs no hook of its own: it demotes
-    // in one bulk `updateMany` with no per-row callback, and the role sweep
-    // reconciling straight afterwards in the same tick covers it.
+    // It also means `sweepLapsedMembers` needs no hook of its own: it demotes in one
+    // bulk `updateMany`, and the role sweep straight afterwards covers it.
     void sweepLapsedMembers()
       .then((report) => {
         // Quiet unless it did something. Most of the year there is nothing
@@ -224,13 +214,10 @@ const sweep = setInterval(
       .catch((error: unknown) => {
         console.error('membership sweep failed', error)
       })
-      // The other half of who somebody is: dues decide MEMBER vs GUEST above,
-      // the club's Discord role decides OFFICER here. Off unless
-      // `DISCORD_OFFICER_ROLE_ID` is set, and it stands down rather than
-      // writing anything whenever the guild cannot be read or the answer looks
-      // like a misconfiguration. See `src/discord/discordOfficers.ts` — all four
-      // refusals are documented there and every one of them is about not
-      // standing the whole board down by accident.
+      // The other half of who somebody is: dues decide MEMBER vs GUEST above, the club's
+      // Discord role decides OFFICER here. Off unless `DISCORD_OFFICER_ROLE_ID` is set,
+      // and it stands down rather than writing whenever the guild can't be read or the
+      // answer looks like a misconfiguration — see `src/discord/discordOfficers.ts`.
       .then(() => syncDiscordOfficers())
       .then((report) => {
         // Quiet unless it did something. This fires every ten minutes and the
@@ -245,13 +232,10 @@ const sweep = setInterval(
       .catch((error: unknown) => {
         console.error('discord officer sync failed', error)
       })
-      // Who used to run the club, from the same direction — Discord's Officer
-      // Alumni role into `User.officerAlumnus`, which is what the roster's
-      // ALUMNI chip selects on. In this chain rather than beside it because it
-      // is a third full walk of the guild, and three of those fired at once is
-      // exactly the shape Discord throttles. Off unless
-      // `DISCORD_OFFICER_ALUMNI_ROLE_ID` is set; it writes one column and
-      // nothing follows from it. See `src/discord/discordAlumni.ts`.
+      // Who used to run the club, from the same direction — Discord's Officer Alumni
+      // role into `User.officerAlumnus`. In this chain rather than beside it because
+      // it's a third full walk of the guild, and three of those at once is exactly the
+      // shape Discord throttles. Off unless `DISCORD_OFFICER_ALUMNI_ROLE_ID` is set.
       .then(() => syncOfficerAlumni())
       .then((report) => {
         // Quiet unless it did something. The club's alumni list changes when a
@@ -265,12 +249,11 @@ const sweep = setInterval(
       .catch((error: unknown) => {
         console.error('discord alumni sync failed', error)
       })
-      // And the direction nothing else on this server goes: Postgres out to
-      // Discord. Everything above decided what people *are*; this hands out the
-      // roles that follow from it. Off unless one of the role ids is set or a
-      // project carries one, and it refuses rather than writes whenever the
-      // guild cannot be read or a removal looks like a misconfiguration. See
-      // `src/discord/discordRoles.ts`.
+      // And the direction nothing else on this server goes: Postgres out to Discord.
+      // Everything above decided what people are; this hands out the roles that follow.
+      // Off unless a role id is set or a project carries one, and it refuses rather than
+      // writes whenever the guild can't be read or a removal looks like a
+      // misconfiguration.
       .then(() => sweepDiscordRoles())
       .then((report) => {
         if (report.added + report.removed > 0) {
@@ -278,9 +261,8 @@ const sweep = setInterval(
             `discord roles: ${report.added} added, ${report.removed} removed across ${report.people} matched member(s)`,
           )
         }
-        // Both of these mean the sweep deliberately did less than it worked
-        // out, and neither is an error — but silence would make a backlog look
-        // like nothing to do.
+        // Both of these mean the sweep deliberately did less than it worked out, and
+        // neither is an error — but silence would make a backlog look like nothing to do.
         if (report.budgetSpent) {
           console.log(
             'discord roles: write budget spent, the rest follows next sweep',
@@ -296,21 +278,19 @@ const sweep = setInterval(
         console.error('discord role sync failed', error)
       })
 
-    // Three jobs on one row. It locks the lab up when the building shuts at ten
-    // — the site masks that immediately, but the row and the Discord sign need
-    // writing — it **reads the sign back and corrects the row against it**,
-    // which is what makes Discord the record rather than a projection, and it
-    // re-pushes a sign that did not land, almost always the channel *name*:
-    // Discord allows two renames per ten minutes and this tick is that same
-    // window, so a throttled one lands on the very next pass.
+    // Three jobs on one row. It locks the lab up when the building shuts at ten, it
+    // reads the sign back and corrects the row against it — which is what makes Discord
+    // the record rather than a projection — and it re-pushes a sign that didn't land,
+    // almost always the channel name: Discord allows two renames per ten minutes and
+    // this tick is that same window.
     void sweepLabStatus()
       .then((report) => {
         if (report.closed) {
           console.log('lab status: building hours reached, lab closed')
         }
         if (report.adopted) {
-          // Worth a line of its own: it means the site and Discord had drifted,
-          // and the direction they were put back in was Discord's.
+          // Worth a line of its own: it means the site and Discord had drifted, and the
+          // direction they were put back in was Discord's.
           console.log("lab status: the row was corrected to match Discord's sign")
         }
         if (report.retried) {
@@ -321,11 +301,10 @@ const sweep = setInterval(
         console.error('lab status sweep failed', error)
       })
 
-    // Unlike the sweeps above this one *sends* something, and it still runs on
-    // every instance: the reminder is claimed by writing the deadline it is
-    // about onto the loan, conditional on the value read a moment earlier, so
-    // two instances arriving together means one write and one no-op. See
-    // `src/equipment/equipmentReminder.ts`.
+    // Unlike the sweeps above this one sends something, and it still runs on every
+    // instance: the reminder is claimed by writing the deadline it's about onto the
+    // loan, conditional on the value read a moment earlier, so two instances arriving
+    // together means one write and one no-op.
     void sweepReturnReminders()
       .then((report) => {
         if (report.claimed > 0) {
@@ -338,15 +317,12 @@ const sweep = setInterval(
         console.error('return reminder sweep failed', error)
       })
 
-    // The other sender, claimed the same way and for the same reason — the
-    // deadline the message named, written onto the task conditional on the
-    // value read a moment earlier. Deliberately *not* chained onto the
-    // membership sequence above: that ordering is about Postgres settling
-    // before Discord is told who is a member, and nothing here writes a role.
+    // The other sender, claimed the same way and for the same reason. Deliberately not
+    // chained onto the membership sequence above: that ordering is about Postgres
+    // settling before Discord is told who is a member, and nothing here writes a role.
     //
-    // `sent` counts messages and `claimed` counts tasks, which is why the line
-    // says both rather than reading them as one number: somebody with three
-    // late tasks gets one DM. See `src/discord/taskReminder.ts`.
+    // `sent` counts messages and `claimed` counts tasks, which is why the line says
+    // both: somebody with three late tasks gets one DM.
     void sweepTaskReminders()
       .then((report) => {
         if (report.claimed > 0) {
@@ -373,9 +349,9 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     shuttingDown = true
 
     clearInterval(sweep)
-    // Closed deliberately rather than left to the process exiting: a socket
-    // that goes without a close frame reads to Discord as a dropped connection,
-    // and the next start pays an identify for a session it could have resumed.
+    // Closed deliberately rather than left to the process exiting: a socket that goes
+    // without a close frame reads to Discord as a dropped connection, and the next start
+    // pays an identify for a session it could have resumed.
     stopDiscordGateway()
     server.close(() => {
       void prisma.$disconnect().then(() => process.exit(0))

@@ -5,19 +5,16 @@ import { sweepReturnReminders } from './equipmentReminder.js'
 import { LoanStatus, UserRole } from '../generated/prisma/enums.js'
 
 /**
- * The "due back tomorrow" DM, and the property that matters: exactly one per
- * deadline.
+ * The "due back tomorrow" DM, and the property that matters: exactly one per deadline.
  *
- * **This sweep is roster-wide.** It takes every checked-out loan falling due
- * inside the lead window, not only the ones these tests made. The isolation
- * here is the clock: every fixture loan is due in **2035** and every call
- * passes a 2035 `now`, so the window the sweep looks at cannot contain a real
- * loan. Nothing belonging to a real member is claimed, messaged, or written to.
+ * This sweep is roster-wide — it takes every checked-out loan falling due inside the lead window,
+ * not only the ones these tests made. The isolation here is the clock: every fixture loan is due in
+ * 2035 and every call passes a 2035 `now`, so the window the sweep looks at cannot contain a real
+ * loan.
  *
- * Both Discord calls are stubbed for the usual reasons — one would DM a real
- * account, the other would search the club's actual guild — and
- * `discordConfigured` is forced true because the sweep declines to run without
- * a bot, which is not something the assertions should depend on.
+ * Both Discord calls are stubbed for the usual reasons — one would DM a real account, the other
+ * would search the club's actual guild — and `discordConfigured` is forced true because the sweep
+ * declines to run without a bot, which is not something the assertions should depend on.
  */
 vi.mock('../discord/discord.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../discord/discord.js')>()),

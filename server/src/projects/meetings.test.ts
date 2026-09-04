@@ -7,20 +7,16 @@ import { Season } from '../generated/prisma/enums.js'
 /**
  * Turning "Tuesdays and Thursdays, six till ten" into squares on a calendar.
  *
- * This is the arithmetic that used to live in the browser, where it could see
- * neither the end of a term nor finals week and therefore respected neither.
- * Both bounds are the point of the move, so both are asserted here, and so is
- * the thing that made a wall-clock schedule worth keeping out of timestamps in
- * the first place: **a meeting is at six in Orlando in July and at six in
- * Orlando in December**, and the instant that means moves by an hour in between.
+ * This is the arithmetic that used to live in the browser, where it could see neither the end of a
+ * term nor finals week and therefore respected neither. Both bounds are the point of the move, so
+ * both are asserted here — and so is the thing that made a wall-clock schedule worth keeping out
+ * of timestamps: a meeting is at six in Orlando in July and at six in Orlando in December, and the
+ * instant that means moves by an hour in between.
  *
- * `fetch` is stubbed rather than `getTerm` mocked, the same way
- * `semester.test.ts` does it and for the same reason — the feed parsing that
- * decides when finals is would otherwise not be exercised at all. Nothing here
- * reaches calendar.ucf.edu.
+ * `fetch` is stubbed rather than `getTerm` mocked, the way `semester.test.ts` does it: the feed
+ * parsing that decides when finals is would otherwise not be exercised at all.
  *
- * Fixtures are pinned to **2035**, far enough out that no real row and no real
- * sweep is anywhere near them.
+ * Fixtures are pinned to 2035, far enough out that no real row is anywhere near them.
  */
 
 /** A term as UCF publishes one. `Classes End` is what finals hangs off. */
@@ -169,11 +165,10 @@ describe('expanding a weekly meeting', () => {
   /**
    * The reason the columns hold wall-clock strings rather than timestamps.
    *
-   * Daylight saving ends on the first Sunday in November, so a meeting either
-   * side of it is at the same hour on campus and at *different* instants. A
-   * naive "add seven days to the first occurrence" would put every meeting
-   * after the first weekend in November an hour early, for six weeks, on the
-   * public calendar.
+   * Daylight saving ends on the first Sunday in November, so a meeting either side of it is at the
+   * same hour on campus and at different instants. A naive "add seven days to the first
+   * occurrence" would put every meeting after the first weekend in November an hour early, for six
+   * weeks, on the public calendar.
    */
   it('holds six o clock across the end of daylight saving', async () => {
     const [from, to] = window('2035-10-25T00:00:00Z', '2035-11-20T00:00:00Z')
@@ -193,13 +188,11 @@ describe('expanding a weekly meeting', () => {
   })
 
   /**
-   * The description is the lead's, or it is nothing.
+   * The description is the lead's, or it's nothing.
    *
-   * This module used to write a sentence of its own onto every occurrence —
-   * the project's name, the room, and the fact that it runs to the end of the
-   * semester, all of which the reader already had. A lead who has nothing to
-   * add now gets a blank description rather than that, which is the same call
-   * `meetingLine` makes when there is no schedule to print.
+   * This module used to write a sentence of its own onto every occurrence — the project's name,
+   * the room, and the fact that it runs to the end of the semester, all of which the reader
+   * already had. A lead who has nothing to add now gets a blank description.
    */
   it('carries the lead note as the description, and nothing when there is none', async () => {
     const [from, to] = window('2035-09-01T00:00:00Z', '2035-10-01T00:00:00Z')

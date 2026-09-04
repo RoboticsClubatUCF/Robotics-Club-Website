@@ -5,34 +5,23 @@ import { ProjectMemberRank, Season, UserRole } from '../generated/prisma/enums.j
 /**
  * Handing out the Discord roles the site says people should have.
  *
- * **The dangerous direction.** `discordOfficers.test.ts` is the suite that can
- * damage the *database*; this is the one that can damage the club's actual
- * Discord server. Nothing here writes a row — the sweep only reads Postgres —
- * so there is no tripwire on roles or dues to build. What there is instead is a
- * total mock of `./discord.js`: every read and both writes are fakes, and the
- * development `.env` carries a live bot token for the club's real guild, so an
- * unmocked run would add and remove roles on real people's accounts.
- * `checkDiscordHandle` is in that list because `recipientFor` reaches for it on
- * a row that has a handle and no snowflake.
+ * The dangerous direction. `discordOfficers.test.ts` can damage the database; this can damage the
+ * club's actual Discord server. Nothing here writes a row, so there's no tripwire to build. What
+ * there is instead is a total mock of `./discord.js`: every read and both writes are fakes, and
+ * the development `.env` carries a live bot token for the club's real guild.
  *
- * **Three reads, and which one is used is itself under test.** The sweep walks
- * the whole guild once (`guildRoster`); the one-person path reads one member
- * (`guildMemberRoles`) because a walk per person would make deleting a
- * twenty-member project twenty walks; the bulk path shares a single walk across
- * a roster. Two tests below assert which of those was called and not just what
- * was written.
+ * Three reads, and which one is used is itself under test. The sweep walks the whole guild once;
+ * the one-person path reads one member, because a walk per person would make deleting a
+ * twenty-member project twenty walks; the bulk path shares a single walk. Two tests assert which
+ * was called and not just what was written.
  *
- * **The second isolation is the stubbed roster**, and it is what keeps the
- * assertions honest rather than what keeps the club safe. The sweep considers
- * every user carrying a Discord identity, real ones included — but somebody
- * the roster does not mention is skipped before any change is computed, so a
- * roster containing only this suite's invented snowflakes means the only
- * changes it can produce are its own. A test at the bottom asserts exactly
- * that, because it is the property the whole design leans on.
+ * The second isolation is the stubbed roster, and it keeps the assertions honest rather than the
+ * club safe. The sweep considers every user carrying a Discord identity, real ones included — but
+ * somebody the roster doesn't mention is skipped before any change is computed, so a roster
+ * containing only invented snowflakes means the only changes it can produce are its own.
  *
- * No clock to pin and no calendar to stub, which is a consequence of the rule
- * under test: the member role follows `duesPaidThrough` literally, so nothing
- * here asks `membershipStanding` and nothing depends on what month it is.
+ * No clock to pin and no calendar to stub, which is a consequence of the rule under test: the
+ * member role follows `duesPaidThrough` literally.
  */
 
 const MEMBER_ROLE = '900000000000000001'
@@ -327,12 +316,10 @@ describe('sweepDiscordRoles', () => {
   })
 
   it('takes nothing but the member role off a lapsed lead', async () => {
-    // The rule end to end, and the one worth pinning at this level rather than
-    // on `desiredRoles` alone: dues buy the Members role and nothing else, so
-    // lapsing costs exactly that one. Rank and crew are earned on a project and
-    // no sweep reaches for them — the same line `authz.ts` draws when it locks
-    // a lapsed member's tools and leaves their standing on a build alone. The
-    // unmanaged role is here so the case fails if the removal loop ever widens.
+    // The rule end to end, and worth pinning at this level rather than on `desiredRoles` alone:
+    // dues buy the Members role and nothing else, so lapsing costs exactly that one. Rank and
+    // crew are earned on a project and no sweep reaches for them. The unmanaged role is here so
+    // the case fails if the removal loop ever widens.
     const user = await makeUser('lapsedlead', {
       discordId: snowflake(12),
       duesPaidThrough: LAPSED,
@@ -705,11 +692,10 @@ describe('the isolation this suite depends on', () => {
 /**
  * What a project's crew role may be.
  *
- * **A project's role is added and removed as people join and leave it**, which
- * is what makes pointing one at a club-wide role a disaster rather than a typo:
- * the first person to leave a project whose role is Members loses their
- * membership role in the guild, and the sweep and the project sync then fight
- * over it every ten minutes.
+ * A project's role is added and removed as people join and leave it, which is what makes pointing
+ * one at a club-wide role a disaster rather than a typo: the first person to leave a project
+ * whose role is Members loses their membership role in the guild, and the sweep and the project
+ * sync then fight over it every ten minutes.
  */
 describe('assertUsableRole', () => {
   const refuses = async (roleId: string, named: string) => {
@@ -752,10 +738,9 @@ describe('assertUsableRole', () => {
   })
 
   /**
-   * **The half that must not be skipped.** The guild lookup is skipped while
-   * Discord is down, deliberately — an outage there must not stop somebody
-   * creating a project. The reserved check is read off `env`, costs nothing and
-   * is the one that prevents damage rather than a typo, so it still holds.
+   * The half that must not be skipped. The guild lookup is skipped while Discord is down,
+   * deliberately — an outage there must not stop somebody creating a project. The reserved check
+   * is read off `env`, costs nothing and is the one that prevents damage rather than a typo.
    */
   it('refuses a club role even while Discord is unreachable', async () => {
     roles.mockResolvedValue({ status: 'unavailable', reason: 'discord down' })

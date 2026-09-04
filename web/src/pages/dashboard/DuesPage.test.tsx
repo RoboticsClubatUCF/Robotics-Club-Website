@@ -10,17 +10,15 @@ import { bodyOf, urlOf } from '../../test/stubFetch'
 /**
  * The dues page.
  *
- * What this suite is really for is one club rule that is easy to lose: **the
- * option to pay is offered in every state**, including the two where nothing is
- * owed. Somebody on the free trial, or reading this in the middle of a free
- * summer, has to be able to settle the term ahead now rather than being told to
- * come back later — and the states where that is most tempting to hide are
- * exactly the ones where the page has good news to deliver.
+ * What this suite is really for is one club rule that's easy to lose: the option to pay is
+ * offered in every state, including the two where nothing is owed. Somebody on the free trial,
+ * or reading this in the middle of a free summer, has to be able to settle the term ahead now —
+ * and the states where that's most tempting to hide are exactly the ones where the page has
+ * good news to deliver.
  *
- * `lib/stripe` is stubbed rather than a publishable key being put in the test
- * environment. Without it `stripeKeyConfigured` is false and the page correctly
- * renders "card payments are not switched on", which would mean none of the
- * assertions below could see a plan at all.
+ * `lib/stripe` is stubbed rather than a publishable key being put in the test environment.
+ * Without it the page correctly renders "card payments are not switched on", which would mean
+ * none of the assertions below could see a plan at all.
  */
 vi.mock('../../lib/dues/stripe', () => ({
   // Never reached: nothing here gets as far as opening a payment form, which
@@ -89,10 +87,9 @@ function duesStatus(over: Partial<ApiDuesStatus> = {}): ApiDuesStatus {
 }
 
 function stubApi(status: ApiDuesStatus, sync?: unknown) {
-  // `_init` is declared even though it is ignored: without it `mock.calls`
-  // types as a one-element tuple and the assertion on what was posted to
-  // `/dues/sync` could only reach the body through a cast. Same reason every
-  // stub in `test/stubFetch.ts` declares it.
+  // `_init` is declared even though it's ignored: without it `mock.calls` types as a
+  // one-element tuple and the assertion on what was posted to `/dues/sync` could only reach the
+  // body through a cast.
   const stub = vi.fn((input: string | URL | Request, _init?: RequestInit) => {
     const url = urlOf(input)
 
@@ -144,16 +141,13 @@ const json = (body: unknown) =>
 /**
  * Mid-summer 2026, pinned.
  *
- * The claim panel asks whether the billable term has *started* — that is what
- * separates "the break is free" from "the first three weeks are free", and the
- * two are different sentences to somebody sitting in class. Against the real
- * clock this suite would say one thing in August and the other in September,
- * which is the failure `testing.md` describes: arithmetic tested against today
- * passes in one month and fails in another.
+ * The claim panel asks whether the billable term has started — that's what separates "the break
+ * is free" from "the first three weeks are free", and the two are different sentences to
+ * somebody sitting in class. Against the real clock this suite would say one thing in August
+ * and the other in September.
  *
- * Only `Date` is faked. Faking the timers as well would break every
- * `findByText` below — Testing Library polls by advancing the clock, and a
- * frozen one never resolves.
+ * Only `Date` is faked. Faking the timers as well would break every `findByText` — Testing
+ * Library polls by advancing the clock, and a frozen one never resolves.
  */
 const MID_SUMMER = new Date('2026-06-20T12:00:00')
 
@@ -223,11 +217,10 @@ describe('DuesPage', () => {
   /**
    * The one state where "you can pay" needs qualifying.
    *
-   * The server has always quoted a paid-up member the *next* uncovered term —
-   * `coverageFor` walks past `duesPaidThrough` — but the page said nothing about
-   * it, and the reading that invites is that the club is charging twice for the
-   * semester you are sitting in. Somebody who believes that either doesn't pay
-   * or pays and then asks an officer where the money went.
+   * The server has always quoted a paid-up member the next uncovered term, but the page said
+   * nothing about it — and the reading that invites is that the club is charging twice for the
+   * semester you're sitting in. Somebody who believes that either doesn't pay or pays and then
+   * asks an officer where the money went.
    */
   it('tells a paid-up member they are buying a term ahead', async () => {
     const fall2027: ApiTerm = {
@@ -294,12 +287,10 @@ describe('DuesPage', () => {
   /**
    * The free summer, and the button that claims it.
    *
-   * Summer used to be free *silently* — the calendar covered everybody,
-   * including every account that has not been near the club in three years.
-   * Claiming makes "active over the summer" something a person did, and it
-   * spares the backend flipping the whole roster twice a year. What this suite
-   * pins is that the section is offered only when there is something to claim,
-   * that it is plainly not a payment, and that it re-reads afterwards.
+   * Summer used to be free silently — the calendar covered everybody, including every account
+   * that hasn't been near the club in three years. Claiming makes "active over the summer"
+   * something a person did. What this suite pins is that the section is offered only when
+   * there's something to claim, that it's plainly not a payment, and that it re-reads after.
    */
   describe('the free summer', () => {
     const freeSummer = (over: Partial<ApiDuesStatus['membership']> = {}) =>
@@ -340,12 +331,11 @@ describe('DuesPage', () => {
     })
 
     /**
-     * The phase that did not exist before, and the one this panel got wrong.
+     * The phase that didn't exist before, and the one this panel got wrong.
      *
-     * The window used to stop on the term's first day, so "summer or a break"
-     * covered every case it could be shown in. It now runs three weeks *into*
-     * the term — and calling that "the break" to somebody in week one of
-     * classes is plainly wrong to the person reading it.
+     * The window used to stop on the term's first day, so "summer or a break" covered every
+     * case it could be shown in. It now runs three weeks into the term — and calling that "the
+     * break" to somebody in week one of classes is plainly wrong.
      */
     it('calls the opening weeks what they are, not a break', async () => {
       vi.setSystemTime(new Date('2026-08-30T12:00:00'))
@@ -413,12 +403,10 @@ describe('DuesPage', () => {
     /**
      * The bug this exists to keep dead.
      *
-     * `ACTIVE` used to mean exactly "paid through a date in the future", and
-     * the paying-ahead note read `paidThrough` on the strength of it. Claiming
-     * a free window broke that assumption: it makes somebody active while their
-     * *old* `paidThrough` sits in the past. A member who lapsed in December and
-     * claimed the summer was told "you are already paid through December 10,
-     * 2025" — their own lapsed date read back to them as current cover.
+     * `ACTIVE` used to mean exactly "paid through a date in the future", and the paying-ahead
+     * note read `paidThrough` on the strength of it. Claiming a free window broke that: it makes
+     * somebody active while their old `paidThrough` sits in the past. A member who lapsed in
+     * December and claimed the summer was told "you are already paid through December 10, 2025".
      */
     it('never reads a lapsed date back as cover to a claimed free member', async () => {
       stubApi(
@@ -530,9 +518,9 @@ describe('DuesPage', () => {
   })
 
   /**
-   * Unconfigured Stripe is a supported state, not a broken one. Dues were
-   * collected in person for the whole life of the previous site, and a member
-   * trying a dead button three times before giving up is worse than being told.
+   * Unconfigured Stripe is a supported state, not a broken one. Dues were collected in person
+   * for the whole life of the previous site, and a member trying a dead button three times
+   * before giving up is worse than being told.
    */
   it('says so rather than showing a dead button when payments are off', async () => {
     stubApi(duesStatus({ paymentsEnabled: false }))
@@ -547,15 +535,12 @@ describe('DuesPage', () => {
   /**
    * Coming back from the bank.
    *
-   * A card the bank wants to authenticate takes the member off this site
-   * entirely and returns them to `/dues?payment_intent=…` in a *fresh page
-   * load* — none of the state that was here before survives it. The query
-   * string is the only thing left to go on, and everything below is about
-   * handling it exactly once.
+   * A card the bank wants to authenticate takes the member off this site entirely and returns
+   * them to `/dues?payment_intent=…` in a fresh page load — none of the state that was here
+   * survives it. The query string is the only thing left to go on, and everything below is
+   * about handling it exactly once.
    *
-   * This is as far as the payment can be followed without a real browser: the
-   * hop out to the bank and Stripe's own iframe need one. The server half of
-   * the same path is covered in `server/src/routes/member/dues.test.ts`.
+   * This is as far as the payment can be followed without a real browser.
    */
   describe('landing back from a redirect', () => {
     const RETURNED =
@@ -572,10 +557,9 @@ describe('DuesPage', () => {
     })
 
     /**
-     * The effect clears the query string it just read, which re-runs it, and
-     * StrictMode double-invokes besides. Confirming twice is not merely
-     * wasteful — it is the page telling the server about a payment it has
-     * already been told about, which is the exact shape of a double-credit bug.
+     * The effect clears the query string it just read, which re-runs it, and StrictMode
+     * double-invokes besides. Confirming twice isn't merely wasteful — it's the page telling the
+     * server about a payment it has already been told about.
      */
     it('confirms it once, not once per render', async () => {
       const stub = stubApi(duesStatus())
@@ -594,11 +578,10 @@ describe('DuesPage', () => {
     })
 
     /**
-     * This screen used to claim Stripe had emailed a receipt. It hadn't:
-     * Stripe sends one automatically in live mode only, and only when the
-     * account has "Successful payments" switched on — never for a test payment.
-     * The hosted receipt it *does* create for every successful charge is the
-     * thing to link to, and the page must not go back to promising an inbox.
+     * This screen used to claim Stripe had emailed a receipt. It hadn't: Stripe sends one
+     * automatically in live mode only, and only with "Successful payments" switched on. The
+     * hosted receipt it does create for every charge is the thing to link to, and the page must
+     * not go back to promising an inbox.
      */
     it('links the receipt rather than claiming one was emailed', async () => {
       stubApi(duesStatus())
@@ -648,12 +631,10 @@ describe('DuesPage', () => {
     })
 
     /**
-     * A first payment is not only a date — it takes the account off GUEST and
-     * onto the roster ladder. The session context is the single copy of that
-     * the nav and the dashboard sidebar read, and it was fetched before any of
-     * this happened, so the page has to ask again. Without this the member
-     * pays, lands on the dashboard, and is still shown a guest's view of it
-     * until they reload by hand.
+     * A first payment isn't only a date — it takes the account off GUEST and onto the roster
+     * ladder. The session context is the single copy of that the nav and sidebar read, and it
+     * was fetched before any of this happened. Without this the member pays, lands on the
+     * dashboard, and is still shown a guest's view of it until they reload by hand.
      */
     it('re-reads who is signed in, because paying changes it', async () => {
       const stub = stubApi(duesStatus())
@@ -678,10 +659,9 @@ describe('DuesPage', () => {
     /**
      * The re-read is housekeeping and the payment is not.
      *
-     * Somebody who has just been charged must not be shown "we can't reach the
-     * server" because the *follow-up* request failed — which is exactly what
-     * happens if the confirmation screen sits behind the page's error gate
-     * rather than in front of it.
+     * Somebody who has just been charged must not be shown "we can't reach the server" because
+     * the follow-up request failed — which is exactly what happens if the confirmation screen
+     * sits behind the page's error gate rather than in front of it.
      */
     it('keeps the confirmation when the re-read then fails', async () => {
       const status = duesStatus()
@@ -761,13 +741,11 @@ describe('DuesPage', () => {
   })
 
   /**
-   * A term an officer comped is a row here too, with their name on it. Without
-   * that, somebody who paid a treasurer in cash sees a dues page saying they
-   * have never paid anything — which was the state before the grant route
-   * existed, because the officer edited the column by hand and nothing else.
+   * A term an officer comped is a row here too, with their name on it. Without that, somebody
+   * who paid a treasurer in cash sees a dues page saying they've never paid anything.
    *
-   * "$0.00" would be the literal truth about the money and the wrong sentence
-   * about what happened, so the amount is replaced rather than printed.
+   * "$0.00" would be the literal truth about the money and the wrong sentence about what
+   * happened, so the amount is replaced rather than printed.
    */
   it('shows a comped term as granted, with who granted it', async () => {
     stubApi(

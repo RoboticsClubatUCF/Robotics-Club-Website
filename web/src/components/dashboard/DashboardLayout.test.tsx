@@ -7,11 +7,10 @@ import type { ApiMembership, ApiMyProject, ApiTerm, ApiUser } from '../../lib/ap
 import { stubFetch, stubFetchNetworkError, urlOf } from '../../test/stubFetch'
 
 /**
- * The layout is the dashboard's one session gate, so what is worth testing is
- * exactly the gate: nobody signed out sees a child page, an unreachable API is
- * named rather than treated as signed-out, and the officer-only `/ MANAGE` group
- * follows the role. The children themselves are not under test — the outlet renders a
- * plain marker instead.
+ * The layout is the dashboard's one session gate, so what's worth testing is exactly the gate:
+ * nobody signed out sees a child page, an unreachable API is named rather than treated as
+ * signed-out, and the officer-only `/ MANAGE` group follows the role. The children themselves
+ * aren't under test — the outlet renders a plain marker.
  */
 
 const user = (over: Partial<ApiUser> = {}): ApiUser => ({
@@ -58,11 +57,10 @@ const duesStatus = (over: Partial<ApiMembership> = {}) => ({
 })
 
 /**
- * `paidThrough` is deliberately a date that has genuinely gone by, unlike the
- * 2035 term above. It is what tells a member the sweep demoted apart from
- * somebody who never joined, and that reading compares against the wall clock —
- * so a "lapsed" fixture dated in the future would read as a newcomer instead.
- * Any past date stays past for ever, which is what makes this one stable.
+ * `paidThrough` is deliberately a date that has genuinely gone by, unlike the 2035 term above.
+ * It's what tells a member the sweep demoted apart from somebody who never joined, and that
+ * reading compares against the wall clock — so a "lapsed" fixture dated in the future would
+ * read as a newcomer instead.
  */
 const lapsed = duesStatus({
   status: 'EXPIRED',
@@ -189,9 +187,9 @@ describe('DashboardLayout', () => {
   })
 
   /**
-   * Everything the rail offers has to stay inside the section. Dues was the one
-   * exception and it was the wrong shape — clicking a rail link and losing the
-   * rail makes the dashboard feel like a set of separate pages.
+   * Everything the rail offers has to stay inside the section. Dues was the one exception and it
+   * was the wrong shape — clicking a rail link and losing the rail makes the dashboard feel like
+   * a set of separate pages.
    */
   it('keeps every rail link inside the dashboard', async () => {
     vi.stubGlobal(
@@ -261,9 +259,9 @@ describe('DashboardLayout', () => {
   })
 
   /**
-   * The rail is this term only. A member three years in wants this Thursday's
-   * meeting, not a history — and without the split MY PROJECTS grows for ever,
-   * because a build that runs across semesters is one row per semester now.
+   * The rail is this term only. A member three years in wants this Thursday's meeting, not a
+   * history — and without the split MY PROJECTS grows for ever, because a build that runs across
+   * semesters is one row per semester now.
    */
   it('lists this term only, and offers the rest as a page', async () => {
     vi.stubGlobal(
@@ -347,12 +345,10 @@ describe('DashboardLayout', () => {
 /**
  * Dues lapsing locks the tools and leaves everything else alone.
  *
- * Presentation only — `requireCurrentDues` on the server is what actually
- * refuses — but the rail is where somebody finds out, so what it does in this
- * state is worth pinning: the management rows stay *visible* and stop being
- * links, because a menu that quietly loses three items reads as broken rather
- * than as owed, and MY PROJECTS is untouched because they have not stopped
- * being on their projects.
+ * Presentation only — `requireCurrentDues` is what actually refuses — but the rail is where
+ * somebody finds out, so what it does in this state is worth pinning: the management rows stay
+ * visible and stop being links, because a menu that quietly loses three items reads as broken
+ * rather than as owed, and MY PROJECTS is untouched.
  */
 describe('when dues lapse', () => {
   const withDues = (role: ApiUser['role'], dues: unknown) =>
@@ -427,10 +423,9 @@ describe('when dues lapse', () => {
   /**
    * The padlocks are the whole message here, deliberately.
    *
-   * The rail used to carry a paragraph explaining the lapse as well. It was the
-   * fourth place saying it — the badges show the state, the overview carries the
-   * prompt to pay, and every locked page explains itself when opened — and it
-   * said it on every screen, permanently, to somebody who already knew.
+   * The rail used to carry a paragraph explaining the lapse as well. It was the fourth place
+   * saying it — the badges show the state, the overview carries the prompt to pay, and every
+   * locked page explains itself when opened — and it said it on every screen, permanently.
    */
   it('locks without a lecture about it', async () => {
     vi.stubGlobal('fetch', withDues('OFFICER', lapsed))
@@ -468,19 +463,16 @@ describe('when dues lapse', () => {
   /**
    * The stricter gate, and the case it exists for.
    *
-   * `hasAccess: true` here — over the summer, between terms and inside the
-   * opening weeks the server says everybody is covered, because that is what
-   * makes those free. Standing alone would therefore hand the printers and the
-   * loan shelf to an account made ten minutes ago, so the two rows that spend
-   * club money ask for a member as well.
+   * `hasAccess: true` here — over the summer, between terms and inside the opening weeks the
+   * server says everybody is covered, because that's what makes those free. Standing alone would
+   * therefore hand the printers and the loan shelf to an account made ten minutes ago.
    */
   /**
    * An unclaimed free window locks the rail exactly like an unpaid term does.
    *
-   * This test used to be about a *guest*, and the rail used to lock these two
-   * rows on a stricter rule than the rest. Both went: access is the dues date,
-   * so a free window nobody has claimed is no access, and every locked row in
-   * the rail is locked by the one condition.
+   * This test used to be about a guest, and the rail used to lock these two rows on a stricter
+   * rule than the rest. Both went: access is the dues date, so a free window nobody has claimed
+   * is no access, and every locked row is locked by the one condition.
    */
   it('locks printing and borrowing inside an unclaimed free window', async () => {
     vi.stubGlobal(
@@ -510,9 +502,9 @@ describe('when dues lapse', () => {
   })
 
   /**
-   * And the note names the way out, which differs by reason. The claim state is
-   * the one that would otherwise read as a bug — the club is charging nothing
-   * and the rail is still shut — so it has to say the fix is free.
+   * And the note names the way out, which differs by reason. The claim state is the one that
+   * would otherwise read as a bug — the club is charging nothing and the rail is still shut — so
+   * it has to say the fix is free.
    */
   it('tells somebody in a free window that the fix is one press', async () => {
     vi.stubGlobal(
@@ -564,10 +556,9 @@ describe('when dues lapse', () => {
   })
 
   /**
-   * A demoted member is a guest, and must not be told they never joined — so
-   * the newcomer's note is the one thing that stays off their rail. They get
-   * the same silent padlocks a lapsed member gets, because that is what they
-   * are.
+   * A demoted member is a guest, and must not be told they never joined — so the newcomer's note
+   * is the one thing that stays off their rail. They get the same silent padlocks a lapsed
+   * member gets, because that's what they are.
    */
   it('does not offer a demoted member the newcomer’s note', async () => {
     vi.stubGlobal('fetch', withDues('GUEST', lapsed))
@@ -611,13 +602,11 @@ describe('when dues lapse', () => {
 /**
  * The survey, which locks nothing.
  *
- * This suite used to be the inverse of everything above it. The survey sat in
- * front of dues on the server, so while it was owed the rail padlocked
- * *including* DUES & PAYMENTS — the one row every other lock leaves open,
- * because it is where every other lock sends people — and `/dashboard/survey`
- * became the page nothing could shut. That gate is gone. What is left in the
- * rail is one row offering the form, and it is driven by the same predicate the
- * prompt uses, so the checkbox on the prompt takes both away together.
+ * This suite used to be the inverse of everything above it. The survey sat in front of dues on
+ * the server, so while it was owed the rail padlocked including DUES & PAYMENTS — the one row
+ * every other lock leaves open — and `/dashboard/survey` became the page nothing could shut.
+ * That gate is gone. What's left is one row offering the form, driven by the same predicate the
+ * prompt uses, so the checkbox takes both away together.
  */
 describe('when the survey has not been answered', () => {
   const pending = duesStatus({ surveyPending: true })
@@ -667,9 +656,8 @@ describe('when the survey has not been answered', () => {
   })
 
   /**
-   * No paragraph in the rail either. There was one while this was a gate, and
-   * it was the only thing on screen naming the way past a shut dues page; with
-   * nothing shut it would be a nag rather than an explanation.
+   * No paragraph in the rail either. There was one while this was a gate, and it was the only
+   * thing on screen naming the way past a shut dues page; with nothing shut it would be a nag.
    */
   it('does not explain itself in the rail', async () => {
     vi.stubGlobal('fetch', withSurvey())
@@ -702,9 +690,9 @@ describe('when the survey has not been answered', () => {
   })
 
   /**
-   * And it goes for somebody who said stop, which is the half that makes *don't
-   * ask me again* mean what it says. A rail row is a quieter ask than a dialog,
-   * but it is still the dashboard bringing the survey up.
+   * And it goes for somebody who said stop, which is the half that makes *don't ask me again*
+   * mean what it says. A rail row is a quieter ask than a dialog, but it's still the dashboard
+   * bringing the survey up.
    */
   it('drops the row for somebody who asked not to be asked', async () => {
     vi.stubGlobal(
@@ -729,14 +717,12 @@ describe('when the survey has not been answered', () => {
 /**
  * The prompt, which is now the whole of what asks.
  *
- * It never gated, and everything around it did; now nothing does, so this
- * dialog and the two standing panels are all the club has. That is what the
- * checkbox has to be weighed against — a prompt on every visit would be worth
- * more answers in the short run and is the reason people stop reading dialogs.
+ * It never gated, and everything around it did; now nothing does, so this dialog and the two
+ * standing panels are all the club has. That's what the checkbox has to be weighed against — a
+ * prompt on every visit would be worth more answers in the short run and is the reason people
+ * stop reading dialogs.
  *
- * What it must not do is cover the profile page, because signing out lives
- * there and a prompt on that one route is the version of this that strands
- * somebody.
+ * What it must not do is cover the profile page, because signing out lives there.
  */
 describe('the survey prompt', () => {
   const renderAt = (path: string) =>
@@ -885,10 +871,9 @@ describe('the survey prompt', () => {
   })
 
   /**
-   * **An admin is asked like anybody else**, which is the one exemption this
-   * change drops. It existed so whoever fixes memberships could not be locked
-   * out by one; with nothing locked there is nothing to be let past, and the
-   * club would still like their shirt size.
+   * An admin is asked like anybody else, which is the one exemption this change drops. It
+   * existed so whoever fixes memberships couldn't be locked out by one; with nothing locked
+   * there's nothing to be let past, and the club would still like their shirt size.
    */
   it('appears for an admin', async () => {
     vi.stubGlobal(

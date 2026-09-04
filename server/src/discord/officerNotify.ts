@@ -4,17 +4,14 @@ import { env } from '../core/env.js'
 import { UserRole } from '../generated/prisma/enums.js'
 
 /**
- * Tell the officers something happened — a new print request, a loan to
- * approve.
+ * Tell the officers something happened — a new print request, a loan to approve.
  *
- * Who gets the DM: `OFFICER_ALERT_DISCORD_IDS` if the club set it, otherwise
- * every ADMIN/OFFICER account with a confirmed `discordId`, capped so a
- * mis-seeded database cannot make the bot spam fifty people. With the bot
- * unconfigured this logs and returns — the queue page is the record; the DM
- * is a courtesy on top, exactly like the contact form's email.
+ * Who gets the DM: `OFFICER_ALERT_DISCORD_IDS` if the club set it, otherwise every ADMIN/OFFICER
+ * account with a confirmed `discordId`, capped so a mis-seeded database cannot make the bot spam
+ * fifty people. With the bot unconfigured this logs and returns — the queue page is the record, the
+ * DM is a courtesy on top, exactly like the contact form's email.
  *
- * Callers must not await this on the request path. The pattern is the same
- * one the contact form uses for Postmark:
+ * Callers must not await this on the request path. Same pattern the contact form uses for Postmark:
  *
  *     void notifyOfficers(...).catch((err) => console.error(...))
  *

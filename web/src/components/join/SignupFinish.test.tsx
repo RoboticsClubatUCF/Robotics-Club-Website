@@ -13,12 +13,11 @@ import {
 /**
  * The second step: everything except the address, which came from the link.
  *
- * The parts worth pinning down are the ones that would otherwise fail quietly.
- * The address must come from the token rather than from a field, or the whole
- * verification was theatre. The password must not reach the server unless it
- * was typed the same way twice. And a spent link has to be recoverable —
- * telling somebody their link expired without a way to get another one strands
- * them on a form they have just filled in.
+ * The parts worth pinning are the ones that would otherwise fail quietly. The address must come
+ * from the token rather than from a field, or the whole verification was theatre. The password must
+ * not reach the server unless it was typed the same way twice. And a spent link has to be
+ * recoverable — telling somebody their link expired without a way to get another one strands them
+ * on a form they have just filled in.
  */
 
 const CREATED = { '/signup/complete': { id: 'u1', status: 'created' } }
@@ -81,10 +80,9 @@ async function fill({
 /**
  * Submit, then let the stubbed fetch settle and React commit the result.
  *
- * `findBy*` and `waitFor` are not safe under fake timers: Testing Library polls
- * by advancing the fake clock, so a one-second budget is spent in a few real
- * milliseconds — often before a promise chain has flushed. Advancing inside
- * `act` asserts the same thing without the race.
+ * `findBy*` and `waitFor` are not safe under fake timers: Testing Library polls by advancing the
+ * fake clock, so a one-second budget is spent in a few real milliseconds — often before a promise
+ * chain has flushed. Advancing inside `act` asserts the same thing without the race.
  */
 const submit = async () => {
   fireEvent.submit(screen.getByRole('button', { name: /create my account/i }))
@@ -152,15 +150,12 @@ describe('SignupFinish', () => {
   })
 
   /**
-   * Two things at once, and the second is the reason this is a test rather
-   * than a glance.
+   * Two things at once, and the second is why this is a test rather than a glance.
    *
-   * The rules open in a dialog so that reading them does not unmount a form
-   * somebody has already filled in — that is the whole argument for not making
-   * this a route. And the control that opens them is a sibling of the label
-   * rather than a child of it: nested inside, it would inherit the label's
-   * activation, so opening the acknowledgement would tick the box claiming it
-   * had been read. Which is exactly backwards.
+   * The rules open in a dialog so that reading them does not unmount a form somebody has already
+   * filled in — the whole argument for not making this a route. And the control that opens them is
+   * a sibling of the label rather than a child of it: nested inside, it would inherit the label's
+   * activation, so opening the acknowledgement would tick the box claiming it had been read.
    */
   it('opens the acknowledgement without ticking the box that says it was read', () => {
     vi.stubGlobal('fetch', stubFetch({}))

@@ -1,22 +1,19 @@
 /**
  * How to find a Discord role id, behind an info disclosure.
  *
- * The instruction used to be one sentence tacked onto the end of the field's
- * note — "With Developer Mode on, right-click the role and Copy Role ID" —
- * which is the last step of a four-step job and assumes the setting is already
- * on. It is the only field on either form that asks for something a person has
- * to go and fetch from somewhere else, and the only one whose wrong answer is
- * an action taken on other people's accounts.
+ * The instruction used to be one sentence tacked onto the end of the field's note — "With Developer
+ * Mode on, right-click the role and Copy Role ID" — which is the last step of a four-step job and
+ * assumes the setting is already on. It is the only field on either form that asks for something a
+ * person has to fetch from somewhere else, and the only one whose wrong answer is an action taken
+ * on other people's accounts.
  *
- * **A native `<details>`**, the same choice `FaqSection` makes and for the same
- * reasons: the browser supplies the open state, the keyboard handling and the
- * role, and the closed content stays findable by the browser's own in-page
- * search — which a component that unmounted its answer would not be.
+ * A native `<details>`, the same choice `FaqSection` makes and for the same reasons: the browser
+ * supplies the open state, the keyboard handling and the role, and the closed content stays
+ * findable by the browser's own in-page search.
  *
- * Shared between the create form and the project's manage page rather than
- * written twice, the way `LinkRows` is: the two say the same thing about the
- * same field, and the copy that matters here is the half about *not* pasting a
- * club-wide role, which must not drift from what the server refuses.
+ * Shared between the create form and the project's manage page rather than written twice, the way
+ * `LinkRows` is: the copy that matters here is the half about not pasting a club-wide role, and it
+ * must not drift from what the server refuses.
  */
 export function DiscordRoleHelp() {
   return (

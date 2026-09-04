@@ -1,15 +1,12 @@
 /**
- * Dates for the borrowing form: the `<input type="date">` convention in one
- * place, so the member's page and the officer's desk cannot disagree about
- * what "back by Friday" means.
+ * Dates for the borrowing form: the `<input type="date">` convention in one place, so the
+ * member's page and the officer's desk can't disagree about what "back by Friday" means.
  *
- * A date input speaks `YYYY-MM-DD` and nothing else — no time, no zone. Every
- * function here is about the two edges of that: turning a picked day into the
- * instant the API wants, and counting days the way `server/src/equipment/loanWindow.ts`
- * counts them, so the form never offers a window the server will refuse.
+ * A date input speaks `YYYY-MM-DD` and nothing else — no time, no zone. Every function here is
+ * about the two edges of that: turning a picked day into the instant the API wants, and counting
+ * days the way `server/src/equipment/loanWindow.ts` counts them.
  *
- * **Nothing here trusts `new Date` with a value from the box.** See
- * `isDateValue` for what that buys.
+ * Nothing here trusts `new Date` with a value from the box. See `isDateValue` for what that buys.
  */
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -23,10 +20,9 @@ export const BOOKING_HORIZON_DAYS = 180
 /**
  * The furthest out any date box on either page will accept, as a `max`.
  *
- * Ten years, and it exists to be an upper bound rather than a policy — the
- * officer's due date is deliberately uncapped by the item's limit, but "some
- * time this decade" is still true of every loan the club will ever make. The
- * route refuses the same range, in `loanDate`.
+ * Ten years, and it exists to be an upper bound rather than a policy — the officer's due date is
+ * deliberately uncapped by the item's limit, but "some time this decade" is still true of every
+ * loan the club will ever make.
  */
 export const LAST_SENSIBLE_DATE = (): string => addDays(today(), 10 * 365)
 
@@ -43,28 +39,23 @@ export const dateInputValue = (iso: string | null | undefined): string =>
   iso ? dateValue(new Date(iso)) : ''
 
 /**
- * Whether a date box's value is one this module will do arithmetic on: a
- * **four-digit** year, and a day that exists.
+ * Whether a date box's value is one this module will do arithmetic on: a four-digit year, and a
+ * day that exists.
  *
- * This is the guard the rest of the file is built on, and it is here because
- * a date input does not stop at four digits. The HTML grammar says "four or
- * more", so every browser lets somebody type 12345 into the year — and what
- * comes back is a string `new Date` cannot parse at all.
+ * This is the guard the rest of the file is built on, and it's here because a date input doesn't
+ * stop at four digits. The HTML grammar says "four or more", so every browser lets somebody type
+ * 12345 into the year — and what comes back is a string `new Date` can't parse at all.
  *
- * That failure is silent in three separate ways, which is what made it worth a
- * function rather than a check at the one call site:
+ * That failure is silent in three separate ways:
  *
- *   - `new Date('12345-08-14').getTime()` is `NaN`, and **every comparison
- *     against NaN is false**. A cap written as `days > maxLoanDays` therefore
- *     passes, and the longest loan in the club's history goes through.
- *   - Comparing the values as *strings* to see which comes first is wrong the
- *     moment they are different lengths: `'12345-08-14' < '2026-08-07'` is
- *     true, so a date three centuries out reads as being in the past.
- *   - `.toISOString()` on the resulting Invalid Date throws `RangeError`,
- *     inside a submit handler, where nothing is catching it.
+ *   - `new Date('12345-08-14').getTime()` is `NaN`, and every comparison against NaN is false. A
+ *     cap written as `days > maxLoanDays` therefore passes.
+ *   - Comparing the values as strings is wrong the moment they're different lengths:
+ *     `'12345-08-14' < '2026-08-07'` is true, so a date three centuries out reads as past.
+ *   - `.toISOString()` on the resulting Invalid Date throws `RangeError`, inside a submit handler,
+ *     where nothing is catching it.
  *
- * The round-trip at the end is what rejects 2026-02-31, which `Date` would
- * otherwise roll forward into March without saying so.
+ * The round-trip at the end rejects 2026-02-31, which `Date` would otherwise roll into March.
  */
 const DATE_VALUE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -76,11 +67,11 @@ export function isDateValue(value: string): boolean {
 }
 
 /**
- * `YYYY-MM-DD`, n days on, or empty if it was not a date to begin with.
+ * `YYYY-MM-DD`, n days on, or empty if it wasn't a date to begin with.
  *
- * Empty rather than a throw: every caller is filling a date box in, and a box
- * that empties beside a complaint about the date above it is a state the page
- * can draw. A `RangeError` out of an onChange handler is not.
+ * Empty rather than a throw: every caller is filling a date box in, and a box that empties beside
+ * a complaint about the date above it is a state the page can draw. A `RangeError` out of an
+ * onChange handler is not.
  */
 export function addDays(value: string, days: number): string {
   if (!isDateValue(value)) return ''
@@ -108,15 +99,13 @@ export type WindowFault = 'start' | 'due' | 'backwards' | 'too-long'
 /**
  * The one place the form's dates are judged.
  *
- * Ordered so the reader is told about the box they broke before being told
- * about the arithmetic that could not then be done on it — "that is longer
- * than 7 days" is a confusing answer to a year with five digits in it. The
- * start is judged even when there is no return date yet, or a broken start
- * would empty the box below it and take its own complaint down with it.
+ * Ordered so the reader is told about the box they broke before the arithmetic that couldn't then
+ * be done on it — "that is longer than 7 days" is a confusing answer to a year with five digits in
+ * it. The start is judged even when there's no return date yet, or a broken start would empty the
+ * box below it and take its own complaint down with it.
  *
- * An **empty** return date is not a fault. It is a question nobody has
- * answered, and a form that goes red the moment it opens has told the reader
- * off for arriving.
+ * An empty return date isn't a fault. It's a question nobody has answered, and a form that goes
+ * red the moment it opens has told the reader off for arriving.
  */
 export function windowFault(
   from: string,

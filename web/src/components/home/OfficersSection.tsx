@@ -7,25 +7,21 @@ import { useApi } from '../../lib/api/useApi'
 /**
  * The officer board: one card per officer, and one per chair nobody is in.
  *
- * **Both counts come from the database.** `GET /api/officers` sends the sitting
- * officers *and* the seats there are — the second straight out of the
- * `OfficerPosition` enum — so a ninth seat added to the schema draws a ninth
- * card with nothing edited here.
+ * Both counts come from the database. `GET /api/officers` sends the sitting officers and the seats
+ * there are — the second straight out of the `OfficerPosition` enum — so a ninth seat added to the
+ * schema draws a ninth card with nothing edited here.
  *
- * It was a fixed eight until now, from a list in `content/home.ts` that the
- * response only filled in, and that was wrong in two directions at once. The
- * club could not change the size of its own board without a frontend edit; and
- * an officer holding **no** seat — exactly what the Discord sync creates, in
- * the window before anybody has given them a chair — had nowhere to be drawn,
- * so a real officer was invisible here while being an officer everywhere else.
+ * It was a fixed eight until now, from a list in `content/home.ts` that the response only filled
+ * in, and that was wrong in two directions. The club could not change the size of its own board
+ * without a frontend edit; and an officer holding no seat — exactly what the Discord sync creates,
+ * before anybody has given them a chair — had nowhere to be drawn, so a real officer was invisible
+ * here while being an officer everywhere else.
  *
- * The empty chairs are still drawn, because that half of the old design was
- * right: a club with no treasurer this term still has a treasurer's seat, and
- * "Seat open" says so where a missing card would just look like a shorter
- * board.
+ * The empty chairs are still drawn, because that half of the old design was right: a club with no
+ * treasurer this term still has a treasurer's seat, and "Seat open" says so where a missing card
+ * would look like a shorter board.
  *
- * The card itself is `shared/OfficerCard` — the archive at `/officers` draws the
- * same one, so what a headshot and a caption look like is settled there.
+ * The card itself is `shared/OfficerCard` — the archive at `/officers` draws the same one.
  */
 export function OfficersSection() {
   const board = useApi<ApiOfficerBoard>('/officers')
@@ -35,12 +31,11 @@ export function OfficersSection() {
   const seats = ready ? board.data.seats : []
 
   /**
-   * Seated officers first, in the order the server sent them — it can see how
-   * the enum is declared and the browser cannot — then the empty chairs, then
-   * anybody serving without one.
+   * Seated officers first, in the order the server sent them — it can see how the enum is declared
+   * and the browser cannot — then the empty chairs, then anybody serving without one.
    *
-   * The seatless go last rather than in amongst the others, where a card would
-   * read as holding whichever seat came above it.
+   * The seatless go last rather than in amongst the others, where a card would read as holding
+   * whichever seat came above it.
    */
   const seated = officers.filter((officer) => officer.position !== null)
   const held = new Set(seated.map((officer) => officer.position))
@@ -48,13 +43,10 @@ export function OfficersSection() {
   const seatless = officers.filter((officer) => officer.position === null)
 
   /**
-   * How many frames to draw while waiting, and it can only be a guess: the
-   * count is the answer that has not arrived. Four is the compromise — enough
-   * that the section does not appear out of nothing, few enough that a small
-   * board does not visibly shrink when it lands.
-   *
-   * Sizing the skeleton exactly is the one thing given up by letting the club
-   * decide how many seats it has.
+   * How many frames to draw while waiting, and it can only be a guess: the count is the answer that
+   * has not arrived. Four is the compromise — enough that the section does not appear out of
+   * nothing, few enough that a small board does not visibly shrink when it lands. Sizing the
+   * skeleton exactly is the one thing given up by letting the club decide how many seats it has.
    */
   const waiting = board.status === 'loading' ? 4 : 0
 

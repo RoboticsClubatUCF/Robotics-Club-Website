@@ -3,12 +3,10 @@ import { Link } from 'react-router'
 /**
  * Where an unmatched path lands.
  *
- * Most of what reaches this is not a typo but a page that has genuinely not
- * been built — the stat strip, the nav and three section headers all point at
- * routes that are still empty files in `src/pages/`. Before the router these
- * URLs quietly served the landing page, which looked like the link worked and
- * left people hunting for content that was never there. Saying so is worse
- * looking and considerably more useful.
+ * Most of what reaches this is not a typo but a page that has genuinely not been built — the stat
+ * strip, the nav and three section headers all point at routes that are still empty files in
+ * `src/pages/`. Before the router these URLs quietly served the landing page, which looked like the
+ * link worked and left people hunting for content that was never there.
  */
 export function NotFoundPage() {
   return (

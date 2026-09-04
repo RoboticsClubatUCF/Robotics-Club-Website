@@ -6,13 +6,11 @@ import { useApi } from '../../lib/api/useApi'
 import { MonthCalendar } from '../shared/MonthCalendar'
 
 /**
- * The landing page's calendar: the shared `MonthCalendar` over the public
- * events endpoint.
+ * The landing page's calendar: the shared `MonthCalendar` over the public events endpoint.
  *
- * The grid, the chips and the agenda all live in `shared/MonthCalendar.tsx` —
- * they moved there when the dashboard needed the same widget over
- * `/api/me/events`. What stays here is exactly what is specific to this page:
- * the section chrome, and the fetch against the public route.
+ * The grid, the chips and the agenda all live in `shared/MonthCalendar.tsx` — they moved there when
+ * the dashboard needed the same widget over `/api/me/events`. What stays here is what is specific
+ * to this page: the section chrome, and the fetch against the public route.
  */
 export function CalendarSection() {
   const [month, setMonth] = useState(() => startOfMonth(new Date()))
@@ -29,15 +27,13 @@ export function CalendarSection() {
   )
 
   /**
-   * The list under the grid, which is not the month — see `MonthCalendar`. No
-   * window at all, so it runs past the end of whatever the grid is showing;
-   * the path is constant, so the month arrows move the grid and leave this
-   * request alone.
+   * The list under the grid, which is not the month — see `MonthCalendar`. No window at all, so it
+   * runs past the end of whatever the grid is showing; the path is constant, so the month arrows
+   * move the grid and leave this request alone.
    *
-   * Meetings do not come with it and that is the endpoint's rule rather than an
-   * omission: the server only expands a recurrence against a named window, and
-   * this asks for none. The grid has them, and the merge in `MonthCalendar` is
-   * what puts this month's back on the list.
+   * Meetings do not come with it, and that is the endpoint's rule rather than an omission: the
+   * server only expands a recurrence against a named window, and this asks for none. The grid has
+   * them, and the merge in `MonthCalendar` is what puts this month's back on the list.
    */
   const upcoming = useApi<ApiEvent[]>('/events?when=upcoming&limit=100')
 

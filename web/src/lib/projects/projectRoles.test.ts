@@ -25,10 +25,10 @@ describe('memberLabel', () => {
   })
 
   /**
-   * **Rank beats the typed title, and that is the point of the order.** `rank`
-   * is the column every permission on the project is decided by; `title` is free
-   * text that grants nothing. A member who types "Software Lead" against their
-   * own name must not read as the project's lead beside somebody who is.
+   * Rank beats the typed title, and that is the point of the order. `rank` is the column every
+   * permission on the project is decided by; `title` is free text that grants nothing. A member who
+   * types "Software Lead" against their own name must not read as the project's lead beside
+   * somebody who is.
    */
   it('prefers the rank over anything typed', () => {
     expect(

@@ -42,24 +42,20 @@ import {
 /**
  * The 3D print queue, as the officer running the printers sees it.
  *
- * The queue defaults to live work — waiting and printing — because that is
- * the shift's to-do list; settled jobs are a filter away rather than noise on
- * top. Marking one DONE or DECLINED deletes the uploaded model in the same
- * breath, which is the club's storage rule and the reason those two are
- * one-way: after them there is nothing left to print from. The page says so
- * before the click rather than after.
+ * The queue defaults to live work — waiting and printing — because that's the shift's to-do
+ * list; settled jobs are a filter away. Marking one DONE or DECLINED deletes the uploaded model
+ * in the same breath, which is the club's storage rule and the reason those two are one-way.
+ * The page says so before the click rather than after.
  *
- * The other half of the job is the material. The officer slices the model,
- * reads the figure off the slicer and types it in beside the buttons, and on a
- * personal print that is what comes out of the member's 500 g for the term —
- * so their remaining balance sits right next to the box. Going past it is
- * allowed and deliberate: the confirm names the overage, and the officer at
- * the printer is the one who decides. A project print has no cap at all and
- * shows no balance, because weighing one against a budget it does not come out
- * of is exactly the mistake that would cause.
+ * The other half of the job is the material. The officer slices the model, reads the figure off
+ * the slicer and types it in, and on a personal print that comes out of the member's 500 g for
+ * the term — so their remaining balance sits next to the box. Going past it is allowed and
+ * deliberate: the confirm names the overage, and the officer at the printer decides. A project
+ * print has no cap and shows no balance, because weighing one against a budget it doesn't come
+ * out of is exactly the mistake that would cause.
  *
- * The correction row exists because officers print in whatever is on the
- * shelf. It starts on what was asked for, so leaving it alone sends the truth.
+ * The correction row exists because officers print in whatever is on the shelf. It starts on
+ * what was asked for, so leaving it alone sends the truth.
  */
 
 const STATUS_LABEL: Record<PrintRequestStatus, { text: string; tone: StatusTone }> = {
@@ -80,9 +76,9 @@ const FILTERS = [
 /**
  * Which machine, so an officer standing at one can see only its work.
  *
- * The two are different jobs with different consumables and usually different
- * people running them — filtering to SLA is how somebody about to fill a resin
- * vat finds out whether it is worth doing.
+ * The two are different jobs with different consumables and usually different people running
+ * them — filtering to SLA is how somebody about to fill a resin vat finds out whether it's
+ * worth doing.
  */
 const PROCESSES = [
   { value: 'ALL', label: 'ANY MACHINE' },
@@ -115,12 +111,11 @@ function explain(error: unknown): string {
 }
 
 /**
- * The three queue actions, drawn as buttons rather than as text.
+ * The three queue actions, drawn as buttons rather than text.
  *
- * One shape, three weights: gold for whatever the natural next step is, outline
- * for the other move, red for the one that ends the job badly. All three are
- * the same size so the row reads as a set of choices rather than as a heading
- * with links after it.
+ * One shape, three weights: gold for the natural next step, outline for the other move, red for
+ * the one that ends the job badly. All three the same size, so the row reads as a set of choices
+ * rather than a heading with links after it.
  */
 const actionBase =
   'btn h-auto min-h-0 cursor-pointer px-4 py-2 text-[11px] font-semibold tracking-[0.04em] disabled:opacity-50'
@@ -169,19 +164,15 @@ export function OfficerPrintQueuePage() {
   const [pending, setPending] = useState<Pending | null>(null)
 
   /**
-   * Searching from LIVE reaches the whole archive; searching from a named
-   * section stays inside it.
+   * Searching from LIVE reaches the whole archive; searching from a named section stays inside it.
    *
-   * That is the club's rule and it is the right way round: LIVE is "what needs
-   * doing", and somebody who types a name into it is no longer asking what
-   * needs doing — they are looking for a print, and the one they want has
-   * usually already been done. Inside DONE or DECLINED the section *is* the
-   * question, so widening it would undo the filter they just pressed.
+   * That's the club's rule and it's the right way round: LIVE is "what needs doing", and somebody
+   * who types a name into it is looking for a print that has usually already been done. Inside
+   * DONE or DECLINED the section is the question, so widening would undo the filter.
    *
-   * This is a **boolean** in the dependency list, not the search text, which
-   * is what makes it one extra fetch when the box goes from empty to typed
-   * and one more when it is cleared — rather than a request per keystroke,
-   * which is the shape that would need a debounce and a stale-response guard.
+   * This is a boolean in the dependency list, not the search text, which makes it one extra fetch
+   * when the box goes from empty to typed and one more when it's cleared — rather than a request
+   * per keystroke.
    */
   const widen = filter === '' && query.trim() !== ''
 
@@ -203,9 +194,9 @@ export function OfficerPrintQueuePage() {
   /**
    * Narrowed in the browser, over what the fetch above brought back.
    *
-   * Instant, no round trip and no debounce — and the widening is what keeps it
-   * honest, because the alternative reading of "search everything" is a search
-   * that silently only covers the rows already on screen.
+   * Instant, no round trip and no debounce — and the widening is what keeps it honest, because
+   * the alternative reading of "search everything" is a search that silently only covers the rows
+   * already on screen.
    */
   const rows = Array.isArray(queue)
     ? queue.filter(
@@ -301,11 +292,10 @@ export function OfficerPrintQueuePage() {
     /**
      * Both warnings in one box.
      *
-     * The file deletion is the storage rule and the overage is the budget one,
-     * and a row can trip both at once. Two boxes back to back is how the second
-     * one gets dismissed unread, so they share a dialog — which is most of why
-     * that dialog is ours rather than the browser's: the native one has nowhere
-     * to put the second sentence, let alone the numbers.
+     * The file deletion is the storage rule and the overage is the budget one, and a row can trip
+     * both at once. Two boxes back to back is how the second gets dismissed unread — which is most
+     * of why that dialog is ours rather than the browser's: the native one has nowhere to put the
+     * second sentence, let alone the numbers.
      */
     const over =
       status === 'DONE' && request.allowance && gramsUsed !== null
@@ -395,13 +385,11 @@ export function OfficerPrintQueuePage() {
                   : 'Nothing here.'}
             </p>
           ) : (
-            /* Jobs across as well as down. A queue row is a card — a filename,
-               five lines of settings and a row of controls — and one card per
-               screen-width was the worst of both: an officer working through a
-               Sunday's requests could see two at a time on a monitor that had
-               room for six. Each carries its own border now, since a hairline
-               between rows means nothing once there are columns. `items-start`
-               so a job with a long note does not stretch the two beside it. */
+            /* Jobs across as well as down. A queue row is a card — a filename, five lines of
+               settings and a row of controls — and one card per screen-width was the worst of both:
+               an officer working through a Sunday's requests could see two at a time on a monitor
+               with room for six. `items-start` so a job with a long note doesn't stretch its
+               neighbours. */
             <ul className="grid-fluid items-start gap-4 [--col-min:28rem]">
               {rows.map((request) => (
                 <QueueRow
@@ -438,11 +426,10 @@ export function OfficerPrintQueuePage() {
 /**
  * The last thing between an officer and an irreversible act.
  *
- * Three different acts share it, and the words are what make them different:
- * finishing a job, refusing one nobody started, and stopping one already on a
- * printer. Each names the file, says the model is about to go, and — when the
- * grams take somebody past their allowance — puts both numbers in front of the
- * person deciding, which is the whole reason this is not `window.confirm`.
+ * Three different acts share it, and the words are what make them different: finishing a job,
+ * refusing one nobody started, and stopping one already on a printer. Each names the file, says
+ * the model is about to go, and — when the grams take somebody past their allowance — puts both
+ * numbers in front of the person deciding.
  */
 function SettleDialog({
   pending,
@@ -505,10 +492,10 @@ function SettleDialog({
 /**
  * One request, and everything an officer might do to it.
  *
- * The draft lives here rather than in a map on the page above, because there
- * are six fields per row now and a `Record<string, …>` per field is five more
- * places for a stale key to survive a reload. Keyed by request id at the call
- * site, so a row that leaves the queue takes its half-typed state with it.
+ * The draft lives here rather than in a map on the page above, because there are six fields per
+ * row and a `Record<string, …>` per field is five more places for a stale key to survive a
+ * reload. Keyed by request id at the call site, so a row that leaves the queue takes its
+ * half-typed state with it.
  */
 function QueueRow({
   request,
@@ -773,18 +760,14 @@ function QueueRow({
           {/*
             The three decisions, on their own band with a rule above them.
 
-            They were bare mono text before, sharing a wrapping row with the
-            note field — which made them read as labels rather than as things
-            to press, and put DECLINE two millimetres from MARK DONE. These are
-            the irreversible actions on the page: settling one deletes the
-            model, and there is no undo.
+            They were bare mono text before, sharing a wrapping row with the note field — which
+            made them read as labels rather than things to press, and put DECLINE two millimetres
+            from MARK DONE. These are the irreversible actions on the page.
 
-            Whichever is the *natural* next step carries the primary weight, so
-            it moves from START PRINTING to MARK DONE as the job progresses and
-            an officer working the queue can aim at the gold one. DECLINE is
-            pushed to the far end and coloured for what it is, because the
-            failure worth designing against is hitting it by accident while
-            reaching for the button beside it.
+            Whichever is the natural next step carries the primary weight, so it moves from START
+            PRINTING to MARK DONE as the job progresses. DECLINE is pushed to the far end and
+            coloured for what it is, because the failure worth designing against is hitting it
+            while reaching for the button beside it.
           */}
           <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-base-content/8 pt-3">
             {request.status === 'PENDING' && (

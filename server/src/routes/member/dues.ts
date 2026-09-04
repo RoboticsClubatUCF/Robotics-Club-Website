@@ -36,48 +36,36 @@ import { stripe, stripeConfigured } from '../../payments/stripe.js'
  *
  * Two rules run through all of it.
  *
- * **The browser never names a price or a date.** Both are computed here, from
- * configuration and from UCF's calendar, and both are frozen onto the payment
- * row before the intent is created. A client that could send `amountCents`
- * could buy a year for a penny, and one that could send `coversThrough` could
- * buy a decade.
+ * The browser never names a price or a date. Both are computed here and frozen onto
+ * the payment row before the intent is created — a client that could send
+ * `amountCents` could buy a year for a penny.
  *
- * **Money is only ever credited from Stripe's own account of it.** Nothing here
- * takes the browser's word that a payment succeeded — `sync` asks Stripe about
- * the intent, and the webhook is Stripe telling us unprompted. Both funnel into
- * one `applyPayment`, which is idempotent because the two of them routinely
- * race on a fast card.
+ * Money is only ever credited from Stripe's own account of it. `sync` asks Stripe
+ * about the intent, the webhook is Stripe telling us unprompted, and both funnel
+ * into one idempotent `applyPayment` because they routinely race on a fast card.
  *
- * **Paying is what turns a signup into a member.** A first payment moves the
- * account off `GUEST` and stamps `joinedAt`, in the same transaction that moves
- * the date — see `membershipUpdateFor`. That is what puts them in the club's
- * headline count and hands them the Discord Members role; it is not what puts
- * them on `/members`, which lists every account, guest or not. A profile page
- * of their own still needs a `slug`, and that stays an officer's decision.
+ * Paying is what turns a signup into a member: a first payment moves the account off
+ * `GUEST` and stamps `joinedAt` in the same transaction that moves the date. That
+ * puts them in the headline count and hands them the Discord Members role; it isn't
+ * what puts them on `/members`, which lists every account.
  *
- * **The member survey used to come before any of this.** `checkout` and
- * `activate` both carried `requireSurveyForRoute`, which is what made "the
- * survey before dues" true — and what stopped the club taking money from
- * anybody who had not given it a shirt size. The survey is an invitation now,
- * so both routes are plain dues routes, and the only survey left in this file
- * is the pair of flags `wireMembership` sends so the dashboard knows whether it
- * still has something to ask.
+ * The member survey used to gate both `checkout` and `activate`, which stopped the
+ * club taking money from anybody who hadn't given it a shirt size. It's an
+ * invitation now, and the only survey left here is the pair of flags
+ * `wireMembership` sends so the dashboard knows whether it still has something to ask.
  */
 export const dues = new Hono<AuthEnv>()
 
 /**
- * Two budgets, split the same way signup splits its own.
+ * Two budgets, split the way signup splits its own.
  *
- * `writes` guards checkout, which creates an object at Stripe. Ten rather than
- * the site default of five, because changing plan, a declined card and a second
- * attempt are three intents for one member who has done nothing wrong.
+ * `writes` guards checkout, which creates an object at Stripe. Ten rather than five,
+ * because changing plan, a declined card and a second attempt are three intents for
+ * one member who has done nothing wrong.
  *
- * `checks` guards `sync`, which only *reads* — and which the page calls on
- * every return from a payment, on every reload of the dues page afterwards, and
- * twice over when a redirect and a confirm land together. Five of those is a
- * limit that bites the member it is meant to protect, and the one thing that
- * must never be rate-limited into failing is the call that credits a payment
- * somebody has already made.
+ * `checks` guards `sync`, which only reads — and which the page calls on every
+ * return from a payment and every reload afterwards. The one thing that must never
+ * be rate-limited into failing is the call that credits a payment already made.
  */
 const writes = rateLimit('dues', 10)
 const checks = rateLimit('dues-sync', 30)
@@ -89,9 +77,8 @@ const NOT_CONFIGURED =
 
 function requireStripe(): NonNullable<typeof stripe> {
   if (!stripe) {
-    // 503 rather than 500: nothing is broken, the club has not finished setting
-    // it up. Both are the API's fault rather than the member's, and only one of
-    // them is worth an alert.
+    // 503 rather than 500: nothing is broken, the club hasn't finished setting it up.
+    // Both are the API's fault rather than the member's, and only one is worth an alert.
     throw new HTTPException(503, { message: NOT_CONFIGURED })
   }
 
@@ -116,11 +103,10 @@ const wireCoverage = (coverage: Coverage) => ({
 /**
  * Two routes answer with this, and they must not describe it differently.
  *
- * It takes the user as well as the standing because of the two survey flags,
- * which are not facts about dues at all. They ride here because `/dues/status`
- * is the one call the dashboard rail already makes on every page — a prompt
- * that needed its own fetch would arrive a beat after the page and pop up
- * under somebody's pointer. `membershipStanding` stays pure and date-only.
+ * It takes the user as well as the standing because of the two survey flags, which
+ * aren't facts about dues. They ride here because `/dues/status` is the one call the
+ * dashboard rail already makes on every page — a prompt with its own fetch would
+ * arrive a beat late, under somebody's pointer. `membershipStanding` stays date-only.
  */
 const wireMembership = (
   user: Pick<
@@ -141,26 +127,23 @@ const wireMembership = (
   /** A free window is running and has not been claimed yet. */
   canActivate: standing.canActivate,
   /**
-   * The one-time member survey has not been answered.
+   * The one-time member survey hasn't been answered.
    *
-   * **It locks nothing**, and the name is chosen to stop it drifting back into
-   * meaning that: it was `surveyRequired` while `requireSurvey` existed, and
-   * five pages read it to draw a padlock. Nothing on the server refuses an
-   * unanswered survey any more, so this is only what the dashboard reads to
-   * decide whether it still has something to offer.
+   * It locks nothing, and the name is chosen to stop it drifting back into meaning
+   * that: it was `surveyRequired` while `requireSurvey` existed and five pages drew a
+   * padlock from it. Nothing on the server refuses an unanswered survey now, so this
+   * is only what the dashboard reads to decide whether it has something to offer.
    *
-   * No `ADMIN` exemption, unlike everything else on this object. That existed
-   * so whoever fixes memberships could not be locked out by one; with no lock
-   * left there is nothing to be exempt from, and an admin's shirt size is as
-   * useful to the club as anybody's.
+   * No `ADMIN` exemption, unlike everything else here — with no lock left there's
+   * nothing to be exempt from.
    */
   surveyPending: user.surveyCompletedAt === null,
   /**
    * They ticked *don't ask me again*, so the prompt stays down.
    *
-   * Separate from the flag above rather than folded into it, because the two
-   * drive different things: the prompt reads both, and the panels that offer
-   * the form read only the first. A dismissal hides the nag, not the survey.
+   * Separate from the flag above because the two drive different things: the prompt
+   * reads both, the panels that offer the form read only the first. A dismissal hides
+   * the nag, not the survey.
    */
   surveyPromptDismissed: user.surveyPromptDismissedAt !== null,
 })
@@ -170,10 +153,9 @@ const wireMembership = (
 /**
  * Everything the dues page and the dashboard need, in one call.
  *
- * The prices come from here rather than being written into the frontend for the
- * same reason the signup page asks how long its link lasts: they are this
- * server's configuration, and a page that hardcodes them is a page that lies
- * the first time a treasurer changes one.
+ * The prices come from here rather than the frontend for the reason the signup page
+ * asks how long its link lasts: they're this server's configuration, and a page that
+ * hardcodes them lies the first time a treasurer changes one.
  */
 dues.get('/status', requireAuth, async (c) => {
   const user = c.get('user')
@@ -181,9 +163,8 @@ dues.get('/status', requireAuth, async (c) => {
 
   const standing = await membershipStanding(user.duesPaidThrough, now)
 
-  // Both quoted against what this member already has, so somebody who buys a
-  // second semester mid-term is shown the term it would actually extend into
-  // rather than the one they are already paid for.
+  // Both quoted against what this member already has, so somebody buying a second
+  // semester mid-term is shown the term it would actually extend into.
   const [semester, year] = await Promise.all([
     coverageFor('SEMESTER', now, user.duesPaidThrough),
     coverageFor('YEAR', now, user.duesPaidThrough),
@@ -202,8 +183,8 @@ dues.get('/status', requireAuth, async (c) => {
       coversThrough: true,
       paidAt: true,
       receiptUrl: true,
-      // Who comped it, and null for everything Stripe collected. A zero-amount
-      // row with no explanation beside it reads as a bug in the price column.
+      // Who comped it, null for everything Stripe collected. A zero-amount row with
+      // no explanation reads as a bug in the price column.
       grantedBy: { select: { fullName: true } },
     },
   })
@@ -228,8 +209,8 @@ dues.get('/status', requireAuth, async (c) => {
       ...row,
       coversThrough: row.coversThrough.toISOString(),
       paidAt: row.paidAt?.toISOString() ?? null,
-      // Flattened to the name: the page prints "Granted by Alex Chen" and has
-      // no use for an object, and this is the shape `ApiDuesStatus` mirrors.
+      // Flattened to the name: the page prints "Granted by Alex Chen" and has no use
+      // for an object. This is the shape `ApiDuesStatus` mirrors.
       grantedBy: grantedBy?.fullName ?? null,
     })),
   })
@@ -252,20 +233,16 @@ dues.post(
     const amountCents = priceOf(plan)
 
     /**
-     * A payment that would not move the date is a payment that buys nothing.
+     * A payment that wouldn't move the date buys nothing.
      *
-     * `coverageFor` walks forward past terms the member already holds, but it
-     * gives up after four hops — two academic years, further than anybody
-     * should be able to buy in one go. Past that it returns their own
-     * `paidThrough` as the coverage, so the charge goes through and the
-     * membership is exactly as long as it was. It is reachable: the faculty
-     * advisor and any non-student mentor are *documented* as wanting a
-     * far-future date precisely so the dues gate never touches them, and
-     * nothing stopped one of them pressing the button.
+     * `coverageFor` walks forward past terms the member already holds, but gives up
+     * after four hops and returns their own `paidThrough` — so the charge would go
+     * through and the membership would be exactly as long as it was. It's reachable:
+     * the faculty advisor and any non-student mentor are documented as wanting a
+     * far-future date so the dues gate never touches them.
      *
-     * Claiming has always refused this — `canActivate` is false for anybody
-     * already covered past the window — so the two halves of this page
-     * disagreed, and the half that took money was the lax one.
+     * Claiming has always refused this, so the two halves of this page disagreed and
+     * the half that took money was the lax one.
      */
     if (
       user.duesPaidThrough !== null &&
@@ -277,27 +254,26 @@ dues.post(
       })
     }
 
-    // Asked for here rather than at the top of the handler: a member who is
-    // already covered gets the 409 above whether or not the club has keys.
-    // Taking the client first turned that refusal into a 503 on any
-    // deployment without Stripe configured, which is the supported state the
-    // club ran in for the whole life of the previous site.
+    // Asked for here rather than at the top of the handler: a member already covered
+    // gets the 409 above whether or not the club has keys. Taking the client first
+    // turned that refusal into a 503 on any deployment without Stripe configured,
+    // which is the supported state the previous site ran in for its whole life.
     const client = requireStripe()
 
-    // Everything below is computed, never received. The row is written before
-    // the intent so there is a record of what this server intended to charge,
-    // to compare against whatever Stripe eventually reports.
+    // Everything below is computed, never received. The row is written before the
+    // intent so there's a record of what this server intended to charge, to compare
+    // against whatever Stripe eventually reports.
     const intent = await client.paymentIntents.create({
       amount: amountCents,
       currency: 'usd',
-      // Lets Stripe offer whatever the account has switched on — cards, and
-      // wallets on the devices that have them — without this route having to
-      // know which. `allow_redirects: 'always'` is what admits the ones that
-      // bounce through a bank, which is why the page has a return URL.
+      // Lets Stripe offer whatever the account has switched on — cards, and wallets
+      // on the devices that have them — without this route knowing which.
+      // `allow_redirects: 'always'` admits the ones that bounce through a bank, which
+      // is why the page has a return URL.
       automatic_payment_methods: { enabled: true },
-      // Metadata is how a payment in the Stripe dashboard is tied back to a
-      // person here. Without it, a refund request six weeks later starts with
-      // somebody reading card digits down a phone.
+      // Metadata is how a payment in the Stripe dashboard is tied back to a person
+      // here. Without it, a refund request six weeks later starts with somebody
+      // reading card digits down a phone.
       metadata: {
         userId: user.id,
         plan,
@@ -307,24 +283,23 @@ dues.post(
       },
       description: `RCCF dues — ${plan === DuesPlan.YEAR ? 'academic year' : 'one semester'} (${coverage.term.season} ${coverage.term.year})`,
       /**
-       * Who Stripe would email a receipt to — which is not the same as somebody
-       * being emailed one, and the difference has bitten once already.
+       * Who Stripe would email a receipt to — not the same as somebody being emailed
+       * one, and the difference has bitten once.
        *
-       * Stripe sends an automatic receipt only in **live** mode, and only when
-       * "Successful payments" is switched on under Settings → Business →
-       * Customer emails. For a test payment it never sends at all; the way to
-       * get one is the Dashboard's manual "Send receipt", which this field
-       * pre-fills. So this is worth setting and worth never promising.
+       * Stripe sends an automatic receipt only in live mode, and only with
+       * "Successful payments" switched on. For a test payment it never sends; the way
+       * to get one is the Dashboard's manual "Send receipt", which this pre-fills. So
+       * it's worth setting and worth never promising.
        *
-       * What the member is actually shown is `receiptUrl` — Stripe's hosted
-       * receipt, which exists for every successful charge in both modes.
+       * What the member is shown is `receiptUrl` — Stripe's hosted receipt, which
+       * exists for every successful charge in both modes.
        */
       ...(user.email ? { receipt_email: user.email } : {}),
     })
 
     if (!intent.client_secret) {
-      // Stripe has never done this, and if it ever does the alternative is a
-      // page that renders an empty payment form with no explanation.
+      // Stripe has never done this, and if it ever does the alternative is a page that
+      // renders an empty payment form with no explanation.
       throw new HTTPException(502, {
         message: 'Stripe did not return a usable payment. Please try again.',
       })
@@ -359,27 +334,22 @@ dues.post(
 /**
  * Claim the free window — the break, the summer, and the weeks that follow.
  *
- * Nothing is charged, and **this now genuinely grants something.** It used to
- * be bookkeeping: `hasAccess` was already true for the whole club through a
- * free window, so pressing the button only changed what the membership *read*
- * as. Access is the date now, so a member who never presses it is a member with
- * no access — the button is the free half of the dues page rather than a
- * formality beside it.
+ * Nothing is charged, and this now genuinely grants something. It used to be
+ * bookkeeping: `hasAccess` was already true for the whole club through a free window,
+ * so pressing the button only changed what the membership read as. Access is the date
+ * now, so a member who never presses it has no access.
  *
- * That is the trade the club chose, and it is worth naming: the price of one
- * consistent rule everywhere is that being free stopped being automatic. What
- * the club gets back is a list of who is actually around over a break instead
- * of a roster of everyone who has ever signed up, and a Discord server whose
- * Members role means the same thing this page does.
+ * That's the trade the club chose: the price of one consistent rule everywhere is
+ * that being free stopped being automatic. What it buys back is a list of who is
+ * actually around over a break, and a Discord Members role that means what this page
+ * does.
  *
- * A button rather than a job. The alternative — flipping the whole roster at
- * the start of every summer and again at every mid-year break — is two mass
- * writes a year across every user row, and it would be writing about hundreds
- * of people to learn something true of a couple of dozen.
+ * A button rather than a job. Flipping the whole roster at every summer and every
+ * mid-year break is two mass writes a year across every user row, to learn something
+ * true of a couple of dozen people.
  *
- * The window is worked out from this server's clock. A term the browser could
- * name is a term the browser could pick, and the row is only worth having if it
- * says which period somebody actually turned up for.
+ * The window comes from this server's clock. A term the browser could name is a term
+ * the browser could pick.
  */
 dues.post(
   '/activate',
@@ -407,17 +377,15 @@ const syncSchema = z.object({
 /**
  * Ask Stripe how a payment turned out, and credit it if it worked.
  *
- * This is what the dues page calls when the member lands back on it, and it is
- * not a shortcut around the webhook — it asks Stripe the same question from the
- * other direction. The browser supplies only *which* intent to look at, and an
- * intent belonging to somebody else is refused on the row this server wrote at
- * checkout, so naming a stranger's payment buys nothing.
+ * What the dues page calls when the member lands back on it. Not a shortcut around
+ * the webhook — it asks Stripe the same question from the other direction. The
+ * browser supplies only which intent to look at, and an intent belonging to somebody
+ * else is refused on the row this server wrote at checkout.
  *
- * It exists because the webhook cannot be relied on to have arrived yet — it is
- * a separate delivery over the public internet, and in development there may be
- * no tunnel for it at all. Without this, paying with a card that needs no
- * further authentication leaves the member looking at a page that still says
- * they owe $25.
+ * It exists because the webhook can't be relied on to have arrived: it's a separate
+ * delivery over the public internet, and in development there may be no tunnel at
+ * all. Without it, paying with a card that needs no further authentication leaves the
+ * member looking at a page that still says they owe $25.
  */
 dues.post(
   '/sync',
@@ -435,14 +403,14 @@ dues.post(
       select: { id: true, userId: true },
     })
 
-    // One answer for "no such payment" and "somebody else's payment", so this
-    // cannot be used to find out which intent ids exist.
+    // One answer for "no such payment" and "somebody else's payment", so this can't be
+    // used to find out which intent ids exist.
     if (!payment || payment.userId !== user.id) {
       throw new HTTPException(404, { message: 'No such payment.' })
     }
 
-    // Expanded, so the hosted receipt comes back in the same call rather than
-    // costing a second one inside `applyPayment`.
+    // Expanded, so the hosted receipt comes back in the same call rather than costing
+    // a second one inside `applyPayment`.
     const intent = await client.paymentIntents.retrieve(paymentIntentId, {
       expand: ['latest_charge'],
     })
@@ -473,9 +441,9 @@ function statusOf(intent: {
       return DuesPaymentStatus.SUCCEEDED
     case 'canceled':
       return DuesPaymentStatus.CANCELED
-    // `requires_payment_method` after an attempt means the last one was
-    // declined; before any attempt it is simply a fresh intent. Both are things
-    // the member can still act on, so neither is a final failure.
+    // `requires_payment_method` after an attempt means the last one was declined;
+    // before any attempt it's simply a fresh intent. Both are things the member can
+    // still act on, so neither is a final failure.
     case 'requires_payment_method':
     case 'requires_confirmation':
     case 'requires_action':
@@ -492,8 +460,8 @@ export interface ApplyResult {
   /** Stripe's hosted receipt, once there is a successful charge to have one. */
   receiptUrl: string | null
   /**
-   * What else about the account this pass changed — empty for a renewal, and
-   * empty for every re-delivery of a payment already credited.
+   * What else about the account this pass changed — empty for a renewal, and for every
+   * re-delivery of a payment already credited.
    */
   changed: MembershipUpdate
 }
@@ -510,29 +478,20 @@ export interface MembershipUpdate {
 /**
  * What a payment changes about the person who made it, beyond the date.
  *
- * Three rules, and what each of them deliberately does *not* do is the reason
- * this is a function with a test rather than three lines inside the
- * transaction.
+ * Three rules, and what each deliberately does not do is why this is a function with
+ * a test rather than three lines inside the transaction.
  *
- * **Only `GUEST` is promoted.** Every other role is one an officer chose, and a
- * payment must never overwrite that — least of all by quietly demoting an
- * `OFFICER` to `MEMBER` because they settled their own dues. `ALUMNUS` is left
- * alone for the same reason and costs nothing: access is decided by
- * `membershipStanding`, which reads the date, so an alumnus who pays is covered
- * whatever their role says.
+ * Only `GUEST` is promoted. Every other role is one an officer chose, and a payment
+ * must never overwrite it — least of all by quietly demoting an `OFFICER` who settled
+ * their own dues. `ALUMNUS` is left alone for the same reason and costs nothing:
+ * access reads the date, so an alumnus who pays is covered whatever their role says.
  *
- * **`joinedAt` is stamped only alongside that promotion.** This payment is the
- * moment a signup became a member, so today is the right answer for them. For
- * anybody already a member a null date means the club never recorded theirs,
- * and today is the wrong answer — it would print a false year on a public
- * profile page.
+ * `joinedAt` is stamped only alongside that promotion. This payment is the moment a
+ * signup became a member. For anybody already a member a null date means the club
+ * never recorded theirs, and today would print a false year on a public profile.
  *
- * **No slug is ever generated.** `slug` is a profile page of one's own, and
- * giving somebody one because they paid $25 is a decision for a human. It is
- * no longer what gets their card onto `/members` — that page lists every
- * account — so the two questions have come apart: promotion gets somebody
- * their dashboard and their Discord role, and an officer still gives them a
- * profile URL.
+ * No slug is ever generated. A profile page of one's own is a decision for a human,
+ * and it's no longer what gets somebody's card onto `/members`.
  */
 export function membershipUpdateFor(
   user: { role: UserRole; joinedAt: Date | null; active: boolean },
@@ -545,21 +504,19 @@ export function membershipUpdateFor(
     if (user.joinedAt === null) update.joinedAt = now
   }
 
-  // Somebody the club marked inactive who has just paid for a term has come
-  // back, and `active` is only ever the roster's current/alumni split — there
-  // is no "barred" state for it to undo.
+  // Somebody the club marked inactive who has just paid has come back, and `active` is
+  // only ever the roster's current/alumni split — there's no "barred" state to undo.
   if (!user.active) update.active = true
 
   return update
 }
 
 /**
- * The hosted receipt for a payment intent, or null if it cannot be had.
+ * The hosted receipt for a payment intent, or null if it can't be had.
  *
- * A `payment_intent.succeeded` webhook carries `latest_charge` as a bare id, so
- * the URL takes one more call to Stripe. Best-effort on purpose: the money is
- * the point and the link is a courtesy, so a failure here must never stop a
- * payment being credited.
+ * A `payment_intent.succeeded` webhook carries `latest_charge` as a bare id, so the
+ * URL takes one more call. Best-effort on purpose: the money is the point and the
+ * link is a courtesy, so a failure here must never stop a payment being credited.
  */
 export async function receiptUrlFor(
   intentId: string,
@@ -582,34 +539,27 @@ export async function receiptUrlFor(
 /**
  * Claim the free window by moving `duesPaidThrough` to the day it closes.
  *
- * The other of the two functions that move that date, and they live together on
- * purpose: it is the single field that says whether anybody is covered, and two
- * writers of it a file apart is how they end up disagreeing.
+ * One of the three functions that move that date, and they live together on purpose:
+ * it's the single field that says whether anybody is covered.
  *
- * **The date is `freeThrough` — the moment the window shuts, three weeks into the
- * dues-bearing term ahead.** It used to be the *first day* of that term, back
- * when the opening weeks were free for everybody whether or not they had
- * claimed anything: the claim only had to carry somebody to the point where the
- * blanket trial took over. Nothing is blanket now, so the claim has to cover
- * the whole of what is free, or claiming in June would quietly buy less than
- * doing nothing used to.
+ * The date is `freeThrough` — the moment the window shuts, three weeks into the
+ * dues-bearing term ahead. It used to be the first day of that term, back when the
+ * opening weeks were free for everybody: the claim only had to carry somebody to the
+ * point where the blanket trial took over. Nothing is blanket now, so claiming in
+ * June would otherwise buy less than doing nothing used to.
  *
- * One window, one press. From the end of spring to three weeks into fall is a
- * single stretch — the May gap, Summer C, the August gap, fall's first three
- * weeks — so a member claims once in May and is covered to September.
- * Summer is not special-cased anywhere; it is free because it is inside this.
+ * One window, one press. From the end of spring to three weeks into fall is a single
+ * stretch, so a member claims once in May and is covered to September. Summer isn't
+ * special-cased anywhere; it's free because it's inside this.
  *
- * Nothing here can move the date backwards. `canActivate` is only ever true
- * when the claim would genuinely extend them — somebody who has already
- * claimed sits exactly on `freeThrough` and is refused — but the guard in the
- * transaction is stated rather than assumed.
+ * Nothing here can move the date backwards. `canActivate` is only true when the claim
+ * would genuinely extend them, but the guard in the transaction is stated rather than
+ * assumed.
  *
- * **It promotes exactly as paying does.** Claiming the free break is joining
- * the club for it, so a `GUEST` who presses the button comes out a `MEMBER` —
- * same `membershipUpdateFor`, same transaction, same refusal to touch a role an
- * officer chose or to invent a slug. The two ways of becoming covered must
- * leave the account in the same state or somebody who joined over the summer
- * spends the year as a guest on their own dashboard.
+ * It promotes exactly as paying does — same `membershipUpdateFor`, same transaction.
+ * The two ways of becoming covered must leave the account in the same state, or
+ * somebody who joined over the summer spends the year as a guest on their own
+ * dashboard.
  */
 export async function claimFreeWindow(
   user: { id: string; duesPaidThrough: Date | null },
@@ -627,9 +577,9 @@ export async function claimFreeWindow(
     })
   }
 
-  // `canActivate` is only true when a window is running, so this is non-null.
-  // Asserted rather than assumed: the alternative is writing `null` into the
-  // one column that decides whether anybody is covered.
+  // `canActivate` is only true when a window is running, so this is non-null. Asserted
+  // rather than assumed: the alternative is writing `null` into the one column that
+  // decides whether anybody is covered.
   const through = standing.freeThrough
 
   if (through === null) {
@@ -651,8 +601,8 @@ export async function claimFreeWindow(
       },
     })
 
-    // A second press that raced the first. Theirs did the work; this one
-    // reports rather than repeating it, and the date never goes backwards.
+    // A second press that raced the first. Theirs did the work; this one reports
+    // rather than repeating it, and the date never goes backwards.
     if (!row || (row.duesPaidThrough !== null && row.duesPaidThrough >= through)) {
       return {} as MembershipUpdate
     }
@@ -681,32 +631,22 @@ export async function claimFreeWindow(
 /**
  * An officer giving somebody a term, with no money involved.
  *
- * The third and last writer of `duesPaidThrough`, and it lives in this file
- * beside the other two for the reason stated on `claimFreeWindow`: one field
- * decides whether anybody is covered, and writers of it a file apart are how
- * they end up disagreeing.
+ * The third writer of `duesPaidThrough`, here beside the other two for the reason
+ * stated on `claimFreeWindow`.
  *
- * It exists because the alternative was already happening. Somebody pays a
- * treasurer in cash at a meeting, and an officer opens Prisma Studio and types
- * a date into `dues_paid_through` — which covers them and does nothing else: no
- * `GUEST` promotion, no `joinedAt`, no history, and no record that anybody
- * granted anything. Half the roster's worth of members whose own dues page says
- * they have never paid. This is that edit, done through the same three rules a
- * card payment goes through.
+ * It exists because the alternative was already happening: somebody pays a treasurer
+ * in cash, an officer opens Prisma Studio and types a date into `dues_paid_through` —
+ * which covers them and does nothing else. No `GUEST` promotion, no `joinedAt`, no
+ * history, and no record that anybody granted anything.
  *
- * **It is a payment row, for nothing, with a name on it.** `amountCents: 0`
- * says the club collected nothing here, `grantedById` says who decided, and the
- * `comp_` sentinel in the unique intent id keeps that column's idempotency
- * guarantee meaning what it means rather than going nullable. Somebody reading
- * a member's history sees the term they were given next to the terms they
- * bought, which is what an audit of comped dues needs and what the bare Studio
- * edit could never provide.
+ * It's a payment row, for nothing, with a name on it. `amountCents: 0` says the club
+ * collected nothing, `grantedById` says who decided, and the `comp_` sentinel in the
+ * unique intent id keeps that column's idempotency guarantee rather than going
+ * nullable. A member's history then shows the term they were given beside the terms
+ * they bought.
  *
- * **It extends rather than resets**, because `coverageFor` is quoted against
- * what they already hold — the same call the checkout page makes — so granting
- * a semester to somebody already paid through December covers them through
- * spring instead of shortening them to December. And like both writers above
- * it, the date cannot move backwards.
+ * It extends rather than resets, because `coverageFor` is quoted against what they
+ * already hold — and like both writers above it, the date can't move backwards.
  */
 export async function grantMembership(
   member: { id: string; duesPaidThrough: Date | null },
@@ -716,12 +656,10 @@ export async function grantMembership(
 ): Promise<MembershipStanding> {
   const coverage = await coverageFor(plan, now, member.duesPaidThrough)
 
-  // The same refusal `checkout` makes, and for the same reason: past four hops
-  // `coverageFor` gives up and hands back the member's own date, so a grant
-  // beyond that would write a zero-amount row recording that somebody was given
-  // nothing. Free rather than costly, but a misleading record is still worth
-  // refusing — and an officer told "they are already covered past that" has
-  // learned the thing they were about to get wrong.
+  // The same refusal `checkout` makes: past four hops `coverageFor` gives up and hands
+  // back the member's own date, so a grant beyond that would write a zero-amount row
+  // recording that somebody was given nothing. Free rather than costly, but a
+  // misleading record is still worth refusing.
   if (
     member.duesPaidThrough !== null &&
     coverage.through <= member.duesPaidThrough
@@ -747,10 +685,9 @@ export async function grantMembership(
 
     if (!row) throw new HTTPException(404, { message: 'No such member.' })
 
-    // Unreachable in normal use — `coverageFor` hops past whatever they already
-    // hold — but stated rather than assumed, the same way `claimFreeWindow`
-    // states it. "The officer granted me a term and my membership got shorter"
-    // is not a bug worth risking on a proof.
+    // Unreachable in normal use — `coverageFor` hops past whatever they already hold —
+    // but stated rather than assumed, the way `claimFreeWindow` states it. "The officer
+    // granted me a term and my membership got shorter" isn't worth risking on a proof.
     const through =
       row.duesPaidThrough !== null && row.duesPaidThrough > coverage.through
         ? row.duesPaidThrough
@@ -762,9 +699,9 @@ export async function grantMembership(
         plan,
         amountCents: 0,
         status: DuesPaymentStatus.SUCCEEDED,
-        // Never a real intent, and shaped so nobody mistakes it for one. Unique
-        // per grant, so the constraint that stops Stripe crediting a payment
-        // twice also stops two officers double-granting on one click.
+        // Never a real intent, and shaped so nobody mistakes it for one. Unique per
+        // grant, so the constraint that stops Stripe crediting a payment twice also
+        // stops two officers double-granting on one click.
         stripePaymentIntentId: `comp_${crypto.randomUUID()}`,
         termYear: coverage.term.year,
         termSeason: coverage.term.season,
@@ -796,30 +733,24 @@ export async function grantMembership(
 }
 
 /**
- * Record what Stripe says about an intent, and extend membership if it was
- * paid.
+ * Record what Stripe says about an intent, and extend membership if it was paid.
  *
  * The one function both the webhook and `sync` go through, and the only place
- * `duesPaidThrough` is ever moved forward.
+ * `duesPaidThrough` is moved forward.
  *
- * Crediting exactly once is the whole job. Stripe retries a webhook until
- * something answers 2xx, may deliver the same event twice regardless, and the
- * member's own browser calls `sync` at roughly the same moment — so the same
- * successful payment routinely arrives here two or three times. The guard is
- * the stored row's status: the transaction only extends membership on the pass
- * that moves it from something else to `SUCCEEDED`, and `updateMany` with that
- * status in the `where` makes the check and the write one statement that two
- * connections cannot both win.
+ * Crediting exactly once is the whole job. Stripe retries a webhook until something
+ * answers 2xx, may deliver the same event twice regardless, and the member's browser
+ * calls `sync` at roughly the same moment. The guard is the stored row's status: the
+ * transaction only extends membership on the pass that moves it to `SUCCEEDED`, and
+ * `updateMany` with that status in the `where` makes the check and the write one
+ * statement two connections can't both win.
  *
- * `coversThrough` is read off the row rather than recomputed, so a member who
- * paid in August gets the dates they were quoted in August even if UCF has
- * since revised the calendar.
+ * `coversThrough` is read off the row rather than recomputed, so a member who paid in
+ * August gets the dates they were quoted even if UCF has since revised the calendar.
  *
- * The rest of the account moves with the date, in the same transaction and on
- * the same pass — `membershipUpdateFor` decides what. Doing it here rather than
- * in the two callers is what keeps a member who closed the tab and was credited
- * by the webhook from ending up promoted differently to one whose browser got
- * there first.
+ * The rest of the account moves with the date, in the same transaction and on the same
+ * pass. Doing it here rather than in the two callers keeps a member credited by the
+ * webhook from ending up promoted differently to one whose browser got there first.
  */
 export async function applyPayment(intent: {
   id: string
@@ -843,18 +774,18 @@ export async function applyPayment(intent: {
   })
 
   if (!payment) {
-    // An intent this server never created. A live key shared with something
-    // else, or a replayed event from another integration — either way there is
-    // no row saying who it belongs to or what it bought, so nothing is granted.
+    // An intent this server never created. A live key shared with something else, or a
+    // replayed event from another integration — either way there's no row saying who it
+    // belongs to or what it bought, so nothing is granted.
     console.warn(`dues: payment intent ${intent.id} has no record here`)
     return { status, paidThrough: null, receiptUrl: null, changed: {} }
   }
 
   if (status !== DuesPaymentStatus.SUCCEEDED) {
     await prisma.duesPayment.updateMany({
-      // Never walk a succeeded payment backwards. Stripe's events are not
-      // ordered, so a `payment_intent.processing` delivered late must not undo
-      // the `succeeded` that already landed.
+      // Never walk a succeeded payment backwards. Stripe's events aren't ordered, so a
+      // `payment_intent.processing` delivered late must not undo the `succeeded` that
+      // already landed.
       where: { id: payment.id, status: { not: DuesPaymentStatus.SUCCEEDED } },
       data: { status },
     })
@@ -872,15 +803,14 @@ export async function applyPayment(intent: {
     }
   }
 
-  // Whatever is already stored wins, then whatever the caller was able to look
-  // up. `applyPayment` deliberately makes no call to Stripe itself: it is the
-  // one function both the webhook and `sync` funnel through, and keeping the
-  // network out of it is what lets the crediting rules be tested against a
-  // plain object rather than a mocked SDK.
+  // Whatever is already stored wins, then whatever the caller looked up. `applyPayment`
+  // deliberately makes no call to Stripe itself: keeping the network out of the one
+  // function both the webhook and `sync` funnel through is what lets the crediting
+  // rules be tested against a plain object rather than a mocked SDK.
   const receiptUrl = payment.receiptUrl ?? intent.receiptUrl ?? null
 
-  // Paid for less than the row says it was for. Stripe should never do this,
-  // but the row exists precisely so that it can be checked rather than assumed.
+  // Paid for less than the row says it was for. Stripe should never do this, but the
+  // row exists precisely so it can be checked rather than assumed.
   if (typeof intent.amount === 'number' && intent.amount < payment.amountCents) {
     console.error(
       `dues: intent ${intent.id} paid ${intent.amount} against an expected ${payment.amountCents} — not crediting`,
@@ -898,9 +828,9 @@ export async function applyPayment(intent: {
   ): Promise<{
     paidThrough: Date | null
     changed: MembershipUpdate
-    /** Whether *this* pass is the one that credited it. Stripe delivers the
-        same payment more than once by design, so "succeeded" is not the same
-        question as "something just changed". */
+    /** Whether this pass is the one that credited it. Stripe delivers the same payment
+        more than once by design, so "succeeded" isn't the same question as "something
+        just changed". */
     creditedNow: boolean
   }> {
     const { count } = await tx.duesPayment.updateMany({
@@ -913,8 +843,8 @@ export async function applyPayment(intent: {
     })
 
     // Scalars only, and one query. Asking for relations inside an interactive
-    // transaction makes Prisma fan the selects out across the single connection
-    // the transaction is holding, which the driver adapter warns about.
+    // transaction makes Prisma fan the selects out across the single connection it's
+    // holding, which the driver adapter warns about.
     const user = await tx.user.findUnique({
       where: { id: payment.userId },
       select: {
@@ -925,8 +855,8 @@ export async function applyPayment(intent: {
       },
     })
 
-    // Somebody else got here first. Their pass did the crediting *and* the
-    // promotion; this one reports the result rather than doing either again.
+    // Somebody else got here first. Their pass did the crediting and the promotion;
+    // this one reports the result rather than doing either again.
     if (count === 0 || !user) {
       return {
         paidThrough: user?.duesPaidThrough ?? null,
@@ -937,8 +867,8 @@ export async function applyPayment(intent: {
 
     const current = user.duesPaidThrough
 
-    // Only ever forward. Two payments landing out of order must not let the
-    // earlier one shorten what the later one bought.
+    // Only ever forward. Two payments landing out of order must not let the earlier one
+    // shorten what the later one bought.
     const extended =
       current !== null && current > payment.coversThrough
         ? current
@@ -965,10 +895,9 @@ export async function applyPayment(intent: {
     )
   }
 
-  // Only on the pass that actually credited. The webhook and the browser's
-  // confirm routinely both arrive for one payment, and Stripe re-delivers
-  // besides — pushing on each would ask Discord the same question three times
-  // and get the same answer.
+  // Only on the pass that actually credited. The webhook and the browser's confirm
+  // routinely both arrive for one payment, and Stripe re-delivers besides — pushing on
+  // each would ask Discord the same question three times.
   if (creditedNow) pushRoles(payment.userId, 'dues paid')
 
   return { status, ...outcome, receiptUrl }

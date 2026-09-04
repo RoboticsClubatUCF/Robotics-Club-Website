@@ -93,10 +93,9 @@ describe('ProjectPage', () => {
   /**
    * The contract behind `SignedInBody`, and the reason it exists.
    *
-   * `useApi` has no dedupe, so a hook added at the top of the page body would
-   * be a request every anonymous visitor pays for — on the one page that is
-   * deliberately reachable signed out, so that somebody deciding whether to
-   * join can read it. Two calls: the session, and the project. Nothing else.
+   * `useApi` has no dedupe, so a hook at the top of the page body would be a request every
+   * anonymous visitor pays for — on the one page deliberately reachable signed out. Two calls: the
+   * session, and the project. Nothing else.
    *
    * If this fails, look for a `useApi` that moved above the signed-in check.
    */
@@ -218,10 +217,9 @@ describe('ProjectPage', () => {
   /**
    * The same lock, a different reason, and it must not say "dues lapsed".
    *
-   * Inside a free window nothing has lapsed and nothing is owed — the fix is
-   * one press and no card. This banner hardcoded the lapsed wording and a
-   * PAY MY DUES link, which was correct while "no cover" only ever meant money
-   * was owed and became wrong the day free stopped being automatic.
+   * Inside a free window nothing has lapsed and nothing is owed — the fix is one press and no
+   * card. This banner hardcoded the lapsed wording and a PAY MY DUES link, which was correct while
+   * "no cover" only ever meant money was owed.
    */
   it('tells a lead inside a free window to claim, not to pay', async () => {
     vi.stubGlobal(
@@ -276,11 +274,10 @@ describe('ProjectPage', () => {
   })
 
   /**
-   * **One way out, not two.** This slot used to hold a DONE EDITING while the
-   * editor held a second one, on the argument that the exit belongs where the
-   * entrance was. That was worth its weight while the page saved as you touched
-   * it; now that it saves once, at the bottom, the exit belongs with the button
-   * it is the alternative to.
+   * One way out, not two. This slot used to hold a DONE EDITING while the editor held a second
+   * one, on the argument that the exit belongs where the entrance was. That was worth its weight
+   * while the page saved as you touched it; now that it saves once at the bottom, the exit belongs
+   * with the button it's the alternative to.
    */
   it('takes the edit button away, and leaves the exit to the editor', async () => {
     vi.stubGlobal(
@@ -367,14 +364,11 @@ describe('ProjectPage', () => {
   })
 
   /**
-   * **The roster says who runs the build, and stops saying what they do in the
-   * club.**
+   * The roster says who runs the build, and stops saying what they do in the club.
    *
-   * It printed `User.title` beside the name — the club-wide title, written by
-   * nothing in the product and set only by the seed and the legacy import — so
-   * an officer's "Lab Manager" turned up on a rover page meaning nothing there.
-   * And it printed no rank at all: `rank` sorted the lead to the top of the list
-   * and said nothing about why they were there.
+   * It printed `User.title` beside the name — the club-wide title, written by nothing in the
+   * product — so an officer's "Lab Manager" turned up on a rover page meaning nothing there. And
+   * it printed no rank at all: `rank` sorted the lead to the top and said nothing about why.
    */
   it('names the lead and the team lead, and not a club title', async () => {
     vi.stubGlobal(
@@ -459,11 +453,9 @@ describe('ProjectPage', () => {
   })
 
   /**
-   * `repoUrl` was a column of its own that printed as a fixed SOURCE CODE row
-   * here and drew a fixed box in the editor, so this section could never be
-   * empty on a site where most of what the club builds has no repository. It is
-   * an ordinary link now, and a project with nothing to point at draws no
-   * section at all.
+   * `repoUrl` was a column of its own that printed as a fixed SOURCE CODE row here and drew a
+   * fixed box in the editor, so this section could never be empty on a site where most of what
+   * the club builds has no repository. It's an ordinary link now.
    */
   it('draws no resources section when there is nothing to link', async () => {
     vi.stubGlobal(
@@ -518,11 +510,10 @@ describe('ProjectPage', () => {
   })
 
   /**
-   * The roster is part of the *project* read, not of the join panel, so a join
-   * that only flips the panel leaves the reader looking at a list of names
-   * their own is missing from — which reads as the join not having gone
-   * through. It has to be a fresh read: `/projects/:slug` answers
-   * `max-age=60`, and the browser would otherwise serve the pre-join copy back.
+   * The roster is part of the project read, not of the join panel, so a join that only flips the
+   * panel leaves the reader looking at a list of names their own is missing from. It has to be a
+   * fresh read: `/projects/:slug` answers `max-age=60`, and the browser would otherwise serve the
+   * pre-join copy back.
    */
   it('re-reads the roster after joining, past the browser cache', async () => {
     const roster = (...names: string[]) =>
@@ -575,10 +566,9 @@ describe('ProjectPage', () => {
   /**
    * The way back out has to be there straight away.
    *
-   * `rank` used to come only from `/me/projects`, which `useApi` cannot refetch,
-   * so the snapshot behind it was always from before the join — and the LEAVE
-   * link stayed missing until somebody reloaded the page. The join's own
-   * response carries the rank; this asserts it is what gets used.
+   * `rank` used to come only from `/me/projects`, which `useApi` can't refetch, so the snapshot
+   * behind it was always from before the join — and the LEAVE link stayed missing until somebody
+   * reloaded. The join's own response carries the rank; this asserts it's what gets used.
    */
   it('offers the way back out straight after joining, with no refresh', async () => {
     const fetchMock = vi.fn((input: string | URL | Request, _init?: RequestInit) => {

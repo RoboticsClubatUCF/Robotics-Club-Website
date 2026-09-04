@@ -15,15 +15,13 @@ import { bodyOf, stubFetch, urlOf } from '../../test/stubFetch'
 /**
  * The lending desk: adding something, and moving a loan along.
  *
- * Two rules are worth a test each because both are about what an officer can
- * do by accident. Nothing may leave the lab without an approval, so a
- * requested loan offers no way to hand it over. And a partial edit — ticking
- * "retire" — must not carry the rest of the form's defaults with it; that one
- * was a real bug, and it silently reset an item's quantity to one.
+ * Two rules are worth a test each because both are about what an officer can do by accident.
+ * Nothing may leave the lab without an approval, so a requested loan offers no way to hand it over.
+ * And a partial edit — ticking "retire" — must not carry the rest of the form's defaults with it;
+ * that one was a real bug, and it silently reset an item's quantity to one.
  *
- * The rest is the form itself. Every box has a label above it rather than a
- * placeholder inside it, which is the thing being asserted when these ask for
- * a field by its name.
+ * The rest is the form itself. Every box has a label above it rather than a placeholder inside it,
+ * which is what these are asserting when they ask for a field by its name.
  */
 
 const term: ApiTerm = {

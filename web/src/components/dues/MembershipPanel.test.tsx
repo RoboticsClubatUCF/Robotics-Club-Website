@@ -4,13 +4,11 @@ import { MembershipPanel } from './MembershipPanel'
 import type { ApiMembership, ApiTerm, MembershipStatus } from '../../lib/api/api'
 
 /**
- * The four states a member can be in, and the fact that they are four rather
- * than two.
+ * The four states a member can be in, and the fact that they are four rather than two.
  *
- * `FREE` and `TRIAL` look identical from the member's side today — both mean
- * "you owe nothing right now" — and only one of them has a date on which that
- * stops. The test that matters here is that the trial says so: somebody told
- * membership is simply free finds out otherwise at the lab door.
+ * `FREE` and `TRIAL` look identical from the member's side — both mean "you owe nothing right now"
+ * — and only one has a date on which that stops. What matters here is that the trial says so:
+ * somebody told membership is simply free finds out otherwise at the lab door.
  */
 
 const NOW = new Date('2026-09-01T12:00:00').getTime()
@@ -102,14 +100,12 @@ describe('MembershipPanel', () => {
   })
 
   /**
-   * `FREE` reversed meaning, and this is the pair of tests that pins it.
+   * `FREE` reversed meaning, and this pair of tests pins it.
    *
-   * It used to be "the club is charging nobody, so you are covered" — and the
-   * panel said "Summer is free" and left it there. Access is the dues date now,
-   * so the same status means "the club is charging nobody and you are *still*
-   * not covered". Somebody who reads "summer is free" and then cannot open the
-   * print page has been told the wrong thing, so the lead line has to be about
-   * them rather than about the calendar.
+   * It used to be "the club is charging nobody, so you are covered", and the panel said "Summer is
+   * free" and left it there. Access is the dues date now, so the same status means "the club is
+   * charging nobody and you are still not covered". So the lead line has to be about them rather
+   * than about the calendar.
    */
   it('says free membership is unclaimed rather than that summer is free', () => {
     show({

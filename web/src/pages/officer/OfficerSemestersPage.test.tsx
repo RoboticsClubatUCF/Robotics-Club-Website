@@ -9,11 +9,10 @@ import { bodyOf, urlOf } from '../../test/stubFetch'
 /**
  * The semesters desk.
  *
- * What it is *for* is the thing worth testing: telling a fact from a guess. The
- * site falls back to fixed dates when UCF's calendar cannot be read, and before
- * this page there was no way to see that had happened — so the source label on
- * each row carries most of the page's value, and the reset button only exists
- * where there is something to undo.
+ * What it is for is the thing worth testing: telling a fact from a guess. The site falls back to
+ * fixed dates when UCF's calendar cannot be read, and before this page there was no way to see that
+ * had happened — so the source label on each row carries most of the page's value, and the reset
+ * button only exists where there is something to undo.
  */
 
 const term: ApiTerm = {

@@ -7,21 +7,17 @@ import { explainApiError } from '../../lib/api/apiErrors'
 /**
  * Leaving a project, with the consequences said out loud first.
  *
- * Nobody is locked into a project, leads included — but a lead walking out
- * gives up more than a row on a roster, and the one thing a confirmation has to
- * do is name what is about to be lost.
+ * Nobody is locked into a project, leads included — but a lead walking out gives up more than a row
+ * on a roster, and the one thing a confirmation has to do is name what is about to be lost.
  *
- * `window.confirm` used to do this job on the dashboard. It cannot: the native
- * box arrives in the system font with the origin printed above it and no room
- * for the facts this decision actually turns on.
+ * `window.confirm` used to do this job on the dashboard. It cannot: the native box arrives in the
+ * system font with the origin printed above it and no room for the facts this decision turns on.
  *
- * **The sole project lead may now leave**, and this dialog says what that
- * costs the *project* rather than the person. It used to say what it cost the
- * person: walking out of your last lead seat rewrote your club-wide roster
- * label, so three sentences here worked out whether you would land on MEMBER or
- * GUEST. Nothing about a project touches that column any more — leaving changes
- * what you run, not what you are — so the sentences are gone and the honest
- * remaining consequence is that the project is left without a lead.
+ * The sole project lead may now leave, and this dialog says what that costs the project rather than
+ * the person. It used to say what it cost the person: walking out of your last lead seat rewrote
+ * your club-wide roster label, so three sentences here worked out whether you would land on MEMBER
+ * or GUEST. Nothing about a project touches that column any more — leaving changes what you run,
+ * not what you are — so the honest remaining consequence is that the project is left without a lead.
  */
 export function LeaveProjectButton({
   projectId,

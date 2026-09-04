@@ -14,15 +14,14 @@ import { stripeAppearanceFor } from './stripeAppearance'
 /**
  * The card form, and the confirm that follows it.
  *
- * `PaymentElement` rather than a hand-built card field: it renders whatever the
- * club's Stripe account has switched on — cards, and the wallets a given device
- * offers — and none of the card details ever touch this origin, which is what
- * keeps the club out of the part of PCI compliance that has paperwork in it.
+ * `PaymentElement` rather than a hand-built card field: it renders whatever the club's Stripe
+ * account has switched on — cards, and the wallets a given device offers — and none of the card
+ * details ever touch this origin, which keeps the club out of the part of PCI compliance that has
+ * paperwork in it.
  *
- * The one thing worth understanding here is that **this component never decides
- * that a payment succeeded.** `confirmPayment` reports what the browser saw,
- * and the browser is not a source of truth about money: it hands the intent id
- * up to the page, which asks the server, which asks Stripe. See
+ * The one thing worth understanding is that this component never decides a payment succeeded.
+ * `confirmPayment` reports what the browser saw, and the browser is not a source of truth about
+ * money: it hands the intent id up to the page, which asks the server, which asks Stripe. See
  * `POST /api/dues/sync`.
  */
 export function PaymentForm({

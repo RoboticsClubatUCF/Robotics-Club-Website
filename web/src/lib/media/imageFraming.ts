@@ -3,16 +3,14 @@ import type { CSSProperties } from 'react'
 /**
  * Where a picture sits inside the gallery's fixed 16:10 frame.
  *
- * The club's photos arrive in every shape a phone can produce, and the frame is
- * one shape — so something always has to be cropped away. `object-cover` picks
- * the middle, which is right about half the time and beheads somebody the rest.
- * These three numbers are the lead's answer to that.
+ * The club's photos arrive in every shape a phone can produce and the frame is one shape, so
+ * something always has to be cropped away. `object-cover` picks the middle, which is right about
+ * half the time and beheads somebody the rest. These three numbers are the lead's answer to that.
  *
- * **Framing is metadata, applied with CSS at display time, never baked into the
- * bytes.** Half the gallery is external URLs the club does not host: a canvas
- * cannot read cross-origin pixels, so `toBlob` throws on one, and a destructive
- * crop would therefore work for uploads and be impossible for links. Doing it
- * in CSS works for both, keeps the original, and costs nothing at render.
+ * Framing is metadata, applied with CSS at display time, never baked into the bytes. Half the
+ * gallery is external URLs the club does not host: a canvas cannot read cross-origin pixels, so
+ * `toBlob` throws on one, and a destructive crop would work for uploads and be impossible for
+ * links. CSS works for both, keeps the original, and costs nothing at render.
  */
 
 export interface Framing {
@@ -36,10 +34,9 @@ const clamp = (value: number, low: number, high: number) =>
 /**
  * Framing that is safe to render, from whatever arrived.
  *
- * Total on purpose. These numbers reach the browser from a database column, so
- * a row written before the column existed, or edited by hand in Studio, must
- * not put `NaN` into a `style` and blank a picture on the public page. Anything
- * unusable falls back to the centred default one field at a time.
+ * Total on purpose. These numbers reach the browser from a database column, so a row written before
+ * the column existed, or edited by hand in Studio, must not put `NaN` into a `style` and blank a
+ * picture on the public page. Anything unusable falls back to the centred default, field by field.
  */
 export function safeFraming(framing: Partial<Framing> | null | undefined): Framing {
   const number = (value: unknown, fallback: number) =>
@@ -55,15 +52,14 @@ export function safeFraming(framing: Partial<Framing> | null | undefined): Frami
 /**
  * The framing as an inline style for an `<img>` that already fills its frame.
  *
- * Two properties doing two jobs. `object-position` chooses which slice of a
- * source shows when its aspect ratio does not match the frame's — that is the
- * pan. `scale` then enlarges what is showing, and its origin is pinned to the
- * *same* point, which is what makes zooming feel like it happens under the
- * cursor rather than dragging the subject out of shot.
+ * Two properties doing two jobs. `object-position` chooses which slice of a source shows when its
+ * aspect ratio does not match the frame's — the pan. `scale` then enlarges what is showing, pinned
+ * to the same point, which is what makes zooming feel like it happens under the cursor rather than
+ * dragging the subject out of shot.
  *
- * Returned as a style rather than Tailwind classes because these are continuous
- * values: a class per percentage is thousands of classes, and Tailwind cannot
- * generate one from a variable anyway — the class would silently not exist.
+ * A style rather than Tailwind classes because these are continuous values: a class per percentage
+ * is thousands of classes, and Tailwind cannot generate one from a variable anyway — the class
+ * would silently not exist.
  */
 export function frameStyle(framing: Partial<Framing> | null | undefined): CSSProperties {
   const { focalX, focalY, zoom } = safeFraming(framing)
@@ -91,14 +87,13 @@ export const isDefaultFraming = (framing: Partial<Framing> | null | undefined) =
 /**
  * The framing after a drag of `dx`/`dy` pixels across a frame `width` wide.
  *
- * Dragging right reveals what is off to the *left*, so the focal point moves
- * the other way — the picture follows the pointer, which is the only direction
- * anybody expects. The step is divided by `zoom` because at 3× the same drag
- * crosses three times as much picture, and without it the image tears away from
- * the cursor exactly when precision matters most.
+ * Dragging right reveals what is off to the left, so the focal point moves the other way — the
+ * picture follows the pointer, which is the only direction anybody expects. The step is divided by
+ * `zoom` because at 3× the same drag crosses three times as much picture, and without it the image
+ * tears away from the cursor exactly when precision matters most.
  *
- * Pure, and guarded against a zero-sized frame: jsdom reports every rectangle
- * as 0×0, and an unguarded divide would put `Infinity` into the style.
+ * Guarded against a zero-sized frame: jsdom reports every rectangle as 0×0, and an unguarded divide
+ * would put `Infinity` into the style.
  */
 export function panBy(
   framing: Framing,

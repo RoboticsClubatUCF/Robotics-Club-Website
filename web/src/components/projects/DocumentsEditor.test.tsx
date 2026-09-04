@@ -224,9 +224,9 @@ describe('DocumentsEditor', () => {
   })
 
   /**
-   * ADD used to be the publish: the file went up, the row appeared on a public
-   * page, and the SAVE at the foot of the editor had nothing to do with it. It
-   * adds a row to the list now, and the page's save is what publishes.
+   * ADD used to be the publish: the file went up, the row appeared on a public page, and the SAVE
+   * at the foot of the editor had nothing to do with it. It adds a row to the list now, and the
+   * page's save is what publishes.
    */
   it('adds to the list without sending anything, and publishes on save', async () => {
     const seen = vi.fn<Watcher>()

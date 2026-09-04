@@ -8,31 +8,23 @@ import type { Term } from '../membership/semester.js'
 /**
  * How much material a member has left for their own prints this term.
  *
- * **Nothing here is stored.** The balance is the club's number
- * (`PERSONAL_PRINT_GRAMS`) minus the grams an officer recorded on that
- * member's finished personal prints for the term — counted at the moment it is
- * asked for, exactly the way `EquipmentLoan` availability is `quantity` minus
- * the loans currently holding a unit. A balance column would be a number that
- * goes wrong quietly, and the per-semester reset would stop being free: it
- * would become a sweep somebody has to remember to run in August, on a date
- * UCF is free to move.
+ * Nothing here is stored. The balance is the club's number minus the grams an officer recorded on
+ * that member's finished personal prints for the term — counted at the moment it's asked for, the
+ * way `EquipmentLoan` availability is `quantity` minus the loans holding a unit. A balance column
+ * would go wrong quietly, and the per-semester reset would become a sweep somebody has to
+ * remember to run in August, on a date UCF is free to move.
  *
- * Three parts of the rule, and each is a `where` clause:
+ * Three parts of the rule, each a `where` clause:
  *
- * - **Personal only.** `projectId: null`. A print for a project is uncapped by
- *   the club's decision — honour system, officer's discretion — so it is not
- *   merely exempt from the subtraction, it is not in the query at all.
- * - **Finished only.** `status: DONE`. The grams are spent when the thing is
- *   printed, not when it is asked for. A member with four requests waiting has
- *   spent nothing yet, and a rejected one never spends anything.
- * - **This term only.** The request's frozen `termYear`/`termSeason`, which is
- *   what makes "resets each semester" a comparison of two enum values rather
- *   than date arithmetic against a calendar that gets revised.
+ * - Personal only. A print for a project is uncapped by the club's decision, so it isn't merely
+ *   exempt from the subtraction, it isn't in the query at all.
+ * - Finished only. The grams are spent when the thing is printed, not when it's asked for.
+ * - This term only, by the request's frozen `termYear`/`termSeason` — which makes "resets each
+ *   semester" a comparison of two enum values rather than date arithmetic.
  *
- * The term is `currentTerm`, **not** `billableTerm`, and that is the one place
- * on the site where summer is a term in its own right. Dues skip summer
- * because the club does not charge for it; the allowance does not, because the
- * club's answer was that every semester resets it and summer is a semester.
+ * The term is `currentTerm`, not `billableTerm`, and that's the one place on the site where
+ * summer is a term in its own right. Dues skip summer because the club doesn't charge for it; the
+ * allowance doesn't, because every semester resets it and summer is a semester.
  */
 export interface PrintAllowance {
   /** The club's figure for one term, from configuration. */
@@ -67,12 +59,10 @@ const spentIn = (term: TermKey) => ({
 /**
  * A term as a `PrintRequest` stores it.
  *
- * Which term a balance is *about* is not always the one it is now. A request
- * carries the term it was made in, frozen, and that is the bucket its grams
- * land in whenever an officer gets round to settling it — so a print asked for
- * in December and finished in January is charged to the fall, and the check
- * that it fits has to look at the fall too. Reading the current term there
- * instead would compare against a balance the grams are not going to touch.
+ * Which term a balance is about isn't always the one it is now. A request carries the term it was
+ * made in, frozen, and that's the bucket its grams land in whenever an officer settles it — so a
+ * print asked for in December and finished in January is charged to the fall, and the check that
+ * it fits has to look at the fall too.
  */
 export interface TermKey {
   termYear: number
@@ -112,16 +102,13 @@ export const allowanceKey = (userId: string, term: TermKey): string =>
 /**
  * The same answer for a whole queue, in one query.
  *
- * The officer queue draws up to a hundred rows and wants a balance beside each
- * personal one. Asking per row is the N+1 that turns a fast page slow without
- * anybody noticing, so this is a single `groupBy` — the same shape the
- * equipment availability count uses in `routes/officer/officer.ts`.
+ * The officer queue draws up to a hundred rows and wants a balance beside each personal one.
+ * Asking per row is the N+1 that turns a fast page slow without anybody noticing, so this is a
+ * single `groupBy`.
  *
- * Grouped by term as well as by person, because a queue can hold requests from
- * either side of a semester boundary and those are different budgets. Every
- * pair asked about is in the map, including people who have spent nothing: a
- * caller reading it back should get a balance rather than an `undefined` it has
- * to know means zero.
+ * Grouped by term as well as by person, because a queue can hold requests from either side of a
+ * semester boundary. Every pair asked about is in the map, including people who have spent
+ * nothing: a caller should get a balance rather than an `undefined` it has to know means zero.
  */
 export async function allowancesFor(
   pairs: ({ userId: string } & TermKey)[],

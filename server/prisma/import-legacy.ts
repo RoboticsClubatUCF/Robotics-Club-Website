@@ -30,24 +30,17 @@ import {
  *   npx tsx prisma/import-legacy.ts                 # say what would happen
  *   npx tsx prisma/import-legacy.ts --apply         # do it
  *
- * **This is not the seed and it is not idempotent.** The seed upserts on unique
- * keys and can be run any number of times; this clears the destination and
- * writes 700 people into it once. Running it twice means clearing twice, which
- * is why `--apply` has to be asked for and the default is a report.
+ * This is not the seed and it isn't idempotent. The seed upserts on unique keys and can be run
+ * any number of times; this clears the destination and writes 700 people into it once. Running
+ * it twice means clearing twice, which is why `--apply` has to be asked for.
  *
- * ## The order it happens in, and why
+ * Everything is one transaction. Half-importing a club is worse than not importing it: the
+ * failure would show up as a roster with some people on it, which nobody would read as an error.
  *
- * Everything is one transaction. Half-importing a club is worse than not
- * importing it: the failure would show up as a roster with some people on it,
- * which nobody would read as an error.
- *
- * ## What it refuses to do
- *
- * Fourteen pairs of rows share an email address or a Discord handle, both of
- * which are unique here. Twenty-odd accounts are on domains no member uses.
- * Nine people hold an office that has to become a seat. None of those have a
- * default that cannot be wrong, so the run stops until `legacy/decisions.ts`
- * has an answer for each — see `unresolved`.
+ * Fourteen pairs of rows share an email address or a Discord handle, both unique here.
+ * Twenty-odd accounts are on domains no member uses. Nine people hold an office that has to
+ * become a seat. None of those have a default that can't be wrong, so the run stops until
+ * `legacy/decisions.ts` has an answer for each.
  */
 
 const DUMP = process.env.LEGACY_DUMP ?? 'C:/Users/caich/Downloads/rccf_backup.sql'
@@ -109,13 +102,10 @@ function report(cases: SpecialCase[], users: MappedUser[]): void {
 /**
  * A real payment, rescued from the rows that are about to be deleted.
  *
- * Two people paid the club through this site before the import: $50 for a year
- * and $25 for a semester, both `SUCCEEDED`, both with a Stripe payment intent
- * behind them. `dues_payments.user_id` cascades, so clearing the users table
- * would take the record of two real transactions with it — and the treasurer's
- * history is not seed data. They are read out before the clear and written back
- * against the imported accounts afterwards, matched on the email the payer
- * signs in with.
+ * Two people paid the club through this site before the import, both `SUCCEEDED` with a Stripe
+ * intent behind them. `dues_payments.user_id` cascades, so clearing the users table would take
+ * the record of two real transactions with it — and the treasurer's history isn't seed data.
+ * They're read out before the clear and written back against the imported accounts afterwards.
  */
 interface RescuedPayment {
   email: string
@@ -178,14 +168,11 @@ async function rescuePayments(tx: typeof prisma): Promise<RescuedPayment[]> {
 /**
  * Emptying the destination of everything the seed invented.
  *
- * What stays is as considered as what goes. `survey_questions` and their
- * options are created by a hand-written migration rather than by the seed, and
- * they are what this import writes *into* — deleting them would leave a survey
- * with no questions on it, which is a gate the whole club is stuck behind.
- * `equipment` stays because the old database's equivalent is empty, so removing
- * it deletes a working feature and replaces it with nothing. `hero_slides` and
- * the four uploads behind them are the officer's own photographs of the lab,
- * not seed data.
+ * What stays is as considered as what goes. `survey_questions` and their options are created by
+ * a hand-written migration rather than the seed, and they're what this import writes into —
+ * deleting them would leave a survey with no questions on it. `equipment` stays because the old
+ * database's equivalent is empty, so removing it deletes a working feature and replaces it with
+ * nothing. `hero_slides` and the four uploads behind them are the officer's own photographs.
  */
 async function clearSeedData(tx: typeof prisma): Promise<Record<string, number>> {
   const counts: Record<string, number> = {}
@@ -223,10 +210,9 @@ const storedId = (url: string | null): string | null =>
 /**
  * Uploads nothing points at any more.
  *
- * Computed after the clear rather than before it, so the files behind the rows
- * that were just deleted are included. Every image column on this schema holds
- * either an external URL or `/api/files/<id>`, so the references are found by
- * reading the columns rather than by a join — there is no foreign key to
+ * Computed after the clear rather than before, so the files behind the rows just deleted are
+ * included. Every image column holds either an external URL or `/api/files/<id>`, so the
+ * references are found by reading the columns rather than by a join — there's no foreign key to
  * follow, which is exactly why these go stale.
  */
 async function deleteOrphanFiles(tx: typeof prisma): Promise<number> {
@@ -268,11 +254,9 @@ async function deleteOrphanFiles(tx: typeof prisma): Promise<number> {
 /**
  * Every id in `decisions.ts` names somebody who is actually in the dump.
  *
- * A mistyped uuid is the worst kind of mistake this file can contain, because
- * nothing goes wrong: the drop does not happen, the merge does not happen, the
- * seat is not created, and the import reports success. It is only visible as a
- * spam account on the roster months later. So a decision that matches nobody is
- * a hard stop.
+ * A mistyped uuid is the worst kind of mistake this file can contain, because nothing goes
+ * wrong: the drop doesn't happen, the merge doesn't happen, the seat isn't created, and the
+ * import reports success. It's only visible as a spam account on the roster months later.
  */
 function checkDecisionIds(known: string[]): void {
   const ids = new Set(known)
@@ -421,13 +405,11 @@ async function writeEverything(
         if (id !== undefined) idOf.set(u.legacyId, id)
       }
 
-      // **A merged-away id still has to resolve.** The join tables point at
-      // whichever of somebody's two accounts they were signed into at the time,
-      // and the half that was folded in has no row of its own any more — so
-      // without this, a project membership belonging to the losing half is
-      // silently dropped. That is how Yaniel Petrovich came off DayDream and
-      // Kelly Breen came off Knightmare on the first run. Merging two accounts
-      // must not lose what either of them was on.
+      // A merged-away id still has to resolve. The join tables point at whichever of somebody's
+      // two accounts they were signed into at the time, and the half that was folded in has no
+      // row of its own any more — so without this, a project membership belonging to the losing
+      // half is silently dropped. That's how Yaniel Petrovich came off DayDream and Kelly Breen
+      // came off Knightmare on the first run.
       for (const [from, into] of Object.entries(DECISIONS.mergeInto)) {
         const id = idOf.get(into)
 
@@ -577,11 +559,10 @@ async function writeEverything(
         projectId.set(p.legacyId, created.id)
       }
 
-      // ---- who was on them. The old database had no per-project rank: being a
-      // "project lead" was a global label everybody carried everywhere, which
-      // is the confusion `membership.md` exists to stop. So everyone lands as
-      // MEMBER and the leads are set per project afterwards, by a person who
-      // knows which project they led.
+      // ---- who was on them. The old database had no per-project rank: being a "project lead"
+      // was a global label everybody carried everywhere, which is the confusion `membership.md`
+      // exists to stop. So everyone lands as MEMBER and the leads are set per project afterwards,
+      // by a person who knows which project they led.
       const memberships = ix.memberToProject
         .map((row) => ({
           userId: idOf.get(row.A ?? ''),

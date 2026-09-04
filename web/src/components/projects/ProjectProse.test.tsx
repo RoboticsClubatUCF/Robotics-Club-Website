@@ -20,10 +20,9 @@ describe('ProjectProse', () => {
   })
 
   /**
-   * Never an `h1` or `h2`, whatever the markdown says. On a project's page the
-   * title is the `h1` and this prose sits under it, so a write-up that could
-   * mint its own top-level heading would break the outline a screen reader
-   * reads the page by.
+   * Never an `h1` or `h2`, whatever the markdown says. On a project's page the title is the `h1`
+   * and this prose sits under it, so a write-up that could mint its own top-level heading would
+   * break the outline a screen reader reads the page by.
    */
   it('starts its headings at h3', () => {
     show('# One\n## Two\n### Three')
@@ -61,11 +60,10 @@ describe('ProjectProse', () => {
   })
 
   /**
-   * **The reason this renderer is written rather than installed.** A write-up is
-   * typed by a lead and read by the public, so the path from that column to the
-   * page must not be able to produce a scheme somebody chose. Nothing here goes
-   * through `dangerouslySetInnerHTML`: the parser refuses the URL and the text
-   * prints as itself, which is visible and fixable.
+   * The reason this renderer is written rather than installed. A write-up is typed by a lead and
+   * read by the public, so the path from that column to the page must not be able to produce a
+   * scheme somebody chose. Nothing here goes through `dangerouslySetInnerHTML`: the parser refuses
+   * the URL and the text prints as itself, which is visible and fixable.
    */
   it('will not make a link out of a javascript: url', () => {
     show('[click me](javascript:alert(1))')

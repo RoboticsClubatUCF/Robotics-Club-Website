@@ -6,34 +6,27 @@ import { clearCalendarCache } from '../membership/semester.js'
 /**
  * Following the club's Discord officer role.
  *
- * The most dangerous suite in the repository, and the reasons are worth stating
- * before the code. This sweep's demotion query is `where: { role: OFFICER }` —
- * roster-wide by nature, exactly like the dues sweep — and it runs against the
- * development database, which holds the club's real board. Unlike the dues
- * sweep there is no clock to pin: the candidate query never consults the
- * calendar, so putting fixtures in 2035 isolates nothing at all.
+ * The most dangerous suite in the repository, and the reasons are worth stating before the code.
+ * This sweep's demotion query is `where: { role: OFFICER }` — roster-wide by nature — and it runs
+ * against the development database, which holds the club's real board. Unlike the dues sweep
+ * there's no clock to pin: the candidate query never consults the calendar.
  *
- * **The isolation is the stub.** Almost every test seeds the stubbed guild
- * roster with the club's actual officers as well as its own fixtures, so the
- * set of people the sweep can possibly stand down is exactly the set this suite
- * created. That is `testing.md`'s rule for `checkDiscordHandle` — never a flat
- * answer — with a sharper consequence: a flat empty roster here does not leak a
- * snowflake, it demotes the treasurer.
+ * The isolation is the stub. Almost every test seeds the stubbed guild roster with the club's
+ * actual officers as well as its own fixtures, so the set of people the sweep can stand down is
+ * exactly the set this suite created. A flat empty roster here doesn't leak a snowflake, it
+ * demotes the treasurer.
  *
- * **The one test that cannot do that is the no-overlap guard**, which by
- * definition needs a roster containing none of the sitting officers. Its safety
- * *is* the guard under test, so the `afterEach` below both repairs and reports:
- * a real officer who moved is put back and the test goes red. Reporting alone
- * would leave the board wrong until somebody read the output.
+ * The one test that can't do that is the no-overlap guard, which by definition needs a roster
+ * containing none of the sitting officers. Its safety is the guard under test, so the `afterEach`
+ * both repairs and reports: a real officer who moved is put back and the test goes red.
  */
 
 vi.mock('./discord.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./discord.js')>()),
-  // Mocked outright rather than only when unconfigured. The development `.env`
-  // carries a live bot token for the club's actual guild, and one unmocked call
-  // would pull the real officer roster into the decision under test. The role
-  // id is a literal because a `vi.mock` factory is hoisted above every import
-  // and cannot read a `const` from this module.
+  // Mocked outright rather than only when unconfigured. The development `.env` carries a live bot
+  // token for the club's actual guild, and one unmocked call would pull the real officer roster
+  // into the decision under test. The role id is a literal because a `vi.mock` factory is hoisted
+  // above every import.
   officerRoleId: '267371948953042945',
   officerSyncConfigured: true,
   membersWithRole: vi.fn(),
@@ -100,14 +93,13 @@ const IN_TERM = new Date('2035-10-01T12:00:00')
 const COVERED = new Date('2035-12-31T23:59:59')
 
 /**
- * Terms before people, and the order is not tidiness.
+ * Terms before people, and the order isn't tidiness.
  *
- * `OfficerTerm.userId` is `SetNull` — a term outlives the account on purpose,
- * because the archive has to keep somebody who left the club — so deleting a
- * fixture *first* leaves its term behind with `user_id` null and its
- * `full_name` intact. An **open** orphan like that then sits on the public
- * board under a fixture's name, which is how this suite once left two hundred
- * invented officers on the front page.
+ * `OfficerTerm.userId` is `SetNull` — a term outlives the account on purpose, because the archive
+ * has to keep somebody who left — so deleting a fixture first leaves its term behind with
+ * `user_id` null and its `full_name` intact. An open orphan like that sits on the public board
+ * under a fixture's name, which is how this suite once left two hundred invented officers on the
+ * front page.
  */
 const clearRows = async () => {
   await prisma.officerTerm.deleteMany({
@@ -122,11 +114,11 @@ const rowOf = (name: string) =>
 const roleOf = async (name: string) => (await rowOf(name)).role
 
 /**
- * Everyone on the club's real board, so the stub can hand them all back and
- * this suite cannot stand any of them down.
+ * Everyone on the club's real board, so the stub can hand them all back and this suite can't
+ * stand any of them down.
  *
- * Read fresh in each `beforeEach` rather than once: other suites create and
- * delete officers of their own, and suite order is not something to depend on.
+ * Read fresh in each `beforeEach` rather than once: other suites create and delete officers of
+ * their own, and suite order isn't something to depend on.
  */
 const realBoard = () =>
   prisma.user.findMany({
@@ -142,17 +134,13 @@ type Person = { discordId: string | null; discordUsername: string | null }
 /**
  * A stand-in snowflake for a real officer who has a handle and no `discordId`.
  *
- * Most of the club's board is in that state — the id has only been captured
- * since signup started asking Discord for it — and the first version of this
- * helper dropped those rows from the roster entirely, which stood a real
- * officer down. The tripwire caught it and put them back, which is what it is
- * for.
+ * Most of the club's board is in that state — the id has only been captured since signup started
+ * asking Discord for it — and the first version of this helper dropped those rows from the roster
+ * entirely, which stood a real officer down.
  *
- * Safe because a synthetic id can never be written anywhere: backfill only
- * happens for rows being *promoted*, and everybody this is used for is already
- * an `OFFICER` or `ADMIN`, so they land in the untouched half of the sweep.
- * Discord itself always gives a guild member an id; this is filling a gap in
- * our copy of the answer, not inventing one in the answer.
+ * Safe because a synthetic id can never be written anywhere: backfill only happens for rows being
+ * promoted, and everybody this is used for is already an `OFFICER` or `ADMIN`. This is filling a
+ * gap in our copy of the answer, not inventing one in the answer.
  */
 let standIn = 0
 const standInId = () => `8${String((standIn += 1)).padStart(17, '0')}`
@@ -176,26 +164,22 @@ function holders(...people: Person[]) {
 let board: Awaited<ReturnType<typeof realBoard>> = []
 
 /**
- * Every officer term that existed before the test, so the ones this suite
- * causes can be told apart from the club's own.
+ * Every officer term that existed before the test, so the ones this suite causes can be told
+ * apart from the club's own.
  *
- * The role tripwire below is not enough on its own, and one imported row proved
- * it. Promotion writes a **term** as well as a role, and an `ADMIN` who holds
- * the Discord role gets the term while their role correctly does not move — so
- * a stubbed roster that happens to name a real admin's handle opens a term on
- * them, a later test with a different roster closes it, and the tripwire sees
- * nothing because no role changed. What is left behind is a closed term on the
- * club's public officer archive, dated 2035, saying somebody lost a role they
- * never had.
+ * The role tripwire below isn't enough on its own, and one imported row proved it. Promotion
+ * writes a term as well as a role, and an `ADMIN` who holds the Discord role gets the term while
+ * their role correctly doesn't move — so a stubbed roster that happens to name a real admin's
+ * handle opens a term on them, a later test closes it, and the tripwire sees nothing because no
+ * role changed. What's left is a closed term on the public archive, dated 2035.
  */
 let termsBefore = new Set<string>()
 
 /**
  * The fixtures the guild says are officers.
  *
- * `handle-only` is in here with an id the *guild* knows and the database does
- * not — that gap is the backfill case, so it must be a real id in the roster
- * rather than a placeholder shared with anybody else.
+ * `handle-only` is in here with an id the guild knows and the database doesn't — that gap is the
+ * backfill case, so it must be a real id in the roster rather than a placeholder.
  */
 const HOLDING: Person[] = [
   { discordId: snowflake(1), discordUsername: handle('riser') },
@@ -326,12 +310,10 @@ afterEach(async () => {
 
   // The same shape for terms: repair first, then report.
   //
-  // Every real officer is deliberately in the stubbed roster — that is what
-  // stops the sweep standing them down — so the sync sees them holding the role
-  // and opens a term, which is the sweep working correctly on a fixture it was
-  // handed. Those are cleaned up without complaint. A term on anybody *else* is
-  // the roster stub having named an account this suite does not control, and
-  // that is worth failing over.
+  // Every real officer is deliberately in the stubbed roster — that's what stops the sweep
+  // standing them down — so the sync sees them holding the role and opens a term, which is the
+  // sweep working correctly on a fixture it was handed. Those are cleaned up without complaint. A
+  // term on anybody else is the roster stub having named an account this suite doesn't control.
   const onTheBoard = new Set(board.map((person) => person.id))
   const strayTerms = await prisma.officerTerm.findMany({
     where: {
@@ -416,10 +398,9 @@ describe('syncDiscordOfficers', () => {
   })
 
   /**
-   * The case that argues against a fixed demotion target. An ex-officer with no
-   * `duesPaidThrough` left at `MEMBER` is unreachable by every other writer —
-   * `sweepLapsedMembers` only touches rows that have a date — so they would sit
-   * on the public roster for ever with no path off it.
+   * The case that argues against a fixed demotion target. An ex-officer with no `duesPaidThrough`
+   * left at `MEMBER` is unreachable by every other writer — `sweepLapsedMembers` only touches rows
+   * that have a date — so they'd sit on the public roster for ever with no path off it.
    */
   it('stands an unpaid ex-officer down to GUEST', async () => {
     roster.mockResolvedValue(holders(...board, ...HOLDING))
@@ -499,13 +480,12 @@ describe('syncDiscordOfficers', () => {
   })
 
   /**
-   * Half the board rotating is ordinary and passes straight through. All of it
-   * disappearing between two sweeps is a configuration problem, not a
-   * resignation.
+   * Half the board rotating is ordinary and passes straight through. All of it disappearing
+   * between two sweeps is a configuration problem, not a resignation.
    *
-   * The one test that cannot seed the real board into the roster, because a
-   * roster containing them *is* the overlap it is checking for. Its safety is
-   * the guard under test plus the repairing tripwire in `afterEach`.
+   * The one test that can't seed the real board into the roster, because a roster containing them
+   * is the overlap it's checking for. Its safety is the guard under test plus the repairing
+   * tripwire in `afterEach`.
    */
   it('writes nothing when no sitting officer holds the role', async () => {
     roster.mockResolvedValue(

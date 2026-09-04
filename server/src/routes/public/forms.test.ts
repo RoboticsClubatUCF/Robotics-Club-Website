@@ -6,18 +6,14 @@ import { env } from '../../core/env.js'
 /**
  * The contact form, against the live database.
  *
- * Two things make this different from the read tests. It creates rows, so every
- * test cleans up after itself — a suite that leaves messages behind would fill
- * the officers' queue with test traffic. And it is rate limited by a counter
- * that lives in Postgres, which means the window survives the process: without
- * clearing it first, running these twice inside ten minutes would fail the
- * second time for reasons that have nothing to do with the code.
+ * It creates rows, so every test cleans up after itself — messages left behind land in the
+ * officers' queue. And the rate limit is a counter in Postgres, so the window outlives the process:
+ * without clearing it first, two runs inside ten minutes fail the second time for reasons that have
+ * nothing to do with the code.
  *
- * The notification is stubbed for the same reason the rows are cleaned up. With
- * a real POSTMARK_TOKEN in `.env` an unstubbed run posts to Postmark for every
- * test here, and each one lands in the officers' actual inbox. The route fires
- * that call without awaiting it, so nothing would fail — the mail would just
- * arrive, several times, every time anybody ran the suite.
+ * The notification is stubbed for the same reason. With a real POSTMARK_TOKEN an unstubbed run
+ * posts to Postmark for every test here and it all lands in the officers' actual inbox — the route
+ * doesn't await that call, so nothing fails, the mail just arrives.
  */
 vi.mock('../../email/mail.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../email/mail.js')>()),
@@ -50,11 +46,9 @@ const valid = {
 /**
  * Every test starts with a fresh window, whatever the last one used up.
  *
- * **Both** windows. The ten-minute burst budget and the two-a-day ceiling are
- * separate rows under separate scopes, and the daily one is the reason this
- * cannot be left to expire on its own: three of the cases below send a valid
- * message, so without clearing it the third test in the file would be refused
- * by the second one's spending.
+ * Both windows. The ten-minute burst and the two-a-day ceiling are separate rows under separate
+ * scopes, and the daily one can't be left to expire on its own: three of the cases below send a
+ * valid message, so the third would be refused by the second one's spending.
  */
 const clearWindow = () =>
   prisma.rateLimit.deleteMany({
@@ -152,12 +146,11 @@ describe('POST /api/contact', () => {
 })
 
 /**
- * The daily ceiling, which is a different shape of limit from the one above.
+ * The daily ceiling, a different shape of limit from the one above.
  *
- * `forms:` is a rate — it stops a script and resets in ten minutes. This is a
- * count, and it is what a bot pacing itself to one message every eleven minutes
- * runs into: the rate never notices that, and the officers find a hundred rows
- * in the morning.
+ * `forms:` is a rate — it stops a script and resets in ten minutes. This is a count, and it's what
+ * a bot pacing itself to one message every eleven minutes runs into: the rate never notices, and
+ * the officers find a hundred rows in the morning.
  */
 describe('the two-a-day ceiling on /api/contact', () => {
   it('takes two and refuses the third', async () => {

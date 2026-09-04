@@ -23,26 +23,19 @@ import { type AuthEnv, originGuard, requireAuth } from '../../auth/session.js'
  *   POST   /api/print      -> upload a model (.stl / .step only) + settings
  *   DELETE /api/print/:id  -> withdraw one, while it is still PENDING
  *
- * The upload is multipart and buffered, which is why `bodyLimit` runs before
- * anything else — the cap has to reject the body before this process holds
- * it. The file's bytes live only as long as the job does: the officer queue
- * deletes them at DONE or REJECTED, and withdrawal deletes them here.
+ * The upload is multipart and buffered, which is why `bodyLimit` runs first — the cap has to
+ * reject the body before this process holds it. The file's bytes live only as long as the job
+ * does: the officer queue deletes them at DONE or REJECTED, and withdrawal deletes them here.
  *
- * A request carries the settings an officer would otherwise have to read out
- * of prose — process, material, infill — validated as a pair by
- * `printSettings.ts`, plus the project it is for. **That project, or its
- * absence, is the budget rule**: a personal print comes out of the member's
+ * A request carries the settings an officer would otherwise read out of prose — process,
+ * material, infill — validated as a pair by `printSettings.ts`, plus the project it's for. That
+ * project, or its absence, is the budget rule: a personal print comes out of the member's
  * per-term allowance and a project print is uncapped.
  *
- * **Paid-up members only, not merely signed-in.** `requireDuesForRoute` is the
- * whole gate, and it is the same one the management pages use: the printers run
- * on club money, and an account is not a membership. This used to be a stricter
- * check of its own, `requireClubMember`, which also refused a `GUEST` — that
- * mattered when the summer granted everybody access whether or not they had
- * claimed it. It no longer does, so the two collapsed. See `authz.ts`.
- *
- * The member's own list is `GET /api/me/print-requests` and their balance is
- * `GET /api/me/print-allowance`; the officer queue is under `/api/officer`.
+ * Paid-up members only, not merely signed-in. `requireDuesForRoute` is the whole gate, the same
+ * one the management pages use: the printers run on club money, and an account isn't a
+ * membership. This used to be a stricter check that also refused a `GUEST`, which mattered when
+ * the summer granted everybody access whether or not they'd claimed it.
  */
 export const print = new Hono<AuthEnv>()
 
@@ -68,11 +61,9 @@ const WRONG_KIND = `That doesn't look like a printable model. The printers take 
 /**
  * A multipart field as something zod can look at.
  *
- * Every value in a multipart body is a string, and a `<select>` that has not
- * been touched sends an empty one. Empty has to become `undefined` or the
- * optional fields on an SLA request arrive as `''` and fail as "present with a
- * value" — which is exactly the mistake the union is there to catch, reported
- * against a member who did nothing wrong.
+ * Every value in a multipart body is a string, and a `<select>` that hasn't been touched sends an
+ * empty one. Empty has to become `undefined` or the optional fields on an SLA request arrive as
+ * `''` and fail as "present with a value" — reported against a member who did nothing wrong.
  */
 const field = (value: unknown): string | undefined =>
   typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined
@@ -80,10 +71,9 @@ const field = (value: unknown): string | undefined =>
 /**
  * How many of one thing somebody may ask for in a single request.
  *
- * A ceiling rather than a policy: fifty small clips is a real ask and the club
- * has no rule against it, but a four-figure number in that box is a typo or a
- * misunderstanding about whose printers these are. The officer's discretion is
- * the actual limit — this only stops the box being nonsense.
+ * A ceiling rather than a policy: fifty small clips is a real ask and the club has no rule
+ * against it, but a four-figure number in that box is a typo. The officer's discretion is the
+ * actual limit — this only stops the box being nonsense.
  */
 const MAX_QUANTITY = 50
 
@@ -150,14 +140,12 @@ print.post(
     }
 
     /**
-     * Which project it is for, and therefore whose grams it costs.
+     * Which project it's for, and therefore whose grams it costs.
      *
-     * A plain membership lookup rather than `requireProjectMember`, and that is
-     * on purpose: that helper waves officers through, and here it would be a
-     * hole in the budget — an officer could bill any print to any project and
-     * never touch their own allowance. Saying a print is for a project is a
-     * claim about your own work, not an administrative act, so everybody needs
-     * the row.
+     * A plain membership lookup rather than `requireProjectMember`, on purpose: that helper waves
+     * officers through, and here it would be a hole in the budget — an officer could bill any
+     * print to any project and never touch their own allowance. Saying a print is for a project
+     * is a claim about your own work, so everybody needs the row.
      */
     const projectId = field(body['projectId']) ?? null
 

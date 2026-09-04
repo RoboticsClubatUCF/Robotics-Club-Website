@@ -17,22 +17,18 @@ import {
 /**
  * `/officers` — everybody who has run this club, by the year they ran it.
  *
- * The landing page's board answers "who do I talk to"; this answers "who has
- * been here", which is a different question and a much longer list. It draws
- * the *same card* — `shared/OfficerCard`, the board's own — because a past
- * president is an officer of this club and should not look like a database row
- * next to a sitting one.
+ * The landing page's board answers "who do I talk to"; this answers "who has been here", which is a
+ * different question and a much longer list. It draws the same card — `shared/OfficerCard`, the
+ * board's own — because a past president is an officer of this club and should not look like a
+ * database row next to a sitting one.
  *
- * **Searched and filtered in the browser.** The whole archive arrives in one
- * response; see `lib/officerTerms.ts` for why, and for what each control
- * actually narrows. The three compose — a name, a seat and a year — so "every
- * treasurer" and "everyone in 2023–2024" and "Raman" are all one press or one
- * word away from each other.
+ * Searched and filtered in the browser; the whole archive arrives in one response. See
+ * `lib/officerTerms.ts` for why, and for what each control narrows. The three compose, so "every
+ * treasurer" and "everyone in 2023–2024" and "Raman" are all one press or one word apart.
  *
- * **Grouped by year, and the year is a heading rather than a column.** Two
- * cards for one seat in one year is a resignation mid-term, which the schema
- * allows on purpose; under a heading that reads as two people who both held it
- * that year, which is what happened.
+ * Grouped by year, and the year is a heading rather than a column. Two cards for one seat in one
+ * year is a resignation mid-term, which the schema allows on purpose; under a heading that reads as
+ * two people who both held it that year, which is what happened.
  */
 
 export function PastOfficersPage() {
@@ -71,13 +67,10 @@ export function PastOfficersPage() {
   const shown = groupByYear(filterTerms(terms, { query, position, year }))
 
   /**
-   * The seats to offer, and the server decides which and in what order.
-   *
-   * It sends the seats this window actually used, in board order — it can see
-   * how `OfficerPosition` is declared and the browser cannot. Same rule as the
-   * year chips beside them, and the same reason: a chip that can only ever show
-   * an empty page looks broken. It also means the row follows the window —
-   * press "show every year" and the seats those years used arrive with them.
+   * The seats to offer, and the server decides which and in what order — it can see how
+   * `OfficerPosition` is declared and the browser cannot. Same rule as the year chips beside them,
+   * and the same reason: a chip that can only ever show an empty page looks broken. It also means
+   * the row follows the window — press "show every year" and the seats those years used arrive.
    */
   const seatOptions = [
     { value: ANY, label: 'ALL SEATS' },

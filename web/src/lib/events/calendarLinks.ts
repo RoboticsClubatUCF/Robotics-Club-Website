@@ -3,52 +3,44 @@ import type { ApiEvent, ApiMeetingSeries } from '../api/api'
 /**
  * Handing an event to somebody's calendar app.
  *
- * Two routes out, because there are two kinds of calendar in the world and
- * neither reads the other's:
+ * Two routes out, because there are two kinds of calendar in the world and neither reads
+ * the other's:
  *
- *   - **Google** takes a URL. Its template endpoint pre-fills a new-event form
- *     the person then presses save on, which is the flow Google users expect
- *     and the only one that works when their calendar is a browser tab.
- *   - **Everything else** takes an `.ics` file. Samsung Calendar, Apple
- *     Calendar and Outlook all import one, and on a phone opening the file *is*
- *     the flow — the OS picks the calendar app for you. That is why this is a
- *     download rather than a second URL scheme: `webcal:` would need somewhere
- *     to host the file, and this site has nowhere to host it that is not also
- *     a subscription somebody would then have to manage.
+ *   - Google takes a URL. Its template endpoint pre-fills a new-event form the person
+ *     presses save on, which is the only flow that works when their calendar is a tab.
+ *   - Everything else takes an `.ics` file. Samsung, Apple and Outlook all import one,
+ *     and on a phone opening the file is the flow. That's why this is a download rather
+ *     than a second URL scheme: `webcal:` would need somewhere to host the file, and a
+ *     subscription somebody would then have to manage.
  *
- * **A weekly meeting goes over as a recurring series, not one evening.** That
- * is the whole point of the button on a meeting: one press and the term is in
- * your phone. The series is bounded — it stops at the end of the semester — and
- * finals week is punched out of it with `EXDATE`, so what a member ends up with
- * matches what the site's own calendar shows rather than being an optimistic
- * approximation of it.
+ * A weekly meeting goes over as a recurring series, not one evening — one press and the
+ * term is in your phone. The series stops at the end of the semester and finals week is
+ * punched out with `EXDATE`, so what a member ends up with matches what the site's own
+ * calendar shows.
  *
- * Everything here is a pure function over `ApiEvent`. No component, no fetch,
- * and no `Date` arithmetic on wall-clock strings — see `meetings.ts` for why
- * that last one matters.
+ * Everything here is a pure function over `ApiEvent`. No component, no fetch, and no
+ * `Date` arithmetic on wall-clock strings — see `meetings.ts` for why that matters.
  */
 
 /**
  * The campus zone, and the one place the browser needs to name it.
  *
- * `lib/lab/lab.ts` refuses to mirror a server rule and this file does not break
- * that: the rule about *when* a meeting is lives on the server, which sends
- * instants. This is a label going into a file format that demands one — an
- * `.ics` with a floating time is an `.ics` that lands an hour out in November.
+ * `lib/lab/lab.ts` refuses to mirror a server rule and this doesn't break that: the rule
+ * about when a meeting is lives on the server, which sends instants. This is a label
+ * going into a file format that demands one — an `.ics` with a floating time lands an
+ * hour out in November.
  */
 const CAMPUS_ZONE = 'America/New_York'
 
 /**
  * US daylight-saving rules, as a calendar file has to spell them.
  *
- * An `.ics` cannot say "America/New_York" and leave it there — the importing
- * app is entitled to not know the zone, so the file has to carry the rule. Both
- * transitions have been fixed since 2007 (second Sunday in March, first Sunday
- * in November), so this is a constant rather than something to compute.
+ * An `.ics` can't say "America/New_York" and leave it there — the importing app is
+ * entitled to not know the zone, so the file carries the rule. Both transitions have
+ * been fixed since 2007, so this is a constant rather than something to compute.
  *
- * Without it a weekly meeting anchored in October is an hour out for the whole
- * of November, which is exactly the bug the wall-clock columns exist to avoid —
- * it would be a shame to reintroduce it on the way out of the door.
+ * Without it a weekly meeting anchored in October is an hour out for the whole of
+ * November, which is exactly the bug the wall-clock columns exist to avoid.
  */
 const VTIMEZONE = [
   'BEGIN:VTIMEZONE',
@@ -100,9 +92,9 @@ const campusParts = new Intl.DateTimeFormat('en-US', {
 /**
  * `20260903T180000` — the same instant as campus wall-clock, with no `Z`.
  *
- * Paired with a `TZID`, this is what makes a recurring meeting survive the
- * clocks going back: the file says "six in the evening in Orlando", and the
- * importing app applies the rule in `VTIMEZONE` to work out when that is.
+ * Paired with a `TZID`, this is what makes a recurring meeting survive the clocks going
+ * back: the file says "six in the evening in Orlando", and the importing app applies the
+ * rule in `VTIMEZONE`.
  */
 function campusStamp(iso: string): string {
   const parts = campusParts.formatToParts(new Date(iso))
@@ -121,9 +113,8 @@ const campusDay = (iso: string) => campusStamp(iso).slice(0, 8)
 /**
  * The characters iCalendar reserves, and the one that bites.
  *
- * A comma is a value separator in this format, so an unescaped one in a
- * description silently truncates it — and every second event description on a
- * club calendar has a comma in it.
+ * A comma is a value separator in this format, so an unescaped one in a description
+ * silently truncates it — and every second event description has a comma in it.
  */
 const escapeText = (value: string) =>
   value
@@ -133,12 +124,11 @@ const escapeText = (value: string) =>
     .replace(/\r?\n/g, '\\n')
 
 /**
- * Fold to 75 octets, as the spec requires and as strict parsers enforce.
+ * Fold to 75 octets, as the spec requires and strict parsers enforce.
  *
- * Counted in bytes rather than characters: a description with an em dash in it
- * — and this site's prose is full of them — is three bytes for one character,
- * so folding on `.length` produces lines that are legal by one count and not by
- * the other. Outlook is the one that notices.
+ * Counted in bytes rather than characters: a description with an em dash in it is three
+ * bytes for one character, so folding on `.length` produces lines that are legal by one
+ * count and not the other. Outlook is the one that notices.
  */
 function fold(line: string): string {
   const bytes = new TextEncoder().encode(line)
@@ -167,9 +157,9 @@ function fold(line: string): string {
 /**
  * `FREQ=WEEKLY;BYDAY=TU,TH;UNTIL=…` — the rule, and where it stops.
  *
- * `UNTIL` is in UTC with a `Z`, which the spec requires whenever `DTSTART`
- * carries a `TZID`. Getting this wrong is the classic way to produce a series
- * that either never ends or ends a day early.
+ * `UNTIL` is in UTC with a `Z`, which the spec requires whenever `DTSTART` carries a
+ * `TZID`. Getting this wrong is the classic way to produce a series that either never
+ * ends or ends a day early.
  */
 const recurrenceRule = (series: ApiMeetingSeries) =>
   `RRULE:FREQ=WEEKLY;BYDAY=${series.weekdays
@@ -180,10 +170,9 @@ const recurrenceRule = (series: ApiMeetingSeries) =>
 /**
  * One `EXDATE` line per finals-week occurrence, or nothing.
  *
- * Grouped into a single line — the format allows a comma-separated list, and a
- * dozen separate `EXDATE` lines is a dozen chances for a parser to disagree.
- * The instants come from the server; nothing here recomputes which evenings
- * finals eats.
+ * Grouped into a single line — the format allows a comma-separated list, and a dozen
+ * separate `EXDATE` lines is a dozen chances for a parser to disagree. The instants come
+ * from the server; nothing here recomputes which evenings finals eats.
  */
 function exceptionDates(series: ApiMeetingSeries): string[] {
   if (series.skipDates.length === 0) return []
@@ -213,11 +202,11 @@ function detailOf(event: ApiEvent): string {
 }
 
 /**
- * "Repeats weekly until 13 December, and skips finals week (7–13 December)."
+ * "Repeats weekly until 13 December, and skips finals week (7-13 December)."
  *
- * Exported because the button prints it too — the person pressing it should
- * know what they are about to put in their calendar before they put it there,
- * and saying it in two places from two strings is how the two drift.
+ * Exported because the button prints it too — the person pressing it should know what
+ * they're about to put in their calendar, and saying it in two places from two strings is
+ * how the two drift.
  */
 export function seriesSummary(series: ApiMeetingSeries): string {
   const until = new Date(series.untilDate).toLocaleDateString(undefined, {
@@ -243,11 +232,9 @@ export function seriesSummary(series: ApiMeetingSeries): string {
 /**
  * A stable identity for the row, so re-importing updates rather than duplicates.
  *
- * A meeting occurrence's id already carries the project and the instant, which
- * is exactly the uniqueness a `UID` wants — but the *series* has to share one
- * across every occurrence, or adding the same term twice from two different
- * evenings makes two overlapping series. So a meeting is keyed on its series
- * and a stored event on its own id.
+ * A meeting occurrence's id already carries the project and the instant, which is exactly
+ * the uniqueness a `UID` wants — but the series has to share one across every occurrence,
+ * or adding the same term twice from two different evenings makes two overlapping series.
  */
 const uidOf = (event: ApiEvent) =>
   event.meeting
@@ -255,10 +242,8 @@ const uidOf = (event: ApiEvent) =>
     : `${event.id}@rccf`
 
 /**
- * The whole `.ics`, as a string.
- *
- * CRLF throughout, which is not a stylistic choice — the spec says so and
- * Outlook enforces it.
+ * The whole `.ics`, as a string. CRLF throughout, which isn't a stylistic choice — the
+ * spec says so and Outlook enforces it.
  */
 export function icsFor(event: ApiEvent, now: Date = new Date()): string {
   const series = event.meeting ?? null
@@ -271,9 +256,9 @@ export function icsFor(event: ApiEvent, now: Date = new Date()): string {
     'METHOD:PUBLISH',
   ]
 
-  // Only when something in the file refers to it. An all-day one-off carries no
-  // zoned time at all, and a VTIMEZONE nothing points at is noise a strict
-  // parser is entitled to complain about.
+  // Only when something in the file refers to it. An all-day one-off carries no zoned
+  // time at all, and a VTIMEZONE nothing points at is noise a strict parser is entitled
+  // to complain about.
   if (!event.allDay) lines.push(...VTIMEZONE)
 
   lines.push(
@@ -283,9 +268,8 @@ export function icsFor(event: ApiEvent, now: Date = new Date()): string {
   )
 
   if (event.allDay) {
-    // A date with no time, and `DTEND` is exclusive — the day *after* the last
-    // one. Without the +1 a one-day event imports as zero days long and
-    // disappears from most calendars.
+    // A date with no time, and `DTEND` is exclusive — the day after the last one. Without
+    // the +1 a one-day event imports as zero days long and disappears from most calendars.
     const endIso = event.endsAt ?? event.startsAt
     const endsNextDay = new Date(
       new Date(endIso).getTime() + 24 * 60 * 60 * 1000,
@@ -321,10 +305,10 @@ export function icsFor(event: ApiEvent, now: Date = new Date()): string {
 /**
  * Google's pre-filled new-event form.
  *
- * Local-format times plus `ctz`, deliberately, rather than UTC instants: the
- * pair is what tells Google the series is anchored to a wall clock in Orlando,
- * so its own occurrences move with the clocks the way the `.ics` ones do. UTC
- * instants would be correct for the first meeting and an hour out from November.
+ * Local-format times plus `ctz`, deliberately, rather than UTC instants: the pair is what
+ * tells Google the series is anchored to a wall clock in Orlando, so its occurrences move
+ * with the clocks the way the `.ics` ones do. UTC instants would be correct for the first
+ * meeting and an hour out from November.
  */
 export function googleCalendarUrl(event: ApiEvent): string {
   const dates = event.allDay
@@ -379,10 +363,9 @@ export function icsFilename(event: ApiEvent): string {
 /**
  * Hand the file to the browser.
  *
- * A Blob and a synthetic click rather than a `data:` URL: Safari refuses to
- * download the latter from a click it did not consider a navigation, and the
- * object URL has to be revoked or the string stays in memory for the life of
- * the page.
+ * A Blob and a synthetic click rather than a `data:` URL: Safari refuses to download the
+ * latter from a click it didn't consider a navigation, and the object URL has to be
+ * revoked or the string stays in memory for the life of the page.
  */
 export function downloadIcs(event: ApiEvent): void {
   const blob = new Blob([icsFor(event)], {

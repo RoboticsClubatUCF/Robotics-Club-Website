@@ -8,20 +8,17 @@ import { useApi } from '../../lib/api/useApi'
 /**
  * `/projects/:slug/docs` — everything a project has written down.
  *
- * Public, like the project page it hangs off: somebody deciding whether to join
- * the rover team should be able to read the design review, and a competition
- * judge asking for documentation should get a link rather than a Drive invite.
- * Nothing here is a permission boundary; the uploads are, and they live behind
- * `requireProjectLead` on the server.
+ * Public, like the project page it hangs off: somebody deciding whether to join the rover team
+ * should be able to read the design review, and a competition judge asking for documentation
+ * should get a link rather than a Drive invite. Nothing here is a permission boundary; the
+ * uploads are, behind `requireProjectLead` on the server.
  *
- * `useApi` rather than the bespoke loader `ProjectPage` carries. That one
- * exists to *refetch* after an edit, and nothing on this page edits anything —
- * documents are managed in the project's own editor, one route up.
+ * `useApi` rather than the bespoke loader `ProjectPage` carries. That one exists to refetch after
+ * an edit, and nothing on this page edits anything.
  *
- * It reads the whole project rather than a documents endpoint of its own,
- * because there is no documents endpoint of its own: the list rides on
- * `GET /projects/:slug` so the project page can draw the `/ RESOURCES` row that
- * leads here without a second request. See `routes/public/content.ts`.
+ * It reads the whole project rather than a documents endpoint of its own, because there is no
+ * documents endpoint: the list rides on `GET /projects/:slug` so the project page can draw the
+ * `/ RESOURCES` row that leads here without a second request.
  */
 export function ProjectDocsPage() {
   const { slug = '' } = useParams()
@@ -70,10 +67,8 @@ function Docs({ project }: { project: ApiProjectDetail }) {
   /**
    * Which document is open lives in the URL, not in state.
    *
-   * A lead saying "read section 4 of the test plan" wants to send an address
-   * that opens on the test plan, and this page's whole job is being that
-   * address. It is the same reason the signup and dues links carry their
-   * parameters rather than being reconstructed on arrival.
+   * A lead saying "read section 4 of the test plan" wants to send an address that opens on the
+   * test plan, and this page's whole job is being that address.
    */
   const [params, setParams] = useSearchParams()
   const asked = params.get('doc')
@@ -144,19 +139,14 @@ function Docs({ project }: { project: ApiProjectDetail }) {
 /**
  * One document, as far as a browser can show it.
  *
- * A PDF renders in place through the browser's own viewer — the server sends it
- * `inline` and sandboxed for exactly this. Everything else is a download, and
- * says so rather than showing an empty frame: nothing renders a Word file
- * without a converter, and adding one to serve a format Word opens perfectly
- * well is a lot of machinery for a worse result.
+ * A PDF renders in place through the browser's own viewer — the server sends it `inline` and
+ * sandboxed for exactly this. Everything else is a download, and says so rather than showing an
+ * empty frame: nothing renders a Word file without a converter.
  *
- * **Opening and saving are two buttons, deliberately.** One link that renders a
- * PDF and downloads a DOCX is one control doing two different things depending
- * on a file extension the reader cannot see, and the failure mode is the worst
- * kind: a click that silently puts a file in somebody's downloads folder when
- * they wanted to read it. So the actions are named, and the one that saves says
- * so — see `storedFileDownloadUrl`, which is the only way to force it across
- * origins.
+ * Opening and saving are two buttons, deliberately. One link that renders a PDF and downloads a
+ * DOCX is one control doing two different things depending on a file extension the reader can't
+ * see, and the failure mode is the worst kind: a click that silently puts a file in somebody's
+ * downloads folder when they wanted to read it.
  */
 function Viewer({ document }: { document: ApiProjectDocument }) {
   const href = storedFileUrl(document.fileId)
@@ -164,13 +154,12 @@ function Viewer({ document }: { document: ApiProjectDocument }) {
   const pdf = isPdf(document.fileName)
 
   /**
-   * PDF open parameters, and both of them earn their place.
+   * PDF open parameters, and both earn their place.
    *
-   * `view=FitH` fits the page to the frame's width — without it the viewer opens
-   * at 100% and a letter-size page is cropped to whatever this column happens to
-   * be. `navpanes=0` closes the thumbnail sidebar, which otherwise takes about
-   * two fifths of an already narrow frame to show one thumbnail of one page.
-   * They are hints: a viewer that does not understand them ignores them.
+   * `view=FitH` fits the page to the frame's width — without it the viewer opens at 100% and a
+   * letter-size page is cropped to whatever this column happens to be. `navpanes=0` closes the
+   * thumbnail sidebar, which otherwise takes two fifths of an already narrow frame. They're
+   * hints: a viewer that doesn't understand them ignores them.
    */
   const framed = `${href}#view=FitH&navpanes=0`
 

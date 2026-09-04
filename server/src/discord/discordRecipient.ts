@@ -4,18 +4,16 @@ import { checkDiscordHandle } from './discord.js'
 /**
  * The Discord account to message, looking it up if it is not on file yet.
  *
- * `discordId` is null for every account made before the signup check started
- * capturing it, and Discord's API takes an id rather than a handle — so without
- * this, those members simply could never be messaged. The handle is enough to
- * find them, and what is found is written back, so the search happens once per
- * person rather than once per sweep.
+ * `discordId` is null for every account made before the signup check started capturing it, and
+ * Discord's API takes an id rather than a handle — so without this, those members could never be
+ * messaged. The handle is enough to find them, and what is found is written back, so the search
+ * happens once per person rather than once per sweep.
  *
- * **Call it before claiming anything.** Resolving is a read with no side
- * effect, so a Discord that is briefly unreachable costs nothing: nothing is
- * claimed, and the next sweep tries again. Claiming first would burn somebody's
- * one message on a timeout. Both senders — the equipment return reminder and
- * the overdue-task reminder — depend on that order, which is why this lives
- * here rather than inside either of them.
+ * Call it before claiming anything. Resolving is a read with no side effect, so a Discord that is
+ * briefly unreachable costs nothing: nothing is claimed, and the next sweep tries again. Claiming
+ * first would burn somebody's one message on a timeout. Both senders — the equipment return
+ * reminder and the overdue-task reminder — depend on that order, which is why this lives here
+ * rather than inside either of them.
  */
 export async function recipientFor(user: {
   id: string

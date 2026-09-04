@@ -19,11 +19,10 @@ import {
 /**
  * The import's decisions, tested away from both databases.
  *
- * Everything in `plan.ts` is a pure function of a dump row, which is the reason
- * it was split out: the import runs once, against seven hundred real people,
- * and the only way to be sure about a rule like "a date equal to `joinedAt` is
- * a default, not a payment" is to state it as a case before the run rather than
- * to read the result afterwards and hope it looks right.
+ * Everything in `plan.ts` is a pure function of a dump row, which is why it was split out: the
+ * import runs once, against seven hundred real people, and the only way to be sure about a rule
+ * like "a date equal to `joinedAt` is a default, not a payment" is to state it as a case before the
+ * run rather than to read the result afterwards and hope it looks right.
  *
  * No database, no Prisma, no fixtures to clean up.
  */

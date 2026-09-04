@@ -4,11 +4,10 @@ import { signupVerificationEmail } from './emails.js'
 /**
  * The verification email.
  *
- * Nothing here checks that it looks right — only a mail client can say that,
- * and there are forty of them. What is worth pinning down is the handful of
- * ways an HTML email silently stops working: the link going missing from one
- * of the two bodies, the button being the only way through, or a query string
- * getting cut in half by an unescaped ampersand.
+ * Nothing here checks that it looks right — only a mail client can say that, and there are forty of
+ * them. What is worth pinning is the handful of ways an HTML email silently stops working: the link
+ * going missing from one of the two bodies, the button being the only way through, or a query
+ * string getting cut in half by an unescaped ampersand.
  */
 
 const LINK = 'https://rccf.example.org/join?token=abc-123_XYZ'

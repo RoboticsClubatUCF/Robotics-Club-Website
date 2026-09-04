@@ -13,19 +13,15 @@ import { FormPanel, fieldClass, labelClass } from '../shared/formChrome'
 /**
  * Every question on the member survey, drawn from whatever the club is asking.
  *
- * **It used to be five questions written out by hand**, one block of markup
- * each, which is why adding a sixth meant editing this file, `lib/survey.ts`,
- * two routes and `schema.prisma`. The questions are rows now — officers write
- * them at `/dashboard/officer/survey/questions` — so this renders a *kind*
- * rather than a question, and there are four of those.
+ * It used to be five questions written out by hand, one block of markup each, which is why adding
+ * a sixth meant editing this file, `lib/survey.ts`, two routes and `schema.prisma`. The questions
+ * are rows now, so this renders a kind rather than a question, and there are four of those.
  *
- * **Still its own component with one caller.** `MemberSurveyPage` is the load,
- * the validation, the two verbs and the redirect; this is the questions. The
- * split is the reason a kind can be added in one place.
+ * Still its own component with one caller. `MemberSurveyPage` is the load, the validation, the two
+ * verbs and the redirect; this is the questions. The split is why a kind can be added in one place.
  *
- * The rules the fields obey — NONE clearing a set, an OTHER wanting its line —
- * live in `lib/survey.ts`, because the server enforces them and this only has
- * to avoid offering what the route will refuse.
+ * The rules the fields obey live in `lib/survey.ts`, because the server enforces them and this
+ * only has to avoid offering what the route will refuse.
  */
 export function SurveyFields({
   id,
@@ -43,11 +39,9 @@ export function SurveyFields({
   /**
    * The graduation year, when the caller owns it.
    *
-   * **Not a question**, and it never will be: it is `User.gradYear`, which the
-   * profile page edits and the public roster prints. Optional here because
-   * `PUT /api/survey` takes the year as optional — a request from the account
-   * page's SURVEY panel must be able to leave it alone rather than send a stale
-   * copy back over it.
+   * Not a question, and it never will be: it's `User.gradYear`, which the profile page edits and
+   * the public roster prints. Optional here because `PUT /api/survey` takes the year as optional —
+   * a request from the account page's SURVEY panel must be able to leave it alone.
    */
   gradYear?: { value: string; onChange: (value: string) => void }
 }) {
@@ -245,12 +239,11 @@ function Written({
 /**
  * Short labels make a row of chips; long ones make a column of cards.
  *
- * Two layouts for one kind, because a shirt size and a major are the same
- * question shape and nothing like the same width. Eight sizes drawn as
- * full-width cards are eight boxes that are ninety per cent empty; "Mechanical
- * Engineering" drawn as a chip is a chip that wraps to two lines and stops
- * looking pressable. Measured rather than configured, because it is a property
- * of the words an officer typed rather than a decision worth asking them for.
+ * Two layouts for one kind, because a shirt size and a major are the same question shape and
+ * nothing like the same width. Eight sizes drawn as full-width cards are eight boxes ninety per
+ * cent empty; "Mechanical Engineering" drawn as a chip wraps to two lines and stops looking
+ * pressable. Measured rather than configured, because it's a property of the words an officer
+ * typed.
  */
 const COMPACT = 6
 

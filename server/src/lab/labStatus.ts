@@ -18,163 +18,61 @@ import {
 /**
  * Whether the lab is open, and the sign in Discord that says so.
  *
- * One boolean, one row, and three places it has to show up: the landing page,
- * the dashboard an officer flips it from, and a Discord channel that carries
- * both a message and a colour in its own name.
+ * Discord is the record and `lab_status` is the site's copy. Three rules follow:
  *
- * ## Discord is the record, and the row follows it
+ *   - A flip Discord won't take doesn't happen. `flipLabStatus` renames the
+ *     channel first and writes the row only if that landed, so a throttled
+ *     rename comes back as a cooldown and the lab is left as it was.
+ *   - The sweep reads the sign back every ten minutes and corrects the row.
+ *   - "Discord" means the sign — the one message the row knows it is keeping.
+ *     Never any other message of the bot's: a leftover reading THE LAB IS CLOSED
+ *     is indistinguishable from a sign somebody just corrected, and trusting one
+ *     closed the lab for the whole club once, against the real guild.
  *
- * This is the direction of the whole file and it is the opposite of how the
- * feature started. The club reads the lab sign in Discord — that is the room
- * people are already in — so **the message in that channel is what the lab is**,
- * and `lab_status` is the site's copy of it.
+ * One message in the channel, and it still pings. Posting notifies and editing
+ * never does, so opening posts a fresh sign (that post is the `@Members` ping)
+ * and deletes the one it replaces. Everything else edits: closing, the curfew, a
+ * sweep retry. Whether a post goes out is a property of the press, never of the
+ * row, so a retry can't ping the club twice for one evening — at the cost of
+ * losing the ping when the post itself fails. `tidyChannel` on the sweep deletes
+ * strays, which is what makes "one message" hold rather than be intended.
  *
- * Two things fall out of that, and they are the two rules everything below is
- * arranged around:
+ * The building shuts at ten, Orlando time, and that overrides Discord. Masked on
+ * read so the site is right at 22:00:01, and written by the sweep so the row and
+ * the channel catch up — either alone leaves something wrong. The curfew close is
+ * the one write a throttled rename can't veto, and it only ever closes: a lab
+ * that sprang open at 08:00 would be a sign nobody made.
  *
- *   - **A flip that Discord will not take does not happen.** `flipLabStatus`
- *     renames the channel *first* and writes the row only if that landed. A
- *     throttled rename comes back as a cooldown the presser is told about, and
- *     the lab is left exactly as it was. The old shape wrote the row and let
- *     Discord catch up, which meant a throttled rename left the site saying OPEN
- *     over a channel that still read `lab-status-🔴` for up to ten minutes —
- *     and people believe the channel.
- *   - **The sweep reads Discord back.** `reconcileLabStatus` fetches the message
- *     every ten minutes and, if it disagrees with the row, corrects *the row*. A
- *     message edited by hand, a write this process lost, a second instance that
- *     flipped it — all of them end with the site agreeing with the channel.
- *
- * **"Discord" means the sign, and only the sign.** State is read back from the
- * one message the row knows it is keeping — never from whatever else the bot
- * has left in the channel. A leftover from an older design reading THE LAB IS
- * CLOSED is indistinguishable from a sign somebody just corrected, so a
- * reconcile that trusted any message would let a stray close the lab for the
- * whole club. It did, once, against the real guild; `reconcileLabStatus` carries
- * the guard and the story.
- *
- * The one thing that overrides Discord is the building's own hours, below. That
- * is not a sync direction; it is a fact about a locked door.
- *
- * ## Exactly one message in the channel, and it still pings
- *
- * Two requirements that look like they cannot both hold. **Posting a message
- * notifies people and editing one never does**, whatever the content changes
- * into — so a sign kept up to date for ever reaches nobody, and a sign that
- * posts every evening fills a channel until people mute it, at which point it
- * has made things worse than having none.
- *
- * The way through is **post new, then delete old**. Opening the lab posts a
- * fresh message — that post is the `@Members` ping — and the message it
- * replaces is deleted immediately after. The channel still holds exactly one
- * sign; it is simply not the same one from week to week.
- *
- * The two verbs split along what each is for:
- *
- *   - **Opening posts**, because opening is the only thing here worth
- *     interrupting anybody for.
- *   - **Everything else edits**: closing, the curfew, a sweep retry. Closing
- *     deliberately does not post, and not only to save a message — a *new*
- *     message marks the channel unread for the whole club, and "the lab shut
- *     twenty seconds ago" is an interruption nobody can act on. The message
- *     going grey and the channel's name turning red are what say it.
- *
- * A post is otherwise the last resort and it is guarded on both sides. The id
- * is taken from the row, or from `DISCORD_LAB_MESSAGE_ID` on a row that has
- * never pushed one; if neither is good, the channel itself is searched for a
- * message this bot posted, and **only a channel with nothing of ours in it gets
- * a new one**. A search that *fails* — no Read Message History, Discord
- * unreachable — posts nothing at all, because "I could not look" and "there is
- * nothing there" are the same answer to a caller and only one of them is safe
- * to act on.
- *
- * **`tidyChannel` on the sweep is what makes the invariant hold rather than
- * merely being intended.** The delete after a post can fail, an older design
- * can have left messages behind, two instances can both have posted — so every
- * ten minutes the channel is listed and every message of the bot's that is not
- * the sign is removed. It is the only destructive thing this file does, it only
- * ever touches messages Discord says the bot itself posted, and it only ever
- * touches the lab channel.
- *
- * **Nothing re-announces.** Whether a post goes out is a property of the flip —
- * "the lab is being opened, right now, by somebody" — and never of the row. A
- * sweep retrying a push that failed edits whatever is there rather than posting
- * a second announcement, so the club is never pinged twice for one evening. The
- * cost is the opposite failure: if the *post itself* fails, the sign is put
- * right by an edit and that opening's ping is simply lost. That direction is
- * the deliberate one — a missed notification is a shame, and a channel pinged
- * every ten minutes until a rename stops being throttled is why people mute
- * things.
- *
- * ## The building shuts at ten
- *
- * Between 22:00 and 08:00 **Orlando time** there is no lab to be in, so the
- * switch is refused and the sign reads closed whatever the row or the channel
- * says. Two mechanisms, and both are needed:
- *
- *   - **`readLabStatus` masks.** The answer is derived from the clock at read
- *     time, so the site is never wrong for even a second — 22:00:01 reads
- *     closed on the very next request.
- *   - **The sweep writes.** Masking alone would leave the row saying open, the
- *     Discord channel green and the message stale until somebody pressed
- *     something. The ten-minute tick closes it properly, which pushes the sign
- *     and puts a real `changed_at` on the record.
- *
- * **The curfew is the one write that does not need Discord's permission.** A
- * throttled rename cannot be allowed to leave a green sign over a locked
- * building all night, so the close is committed regardless and the row is
- * marked unsynced for the sweep to push. That is the difference between a rule
- * and a press: an officer's press is a request, and ten at night is not.
- *
- * **Nothing re-opens at eight.** The curfew can only ever close: a lab that
- * sprang open at 08:00 because it had been open at 21:59 would be a sign
- * nobody made, on a room nobody is in.
- *
- * ## Two renames per ten minutes
- *
- * Discord rate-limits a channel *name* far harder than anything else here —
- * two changes per ten minutes, per channel — and a toggle button is exactly the
- * control somebody presses three times in a minute while working out whether
- * they meant it. The third rename comes back 429 with a `retry_after` measured
- * in minutes.
- *
- * That limit is why the cooldown is a *sentence somebody reads* rather than
- * something retried behind their back. Five minutes is not a wait to hold a
- * request open for, and a press that silently did nothing is the worst of the
- * three outcomes. Both callers say so out loud: the dashboard gets a 429 with
- * the wait in it, and a button press gets a private note in Discord.
+ * Discord allows two channel renames per ten minutes, which is why a cooldown is
+ * a sentence somebody reads rather than a silent retry — a press that appeared to
+ * do nothing is what gets pressed four more times.
  */
 
 /** The one row. See `LabStatus` in `schema.prisma` for why it has a fixed id. */
 const CURRENT = 'current'
 
 /**
- * The club is at UCF, so "ten at night" is ten at night **in Orlando** — not in
- * UTC, where the server's clock runs, and not in the reader's zone, where the
- * browser's does. A wall-clock hour is not an offset from an instant: Florida
- * moves by an hour twice a year, so `getHours() - 4` is right for eight months
- * and wrong for four.
- *
- * `Intl` is what knows the rule and it is in Node and every browser, so there
- * is no library here and no stored offset to go stale.
+ * "Ten at night" means ten at night in Orlando — not UTC, where the server's
+ * clock runs. A wall-clock hour isn't an offset from an instant: Florida moves by
+ * an hour twice a year, so `getHours() - 4` is right for eight months of it.
+ * `Intl` knows the rule, so there's no library and no stored offset to go stale.
  */
 export const CAMPUS_ZONE = 'America/New_York'
 
 /**
- * When the physical building is open, as hours on a 24-hour clock.
+ * When the physical building is open, on a 24-hour clock.
  *
- * Constants rather than configuration, for the same reason `LAB_CHANNEL_NAME`
- * is: these are what the feature *is*. If the building's hours ever genuinely
- * change they are one edit here, and `web/src/lib/lab/lab.ts` — which prints them
- * on the dashboard — carries a note pointing at this pair.
+ * Constants rather than configuration: these are what the feature is. If the
+ * hours ever change they're one edit here, and `web/src/lib/lab/lab.ts` — which
+ * prints them on the dashboard — points at this pair.
  */
 export const BUILDING_OPENS_AT = 8
 export const BUILDING_CLOSES_AT = 22
 
 /**
- * `hourCycle: 'h23'` and not `hour12: false`, which is the trap. The two look
- * equivalent and differ at exactly one hour of the day: with `hour12: false`
- * some ICU builds render midnight as **24**, so a naive `hour < 22` check
- * would call one hour a night "open" on some machines and not others.
+ * `hourCycle: 'h23'`, not `hour12: false`. They look equivalent and differ at one
+ * hour of the day: with `hour12: false` some ICU builds render midnight as 24, so
+ * `hour < 22` would call one hour a night "open" on some machines and not others.
  */
 const hourFormat = new Intl.DateTimeFormat('en-US', {
   timeZone: CAMPUS_ZONE,
@@ -188,12 +86,9 @@ export function campusHour(at: Date): number {
 }
 
 /**
- * Whether the building somebody would be walking to is open at all.
- *
- * The lab cannot be open when this is false, whatever the row says, whatever
- * the channel says and whoever pressed what — which is the point: an officer
- * who forgets to close up at midnight should not leave a green sign on the
- * front page all night.
+ * Whether the building somebody would be walking to is open at all. The lab can't
+ * be open when this is false, whatever the row or the channel says — an officer
+ * who forgets to close up shouldn't leave a green sign up all night.
  */
 export function buildingOpen(at: Date): boolean {
   const hour = campusHour(at)
@@ -212,19 +107,11 @@ export const BUILDING_HOURS_SENTENCE =
 /**
  * The cooldown, said the way somebody standing at the door would want it.
  *
- * One sentence for both callers — the dashboard's 429 body and the private note
- * a button press gets back — because they are the same fact and two wordings of
- * it would drift. Three things it has to do, and each of them was a way this
- * failed before:
- *
- *   - **Say the lab did not change.** A press that appeared to do nothing is
- *     what gets pressed four more times, which is what spent the budget.
- *   - **Say whose limit it is.** "Rate limited" reads as the site being broken.
- *     It is Discord's rule about a channel *name*, and it is a strange enough
- *     rule to be worth naming.
- *   - **Give the wait in the units it is actually in.** Discord answers in
- *     minutes for a rename, so "try again in 300 seconds" is arithmetic
- *     somebody has to do while holding a door open.
+ * One sentence for both callers — the dashboard's 429 and the private note a
+ * button press gets — because two wordings of one fact drift. It has to say the
+ * lab didn't change, say the limit is Discord's rule about a channel name rather
+ * than the site being broken, and give the wait in minutes, which is the unit
+ * Discord answers a rename in.
  */
 export function cooldownSentence(retryAfterMs: number): string {
   const seconds = Math.max(1, Math.ceil(retryAfterMs / 1_000))
@@ -242,15 +129,12 @@ export function cooldownSentence(retryAfterMs: number): string {
 /**
  * What the channel is called in each state.
  *
- * Written here rather than configured, unlike the channel id. The id is the
- * club's — it changes if somebody makes a new channel — while the shape of the
- * name is what this feature *is*, and two more environment variables to say
- * "red when shut" would be settings nobody ever changes and one more way to get
- * a half-configured sign.
+ * Written here rather than configured, unlike the channel id: the id is the
+ * club's, but the shape of the name is what this feature is, and two more env
+ * vars to say "red when shut" is one more way to get a half-configured sign.
  *
- * Discord lowercases a channel name and turns spaces into hyphens on the way
- * in, so these are already written the way they will come back out. The emoji
- * survives.
+ * Discord lowercases a name and turns spaces into hyphens on the way in, so these
+ * are already written the way they come back out. The emoji survives.
  */
 export const LAB_CHANNEL_NAME = {
   open: 'lab-status-🟢',
@@ -258,14 +142,10 @@ export const LAB_CHANNEL_NAME = {
 } as const
 
 /**
- * The two headlines, as the strings the sign is both *written with* and *read
- * back out of*.
- *
- * Constants rather than two literals in two functions, because the reconcile
- * decides what the lab is by looking for one of them in a message the bot
- * posted possibly months ago. Change the wording in one place and forget the
- * other and the site stops being able to read its own sign — which fails
- * silently, as a reconcile that never adopts anything.
+ * The two headlines, as the strings the sign is both written with and read back
+ * out of. Constants because the reconcile decides what the lab is by looking for
+ * one of them in a message posted possibly months ago — change the wording in one
+ * place only and the site stops being able to read its own sign, silently.
  */
 export const LAB_HEADLINE = {
   open: 'THE LAB IS OPEN',
@@ -273,37 +153,31 @@ export const LAB_HEADLINE = {
 } as const
 
 /**
- * The `custom_id` on each button, and the only thing that comes back from a
- * press to say which one it was.
- *
- * Namespaced `lab:` because an application has one interactions endpoint for
- * everything it will ever offer, and the second feature to grow a button is the
- * one that discovers a bare `open` was ambiguous.
+ * The `custom_id` on each button, and the only thing a press sends back to say
+ * which one it was. Namespaced `lab:` because an application has one interactions
+ * endpoint for everything, and the second feature to grow a button is the one
+ * that discovers a bare `open` was ambiguous.
  */
 export const LAB_BUTTON = {
   open: 'lab:open',
   close: 'lab:close',
 } as const
 
-/** The lab as the site knows it. `changedAt` is null when nobody has ever set
-    it — which is not the same as "closed a long time ago", and the pages say
-    so differently. */
+/** The lab as the site knows it. `changedAt` is null when nobody has ever set it,
+    which is not the same as "closed a long time ago". */
 export interface LabState {
   /**
-   * **Already masked by the building's hours.** Never `row.open` on its own:
-   * every caller wants the answer somebody would act on, and there is no caller
-   * that wants "an officer left it open and then the building shut at ten".
+   * Already masked by the building's hours. Never `row.open` on its own: every
+   * caller wants the answer somebody would act on.
    */
   open: boolean
   changedAt: Date | null
-  /** Who flipped it, by name. Null for a row nobody has touched, null again if
-      that account has since been deleted — `changedById` is `SetNull` — null
-      for a close the curfew did rather than a person, and null for a button
-      pressed by somebody with no account on the site. */
+  /** Who flipped it, by name. Null for a row nobody has touched, for an account
+      since deleted (`changedById` is `SetNull`), for a close the curfew did, and
+      for a button pressed by somebody with no account here. */
   changedBy: string | null
-  /** Whether the building is open at all. What tells "nobody has opened it"
-      from "nobody can", which are different sentences on both pages and the
-      difference between a switch that is off and one that is disabled. */
+  /** Whether the building is open at all — what tells "nobody has opened it" from
+      "nobody can", which is a switch that's off against one that's disabled. */
   buildingOpen: boolean
 }
 
@@ -327,8 +201,8 @@ type StoredMessage = {
 }
 
 /**
- * The row plus the clock, in one place, because several callers derive this and
- * a second copy of the mask is where it eventually gets left out of one.
+ * The row plus the clock, in one place, because several callers derive this and a
+ * second copy of the mask is where it gets left out of one.
  */
 function stateOf(
   row: { open: boolean; changedAt: Date; changedBy: { fullName: string } | null },
@@ -348,21 +222,17 @@ function stateOf(
  * What the sign says.
  *
  * `<t:…:R>` is Discord's own relative timestamp: every reader sees "20 minutes
- * ago" in their own client, and it keeps counting without the message being
- * edited again. That is the whole reason the time is rendered this way rather
- * than as a formatted string — a status message edited in place would otherwise
- * need re-editing every few minutes to stay honest, and each edit is another
- * write against a channel this file is already careful with.
+ * ago" in their own client and it keeps counting without another edit, which a
+ * formatted string wouldn't.
  *
- * **The mention rides on the open headline and nowhere else.** It is only ever
- * *delivered* by a fresh post — an edit that carries one reaches nobody — so on
- * the closed sign it would be a mention that looks like a notification somebody
- * missed. `memberRoleId` unset is a club that has not configured the Members
- * role at all, and then there is simply nobody to address; the new message
- * still goes out, and the unread mark on the channel is the signal.
+ * The mention rides on the open headline and nowhere else. It's only ever
+ * delivered by a fresh post — an edit carrying one reaches nobody — so on the
+ * closed sign it would look like a notification somebody missed. With
+ * `memberRoleId` unset there's simply nobody to address, and the unread mark is
+ * the signal.
  *
- * Exported for the tests, which assert on the two states rather than on
- * whatever Discord happened to accept.
+ * Exported for the tests, which assert on the two states rather than on whatever
+ * Discord happened to accept.
  */
 export function labMessage(state: LabState): string {
   const ping = state.open && memberRoleId ? ` <@&${memberRoleId}>` : ''
@@ -371,9 +241,8 @@ export function labMessage(state: LabState): string {
     ? `🟢 **${LAB_HEADLINE.open}**${ping}`
     : `🔴 **${LAB_HEADLINE.closed}**`
 
-  // Said on the sign rather than left to be inferred. A lab reading CLOSED at
-  // 2am looks exactly like one somebody forgot to open, and the reader walks
-  // over to find out.
+  // Said on the sign rather than left to be inferred: a lab reading CLOSED at 2am
+  // looks exactly like one somebody forgot to open.
   const curfew = state.buildingOpen ? '' : `\n${BUILDING_HOURS_SENTENCE}`
 
   if (!state.changedAt) return headline + curfew
@@ -389,13 +258,11 @@ export function labMessage(state: LabState): string {
 }
 
 /**
- * Reading the sign back — the half that makes Discord the record rather than a
- * projection of it.
+ * Reading the sign back — the half that makes Discord the record.
  *
- * Matched on the headline text alone, not on the emoji: an emoji is one
- * codepoint away from a look-alike and it is the part of the message somebody
- * copying it by hand gets wrong. Null for a message that carries neither, which
- * is a message this feature did not write and must not be read as either state.
+ * Matched on the headline text, not the emoji: an emoji is one codepoint away
+ * from a look-alike and it's the part somebody copying by hand gets wrong. Null
+ * for a message carrying neither, which this feature didn't write.
  */
 export function signSays(content: string): boolean | null {
   if (content.includes(LAB_HEADLINE.open)) return true
@@ -407,18 +274,14 @@ export function signSays(content: string): boolean | null {
  * The one button under the sign, so an officer already in Discord never has to
  * open the site.
  *
- * A single button for the *opposite* state rather than a pair, because the sign
- * is a toggle and a row offering OPEN beside CLOSE is two controls for one fact
- * — one of which is always a no-op. The `custom_id` names the target state all
- * the same, so a press on a message that has not been edited yet asks for what
- * the presser meant rather than for "the other one".
+ * A single button for the opposite state rather than a pair — the sign is a
+ * toggle, and OPEN beside CLOSE is two controls for one fact, one of which is
+ * always a no-op. The `custom_id` names the target state anyway, so a press on a
+ * message not yet edited asks for what the presser meant.
  *
- * **Nothing is attached at all unless a press would actually land.** A button
- * whose press goes nowhere answers "This interaction failed" in front of the
- * whole club, which is worse than a sign with no button on it — so this asks
- * `buttonsLive`, which is the key *and* an Interactions Endpoint URL confirmed
- * against Discord at startup, rather than the key alone. Having one of the two
- * is the ordinary half-configured state, not an exotic one.
+ * Nothing is attached unless a press would actually land: a dead button answers
+ * "This interaction failed" in front of the whole club. Hence `buttonsLive` — the
+ * key and a confirmed interactions endpoint — rather than the key alone.
  */
 export function labButtons(state: LabState): MessageComponents {
   if (!buttonsLive()) return []
@@ -429,18 +292,16 @@ export function labButtons(state: LabState): MessageComponents {
       components: [
         {
           type: 2,
-          // 3 is Discord's green and 4 its red, and they are the same two
-          // colours as the dot on the site. Opening is the affirmative press
-          // and closing is the destructive one, which is the convention the
-          // dashboard's gold/outline pair follows too.
+          // 3 is Discord's green and 4 its red, the same two colours as the dot
+          // on the site. Opening is the affirmative press, closing the
+          // destructive one, which is the dashboard's convention too.
           style: state.open ? 4 : 3,
           label: state.open ? 'Close the lab' : 'Open the lab',
           custom_id: state.open ? LAB_BUTTON.close : LAB_BUTTON.open,
-          // Greyed rather than dropped overnight, for the reason the
-          // dashboard's switch is: the control is still theirs, it simply has
-          // nothing to act on until eight. A press gets the same sentence back
-          // privately anyway, because a stale message can still carry a live
-          // button.
+          // Greyed rather than dropped overnight, like the dashboard's switch:
+          // the control is still theirs, it just has nothing to act on until
+          // eight. A press gets the same sentence back privately anyway, since a
+          // stale message can still carry a live button.
           disabled: !state.open && !state.buildingOpen,
         },
       ],
@@ -449,9 +310,9 @@ export function labButtons(state: LabState): MessageComponents {
 }
 
 /**
- * The lab as it stands. A row that has never been written reads as **closed**,
- * and that direction is deliberate: being wrong the other way costs somebody a
- * walk across campus to a locked door.
+ * The lab as it stands. A row that has never been written reads as closed, and
+ * that direction is deliberate: wrong the other way costs somebody a walk across
+ * campus to a locked door.
  */
 export async function readLabStatus(now: Date = new Date()): Promise<LabState> {
   const row = await prisma.labStatus.findUnique({
@@ -459,9 +320,8 @@ export async function readLabStatus(now: Date = new Date()): Promise<LabState> {
     select: rowSelect,
   })
 
-  // Masked here as well as written by the sweep, and this is the half that
-  // makes the site right at 22:00:01 rather than at some point in the next ten
-  // minutes. See the note at the top of this file.
+  // Masked here as well as written by the sweep — this is the half that makes the
+  // site right at 22:00:01 rather than within ten minutes.
   return row
     ? stateOf(row, now)
     : {
@@ -475,22 +335,18 @@ export async function readLabStatus(now: Date = new Date()): Promise<LabState> {
 /**
  * Everything that touches the sign runs one at a time.
  *
- * Two presses a second apart would otherwise interleave a rename and an edit,
- * and — worse — could both find no message and post one each, which is the one
- * outcome the single-message rule exists to prevent. Chaining also means the
- * later press wins, which is the answer anybody would expect.
+ * Two presses a second apart would otherwise interleave a rename and an edit, or
+ * both find no message and post one each. Chaining also means the later press
+ * wins, which is what anybody would expect.
  *
- * This is in-process, so it holds for one API instance and not across several.
- * At club scale there is one, and `reconcileLabStatus` is the backstop for the
- * day there are two: whatever Discord ended up saying is what the row is
- * corrected to on the next tick.
+ * In-process, so it holds for one API instance. At club scale there is one, and
+ * `reconcileLabStatus` is the backstop for the day there are two.
  */
 let queue: Promise<unknown> = Promise.resolve()
 
 function serialise<T>(work: () => Promise<T>): Promise<T> {
   // `then(work, work)` rather than `then(work)`: a previous job that threw must
-  // not take the next one with it, and a queue that only advances on success is
-  // a queue one failure stops for ever.
+  // not take the next one with it.
   const run = queue.then(work, work)
   queue = run.catch(() => undefined)
   return run
@@ -500,20 +356,16 @@ function serialise<T>(work: () => Promise<T>): Promise<T> {
  * Whatever work is in flight, without starting more.
  *
  * For the suite, which has to wait on the push the sweep fired and forgot.
- * Awaiting `pushLabStatus()` instead would flush it *and* enqueue a second,
- * which is the difference between asserting Discord was written to once and
- * asserting it twice.
+ * Awaiting `pushLabStatus()` would flush it and enqueue a second.
  */
 export const pendingLabPush = (): Promise<unknown> => queue
 
 /**
  * What happened to a press.
  *
- * `cooldown` and `refused` both mean **nothing moved** — not on the site and
- * not in Discord — and both carry something a person can read. That is the
- * whole reason this is a four-way answer rather than a boolean: a press that
- * quietly did nothing is the outcome that gets an officer to press it four more
- * times, which is what spent the rename budget in the first place.
+ * `cooldown` and `refused` both mean nothing moved, on the site or in Discord,
+ * and both carry something a person can read — a press that quietly did nothing
+ * is what gets pressed four more times and spends the rename budget.
  */
 export type LabFlip =
   | { status: 'changed'; state: LabState }
@@ -527,26 +379,21 @@ export type LabFlip =
   | { status: 'refused'; reason: string; state: LabState }
 
 /**
- * Flip it — **in Discord first, and in the database only if that worked.**
+ * Flip it — in Discord first, and in the database only if that worked.
  *
  * The order is the feature. `renameChannel` is the call that gets throttled and
- * it is also the half of the sign somebody sees without opening the channel, so
- * it goes first and its answer decides whether anything else happens at all. A
- * `throttled` or a `refused` comes straight back out as a sentence for whoever
- * pressed, and the row is not touched.
+ * the half of the sign people see without opening the channel, so it goes first
+ * and its answer decides whether anything else happens. A `throttled` or
+ * `refused` comes straight back as a sentence and the row isn't touched.
  *
- * The *message* is not a veto, and the asymmetry is deliberate: by the time it
- * is written the channel has already been renamed, so refusing at that point
- * would leave the name saying one thing and the row another — exactly the split
- * this is meant to close. A message that does not land marks the row unsynced
- * and the sweep edits it within ten minutes.
+ * The message is not a veto, deliberately: by then the channel is already
+ * renamed, so refusing would leave the name saying one thing and the row another.
+ * A message that doesn't land marks the row unsynced for the sweep.
  *
- * **Setting it to what it already is does nothing at all.** Not a
- * micro-optimisation: every push spends one of the two renames Discord allows
- * per ten minutes, and re-opening an already-open lab would re-stamp
- * `changedAt` so the sign read as a fresh opening. The dashboard's switch
- * cannot ask for it, since its label follows the state; a second tab, a double
- * submit, a stale Discord message or a script can.
+ * Setting it to what it already is does nothing. Every push spends one of the two
+ * renames Discord allows per ten minutes, and re-opening an open lab would
+ * re-stamp `changedAt` so the sign read as a fresh opening. The dashboard's
+ * switch can't ask for it; a second tab, a double submit or a script can.
  */
 export function flipLabStatus(
   open: boolean,
@@ -574,9 +421,8 @@ async function flip(
     open,
     changedAt: now,
     // Anonymous when the presser has no account here — a Discord officer who
-    // never signed up. Their name is dropped rather than written onto a sign
-    // the next push would render without it, since everything after this reads
-    // the name back through the `changedById` relation.
+    // never signed up. Their name is dropped rather than written onto a sign the
+    // next push would render without it.
     changedBy: by.id ? by.fullName : null,
     buildingOpen: buildingOpen(now),
   }
@@ -588,18 +434,16 @@ async function flip(
     const renamed = await renameChannel(
       labChannelId,
       next.open ? LAB_CHANNEL_NAME.open : LAB_CHANNEL_NAME.closed,
-      // `by.fullName` rather than `next.changedBy`, and this is the one place
-      // the two differ: an officer with no account here is anonymous on the
-      // sign, because nothing could render their name again on the next push —
-      // but the guild's own audit log is written once and should say who.
+      // `by.fullName` rather than `next.changedBy`, the one place the two differ:
+      // an officer with no account here is anonymous on the sign, but the guild's
+      // audit log is written once and should say who.
       `Lab ${next.open ? 'opened' : 'closed'} by ${by.fullName}`,
     )
 
     if (renamed.status === 'throttled') {
-      // Not an error and not worth a stack trace: Discord allows two of these
-      // every ten minutes and somebody has just used both. Logged anyway,
-      // because "the button did nothing" is otherwise unexplainable from the
-      // outside.
+      // Not an error: Discord allows two of these every ten minutes and somebody
+      // just used both. Logged anyway, because "the button did nothing" is
+      // otherwise unexplainable from outside.
       console.log(
         `lab status: channel rename throttled, flip refused (Discord asked for ${Math.round(renamed.retryAfterMs / 1_000)}s)`,
       )
@@ -623,11 +467,10 @@ async function flip(
       }
     }
 
-    // **The one place anything announces.** Opening the lab is a person doing
-    // something, right now, that the club wants to hear about — so it posts,
-    // and the message it replaces is deleted behind it. Nothing else here, and
-    // nothing on the sweep, is allowed to post: a retry that re-announced would
-    // ping the club again for an evening they were told about ten minutes ago.
+    // The one place anything announces. Opening is a person doing something the
+    // club wants to hear about, so it posts and the message it replaces is
+    // deleted behind it. Nothing else here may post: a retry that re-announced
+    // would ping the club again for an evening they already heard about.
     const written = await writeSign(next, current, { announce: open })
     messageId = written.messageId ?? messageId
     landed = written.landed
@@ -660,13 +503,12 @@ async function flip(
 /**
  * Put the sign in step with the row, without asking the row's permission.
  *
- * The path for writes that have already happened — the curfew's close, and the
- * sweep retrying a rename that was throttled. Unlike `flipLabStatus` this does
- * not veto anything: whatever it cannot get out is recorded as unsynced and
- * tried again on the next tick.
+ * For writes that have already happened — the curfew's close, and the sweep
+ * retrying a throttled rename. Unlike `flipLabStatus` this vetoes nothing:
+ * whatever it can't get out is recorded as unsynced and tried again next tick.
  *
- * Fire-and-forget by contract. It swallows and logs its own failures, because
- * every caller is something that has already answered somebody.
+ * Fire-and-forget by contract; it swallows and logs its own failures, because
+ * every caller has already answered somebody.
  */
 export function pushLabStatus(): Promise<unknown> {
   return serialise(() =>
@@ -684,19 +526,17 @@ async function push(): Promise<void> {
     select: signSelect,
   })
 
-  // Nothing has ever been set, so there is nothing to say. The channel is left
-  // exactly as the club left it rather than being renamed to `🔴` on the
-  // strength of a row that does not exist.
+  // Nothing has ever been set, so there's nothing to say. The channel is left as
+  // the club left it rather than renamed on the strength of a row that isn't there.
   if (!row) return
 
   // Through the same mask the pages read, so a sign pushed at midnight cannot
   // say OPEN because the row still does.
   const state = stateOf(row, new Date())
 
-  // The name first, for the same reason `flip` renames first: it is the half
-  // that gets throttled and the half people read from the sidebar. Unlike a
-  // press, a throttle here does not stop the message being written — the row is
-  // already what it is, and the message is the half that can say who and when.
+  // The name first, for the reason `flip` renames first: it's the half that gets
+  // throttled and the half people read from the sidebar. Unlike a press, a
+  // throttle here doesn't stop the message being written.
   const renamed = await renameChannel(
     labChannelId,
     state.open ? LAB_CHANNEL_NAME.open : LAB_CHANNEL_NAME.closed,
@@ -709,9 +549,8 @@ async function push(): Promise<void> {
     )
   }
 
-  // Never announces. See the note at the top of the file: whether the club is
-  // pinged is decided by the press, not by the row, and this runs on a ten
-  // minute tick for as long as something is failing.
+  // Never announces. Whether the club is pinged is decided by the press, not the
+  // row, and this runs every ten minutes for as long as something is failing.
   const written = await writeSign(state, row, { announce: false })
   const nameLanded = renamed.status === 'done' || renamed.status === 'unchecked'
 
@@ -728,37 +567,24 @@ async function push(): Promise<void> {
 /**
  * The message half of the sign: exactly one message in the channel.
  *
- * Two shapes, and which one runs is `announce`:
+ * `announce` picks the shape. Announcing posts a new message — the only thing
+ * Discord notifies anybody about — and deletes the one it replaces. Otherwise the
+ * existing message is edited in place: no ping, and no unread mark for something
+ * nobody can act on.
  *
- *   - **Announcing** — the lab is being opened. A *new* message is posted,
- *     because that post is the only thing Discord will notify anybody about,
- *     and the message it replaces is deleted immediately after. One in, one
- *     out.
- *   - **Otherwise** — closing, the curfew, a sweep retry. The existing message
- *     is edited in place. No ping, and no unread mark on the channel for
- *     something nobody can act on.
+ * Finding the existing message is three candidates, in order of trust:
  *
- * Finding the existing message is three candidates in order of how much they
- * are trusted, and the order is what keeps the channel from filling up:
- *
- *   1. The id on the row. Only good for the channel it was posted in, so it is
- *      dropped outright if `DISCORD_LAB_CHANNEL_ID` has been pointed elsewhere
- *      since — an edit aimed at the wrong channel is a 404 that reads exactly
- *      like a message somebody deleted.
+ *   1. The id on the row, dropped if `DISCORD_LAB_CHANNEL_ID` has been pointed
+ *      elsewhere since — an edit aimed at the wrong channel 404s exactly like a
+ *      message somebody deleted.
  *   2. `DISCORD_LAB_MESSAGE_ID`, which seeds a row that has never pushed. It
- *      does **not** outrank the row, and under post-new-then-delete it cannot:
- *      the id changes every time the lab opens, so a setting that won would be
- *      pointing at a message this file had itself deleted, and every push would
- *      spend a 404 finding that out.
- *   3. Whatever this bot has already posted in that channel. This is the one
- *      that makes the rule hold across a restored dump or a row somebody reset:
- *      without it the next push would post a second sign and the channel would
- *      collect one per incident.
+ *      doesn't outrank the row and can't: the id changes every time the lab
+ *      opens, so a setting that won would point at a message we deleted.
+ *   3. Whatever this bot has already posted there. This is what makes the rule
+ *      hold across a restored dump or a row somebody reset.
  *
- * **A search that fails posts nothing.** "There is nothing of ours here" and "I
- * could not look" arrive at the same place and only the first is safe to act
- * on; treating a missing Read Message History as an empty channel is how a
- * channel ends up with forty signs in it.
+ * A search that fails posts nothing. "Nothing of ours is here" and "I couldn't
+ * look" arrive at the same place and only the first is safe to act on.
  */
 async function writeSign(
   state: LabState,
@@ -786,11 +612,10 @@ async function writeSign(
     })
 
     if (posted.status === 'sent') {
-      // The other half of the trade, and it runs before this returns rather
-      // than behind it: the whole point of posting was to leave one message in
-      // the channel, and a delete deferred to a background task is a delete
-      // nobody notices failing. `tidyChannel` on the sweep is the backstop, not
-      // the mechanism.
+      // The other half of the trade, and it runs before this returns rather than
+      // behind it: the point of posting was to leave one message in the channel,
+      // and a delete deferred to a background task is one nobody notices failing.
+      // `tidyChannel` is the backstop, not the mechanism.
       const removed = candidate
         ? await deleteChannelMessage(labChannelId, candidate)
         : { status: 'done' as const }
@@ -803,9 +628,9 @@ async function writeSign(
       }
     }
 
-    // The post failed, so there is no ping and there was never going to be
-    // one. Fall through and edit instead: an evening nobody was told about is
-    // a shame, and a sign that says CLOSED over an open lab is worse.
+    // The post failed, so there's no ping and never was going to be. Fall through
+    // and edit: an evening nobody was told about is a shame, and a sign reading
+    // CLOSED over an open lab is worse.
     console.error(
       'lab status: could not post the announcement, so the sign was edited instead — this opening pinged nobody',
     )
@@ -818,9 +643,9 @@ async function writeSign(
 
     if (edit.status === 'sent') return { messageId: candidate, landed: true }
 
-    // Anything but `gone` is worth retrying against the same id — the message
-    // is still there and Discord was simply unreachable or unhappy. `gone`
-    // means it is not ours to edit, so fall through and look properly.
+    // Anything but `gone` is worth retrying against the same id — the message is
+    // still there and Discord was unreachable or unhappy. `gone` means it isn't
+    // ours to edit, so fall through and look properly.
     if (edit.status !== 'gone') return { messageId: candidate, landed: false }
   }
 
@@ -854,25 +679,22 @@ async function writeSign(
 /**
  * How many strays one sweep will clear.
  *
- * Discord rate-limits deletes per channel — gently compared to a rename, but
- * not infinitely, and a channel carrying a year of old announcements would walk
- * straight into it. Five a tick clears a normal backlog inside an hour and
- * never spends the budget somebody else's feature might need.
+ * Discord rate-limits deletes per channel, and a channel carrying a year of old
+ * announcements would walk into it. Five a tick clears a normal backlog inside an
+ * hour without spending the budget another feature might need.
  */
 const TIDY_PER_SWEEP = 5
 
 /**
  * Delete every message of the bot's in the lab channel except the sign.
  *
- * **This is what makes "one message" an invariant rather than an intention.**
- * The delete that follows a post can fail, an earlier design can have left a
- * message per opening behind, two instances can both have posted — and none of
- * those heal on their own, because every other path here edits.
+ * This is what makes "one message" an invariant rather than an intention: the
+ * delete after a post can fail, an earlier design can have left one per opening,
+ * two instances can both have posted, and none of those heal on their own.
  *
- * Bounded three ways, because it is the only destructive thing this file does:
- * it only ever touches messages Discord itself said this bot posted, only in
- * `DISCORD_LAB_CHANNEL_ID`, and never the message the row is using as the sign.
- * A `messages` list it could not read deletes nothing at all.
+ * Bounded three ways, because it's the only destructive thing here: only messages
+ * Discord says this bot posted, only in `DISCORD_LAB_CHANNEL_ID`, and never the
+ * sign. A `messages` list it couldn't read deletes nothing.
  */
 async function tidyChannel(
   messages: BotMessage[],
@@ -897,16 +719,13 @@ async function tidyChannel(
     await deleteChannelMessage(labChannelId, stray.messageId)
   }
 
-  // Nothing is returned and nothing is recorded, deliberately. A stray left
-  // behind must not mark the row unsynced: that would push a *rename* on every
-  // tick until the backlog cleared, spending the two-per-ten-minutes budget on
-  // a name that was already correct. The next tick tidies again regardless —
-  // this runs on every reconcile, not only on a failed one.
+  // Nothing is returned or recorded, deliberately. A stray left behind must not
+  // mark the row unsynced: that would push a rename every tick until the backlog
+  // cleared, spending the two-per-ten-minutes budget on a correct name. The next
+  // tick tidies again regardless.
 }
 
-/**
- * What the reconcile did, for the log and the suite.
- */
+/** What the reconcile did, for the log and the suite. */
 export interface LabReconcile {
   /** The row was corrected to match what Discord says. */
   adopted: boolean
@@ -917,25 +736,18 @@ export interface LabReconcile {
 /**
  * Read the sign back and make the row match it.
  *
- * **This is the half that makes Discord the record.** Everything else here
- * writes towards Discord; this is the only thing that reads from it, and it is
- * what closes the gap the old design left open — a message edited by hand, a
- * write this process lost between the rename and the row, a second instance
- * that flipped it. Ten minutes late, but agreeing.
+ * The half that makes Discord the record: everything else writes towards Discord,
+ * this is the only thing that reads from it. It closes the gap left by a message
+ * edited by hand, a write lost between the rename and the row, or a second
+ * instance that flipped it. Ten minutes late, but agreeing.
  *
- * Two things it will not adopt, and both are the building rather than the sync:
+ * Two things it won't adopt, and both are the building rather than the sync: open
+ * overnight, because the curfew wins over anything a channel says; and a message
+ * that says neither, which this feature didn't write.
  *
- *   - **Open, overnight.** The curfew is a fact about a locked door and it wins
- *     over anything a channel says. The row is left closed and marked unsynced,
- *     so the push corrects the message instead.
- *   - **A message that says neither.** `signSays` returns null for anything
- *     this feature did not write, and a sign nobody can read is not a state to
- *     adopt.
- *
- * Not serialised on the queue and it does not need to be: it only ever reads
- * Discord, and the write it makes is the same one a concurrent flip would be
- * making. A flip landing between the read and the write loses to the flip,
- * which is the right way round — a press is newer than a ten-minute-old sign.
+ * Not serialised on the queue and doesn't need to be — it only reads Discord, and
+ * a flip landing between the read and the write wins, which is the right way
+ * round: a press is newer than a ten-minute-old sign.
  */
 export async function reconcileLabStatus(
   now: Date = new Date(),
@@ -947,17 +759,15 @@ export async function reconcileLabStatus(
     select: signSelect,
   })
 
-  // The same order `writeSign` uses, and it has to be the same: reading one
-  // message back and then editing another is a reconcile that adopts the wrong
-  // sign every tick.
+  // The same order `writeSign` uses, and it has to be: reading one message back
+  // and editing another adopts the wrong sign every tick.
   const stored =
     (row?.discordMessageId && row.discordChannelId === labChannelId
       ? row.discordMessageId
       : null) ?? labMessageId
 
   // One listing rather than a fetch of the stored id, because this call has a
-  // second job: what it returns *besides* the sign is the set of strays, and
-  // clearing those is how "one message" stays true rather than merely intended.
+  // second job — what it returns besides the sign is the set of strays.
   const existing = await findBotMessages(labChannelId)
   if (existing.status !== 'found') return { adopted: false, open: null }
 
@@ -966,22 +776,16 @@ export async function reconcileLabStatus(
   )
 
   /**
-   * **Only the message the row knows about may change what the lab is**, and
-   * this guard is the most important line in the function.
+   * Only the message the row knows about may change what the lab is, and this
+   * guard is the most important line in the function.
    *
-   * "The website syncs with Discord" means the *sign* — the message this
-   * feature keeps, that an officer presses a button on and that a person edits
-   * when they want to correct it. It does not mean any message the bot happens
-   * to have left in the channel, and the difference is not academic: a leftover
-   * from an older design saying THE LAB IS CLOSED is indistinguishable from a
-   * sign somebody just edited, so without this a stray silently closes the lab
-   * for the whole club. That has happened, against the real guild.
+   * A leftover from an older design saying THE LAB IS CLOSED is indistinguishable
+   * from a sign somebody just edited, so without this a stray silently closes the
+   * lab for the whole club. That has happened, against the real guild.
    *
-   * So a message found by *search* is adopted as the sign — its id is learned,
-   * it is what gets edited from here on — but its **state is not read**. The
-   * row's own answer is pushed onto it instead. Discord stays the record for
-   * the sign the site is actually keeping; it does not become the record for
-   * anything that ever landed in the channel.
+   * So a message found by search is adopted as the sign — its id is learned and
+   * it's what gets edited from here on — but its state is not read. The row's
+   * answer is pushed onto it instead.
    */
   const message = known ?? existing.messages[0]!
 
@@ -993,27 +797,20 @@ export async function reconcileLabStatus(
     )
 
     /**
-     * **`upsert`, because on a fresh database there is no row to update.**
+     * `upsert`, because on a fresh database there is no row to update.
      *
-     * This threw on the club's first deployment, every ten minutes, and the
-     * shape is worth keeping in mind: nothing creates the `lab_status` row.
-     * Not the migration, not the seed, not the legacy import — it appears the
-     * first time somebody flips the lab (`flipLabStatus` upserts) or the first
-     * time this function reaches the `!row` branch further down. But that
-     * branch sits *after* this early return, so a fresh database that already
-     * has a sign in the channel — which is every real deployment, because the
-     * channel outlives the database — lands here, finds no row to update, and
-     * raises P2025 for ever. The reconcile never runs and the sign never syncs.
+     * This threw on the club's first deployment, every ten minutes. Nothing
+     * creates the `lab_status` row — not the migration, not the seed, not the
+     * legacy import. It appears on the first flip, or in the `!row` branch below,
+     * which sits after this early return. So a fresh database that already has a
+     * sign in the channel — every real deployment, since the channel outlives the
+     * database — lands here, finds no row, and raises P2025 for ever.
      *
-     * The create side says **closed**, and not because closed is likelier.
-     * The guard above is the whole point of this branch: a message the row does
-     * not know about has its id adopted and its *state ignored*, because a
-     * stray from an older design is indistinguishable from a sign somebody just
-     * edited. With no row there is no site state to keep either — so the one
-     * answer that cannot hurt anybody is the closed one. A sign wrongly reading
-     * OPEN sends somebody across campus to a locked door; wrongly CLOSED costs
-     * them a question in Discord. `discordSynced: false` marks the push that
-     * corrects the message as due, which is what actually settles it.
+     * The create side says closed, and not because closed is likelier: the guard
+     * above ignores a found message's state, and with no row there's no site state
+     * either, so the one answer that can't hurt anybody is closed. Wrongly OPEN
+     * sends somebody to a locked door; wrongly CLOSED costs them a question.
+     * `discordSynced: false` marks the correcting push as due.
      */
     await prisma.labStatus.upsert({
       where: { id: CURRENT },
@@ -1040,27 +837,25 @@ export async function reconcileLabStatus(
   const says = signSays(message.content)
   if (says === null) return { adopted: false, open: null }
 
-  // Everything of ours that is not the sign, gone. Deliberately awaited: a tick
+  // Everything of ours that isn't the sign, gone. Awaited deliberately: a tick
   // that adopted a state and left four old announcements above it has done the
-  // visible half of the job and skipped the one somebody complained about.
+  // visible half and skipped the one somebody complained about.
   //
   // Under the guard above, and only under it. Deleting is irreversible, and
-  // "which of these is the sign" is exactly the question that was just answered
-  // by the row rather than guessed at — a tidy run on a guess deletes the
-  // club's real announcement, which is the other half of what went wrong.
+  // "which of these is the sign" was just answered by the row rather than guessed
+  // at — a tidy run on a guess deletes the club's real announcement.
   await tidyChannel(existing.messages, message.messageId)
 
-  // A sign saying OPEN overnight is not adopted: the row is left closed and the
-  // push corrects the message instead. Worked out before the name is checked,
-  // because it is what the name is checked *against* — the question is not
-  // "does the channel match its own message" but "does the whole sign match
-  // what the lab is about to be".
+  // A sign saying OPEN overnight isn't adopted: the row is left closed and the
+  // push corrects the message. Worked out before the name is checked, because
+  // it's what the name is checked against — the question is whether the whole
+  // sign matches what the lab is about to be.
   const adoptable = says && !buildingOpen(now) ? false : says
 
-  // The name is the other half of the sign and the half that drifts, because a
-  // rename is the call Discord throttles hardest. Checked here rather than
-  // trusted so a name left behind by a throttled push — or changed by hand — is
-  // noticed on the tick rather than at the next flip.
+  // The name is the other half of the sign and the half that drifts, since a
+  // rename is what Discord throttles hardest. Checked rather than trusted, so a
+  // name left behind by a throttled push is noticed on the tick, not at the next
+  // flip.
   const expected = adoptable ? LAB_CHANNEL_NAME.open : LAB_CHANNEL_NAME.closed
   const name = await readChannelName(labChannelId)
   const nameAgrees = name.status !== 'found' || name.name === expected
@@ -1068,12 +863,10 @@ export async function reconcileLabStatus(
   /**
    * Whether the message carries the buttons it should.
    *
-   * This exists for one gap and it is an invisible one. A club that fills in
-   * `DISCORD_PUBLIC_KEY` and restarts has a sign whose *content* is already
-   * correct, so nothing would push and no buttons would appear until somebody
-   * happened to flip the lab — which reads as the key not working. Comparing
-   * what is on the message against what `labButtons` would produce turns that
-   * into a push on the next tick.
+   * For one invisible gap: a club that fills in `DISCORD_PUBLIC_KEY` and restarts
+   * has a sign whose content is already correct, so nothing would push and no
+   * buttons would appear until somebody flipped the lab — which reads as the key
+   * not working.
    */
   const buttonsAgree =
     message.hasComponents ===
@@ -1085,14 +878,12 @@ export async function reconcileLabStatus(
     }).length > 0
 
   /**
-   * Whether the sign in Discord already says what the row is about to say —
-   * **all of it**, which is the part that was worth being careful with.
+   * Whether the sign already says what the row is about to say — all of it.
    *
-   * `adoptable !== says` is the curfew having overruled the message, and it has
-   * to force a push on its own. Otherwise a message edited by hand to OPEN at
-   * two in the morning, in a channel somebody also renamed green, agrees with
-   * itself perfectly and would sit there all night while the row underneath it
-   * read closed.
+   * `adoptable !== says` is the curfew having overruled the message, and it has to
+   * force a push on its own. Otherwise a message edited by hand to OPEN at two in
+   * the morning, in a channel somebody also renamed green, agrees with itself
+   * perfectly and would sit there all night.
    */
   const signAgrees = nameAgrees && buttonsAgree && adoptable === says
 
@@ -1114,9 +905,8 @@ export async function reconcileLabStatus(
     return { adopted: true, open: says }
   }
 
-  // The id is worth writing back on its own — a message found by search is one
-  // the row did not know about, and knowing it saves a listing on every push
-  // from here on.
+  // The id is worth writing back on its own: a message found by search is one the
+  // row didn't know about, and knowing it saves a listing on every push from here.
   const learned =
     row.discordMessageId !== message.messageId ||
     row.discordChannelId !== labChannelId
@@ -1143,9 +933,8 @@ export async function reconcileLabStatus(
     data: {
       open: adoptable,
       changedAt: now,
-      // Nobody here did this. Attributing a message somebody edited in Discord
-      // to whoever last used the dashboard would put their name on a decision
-      // they did not make.
+      // Nobody here did this. Attributing a message somebody edited in Discord to
+      // whoever last used the dashboard puts their name on someone else's decision.
       changedById: null,
       discordChannelId: labChannelId,
       discordMessageId: message.messageId,
@@ -1163,12 +952,11 @@ export async function reconcileLabStatus(
 }
 
 /**
- * The ten-minute tick: lock up if the building has shut, read the sign back,
- * and retry whatever the last push could not get out.
+ * The ten-minute tick: lock up if the building has shut, read the sign back, and
+ * retry whatever the last push couldn't get out.
  *
- * Cheap when there is nothing to do — one indexed read of one row and, if
- * Discord is configured, two calls to read the sign. Which is most ticks of
- * most days, because the lab is flipped twice a day.
+ * Cheap when there's nothing to do — one indexed read and, if Discord is
+ * configured, two calls to read the sign. Which is most ticks of most days.
  */
 export async function sweepLabStatus(
   now: Date = new Date(),
@@ -1179,17 +967,16 @@ export async function sweepLabStatus(
   })
 
   /**
-   * Locking up on the club's behalf, and it is checked **before** anything
-   * touching Discord because it changes what those calls would say.
+   * Locking up on the club's behalf, checked before anything touching Discord
+   * because it changes what those calls would say.
    *
-   * Not conditional on Discord being configured either, and that ordering
-   * matters: whether the lab is open is a fact about the site, and a club with
-   * no bot still gets an honest front page. The `labChannelConfigured` guard
-   * belongs to the *sign*, so it sits under this rather than over it.
+   * Not conditional on Discord being configured, either: whether the lab is open
+   * is a fact about the site, and a club with no bot still gets an honest front
+   * page. The `labChannelConfigured` guard belongs to the sign, so it sits under
+   * this rather than over it.
    *
-   * **And it is not vetoed by a throttled rename**, unlike a press. A green
-   * sign over a locked building all night is not an outcome worth protecting
-   * the rename budget for; the close is committed and the sweep pushes it.
+   * And it isn't vetoed by a throttled rename, unlike a press — a green sign over
+   * a locked building all night isn't worth protecting the rename budget for.
    */
   if (row?.open && !buildingOpen(now)) {
     await prisma.labStatus.update({
@@ -1198,9 +985,8 @@ export async function sweepLabStatus(
         open: false,
         changedAt: now,
         // Nobody closed it. Attributing this to whoever opened the lab at six
-        // would put their name on a decision they did not make — and the sign
-        // reads better for it, since "Closed 3 minutes ago" beside "the
-        // building is shut until 8am" says what happened on its own.
+        // would put their name on someone else's decision — and "Closed 3 minutes
+        // ago" beside "the building is shut until 8am" says what happened anyway.
         changedById: null,
         discordSynced: false,
       },
@@ -1212,9 +998,8 @@ export async function sweepLabStatus(
 
   if (!labChannelConfigured) return { closed: false, adopted: false, retried: false }
 
-  // Discord is the record, so it is read before anything is pushed at it — a
-  // retry that went first would overwrite the very message it is meant to be
-  // reconciling against.
+  // Discord is the record, so it's read before anything is pushed at it — a retry
+  // that went first would overwrite the message it's meant to reconcile against.
   const reconciled = await reconcileLabStatus(now)
 
   const after = await prisma.labStatus.findUnique({

@@ -17,26 +17,20 @@ import { MAX_PROJECT_IMAGES, moveItem } from '../../lib/projects/projectGallery'
 /**
  * The gallery section, for a project that exists and for one that does not yet.
  *
- * **Nothing here talks to the server**, which is what lets it be one component
- * rather than two. A picture is held in the browser — a file as an object URL,
- * an address as itself, a picture already on the project as the row it came from
- * — and the whole set is sent when the page is saved: by `saveGallery` in the
- * editor, by `publishDraft` on the create page, which is the same list going to
- * a project that has only just been made.
+ * Nothing here talks to the server, which is what lets it be one component rather than two. A
+ * picture is held in the browser — a file as an object URL, an address as itself, a picture already
+ * on the project as the row it came from — and the whole set is sent when the page is saved: by
+ * `saveGallery` in the editor, by `publishDraft` on the create page.
  *
- * There was a second, near-identical copy of this that wrote as it went: it
- * uploaded on choosing a file, deleted on the ✕, and saved a caption on blur. It
- * is gone, and this took over both jobs. The parts of it that only made sense
- * because it wrote immediately went with it — the per-action status line, the
- * debounced reorder — and the one part that did not is kept below: **removing a
- * picture the club is hosting still asks first**, because the ✕ is now a promise
- * to delete bytes rather than the deletion itself, and that is worth being sure
- * about either way.
+ * There was a second, near-identical copy of this that wrote as it went: it uploaded on choosing a
+ * file, deleted on the ✕, and saved a caption on blur. It is gone, and the parts of it that only
+ * made sense because it wrote immediately went with it — the per-action status line, the debounced
+ * reorder. The one part that did not is kept below: removing a picture the club is hosting still
+ * asks first, because the ✕ is now a promise to delete bytes rather than the deletion itself.
  *
- * A file is downscaled the moment it is chosen rather than at save time. It is
- * the same work either way, and doing it here means the size shown in the row is
- * the size that will be uploaded — and that a photo too large to send is found
- * out about while there is still a form to fix it in.
+ * A file is downscaled the moment it is chosen rather than at save time. Same work either way, and
+ * doing it here means the size shown in the row is the size that will be uploaded, and a photo too
+ * large to send is found out about while there is still a form to fix it in.
  */
 export function DraftGallery({
   images,

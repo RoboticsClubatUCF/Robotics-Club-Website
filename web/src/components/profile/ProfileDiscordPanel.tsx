@@ -14,15 +14,13 @@ import {
 /**
  * The Discord handle, edited on an account that already exists.
  *
- * The same field signup uses, pointed at the account check instead — which
- * excuses the caller, so somebody re-saving the handle they already have is not
- * told it is taken by themselves.
+ * The same field signup uses, pointed at the account check instead — which excuses the caller, so
+ * somebody re-saving the handle they already have is not told it is taken by themselves.
  *
- * Worth changing rather than leaving to an officer because a handle is the one
- * thing on this page somebody can alter *elsewhere*: Discord lets them rename
- * whenever they like, and everything the club builds joins on this string. The
- * stored account id survives a rename, so the two together are what keep a
- * member reachable.
+ * Worth changing rather than leaving to an officer because a handle is the one thing on this page
+ * somebody can alter elsewhere: Discord lets them rename whenever they like, and everything the
+ * club builds joins on this string. The stored account id survives a rename, so the two together
+ * are what keep a member reachable.
  */
 export function ProfileDiscordPanel({
   account,

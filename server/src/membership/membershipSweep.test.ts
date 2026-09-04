@@ -7,30 +7,24 @@ import { clearCalendarCache } from './semester.js'
 /**
  * Taking `MEMBER` back off somebody whose dues ran out.
  *
- * This is the one sweep on the site that changes what a person *is*, so what it
- * refuses to touch matters more than what it changes — and the database it runs
- * against has the club's real roster in it.
+ * This is the one sweep on the site that changes what a person is, so what it refuses to touch
+ * matters more than what it changes — and the database it runs against has the club's real roster
+ * in it.
  *
- * **A prefix cannot isolate this suite, and for a while it looked like it
- * could.** Every fixture is keyed on `test-sweep-` and every assertion counts
- * only those rows, but the sweep itself is one roster-wide `updateMany` and the
- * clock is pinned to 2035 — under which *every* real member's dues have long
- * since run out. Against a seeded database of nineteen invented people that was
- * invisible. Against the club's imported roster the first `it` in this file
- * demoted thirty-two paid-up members to `GUEST`, silently, and passed.
+ * A prefix can't isolate this suite, and for a while it looked like it could. Every fixture is
+ * keyed on `test-sweep-` and every assertion counts only those rows, but the sweep itself is one
+ * roster-wide `updateMany` and the clock is pinned to 2035 — under which every real member's dues
+ * have long since run out. Against a seeded database of nineteen invented people that was
+ * invisible. Against the club's imported roster the first `it` demoted thirty-two paid-up members
+ * to `GUEST`, silently, and passed.
  *
- * So the real rows are put back: `restoreRealMembers` records who was a
- * `MEMBER` before the suite touched anything and repairs them afterwards. It is
- * not a nicety. Nothing else in the file would have noticed.
+ * So the real rows are put back: `restoreRealMembers` records who was a `MEMBER` before the suite
+ * touched anything and repairs them afterwards. Nothing else in the file would have noticed.
  *
- * The clock is pinned to term time in 2035 for the same reason `authz.test.ts`
- * pins its own: whether anybody is lapsed is a property of the calendar, so on
- * the real clock this suite would pass all summer and fail in October.
- *
- * `fetch` answers with a synthetic feed rather than failing, and that detail is
- * the point of one of the tests below: the sweep stands down when the dates are
- * fallbacks, so a suite that stubbed a *failure* would only ever prove it
- * standing down.
+ * The clock is pinned to term time in 2035 for the reason `authz.test.ts` pins its own. `fetch`
+ * answers with a synthetic feed rather than failing, and that's the point of one of the tests: the
+ * sweep stands down when the dates are fallbacks, so a suite that stubbed a failure would only
+ * ever prove it standing down.
  */
 
 /** A term as UCF publishes one, cut to the two events that matter. */
@@ -84,12 +78,11 @@ const clearRows = () =>
   prisma.user.deleteMany({ where: { email: { startsWith: PREFIX } } })
 
 /**
- * Everybody who is a `MEMBER` and is not this suite's business.
+ * Everybody who is a `MEMBER` and isn't this suite's business.
  *
- * Captured before each test and restored after it. Reading the ids rather than
- * counting them matters: what has to go back is exactly the set that was there,
- * and a sweep that demoted somebody who was already `GUEST` must not promote
- * them on the way out.
+ * Captured before each test and restored after it. Reading the ids rather than counting them
+ * matters: what has to go back is exactly the set that was there, and a sweep that demoted
+ * somebody already `GUEST` must not promote them on the way out.
  */
 let realMembers: string[] = []
 
@@ -241,10 +234,9 @@ describe('sweepLapsedMembers', () => {
   })
 
   /**
-   * Fallback dates are approximately right, which is fine for quoting a price
-   * and not fine for changing what somebody is. This is the only test here that
-   * takes the calendar away, and it has to take it away *and* clear the cache,
-   * or the terms the other tests read are still sitting in it.
+   * Fallback dates are approximately right, which is fine for quoting a price and not fine for
+   * changing what somebody is. This is the only test here that takes the calendar away, and it has
+   * to take it away and clear the cache, or the terms the other tests read are still in it.
    */
   it('stands down when the term dates are guesses', async () => {
     const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})

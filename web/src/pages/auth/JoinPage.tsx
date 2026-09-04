@@ -13,22 +13,19 @@ import {
 /**
  * Signing up, which is how someone joins the club.
  *
- * One route, four screens, and which one you get is decided by whether the URL
- * carries a token:
+ * One route, four screens, and which one you get is decided by whether the URL carries a token:
  *
  *   /join              the requirement, then an address to send a link to
  *   /join?token=…      the link was followed — the rest of the form
  *   …then              the account exists, and what happens next
  *
- * The token in the URL is the whole reason this needs to be a real route rather
- * than a step in a wizard: the link is opened from an email, often on a
- * different device from the one the form was started on, so nothing about the
- * second half may depend on state the first half left in a tab.
+ * The token in the URL is the whole reason this needs to be a real route rather than a step in a
+ * wizard: the link is opened from an email, often on a different device from the one the form was
+ * started on, so nothing about the second half may depend on state the first half left in a tab.
  *
- * The token is spent by a POST this page makes, never by opening the URL.
- * Corporate mail scanners follow every link in an incoming message, and against
- * a GET endpoint that would use the verification up before the student ever
- * clicked it.
+ * The token is spent by a POST this page makes, never by opening the URL. Corporate mail scanners
+ * follow every link in an incoming message, and against a GET endpoint that would use the
+ * verification up before the student ever clicked it.
  */
 
 type VerifyState =
@@ -149,13 +146,12 @@ function BadLink({ message }: { message: string }) {
 }
 
 /**
- * The one screen on the site that celebrates rather than informs, hence the
- * confetti — it is the end of a form somebody just filled in twice over.
+ * The one screen on the site that celebrates rather than informs, hence the confetti — it is the
+ * end of a form somebody just filled in twice over.
  *
- * It still has to say what happens next. An account is not membership, and a
- * page that says "you're in" and stops is how somebody ends up waiting to be
- * told what to do: the two remaining steps are the club's own, in the club's
- * order, and neither of them happens here.
+ * It still has to say what happens next. An account is not membership, and a page that says "you're
+ * in" and stops is how somebody ends up waiting to be told what to do: the two remaining steps are
+ * the club's own, in the club's order, and neither happens here.
  */
 function AccountCreated() {
   return (

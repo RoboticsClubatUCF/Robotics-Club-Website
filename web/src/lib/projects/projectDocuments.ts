@@ -5,17 +5,15 @@ import { draftKey } from './projectDraft'
 /**
  * The documentation section while somebody is working on it.
  *
- * The same move the gallery made, for a stronger reason: the button here used to
- * read PUBLISH A DOCUMENT and meant it — the file went up, the row appeared on a
- * public page, and the SAVE at the foot of the editor had nothing to do with any
- * of it. **Now nothing is published until the page is saved**, so a document
- * half-titled and thought better of is a draft that never existed rather than
+ * The same move the gallery made, for a stronger reason: the button here used to read PUBLISH A
+ * DOCUMENT and meant it — the file went up, the row appeared on a public page, and the SAVE at the
+ * foot of the editor had nothing to do with any of it. Now nothing is published until the page is
+ * saved, so a document half-titled and thought better of is a draft that never existed rather than
  * something to go and delete.
  *
- * The trade is that a file's size is refused at save time rather than at the
- * moment it was chosen, which is why `DocumentsEditor` checks the format and the
- * size in the browser first — the server is still what actually refuses, but by
- * then it should have nothing left to say.
+ * The trade is that a file's size is refused at save time rather than when it was chosen, which is
+ * why `DocumentsEditor` checks the format and the size in the browser first — the server still
+ * refuses, but by then it should have nothing left to say.
  */
 export type DraftDocument = {
   /** Local identity. A stored row uses its own id, so it survives a save. */
@@ -27,10 +25,9 @@ export type DraftDocument = {
   /**
    * Who to credit.
    *
-   * Empty means two different things and both are correct: on a stored row it is
-   * "leave the credit alone", which is what the select's first option says out
-   * loud; on a new one it is "nobody chosen yet", and the form will not let it
-   * be saved that way.
+   * Empty means two different things and both are correct: on a stored row it is "leave the credit
+   * alone", which is what the select's first option says out loud; on a new one it is "nobody chosen
+   * yet", and the form will not let it be saved that way.
    */
   authorUserId: string
   /**
@@ -78,15 +75,15 @@ export const documentsDirty = (
 /**
  * Brings the published documents level with the draft.
  *
- * Removals first, so a section swapped document-for-document at the cap does not
- * meet it halfway through — the same ordering `saveGallery` uses and for the same
- * reason. Then each row in order: a new one is a multipart publish, a changed one
- * is a patch, and a replaced file is a second request *after* the patch so the
- * row that comes back carries both changes rather than only whichever went last.
+ * Removals first, so a section swapped document-for-document at the cap does not meet it halfway
+ * through — the same ordering `saveGallery` uses and for the same reason. Then each row in order: a
+ * new one is a multipart publish, a changed one is a patch, and a replaced file is a second request
+ * after the patch so the row that comes back carries both changes rather than only whichever went
+ * last.
  *
- * Throws on the first failure, with everything before it already landed. The
- * editor applies what came back and names the section, so pressing SAVE again
- * retries the rest rather than publishing the first document twice.
+ * Throws on the first failure, with everything before it already landed. The editor applies what
+ * came back and names the section, so pressing SAVE again retries the rest rather than publishing
+ * the first document twice.
  */
 export async function saveDocuments(
   projectId: string,

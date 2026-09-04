@@ -20,23 +20,17 @@ import { LAB_BUTTON, LAB_CHANNEL_NAME, pendingLabPush } from '../../lab/labStatu
 /**
  * The button on the lab sign.
  *
- * **This suite borrows the club's `lab_status` row, exactly as
- * `routes/public/lab.test.ts` does**, and for the same reason: it is a singleton with
- * a fixed id and there is no prefix to hide behind. Two files writing it is
- * only safe because `vitest.config.ts` sets `fileParallelism: false` — they run
- * one after the other, and each puts the row back.
+ * This suite borrows the club's `lab_status` row, exactly as `routes/public/lab.test.ts` does: a
+ * singleton with a fixed id and no prefix to hide behind. Two files writing it is only safe
+ * because `vitest.config.ts` sets `fileParallelism: false`.
  *
- * **Discord is mocked at the module boundary, and `verifyInteraction` with
- * it.** The signature check is Ed25519 over the raw body, so a suite that
- * wanted to send a *real* signature would have to hold a private key and sign
- * every fixture — which would be testing Node's crypto. It is pinned once, with
- * a real keypair, in `discord.test.ts`; here it is a switch, so these cases can
- * be about what happens *after* a delivery is believed.
+ * Discord is mocked at the module boundary, and `verifyInteraction` with it. The signature check
+ * is Ed25519 over the raw body, so a suite that wanted to send a real signature would have to
+ * hold a private key and sign every fixture — which would be testing Node's crypto. It's pinned
+ * once, with a real keypair, in `discord.test.ts`; here it's a switch.
  *
- * **The clock is pinned** because one case is about the building being shut,
- * and because the endpoint refuses a delivery on its age — a timestamp header
- * five minutes out of date is a replay. Both instants are in UTC for the reason
- * `lab.test.ts` says.
+ * The clock is pinned because one case is about the building being shut, and because the endpoint
+ * refuses a delivery on its age — a timestamp five minutes out of date is a replay.
  */
 
 const stub = vi.hoisted(() => ({
@@ -339,10 +333,9 @@ describe('who may press it', () => {
 
 describe('what it says back', () => {
   /**
-   * The cooldown. Discord allows two channel renames per ten minutes and the
-   * rename is what the flip is gated on, so the lab is left exactly as it was —
-   * and the one thing that must not happen is the press appearing to do
-   * nothing, because that is what gets it pressed four more times.
+   * The cooldown. Discord allows two channel renames per ten minutes and the rename is what the
+   * flip is gated on, so the lab is left exactly as it was — and the one thing that must not
+   * happen is the press appearing to do nothing.
    */
   it('warns privately when the rename is rate limited, and changes nothing', async () => {
     renamed.mockResolvedValue({ status: 'throttled', retryAfterMs: 240_000 })

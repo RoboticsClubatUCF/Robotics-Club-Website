@@ -5,12 +5,10 @@ import type { StatusTone } from './format/formats'
 /**
  * What the five task labels are called and how they read, in one place.
  *
- * The mirror of `TaskStatus` in `schema.prisma`, in the sense `lib/printing.ts`
- * and `lib/survey.ts` are mirrors: the server is what actually refuses, and
- * this exists so that four screens — the tasks page, the project board, a
- * project's own page and the overview card — cannot disagree about what
- * DELAYED looks like. Written out four times they would agree until one of them
- * was edited.
+ * The mirror of `TaskStatus` in `schema.prisma`, in the sense `lib/printing.ts` and `lib/survey.ts`
+ * are mirrors: the server is what actually refuses, and this exists so four screens — the tasks
+ * page, the project board, a project's own page and the overview card — cannot disagree about what
+ * DELAYED looks like. Written out four times they would agree until one of them was edited.
  */
 
 /**
@@ -28,14 +26,12 @@ export const TASK_STATUSES: readonly TaskStatus[] = [
 ]
 
 /**
- * Tones follow `STATUS_TONE`'s rule — keyed by how a status *reads* rather than
- * by its name.
+ * Tones follow `STATUS_TONE`'s rule — keyed by how a status reads rather than by its name.
  *
- * `OPEN` is `waiting` because it is a job somebody still owes, which is the one
- * thing on a list worth finding by scanning. `DELAYED` is `bad` and `CANCELED`
- * is `neutral`, and that pairing is the point: a slipped deadline is a live
- * problem, while a task called off is over and deserves the quietest ink on the
- * page rather than a colour that pulls the eye to a closed row.
+ * `OPEN` is `waiting` because it is a job somebody still owes, which is the one thing on a list
+ * worth finding by scanning. `DELAYED` is `bad` and `CANCELED` is `neutral`, and that pairing is
+ * the point: a slipped deadline is a live problem, while a task called off is over and deserves the
+ * quietest ink on the page rather than a colour that pulls the eye to a closed row.
  */
 export const TASK_LABEL: Record<
   TaskStatus,
@@ -80,12 +76,11 @@ export function dueLabel(iso: string, now: Date = new Date()): string {
 }
 
 /**
- * Where a task lives, for the meta line: the project, or the fact that it has
- * none.
+ * Where a task lives, for the meta line: the project, or the fact that it has none.
  *
- * A task with no project is the club's own work rather than a build's, and
- * saying so is not decoration — on a page that mixes both, a row with no
- * project chip would read as one whose project failed to load.
+ * A task with no project is the club's own work rather than a build's, and saying so is not
+ * decoration — on a page that mixes both, a row with no project chip would read as one whose
+ * project failed to load.
  */
 export const whereLabel = (task: ApiTask) =>
   task.project?.title ?? 'No project'
@@ -93,11 +88,10 @@ export const whereLabel = (task: ApiTask) =>
 /**
  * The date-and-time pair a form sends, as one instant.
  *
- * **End of day when no time is given**, which is what the project board has
- * always done — "due Friday" means the end of Friday, not the start of it. The
- * time box exists because the bot now chases a deadline half an hour after it
- * passes, and "Friday" is not a moment. Local both ways: the zone the person
- * typing is thinking in is the zone the club is in.
+ * End of day when no time is given, which is what the project board has always done — "due Friday"
+ * means the end of Friday. The time box exists because the bot now chases a deadline half an hour
+ * after it passes, and "Friday" is not a moment. Local both ways: the zone the person typing is
+ * thinking in is the zone the club is in.
  */
 export function dueInstant(date: string, time: string): string | null {
   if (!date) return null

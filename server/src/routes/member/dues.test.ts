@@ -11,35 +11,27 @@ import { applyPayment, membershipUpdateFor } from './dues.js'
 /**
  * Dues, against the live database.
  *
- * The half that matters most is `applyPayment`, and it is tested directly
- * rather than through Stripe. Crediting a payment exactly once is the only
- * thing on this path that costs the club money when it goes wrong: Stripe
- * retries a webhook until something answers 2xx, may deliver the same event
- * twice regardless, and the member's own browser calls `/dues/sync` at roughly
- * the same moment — so the same successful payment routinely arrives two or
- * three times, and every one of those must add one semester, not three.
+ * The half that matters most is `applyPayment`, tested directly rather than through Stripe.
+ * Crediting a payment exactly once is the only thing on this path that costs the club money
+ * when it goes wrong: Stripe retries a webhook until something answers 2xx, may deliver the
+ * same event twice regardless, and the member's browser calls `/dues/sync` at roughly the
+ * same moment — so one successful payment routinely arrives two or three times.
  *
- * `fetch` is stubbed to fail so the suite never calls calendar.ucf.edu. The
- * fallback dates are then in play, which is fine here: nothing below asserts a
- * specific date, only which side of one things land. `semester.test.ts` is
- * where the calendar itself is checked.
+ * `fetch` is stubbed to fail so the suite never calls calendar.ucf.edu. Nothing below asserts
+ * a specific date, only which side of one things land.
  */
 
 /**
- * Outright, never optionally — and here the reason is stronger than the one on
- * `print.test.ts`. All three writers of `duesPaidThrough` now push Discord
- * roles, and a role write is not a message somebody can ignore: it changes
- * what a real person can see in the club's actual server. The dev `.env` has a
- * live bot token, and the moment anybody sets `DISCORD_MEMBER_ROLE_ID` there,
- * an unmocked run of this suite hands out and takes away real roles.
+ * Outright, never optionally — and the reason is stronger than the one on `print.test.ts`.
+ * All three writers of `duesPaidThrough` push Discord roles, and a role write isn't a message
+ * somebody can ignore: it changes what a real person can see in the club's actual server. The
+ * dev `.env` has a live bot token.
  */
 vi.mock('../../discord/discord.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../discord/discord.js')>()),
-  // Signing in follows the club's officer role now — see
-  // `refreshOfficerStanding` — so an unmocked `signIn()` here would reach
-  // Discord on the dev token. Switched off rather than stubbed: this suite is
-  // about dues, and the refresh returns before any call at all when the sync
-  // is not configured.
+  // Signing in follows the club's officer role now, so an unmocked `signIn()` would reach
+  // Discord on the dev token. Switched off rather than stubbed: this suite is about dues, and
+  // the refresh returns before any call when the sync isn't configured.
   officerSyncConfigured: false,
   officerRoleId: null,
   memberRoleId: null,
@@ -106,10 +98,9 @@ beforeEach(async () => {
       fullName: 'Test Dues',
       email: EMAIL,
       passwordHash: await hashPassword(PASSWORD),
-      // No dues date — that is what this suite is about — but the survey is
-      // answered, because it is the gate *in front of* dues. Without it every
-      // checkout here would 403 on the survey and never reach the code under
-      // test. The gate itself is exercised in its own describe below.
+      // No dues date — that's what this suite is about — but the survey is answered, because
+      // it's the gate in front of dues. Without it every checkout would 403 on the survey and
+      // never reach the code under test.
       surveyCompletedAt: new Date('2035-09-01T00:00:00'),
     },
     select: { id: true },
@@ -219,18 +210,16 @@ describe('POST /api/dues/checkout', () => {
   })
 
   /**
-   * A payment that would not move the date is a payment that buys nothing.
+   * A payment that wouldn't move the date buys nothing.
    *
-   * `coverageFor` walks past terms already held and gives up after four hops —
-   * beyond that it returns the member's own date, so the charge lands and the
-   * membership is exactly as long as it was. Reachable in real life: the
-   * faculty advisor and any non-student mentor are documented as wanting a
-   * far-future `duesPaidThrough` so the gate never touches them.
+   * `coverageFor` walks past terms already held and gives up after four hops — beyond that it
+   * returns the member's own date, so the charge lands and the membership is exactly as long
+   * as it was. Reachable in real life: the faculty advisor and any non-student mentor are
+   * documented as wanting a far-future date.
    *
-   * Worth a test rather than a comment because the two halves of this page
-   * disagreed about it — claiming has always refused somebody already covered,
-   * and the half that took money was the lax one. Runs before the Stripe check
-   * below on purpose: the refusal happens whether or not the club has keys.
+   * Worth a test because the two halves of this page disagreed about it, and the half that
+   * took money was the lax one. Runs before the Stripe check on purpose: the refusal happens
+   * whether or not the club has keys.
    */
   it('refuses a payment that would not extend anything', async () => {
     const cookie = await signIn()
@@ -262,10 +251,9 @@ describe('POST /api/dues/checkout', () => {
   })
 
   /**
-   * Unconfigured Stripe is a supported state, like an unconfigured Postmark:
-   * the club has to be able to run the site before somebody has made keys, and
-   * dues were collected in person for the whole life of the previous site.
-   * A 503 with a sentence is what the page turns into "ask an officer".
+   * Unconfigured Stripe is a supported state, like an unconfigured Postmark: the club has to
+   * be able to run the site before somebody has made keys, and dues were collected in person
+   * for the whole life of the previous site.
    */
   it.runIf(!stripeConfigured)(
     'says so plainly when the club has no Stripe keys yet',
@@ -329,11 +317,10 @@ describe('crediting a payment', () => {
   /**
    * The receipt the member is actually shown.
    *
-   * Stripe emails one automatically in live mode only, and only when the
-   * account has "Successful payments" switched on — never for a test payment.
-   * So the hosted receipt is the one the club can promise, and it has to
-   * survive on the row rather than only existing on the screen that appeared
-   * once.
+   * Stripe emails one automatically in live mode only, and only with "Successful payments"
+   * switched on — never for a test payment. So the hosted receipt is the one the club can
+   * promise, and it has to survive on the row rather than only existing on a screen that
+   * appeared once.
    */
   it('stores the hosted receipt so it can be found again later', async () => {
     await pendingPayment(through)
@@ -422,9 +409,8 @@ describe('crediting a payment', () => {
   })
 
   /**
-   * An intent this server never created — a key shared with something else, or
-   * a replayed event from another integration. There is no row saying who it
-   * belongs to or what it bought, so nothing is granted to anybody.
+   * An intent this server never created — a key shared with something else, or a replayed
+   * event from another integration. There's no row saying who it belongs to or what it bought.
    */
   it('grants nothing for an intent it has no record of', async () => {
     const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
@@ -481,10 +467,9 @@ describe('crediting a payment', () => {
 /**
  * The rule on its own, with no database in the way.
  *
- * Worth testing separately from the transaction because what it *declines* to
- * do is most of the point, and two of those — never demoting an officer, never
- * inventing a public profile — are the kind of thing that would go unnoticed
- * for a term if it broke.
+ * Worth testing separately from the transaction because what it declines to do is most of the
+ * point, and two of those — never demoting an officer, never inventing a public profile — are
+ * the kind of thing that would go unnoticed for a term if it broke.
  */
 describe('what a payment changes about an account', () => {
   const now = new Date('2035-09-01T12:00:00')
@@ -505,9 +490,8 @@ describe('what a payment changes about an account', () => {
   })
 
   /**
-   * The one that would be expensive. An officer settling their own dues through
-   * the same page as everybody else must not come out the other side demoted to
-   * MEMBER and locked out of the officer desks.
+   * The one that would be expensive. An officer settling their own dues through the same page
+   * as everybody else must not come out demoted to MEMBER and locked out of the officer desks.
    */
   it('never demotes anybody who already holds a role', () => {
     for (const role of [UserRole.ADMIN, UserRole.OFFICER, UserRole.MEMBER]) {
@@ -533,9 +517,8 @@ describe('what a payment changes about an account', () => {
   })
 
   /**
-   * A slug plus a non-GUEST role is what puts a name and a photo on the public
-   * roster. Paying $25 is not consent to be published, so the only way to get
-   * one stays an officer typing it.
+   * A slug plus a non-GUEST role is what puts a name and a photo on the public roster. Paying
+   * $25 isn't consent to be published, so the only way to get one stays an officer typing it.
    */
   it('never invents a public profile', () => {
     expect(Object.keys(membershipUpdateFor(account(), now))).not.toContain(
@@ -648,15 +631,12 @@ describe('promoting on payment', () => {
 /**
  * Claiming the free summer or the gap between terms.
  *
- * Against the real database, because the whole feature is one write: claiming
- * moves `duesPaidThrough` to the day the billable term opens, and there is no
- * second table to consult. That is what makes it flow through everything that
- * already reads that date.
+ * Against the real database, because the whole feature is one write: claiming moves
+ * `duesPaidThrough` to the day the billable term opens, and there's no second table to
+ * consult. That's what makes it flow through everything that already reads that date.
  *
- * The clock is stubbed to a date the fallback calendar puts in the summer —
- * `fetch` is already failing for the whole file, so every term is the fixed
- * fallback and summer 2035 runs 18 May to 7 August. 2035 because `testing.md`
- * pins fixtures to a year nothing real uses.
+ * The clock is stubbed to a date the fallback calendar puts in the summer. 2035 because
+ * `testing.md` pins fixtures to a year nothing real uses.
  */
 describe('POST /api/dues/activate', () => {
   const inSummer = new Date('2035-06-20T12:00:00')
@@ -705,12 +685,11 @@ describe('POST /api/dues/activate', () => {
   })
 
   /**
-   * The date is the day the window *shuts* — three weeks into the term ahead.
+   * The date is the day the window shuts — three weeks into the term ahead.
    *
-   * It used to be that term's first day, which was right while the weeks
-   * after it were free for everybody regardless: the claim only had to carry
-   * somebody as far as the blanket trial. Nothing is blanket now, so a claim
-   * that stopped on the first day would buy less than doing nothing used to.
+   * It used to be that term's first day, which was right while the weeks after it were free
+   * for everybody regardless. Nothing is blanket now, so a claim that stopped on the first day
+   * would buy less than doing nothing used to.
    */
   it('moves the date to the day the free window shuts', async () => {
     const cookie = await signIn()
@@ -792,9 +771,8 @@ describe('POST /api/dues/activate', () => {
   })
 
   /**
-   * Mid-term there is no free window, so there is nothing to claim. Refused on
-   * the server's own clock — a browser that posted here anyway must not be able
-   * to buy itself a semester for nothing.
+   * Mid-term there's no free window, so there's nothing to claim. Refused on the server's own
+   * clock — a browser that posted here anyway must not be able to buy itself a semester.
    */
   it('refuses when dues are actually owed', async () => {
     // The clock moves *before* signing in, not after: a session is issued with
@@ -812,10 +790,9 @@ describe('POST /api/dues/activate', () => {
   /**
    * Claiming promotes exactly as paying does.
    *
-   * Joining the club for the free break *is* joining the club, and the two ways
-   * of becoming covered have to leave the account in the same state — otherwise
-   * somebody who turned up over the summer spends the year as a guest on their
-   * own dashboard.
+   * Joining the club for the free break is joining the club, and the two ways of becoming
+   * covered have to leave the account in the same state — otherwise somebody who turned up
+   * over the summer spends the year as a guest on their own dashboard.
    */
   it('makes a member of the guest who claimed it', async () => {
     const cookie = await signIn()
@@ -849,11 +826,10 @@ describe('POST /api/stripe/webhook', () => {
   /**
    * A delivery signed with the club's real webhook secret.
    *
-   * `generateTestHeaderString` is Stripe's own helper for exactly this: it
-   * produces a genuine signature over these exact bytes, so the handler runs
-   * its real verification rather than having it stubbed out. Testing this any
-   * other way would test nothing — signature checking *is* the authentication
-   * on this route.
+   * `generateTestHeaderString` is Stripe's own helper for exactly this: it produces a genuine
+   * signature over these exact bytes, so the handler runs its real verification rather than
+   * having it stubbed. Testing this any other way would test nothing — signature checking is
+   * the authentication on this route.
    */
   function signed(event: unknown, timestamp?: number) {
     const payload = JSON.stringify(event)
@@ -888,9 +864,9 @@ describe('POST /api/stripe/webhook', () => {
   })
 
   /**
-   * An unsigned delivery is a form anybody on the internet can fill in to grant
-   * themselves membership. It is refused whether or not a secret is configured
-   * — 400 when there is one to check against, 503 when there is not.
+   * An unsigned delivery is a form anybody on the internet can fill in to grant themselves
+   * membership. Refused whether or not a secret is configured — 400 when there's one to check
+   * against, 503 when there isn't.
    */
   it('never credits a delivery it cannot verify', async () => {
     await pendingPayment(through)
@@ -944,9 +920,9 @@ describe('POST /api/stripe/webhook', () => {
   )
 
   /**
-   * The signature covers the bytes, so changing the amount after signing has to
-   * invalidate it. This is the attack the secret exists to stop: a captured
-   * delivery, edited to name somebody else's payment or a bigger one.
+   * The signature covers the bytes, so changing the amount after signing has to invalidate it.
+   * This is the attack the secret exists to stop: a captured delivery, edited to name somebody
+   * else's payment or a bigger one.
    */
   it.runIf(webhooksConfigured)('refuses a body edited after signing', async () => {
     await pendingPayment(through)

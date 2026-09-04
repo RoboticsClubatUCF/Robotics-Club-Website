@@ -29,40 +29,32 @@ import {
 /**
  * The public page, editable in place.
  *
- * It draws the same sections in the same order under the same eyebrows as the
- * read view, each one swapped for its form — so the page does not rearrange
- * itself when somebody presses EDIT PAGE, it just becomes typeable.
+ * It draws the same sections in the same order under the same eyebrows as the read view, each
+ * one swapped for its form — so the page doesn't rearrange itself when somebody presses EDIT
+ * PAGE, it just becomes typeable.
  *
- * **One button, and nothing goes anywhere without it.** This page used to save
- * three different ways at once: the writing and the links waited for a SAVE at
- * the foot of it, the title and its cover waited for a *second* SAVE at the top
- * of it, and pictures, documents and member titles went up the moment they were
- * touched. Each of those had a reason — an upload owns bytes and a failure worth
- * seeing at once; a textarea autosaved is a half-written sentence published — and
- * the sum of the reasons was a page that published some of what you did while you
- * were still deciding, under a button that claimed to be the thing that saved.
+ * One button, and nothing goes anywhere without it. This page used to save three different ways
+ * at once: the writing and the links waited for a SAVE at the foot, the title and its cover for a
+ * second SAVE at the top, and pictures, documents and member titles went up the moment they were
+ * touched. Each had a reason, and the sum of the reasons was a page that published some of what
+ * you did while you were still deciding.
  *
- * So every section keeps a draft and hands its writes up to `useEditorSaves`,
- * which runs them in order behind the one SAVE below. The costs are real and
- * accepted: a file's size is refused when it is chosen rather than when it is
- * sent (`downscaleImage`, `tooBig`), and a save is a handful of requests that can
- * fail halfway — so what landed is applied and the section that did not is named,
- * and pressing SAVE again sends only the rest.
+ * So every section keeps a draft and hands its writes up to `useEditorSaves`, which runs them in
+ * order behind the one SAVE. The costs are real and accepted: a file's size is refused when it's
+ * chosen rather than sent, and a save is a handful of requests that can fail halfway — so what
+ * landed is applied, the section that didn't is named, and pressing SAVE again sends the rest.
  *
- * Nothing here re-reads the whole project afterwards. Every write route answers
- * with the row or the list it wrote, and that is what lands in state — partly
- * because it is one round trip instead of two, and mostly because
- * `/projects/:slug` is a *cached* public route, so a read taken straight after a
- * write can honestly answer with the copy from before it.
+ * Nothing here re-reads the whole project afterwards. Every write route answers with the row it
+ * wrote, and that's what lands in state — partly one round trip instead of two, and mostly
+ * because `/projects/:slug` is a cached public route.
  */
 
 /**
  * The order the writes go out in, and what the status line calls each one.
  *
- * The title goes first because it carries the cover upload, which is the write
- * most likely to be refused for its size — better to find that out before four
- * other sections have already gone. Module-level so the array's identity is
- * stable; it is a dependency of the save.
+ * The title goes first because it carries the cover upload, which is the write most likely to be
+ * refused for its size — better to find that out before four other sections have gone.
+ * Module-level so the array's identity is stable; it's a dependency of the save.
  */
 const SECTIONS: readonly SaveSection[] = [
   { name: 'title', label: 'The title' },
@@ -101,11 +93,10 @@ export function ProjectEditor({
   onDirtyChange?: (dirty: boolean) => void
   doneLabel?: string
   /**
-   * Which section comes first. The public page wants the gallery there, because
-   * that is the order the page itself reads in. The officer desk wants the
-   * writing, because the fields directly above it a moment ago were the create
-   * form's — and the whole point of that panel is that nothing jumps when the
-   * project comes into existence halfway down it.
+   * Which section comes first. The public page wants the gallery there, because that's the order
+   * the page reads in. The officer desk wants the writing, because the fields directly above it a
+   * moment ago were the create form's — and the point of that panel is that nothing jumps when
+   * the project comes into existence halfway down it.
    */
   writingFirst?: boolean
 }) {
@@ -129,10 +120,9 @@ export function ProjectEditor({
   /**
    * The gallery draft, held here rather than in the section that draws it.
    *
-   * The cover can be the gallery's first picture, and the title section is at the
-   * top of the page while the gallery is halfway down it — one list, read by
-   * both, is what stops the cover preview showing yesterday's first photo while a
-   * new one sits unsaved below.
+   * The cover can be the gallery's first picture, and the title section is at the top of the page
+   * while the gallery is halfway down it — one list, read by both, is what stops the cover
+   * preview showing yesterday's first photo while a new one sits unsaved below.
    */
   const [images, setImages] = useState<DraftImage[]>(() =>
     project.images.map(draftFromImage),
@@ -211,18 +201,13 @@ export function ProjectEditor({
         </p>
       )}
 
-      {/* The title section is always first, because it is the top of the page
-          it edits and because the two things on it — the cover and the summary —
-          are the whole of what a stranger sees before deciding to open the
-          project at all. The team section is last because that is where the
-          public page puts it, and because it is the only section about people
-          rather than about the page.
+      {/* The title section is always first, because it's the top of the page it edits and because
+          the two things on it — the cover and the summary — are the whole of what a stranger sees
+          before deciding to open the project. The team section is last because that's where the
+          public page puts it, and because it's the only section about people.
 
-          The order in between used to be load-bearing: the writing had to come
-          last because it held the only SAVE, and anything below it would have
-          read as being covered by a button that did not cover it. That is over —
-          one button at the foot of the page covers all five — so this is now the
-          order the page reads in and nothing more. */}
+          The order in between used to be load-bearing: the writing had to come last because it
+          held the only SAVE. That's over — one button at the foot covers all five. */}
       {writingFirst
         ? [titleSection, writing, gallery, documents, team]
         : [titleSection, gallery, documents, writing, team]}
@@ -235,11 +220,9 @@ export function ProjectEditor({
         <button
           type="button"
           onClick={() => {
-            // The listing is warmed on the way out of a *clean* save, and only
-            // then. `/projects` is a publicly cached read — sixty seconds in the
-            // browser, and `stale-while-revalidate` on top of that — so the one
-            // person for whom the cached copy is wrong is the one who just
-            // changed it, and they are about to go and look at it.
+            // The listing is warmed on the way out of a clean save, and only then. `/projects` is
+            // a publicly cached read, so the one person for whom the cached copy is wrong is the
+            // one who just changed it — and they're about to go and look at it.
             void save().then((clean) => {
               if (clean) void refreshProjectListing()
             })
@@ -396,11 +379,10 @@ function ProseAndLinks({
               }}
               className={fieldClass}
             />
-            {/* Said out loud because the placeholder reads as an example to
-                follow rather than as one option, and plenty of what the club
-                builds is not entered into anything. The column is nullable and
-                both this page and the projects list drop the segment when it is
-                empty, so a blank box is a finished answer rather than a gap. */}
+            {/* Said out loud because the placeholder reads as an example to follow rather than as
+                one option, and plenty of what the club builds isn't entered into anything. The
+                column is nullable and both this page and the projects list drop the segment when
+                it's empty, so a blank box is a finished answer rather than a gap. */}
             <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
               Optional.
             </p>
@@ -435,12 +417,10 @@ function ProseAndLinks({
         / {project.resourcesHeading ?? 'RESOURCES'}
       </p>
 
-      {/* **There is no SOURCE CODE box here any more, and that is the point.**
-          `repoUrl` was a column of its own and drew a fixed field above this
-          list, so every project was asked for a repository and most of what the
-          club builds does not have one — an empty box nobody could remove. It is
-          an ordinary row now, and this section is genuinely blank until somebody
-          adds something. */}
+      {/* There is no SOURCE CODE box here any more, and that's the point. `repoUrl` was a column
+          of its own and drew a fixed field above this list, so every project was asked for a
+          repository and most of what the club builds doesn't have one. It's an ordinary row now,
+          and this section is genuinely blank until somebody adds something. */}
       <div className="space-y-4">
         {/* The same rows the create page collects links in, so the two states
             of that page cannot drift apart. */}

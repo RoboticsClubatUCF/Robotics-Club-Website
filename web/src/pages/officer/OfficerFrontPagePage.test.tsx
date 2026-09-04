@@ -17,41 +17,30 @@ import { bodyOf, urlOf } from '../../test/stubFetch'
 /**
  * The desk behind the front page.
  *
- * **Two halves and two reads**: the slideshow, and the words beside it — the
- * headline, the FAQ and the partner programs. They fetch separately so neither
- * waits on the other, which is why the stub below answers two paths and why the
- * unreachable case expects *both* halves to say so.
+ * Two halves and two reads: the slideshow, and the words beside it — the headline, the FAQ and the
+ * partner programs. They fetch separately so neither waits on the other, which is why the stub
+ * answers two paths and why the unreachable case expects both halves to say so.
  *
- * What is worth pinning here is not the form plumbing:
+ * What's worth pinning isn't the form plumbing:
  *
- * **That the read asks for a fresh answer.** The list it edits is the *public*
- * endpoint, and that one is `s-maxage=300` for everybody — so without a
- * cache-skipping read an officer who adds a photograph and reloads is handed
- * the answer from before they did, which looks exactly like a save that failed.
+ * That the read asks for a fresh answer. The list it edits is the public endpoint, which is
+ * `s-maxage=300` for everybody — so without a cache-skipping read an officer who adds a photograph
+ * and reloads is handed the answer from before they did.
  *
- * `cache: 'reload'` rather than `'no-store'`, and the desk wants the difference:
- * both skip the cache on the way out, only `reload` replaces what is in it. With
- * `no-store` this page would be right while the landing page an officer checks
- * next still drew the old slideshow from the browser's copy.
+ * `cache: 'reload'` rather than `'no-store'`, and the desk wants the difference: both skip the
+ * cache on the way out, only `reload` replaces what's in it. With `no-store` this page would be
+ * right while the landing page an officer checks next still drew the old slideshow.
  *
- * **That deleting an upload asks first and deleting a link does not.** The bytes
- * are gone for good; a link can be pasted back in. A confirmation on both would
- * teach officers to click through it.
+ * That deleting an upload asks first and deleting a link doesn't. The bytes are gone for good; a
+ * link can be pasted back in.
  *
- * **That an empty slideshow is described as a fine thing to leave**, because an
- * officer who thinks removing the last photograph leaves a hole in the front
- * page will not remove a bad photograph.
+ * That an empty slideshow is described as a fine thing to leave, because an officer who thinks
+ * removing the last photograph leaves a hole won't remove a bad one.
  *
- * And on the words half:
+ * That the headline is a form and the lists aren't: the two lines read as one sentence, so they're
+ * written together by one SAVE; a question and its answer are independent facts.
  *
- * **That the headline is a form and the lists are not.** The two lines of the
- * headline read as one sentence, so they are written together by one SAVE; a
- * question and its answer are independent facts and save as they are left. Both
- * are deliberate and neither is visible in a screenshot.
- *
- * **That emptying the partner list is described as taking the section off the
- * page**, for the same reason the empty slideshow is: an officer who thinks it
- * leaves a hole will not remove a card that should go.
+ * And that emptying the partner list is described as taking the section off the page.
  */
 
 const term: ApiTerm = {
@@ -164,11 +153,9 @@ const stubApi = (
       if (!writing) return json(page)
       if (wrote !== undefined) return json(wrote)
 
-      // **A write is answered with the whole row, not with what was sent.**
-      // These routes answer with the full shape, and a stub that echoed the
-      // patch would hand the desk a question with no `steps` on it — which
-      // throws where the real thing does not, and would be this suite inventing
-      // a bug.
+      // A write is answered with the whole row, not with what was sent. These routes answer with
+      // the full shape, and a stub that echoed the patch would hand the desk a question with no
+      // `steps` on it — which throws where the real thing doesn't.
       const sent = bodyOf(init) as Record<string, unknown>
       if (url.includes('/order')) return json(url.includes('/faqs') ? page.faqs : page.partners)
       if (url.includes('/faqs')) return json({ ...FAQ, ...sent })

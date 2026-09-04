@@ -6,39 +6,29 @@ import type { ApiState } from '../api/useApi'
 /**
  * Is the lab open — kept up to date while the page is open.
  *
- * **The one endpoint on this site whose answer changes without the reader
- * doing anything.** Everything else here is fetched on mount and is still true
- * ten minutes later; this one flips when an officer presses something, and
- * increasingly that press happens *in Discord* rather than on the site. A page
- * that only asked on mount would sit there saying CLOSED while the channel had
- * said OPEN for twenty minutes, which is the exact failure the whole feature
- * exists to prevent — somebody walking across campus on a stale sign.
+ * The one endpoint on this site whose answer changes without the reader doing anything. Everything
+ * else here is fetched on mount and is still true ten minutes later; this one flips when an officer
+ * presses something, and increasingly that press happens in Discord rather than on the site. A page
+ * that only asked on mount would sit saying CLOSED while the channel had said OPEN for twenty
+ * minutes — somebody walking across campus on a stale sign, which is the failure the whole feature
+ * exists to prevent.
  *
- * So this polls. Deliberately, rather than pushing:
+ * So it polls rather than pushing. A websocket or SSE would hold a connection open per reader, on
+ * every instance, to deliver one boolean a few times a day — a great deal of machinery and a new
+ * failure mode for something a `GET` of one indexed row already answers, and the API has no other
+ * reason to push anything.
  *
- * - **No websocket and no server-sent events.** Holding a connection open per
- *   reader, on every instance, to deliver one boolean a few times a day, is a
- *   great deal of machinery and a new failure mode for something a `GET` of one
- *   indexed row already answers. The API has no other reason to push anything.
- * - **Thirty seconds, which is what the endpoint already promises.**
- *   `GET /api/lab` sets `max-age=30` precisely because a five-minute-old answer
- *   to this question is the one that costs somebody the walk — see
- *   `routes/public/lab.ts`. Polling faster would be asking for an answer the browser
- *   would serve from its own cache anyway.
- * - **Nothing at all while the tab is hidden**, and an immediate re-ask when it
- *   comes back. That is where the useful freshness actually is: somebody
- *   switching to the tab is somebody about to read it, and a laptop left open
- *   on a lab bench for six hours should not spend that time asking.
+ * Thirty seconds, which is what the endpoint already promises: `GET /api/lab` sets `max-age=30`
+ * precisely because a five-minute-old answer is the one that costs somebody the walk (see
+ * `routes/public/lab.ts`), and polling faster only asks for what the browser would serve from its
+ * own cache. Nothing at all while the tab is hidden, and an immediate re-ask when it comes back —
+ * that is where the useful freshness is, and a laptop left open on a lab bench for six hours should
+ * not spend it asking.
  *
- * ## A failed poll keeps the last good answer
- *
- * The rule the pages already follow is that a failure must never *invent* a
- * state — the landing page draws nothing rather than CLOSED, because CLOSED is
- * the direction that sends somebody to a locked door. Refreshing adds the
- * mirror of that rule: a poll that fails must not throw away an answer the
- * server gave successfully thirty seconds ago. One flaky request is not news,
- * and blanking a good sign because of it would be inventing "we don't know" out
- * of nothing. Only the *first* load can land in `error`.
+ * A failed poll keeps the last good answer. A failure must never invent a state — the landing page
+ * draws nothing rather than CLOSED, because CLOSED is the direction that sends somebody to a locked
+ * door — and the mirror of that is that one flaky request must not throw away an answer the server
+ * gave thirty seconds ago. Only the first load can land in `error`.
  */
 
 /** Matches `s-maxage=30` on the route. See the note above. */

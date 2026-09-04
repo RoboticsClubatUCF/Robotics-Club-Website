@@ -15,9 +15,9 @@ import {
 /**
  * A `matchMedia` that answers one way and can be made to change its mind.
  *
- * jsdom ships a `matchMedia` that parses the query and then answers `false` to
- * everything, with listeners that never fire — which is exactly the two things
- * these tests are about. So it is replaced outright rather than spied on.
+ * jsdom ships a `matchMedia` that parses the query and then answers `false` to everything, with
+ * listeners that never fire — which is exactly the two things these tests are about. So it is
+ * replaced outright rather than spied on.
  */
 function stubMatchMedia(prefersDark: boolean) {
   const listeners = new Set<() => void>()
@@ -210,15 +210,13 @@ describe('following the system', () => {
 })
 
 /**
- * The inline script in `index.html` is a hand-kept copy of the rules above — it
- * has to run before the first paint, so it cannot import this module. Nothing
- * but this can catch the two of them drifting: a typo there is invisible until
- * somebody with light mode on loads the site and watches it blink.
+ * The inline script in `index.html` is a hand-kept copy of the rules above — it has to run before
+ * the first paint, so it cannot import this module. Nothing but this can catch the two drifting: a
+ * typo there is invisible until somebody with light mode on loads the site and watches it blink.
  *
- * Pinned by substring rather than by executing the script. Running it would
- * prove the copy works and not that it is the *same* copy, which is the failure
- * worth catching — a script that reads `theme` instead of `rccf-theme` works
- * perfectly and forgets every choice on reload.
+ * Pinned by substring rather than by executing the script. Running it would prove the copy works
+ * and not that it is the same copy, which is the failure worth catching — a script that reads
+ * `theme` instead of `rccf-theme` works perfectly and forgets every choice on reload.
  */
 describe('the pre-paint script in index.html', () => {
   it('uses the same storage key', () => {

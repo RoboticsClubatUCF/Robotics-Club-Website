@@ -34,9 +34,9 @@ import type { StatusTone } from '../../lib/format/formats'
 /**
  * The lending desk: the inventory, and the queue of who wants what.
  *
- * The buttons on a loan offer only the moves its current state actually has —
- * the server keeps the same table and refuses anything else, so this is the
- * readable half of one rule rather than a second rule that could drift.
+ * The buttons on a loan offer only the moves its current state actually has — the server keeps
+ * the same table and refuses anything else, so this is the readable half of one rule rather than
+ * a second rule that could drift.
  */
 
 const STATUS_LABEL: Record<LoanStatus, { text: string; tone: StatusTone }> = {
@@ -53,12 +53,11 @@ const STATUS_LABEL: Record<LoanStatus, { text: string; tone: StatusTone }> = {
 /**
  * The queue's actions, drawn the way the print queue draws its own.
  *
- * One shape, three weights: gold for the natural next step, outline white for
- * the other move, red outline for the one that ends it badly. They were bare
- * mono text sharing a row with the note box, which read as labels rather than
- * controls and put DECLINE two millimetres from APPROVE. Copied deliberately
- * rather than shared — the two queues are the same job on two desks, and an
- * officer moving between them should not have to learn a second vocabulary.
+ * One shape, three weights: gold for the natural next step, outline white for the other move, red
+ * outline for the one that ends it badly. They were bare mono text sharing a row with the note
+ * box, which read as labels rather than controls and put DECLINE two millimetres from APPROVE.
+ * Copied deliberately rather than shared — an officer moving between the two desks shouldn't have
+ * to learn a second vocabulary.
  */
 const actionBase =
   'btn h-auto min-h-0 cursor-pointer px-4 py-2 text-[11px] font-semibold tracking-[0.04em] disabled:opacity-50'
@@ -72,10 +71,9 @@ const dangerButton = `${actionBase} btn-outline border-error/40 text-error hover
 /**
  * The same lifecycle the server enforces, as buttons.
  *
- * Nothing goes straight from asked to handed over any more: the club's rule is
- * that an officer approves a request before the member takes the thing, so the
- * shortcut that used to sit on a REQUESTED row is gone. Handing something over
- * on the spot is APPROVE then HAND OVER, two clicks in a row.
+ * Nothing goes straight from asked to handed over any more: the club's rule is that an officer
+ * approves a request before the member takes the thing. Handing something over on the spot is
+ * APPROVE then HAND OVER, two clicks in a row.
  */
 const MOVES: Record<LoanStatus, { status: LoanStatus; label: string }[]> = {
   REQUESTED: [
@@ -95,9 +93,8 @@ const MOVES: Record<LoanStatus, { status: LoanStatus; label: string }[]> = {
 /**
  * The move that carries the gold, per state — the shift's usual answer.
  *
- * It walks along as a loan progresses, the way the print queue's primary
- * moves from START PRINTING to MARK DONE, so the button an officer wants is
- * always the one that looks like a button.
+ * It walks along as a loan progresses, the way the print queue's primary moves from START PRINTING
+ * to MARK DONE, so the button an officer wants always looks like a button.
  */
 const NEXT_STEP: Partial<Record<LoanStatus, LoanStatus>> = {
   REQUESTED: 'APPROVED',
@@ -117,10 +114,9 @@ const FILTERS = [
 /**
  * The dates, which is what an officer chasing returns is actually sorting by.
  *
- * OVERDUE first because it is the only one that is a job. BOOKED AHEAD is the
- * reservation pile — approved, holding a unit, and not collected for weeks —
- * which is worth being able to see on its own precisely because it is easy to
- * forget those units are off the shelf.
+ * OVERDUE first because it's the only one that's a job. BOOKED AHEAD is the reservation pile —
+ * approved, holding a unit, not collected for weeks — worth seeing on its own precisely because
+ * it's easy to forget those units are off the shelf.
  */
 const WHENS = [
   { value: 'ALL', label: 'ANY' },
@@ -194,13 +190,10 @@ export function OfficerEquipmentPage() {
       <FormEyebrow>/ MANAGE · EQUIPMENT</FormEyebrow>
       <FormHeading>Equipment.</FormHeading>
 
-      {/* The queue and the list are two jobs, not two halves of one: approving
-          what people have asked for, and deciding what the club lends at all.
-          Side by side where there is room, because checking whether the club
-          even owns a second one of something is a question the queue raises and
-          the list answers. `--col-min` is high — both panels carry a search box
-          and a row of chips, and squeezing those into half a laptop helps
-          nobody. */}
+      {/* The queue and the list are two jobs, not two halves of one: approving what people have
+          asked for, and deciding what the club lends at all. Side by side where there's room,
+          because checking whether the club even owns a second one of something is a question the
+          queue raises and the list answers. */}
       <div className="grid-fluid items-start gap-5 [--col-min:34rem]">
         <LoanQueue />
         <Inventory />
@@ -221,13 +214,12 @@ function LoanQueue() {
   const [dueDates, setDueDates] = useState<Record<string, string>>({})
 
   /**
-   * Searching from LIVE reaches the whole ledger; searching inside a section
-   * stays there. Same rule as the print queue, and the same reason: LIVE means
-   * "what needs doing", and somebody typing a name into it has stopped asking
-   * that and started looking for a loan that has usually already come back.
+   * Searching from LIVE reaches the whole ledger; searching inside a section stays there. Same
+   * rule as the print queue: LIVE means "what needs doing", and somebody typing a name into it has
+   * started looking for a loan that has usually already come back.
    *
-   * A boolean in the dependency list rather than the text, so this is one
-   * fetch when the box fills and one when it empties.
+   * A boolean in the dependency list rather than the text, so this is one fetch when the box fills
+   * and one when it empties.
    */
   const widen = filter === '' && query.trim() !== ''
 
@@ -258,14 +250,12 @@ function LoanQueue() {
     : []
 
   /**
-   * What the due-date box shows: the officer's own edit, then whatever is
-   * already on the loan, then the date the member asked for.
+   * What the due-date box shows: the officer's own edit, then whatever is already on the loan,
+   * then the date the member asked for.
    *
-   * Starting from the member's date rather than empty is the difference
-   * between a field an officer has to think about and one they can glance at.
-   * The server would fill the same gap on its own — see `routes/officer/officer.ts` —
-   * but a date the officer can see before they click is a date they can
-   * disagree with.
+   * Starting from the member's date rather than empty is the difference between a field an officer
+   * has to think about and one they can glance at. The server would fill the same gap on its own,
+   * but a date the officer can see before they click is one they can disagree with.
    */
   const dueValue = (loan: ApiOfficerLoan) =>
     dueDates[loan.id] ?? dateInputValue(loan.dueAt ?? loan.requestedDueAt)
@@ -274,11 +264,9 @@ function LoanQueue() {
     const note = (notes[loan.id] ?? loan.officerNote ?? '').trim()
     const due = loan.status === 'CHECKED_OUT' ? '' : dueValue(loan)
 
-    // End of the chosen day, local — "back by Friday" means Friday, not Friday
-    // at midnight when it was still Thursday. Null when the box holds
-    // something that is not a date: a date input will accept a five-digit
-    // year, and turning that into an instant throws. Refused here with a
-    // sentence rather than thrown out of the click handler.
+    // End of the chosen day, local — "back by Friday" means Friday, not Friday at midnight when it
+    // was still Thursday. Null when the box holds something that isn't a date: a date input will
+    // accept a five-digit year, and turning that into an instant throws.
     const dueAt = due ? endOfDay(due) : null
 
     if (due && dueAt === null) {
@@ -554,11 +542,10 @@ function Inventory() {
   /**
    * Whether this name is already on the list, matched as the officer types.
    *
-   * The server refuses it either way — and refuses it case-insensitively, which
-   * a browser comparing two strings would not — but a 409 arrives *after*
-   * somebody has filled in four boxes and pressed the button. What they almost
-   * always wanted was to change the number on the row that already exists, and
-   * that is a thing to say while the name is still being typed.
+   * The server refuses it either way — and case-insensitively, which a browser comparing two
+   * strings wouldn't — but a 409 arrives after somebody has filled in four boxes and pressed the
+   * button. What they almost always wanted was to change the number on the row that already
+   * exists.
    */
   const clash = name.trim()
     ? (listed.find(
@@ -803,11 +790,10 @@ function Inventory() {
         </div>
       )}
 
-      {/* Every field spelled out above its box rather than hinted at inside
-          it. A placeholder disappears the moment somebody types, so a form
-          built out of them is one that stops explaining itself exactly when
-          it is being filled in — and "1" in an unlabelled box next to a name
-          could be a quantity, a shelf number or a price. */}
+      {/* Every field spelled out above its box rather than hinted at inside it. A placeholder
+          disappears the moment somebody types, so a form built out of them stops explaining itself
+          exactly when it's being filled in — and "1" in an unlabelled box next to a name could be
+          a quantity, a shelf number or a price. */}
       <form onSubmit={add} className="space-y-4">
         <p className={labelClass}>ADD SOMETHING TO THE LIST</p>
 
@@ -911,10 +897,9 @@ function Inventory() {
         {message}
       </p>
 
-      {/* Named and counted, because "are you sure" is a question nobody has
-          ever answered no to. What makes this one land is the history: an
-          officer clearing out a typo has nothing to lose and can see that,
-          and an officer about to take four years of borrowing with them can
+      {/* Named and counted, because "are you sure" is a question nobody has ever answered no to.
+          What makes this one land is the history: an officer clearing out a typo has nothing to
+          lose and can see that, and an officer about to take four years of borrowing with them can
           see that too. */}
       {doomed && (
         <ConfirmDialog

@@ -7,24 +7,20 @@ import { LoanStatus } from '../generated/prisma/enums.js'
 /**
  * Telling somebody their borrowed thing is due back tomorrow.
  *
- * Every loan carries its own deadline, so there is no fixed afternoon when the
- * whole club needs messaging at once. The awkward part is elsewhere: the sweep
- * runs every ten minutes on every API instance and will run again after a
- * deploy, so "have we already told this person" cannot be something the process
- * remembers.
+ * Every loan carries its own deadline, so there is no fixed afternoon when the whole club needs
+ * messaging at once. The awkward part is elsewhere: the sweep runs every ten minutes on every API
+ * instance and will run again after a deploy, so "have we already told this person" cannot be
+ * something the process remembers.
  *
- * It is a column, and the column holds **the deadline the message named**
- * rather than a flag or a send time. `EquipmentLoan.remindedFor` explains why
- * at length; the short version is that it does the deduplication and the
- * re-arming with one value. An officer who extends a loan by a week has, by
- * writing a different `dueAt`, asked for a second reminder — and gets one,
- * without anybody having to remember to clear a flag.
+ * It is a column, and it holds the deadline the message named rather than a flag or a send time.
+ * `EquipmentLoan.remindedFor` explains why at length; the short version is that one value does both
+ * the deduplication and the re-arming. An officer who extends a loan by a week has, by writing a
+ * different `dueAt`, asked for a second reminder — and gets one, with nobody having to clear a flag.
  *
- * Claimed before the message goes out, which makes this at-most-once rather
- * than at-least-once. Being told nothing means the member still has the due
- * date on their dashboard. Being told four times because a timeout landed after
- * Discord had already accepted the message is the club's own robot nagging
- * somebody who did nothing wrong.
+ * Claimed before the message goes out, which makes this at-most-once. Being told nothing means the
+ * member still has the due date on their dashboard. Being told four times because a timeout landed
+ * after Discord had already accepted the message is the club's own robot nagging somebody who did
+ * nothing wrong.
  */
 
 /** Only the things somebody is physically holding. */

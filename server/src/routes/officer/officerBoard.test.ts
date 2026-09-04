@@ -7,20 +7,17 @@ import { clearCalendarCache, getTerm } from '../../membership/semester.js'
 import { createSession } from '../../auth/session.js'
 
 /**
- * The two desks added with officer tenure: who sits in which seat, and when the
- * club says a semester runs.
+ * The two desks added with officer tenure: who sits in which seat, and when the club says a
+ * semester runs.
  *
- * Both write things the rest of the site reads at request time — the board is
- * on the front page, and a term's dates decide what everybody is charged — so
- * what these assert is mostly the *refusals*: one person per seat, a term that
- * ends before it starts, an override that must not read as a guess.
+ * Both write things the rest of the site reads at request time, so what these assert is mostly
+ * the refusals: one person per seat, a term that ends before it starts, an override that must not
+ * read as a guess.
  */
 
-// Nothing in this file should reach the club's guild. These routes do not push
-// roles themselves, but they share a router with ones that do, and the dev
-// `.env` carries a live bot token against the real server. The rule in
-// `.claude/docs/testing.md` is that anything that *can* reach `pushRoles` mocks
-// this module; sharing a router is close enough to be worth not thinking about.
+// Nothing here should reach the club's guild. These routes don't push roles themselves, but they
+// share a router with ones that do, and the dev `.env` carries a live bot token against the real
+// server. `testing.md`'s rule is that anything that can reach `pushRoles` mocks this module.
 vi.mock('../../discord/discord.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../discord/discord.js')>()),
   officerSyncConfigured: false,
@@ -92,25 +89,20 @@ let adminId = ''
 /**
  * The seats this suite borrows, and the people it borrows them from.
  *
- * The development database has a full board in it — the seed puts a placeholder
- * in all eight chairs, and a club member's box may have eight real officers —
- * so every one of these cases would otherwise 409 against somebody who is
- * genuinely sitting there. That conflict is the feature working, not a fault to
- * design around.
+ * The development database has a full board in it, so every one of these cases would otherwise
+ * 409 against somebody genuinely sitting there. That conflict is the feature working.
  *
- * So the suite *parks* whoever holds a seat it needs: their term is left open
- * and only its `position` is cleared, so nobody is stood down and nothing lands
- * on the public archive. It is handed back in `afterEach`, which keeps the
- * window to one test even if a later one fails.
+ * So the suite parks whoever holds a seat it needs: their term is left open and only its
+ * `position` is cleared, so nobody is stood down and nothing lands on the public archive. It's
+ * handed back in `afterEach`.
  */
 let parked: { id: string; position: string }[] = []
 
 const parkSeats = async () => {
-  // Every seated open term, with no attempt to exclude this suite's own: they
-  // have already been deleted by `clearRows` a line earlier. An earlier version
-  // tried `email: { not: { startsWith: PREFIX } }` and silently parked nothing,
-  // because the seeded officers have no email at all and `NOT LIKE` against
-  // NULL is NULL rather than true.
+  // Every seated open term, with no attempt to exclude this suite's own: they've already been
+  // deleted by `clearRows`. An earlier version tried `email: { not: { startsWith: PREFIX } }` and
+  // silently parked nothing, because the seeded officers have no email at all and `NOT LIKE`
+  // against NULL is NULL rather than true.
   const held = await prisma.officerTerm.findMany({
     where: { endedAt: null, position: { not: null } },
     select: { id: true, position: true },
@@ -386,12 +378,10 @@ describe('the semester desk', () => {
   })
 
   /**
-   * **An override must not read as a guess.** `membershipSweep` and
-   * `standingRole` both stand down on `fromCalendar: false`, on the grounds
-   * that guessed dates must never take somebody's membership away — and a date
-   * an officer typed on purpose is the opposite of a guess. Getting this
-   * backwards would quietly stop the dues sweep for any term the club had
-   * corrected.
+   * An override must not read as a guess. `membershipSweep` and `standingRole` both stand down on
+   * `fromCalendar: false`, on the grounds that guessed dates must never take somebody's membership
+   * away — and a date an officer typed is the opposite of a guess. Getting this backwards would
+   * quietly stop the dues sweep for any term the club had corrected.
    */
   it('counts as an answer rather than a fallback', async () => {
     await override(Season.FALL, {
@@ -484,11 +474,10 @@ describe('the semester desk', () => {
 /**
  * Handing a seat over, which is what rotation day actually is.
  *
- * The refusal above is right for an accident and wrong for a handover — eight
- * seats changing hands would be sixteen actions, and the archive would record
- * eight people who simply stopped rather than eight who were succeeded. So the
- * take-over is one press, behind a confirmation, and it writes the succession
- * down.
+ * The refusal above is right for an accident and wrong for a handover — eight seats changing
+ * hands would be sixteen actions, and the archive would record eight people who simply stopped
+ * rather than eight who were succeeded. So the take-over is one press, behind a confirmation, and
+ * it writes the succession down.
  */
 describe('handing a seat over', () => {
   it('still refuses by default, so nobody is displaced by accident', async () => {

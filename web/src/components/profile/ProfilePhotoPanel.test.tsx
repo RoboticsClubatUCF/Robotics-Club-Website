@@ -8,13 +8,13 @@ import { bodyOf, urlOf } from '../../test/stubFetch'
 /**
  * The profile photo.
  *
- * The property this suite exists for is the one that separates it from every
- * other upload on the site: **choosing a file uploads nothing.** An avatar
- * replaces, and replacing deletes the old bytes, so a mis-picked file has to
- * cost nothing until somebody has looked at it in the frame it will appear in.
+ * The property this suite exists for is the one that separates it from every other upload on the
+ * site: choosing a file uploads nothing. An avatar replaces, and replacing deletes the old bytes,
+ * so a mis-picked file has to cost nothing until somebody has looked at it in the frame it will
+ * appear in.
  *
- * The rest is that framing travels *with* the picture rather than as a second
- * request, and that re-framing what is already stored sends no bytes at all.
+ * The rest is that framing travels with the picture rather than as a second request, and that
+ * re-framing what is already stored sends no bytes at all.
  */
 
 const account: ApiAccount = {

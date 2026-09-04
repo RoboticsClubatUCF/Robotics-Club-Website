@@ -8,28 +8,21 @@ import { createSession } from '../../auth/session.js'
 /**
  * The one-time member survey, against the live database.
  *
- * Namespaced `test-survey-` and deleted by that prefix, per `testing.md`. The
- * member rows themselves need no clearing of their own: `member_surveys`
- * cascades from `users`, so deleting the fixtures takes their answers with them.
+ * Namespaced `test-survey-` and deleted by that prefix. The member rows need no clearing of their
+ * own: `member_surveys` cascades from `users`.
  *
- * **This suite writes `survey_questions`, which is a table it cannot
- * namespace its way out of.** The questions are global — they are the survey
- * everybody is shown — so the fixtures below are real questions on the club's
- * real survey for the length of a test, in the same way `officerBoard.test.ts`
- * borrows real officer seats and `lab.test.ts` borrows the one lab row. Two
- * things keep that safe: every prompt carries the prefix, and they are cleared
- * in `beforeEach` as well as `afterAll`, so a run that dies half way leaves
- * nothing a later run does not sweep up.
+ * This suite writes `survey_questions`, which is a table it can't namespace its way out of. The
+ * questions are global — they're the survey everybody is shown — so the fixtures below are real
+ * questions on the club's real survey for the length of a test, the way `officerBoard.test.ts`
+ * borrows real seats. Two things keep that safe: every prompt carries the prefix, and they're
+ * cleared in `beforeEach` as well as `afterAll`.
  *
- * **The club's own questions are left alone and answered along with them.**
- * `buildAnswers` reads whatever `GET /api/survey` offers and fills all of it
- * in, which is why nothing here asserts on a particular shirt size: an officer
- * rewording the survey must not turn this suite red.
+ * The club's own questions are left alone and answered along with them. `buildAnswers` reads
+ * whatever `GET /api/survey` offers and fills all of it in, which is why nothing here asserts on
+ * a particular shirt size.
  *
- * **Nothing here mocks Discord**, which is the exception worth stating rather
- * than an omission. The three suites that do can reach `pushRoles`; this router
- * writes `survey_completed_at` and `grad_year` and touches nothing that syncs a
- * role, so there is no call to make.
+ * Nothing here mocks Discord, which is the exception worth stating rather than an omission: this
+ * router touches nothing that syncs a role.
  */
 
 const PREFIX = 'test-survey-'
@@ -49,11 +42,9 @@ const clearWindows = () =>
 /**
  * People first, then questions.
  *
- * `survey_answer_options.option_id` restricts rather than cascades — deliberate,
- * so that deleting an option somebody picked fails loudly instead of quietly
- * losing their answer — which means a question cannot be deleted while any
- * answer still names one of its options. Deleting the members takes their
- * answers with them and leaves the questions free to go.
+ * `survey_answer_options.option_id` restricts rather than cascades — deliberate, so deleting an
+ * option somebody picked fails loudly instead of quietly losing their answer — which means a
+ * question can't be deleted while any answer still names one of its options.
  */
 const clearRows = async () => {
   await prisma.user.deleteMany({ where: { email: { startsWith: PREFIX } } })
@@ -211,13 +202,11 @@ const find = (state: State, prompt: string): WireQuestion => {
 }
 
 /**
- * A valid answer to everything currently being asked, the club's own questions
- * included.
+ * A valid answer to everything currently being asked, the club's own questions included.
  *
- * Built from the payload rather than written out, because what the survey asks
- * is a row in a table an officer edits — a hardcoded body here would go stale
- * the first time somebody added a question, and would go stale as a *refusal*
- * rather than as an obvious mismatch.
+ * Built from the payload rather than written out, because what the survey asks is a row an
+ * officer edits — a hardcoded body would go stale the first time somebody added a question, and
+ * would go stale as a refusal rather than an obvious mismatch.
  */
 const buildAnswers = (state: State): WireAnswer[] =>
   state.questions.flatMap((question): WireAnswer[] => {
@@ -343,11 +332,10 @@ describe('answering it', () => {
   })
 
   /**
-   * **An empty answer is an answer**, and the row existing is the only thing
-   * that says so. The form presses NONE and sends an entry with nothing in it;
-   * without the row nothing could tell that from a question somebody scrolled
-   * past, which on the allergy question is the difference between "safe to feed
-   * anything" and "we do not know".
+   * An empty answer is an answer, and the row existing is the only thing that says so. The form
+   * presses NONE and sends an entry with nothing in it; without the row nothing could tell that
+   * from a question somebody scrolled past, which on the allergy question is the difference
+   * between "safe to feed anything" and "we don't know".
    */
   it('keeps an empty tick-any answer as a real answer', async () => {
     const state = await read(newcomerCookie)
@@ -599,10 +587,9 @@ describe('correcting it', () => {
   })
 
   /**
-   * **A new question does not lock anybody out.** Being asked once is the
-   * promise the gate keeps, so adding one leaves `surveyCompletedAt` where it
-   * was — it is asked for the next time the member opens the form, and this is
-   * the assertion that says the gate did not move.
+   * A new question doesn't lock anybody out. Being asked once is the promise the gate keeps, so
+   * adding one leaves `surveyCompletedAt` where it was — it's asked for the next time the member
+   * opens the form.
    */
   it('does not put somebody back behind the gate when a question is added', async () => {
     await prisma.surveyQuestion.create({
@@ -625,10 +612,9 @@ describe('correcting it', () => {
   })
 
   /**
-   * An officer removing an option means "stop offering this". It does not mean
-   * the people holding it lose their answer the next time they fix a shirt
-   * size — a write replaces the whole set, so an option the form could not draw
-   * would be dropped on the way past.
+   * An officer removing an option means "stop offering this". It doesn't mean the people holding
+   * it lose their answer the next time they fix a shirt size — a write replaces the whole set, so
+   * an option the form couldn't draw would be dropped on the way past.
    */
   it('goes on offering a retired option to the one member holding it', async () => {
     const before = await read(answeredCookie)
@@ -668,12 +654,11 @@ describe('correcting it', () => {
 /**
  * "Don't ask me again."
  *
- * The survey stopped being a gate, so the only thing left asking is the prompt
- * over the dashboard, and this is its checkbox. Two properties are worth
- * pinning, and both are about the column staying honest: a second press must
- * not move the timestamp, and answering the survey afterwards must clear it —
- * a row saying both "declined" and "answered" is one a future reader has to
- * guess at, and it is the officer desk's count that guesses wrong.
+ * The survey stopped being a gate, so the only thing left asking is the prompt over the
+ * dashboard, and this is its checkbox. Two properties are worth pinning, both about the column
+ * staying honest: a second press must not move the timestamp, and answering the survey afterwards
+ * must clear it — a row saying both "declined" and "answered" is one the officer desk's count
+ * guesses wrong about.
  */
 describe('dismissing the prompt', () => {
   const dismiss = (cookie: string) =>

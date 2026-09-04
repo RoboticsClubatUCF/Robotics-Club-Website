@@ -66,9 +66,9 @@ describe('parseProse', () => {
   })
 
   /**
-   * The whole point of a fence: everything inside it is literal, including the
-   * characters that are markers everywhere else. A write-up pasting a snippet
-   * of the rover's config must not have it parsed as headings and bullets.
+   * The whole point of a fence: everything inside it is literal, including the characters that are
+   * markers everywhere else. A write-up pasting a snippet of the rover's config must not have it
+   * parsed as headings and bullets.
    */
   it('takes a fenced block literally', () => {
     expect(parseProse('```\n# not a heading\n- not a list\n```')).toEqual([
@@ -141,9 +141,8 @@ describe('parseInline', () => {
   })
 
   /**
-   * **The one that matters.** An unsafe scheme is not rendered as a link and is
-   * not silently dropped either — it prints as the text somebody typed, which
-   * is visible and fixable.
+   * The one that matters. An unsafe scheme is not rendered as a link and is not silently dropped
+   * either — it prints as the text somebody typed, which is visible and fixable.
    */
   it('refuses to link a javascript: url', () => {
     expect(parseInline('[click](javascript:alert(1))')).toEqual([

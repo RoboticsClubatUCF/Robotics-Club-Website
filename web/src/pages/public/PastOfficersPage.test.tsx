@@ -112,10 +112,9 @@ const chip = (label: string | RegExp) => screen.getByRole('button', { name: labe
 /**
  * The captions under one year's heading, in order.
  *
- * Scoped to the heading's own block — a group is an `h2` and the grid beside it
- * — so this asserts on one year rather than on the page. The caption rather
- * than the whole card, because an empty frame draws `[ PHOTO ]` and that is not
- * what these tests are about.
+ * Scoped to the heading's own block, so this asserts on one year rather than the page. The caption
+ * rather than the whole card, because an empty frame draws `[ PHOTO ]` and that isn't what these
+ * tests are about.
  */
 const cardsUnder = (year: string) =>
   within(screen.getByRole('heading', { name: year }).parentElement!)

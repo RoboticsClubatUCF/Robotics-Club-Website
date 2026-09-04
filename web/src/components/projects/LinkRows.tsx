@@ -6,10 +6,9 @@ import { MAX_PROJECT_LINKS } from '../../lib/projects/projectGallery'
 /**
  * The `/ RESOURCES` link list, as a controlled field.
  *
- * Extracted because it is used in two states of the same page and has to look
- * identical in both: the create form collects links before there is a project
- * to hang them on, and the editor edits them afterwards. One component means
- * the labels, the cap and the remove control cannot drift between the two.
+ * Extracted because it is used in two states of the same page and has to look identical in both:
+ * the create form collects links before there is a project to hang them on, and the editor edits
+ * them afterwards. One component means the labels, the cap and the remove control cannot drift.
  */
 export function LinkRows({
   links,

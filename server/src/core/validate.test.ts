@@ -2,14 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { PROFILE_HOSTS, profileAddress } from './validate.js'
 
 /**
- * The profile-link allowlist, which is the one check on this API that stands
- * between a member's typing and an `href` on a public page with several hundred
- * faces on it.
+ * The profile-link allowlist, which is the one check on this API standing between a member's typing
+ * and an `href` on a public page with several hundred faces on it.
  *
- * Everything here is a refusal that has to keep being a refusal. Asserting on
- * the zod error would say the same thing far less clearly, which is why
- * `profileAddress` is exported and tested directly — the schema around it is
- * three lines and has nothing of its own to get wrong.
+ * Everything here is a refusal that has to keep being a refusal. Asserting on the zod error would
+ * say the same thing far less clearly, which is why `profileAddress` is exported and tested
+ * directly — the schema around it is three lines and has nothing of its own to get wrong.
  *
  * It needs no database and no app: this file is pure.
  */
@@ -67,11 +65,10 @@ describe('profileAddress', () => {
   })
 
   /**
-   * `https://linkedin.com@evil.example/` is a link to `evil.example` that reads
-   * as LinkedIn to anybody checking it by eye. The host check refuses it on its
-   * own — `new URL` sees through it — and credentials are refused outright
-   * anyway, because an address that *displays* as something it is not has no
-   * honest use in this column.
+   * `https://linkedin.com@evil.example/` is a link to `evil.example` that reads as LinkedIn to
+   * anybody checking it by eye. The host check refuses it on its own — `new URL` sees through it —
+   * and credentials are refused outright anyway, because an address that displays as something it
+   * is not has no honest use in this column.
    */
   it('refuses credentials in the authority', () => {
     expect(profileAddress('https://linkedin.com@evil.example/in/someone')).toBeNull()

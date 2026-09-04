@@ -12,12 +12,10 @@ import { createSession } from '../../auth/session.js'
 /**
  * The event permission matrix, and the visibility rule it protects.
  *
- * Two properties carry the suite. The matrix itself: a team lead schedules for
- * their own team, the project lead can overrule any of their teams' leads, an
- * officer can overrule anybody — asymmetries the user asked for by name. And
- * the invariant that makes lead-created events safe at all: **nothing a lead
- * creates ever reaches the public `/api/events`**, because `published` stays
- * false unless an officer says otherwise.
+ * Two properties carry the suite. The matrix itself: a team lead schedules for their own team, the
+ * project lead can overrule any of their teams' leads, an officer can overrule anybody. And the
+ * invariant that makes lead-created events safe at all: nothing a lead creates ever reaches the
+ * public `/api/events`, because `published` stays false unless an officer says otherwise.
  */
 
 const PREFIX = 'test-events-'
@@ -28,18 +26,16 @@ const clearWindows = () =>
 
 const clearRows = async () => {
   await prisma.project.deleteMany({ where: { slug: { startsWith: PREFIX } } })
-  // **Before the users, and it is not redundant with the line above.** A
-  // *club* event has no project, so no project cascade reaches it, and
-  // `Event.createdById` is `SetNull` by design, so deleting the officer who
-  // made it leaves the row behind detached rather than removing it. Caught by
-  // neither cascade, exactly like the project-less task in `tasks.test.ts` —
-  // and this one did leak: one "Open house" per run had been accumulating in
-  // the club's development database, invisible because an event count taken
-  // after a run reads as the new baseline.
+  // Before the users, and not redundant with the line above. A club event has no project, so no
+  // project cascade reaches it, and `Event.createdById` is `SetNull` by design, so deleting the
+  // officer who made it leaves the row behind detached rather than removing it. Caught by neither
+  // cascade, exactly like the project-less task in `tasks.test.ts` — and this one did leak: one
+  // "Open house" per run had been accumulating in the club's development database, invisible
+  // because an event count taken after a run reads as the new baseline.
   //
-  // The slug is generated from the title (`slugFor` in `eventManage.ts`), so
-  // naming the fixture with the prefix is what makes it findable at all. That
-  // is the rule: namespace by whatever column the row can actually be found by.
+  // The slug is generated from the title (`slugFor` in `eventManage.ts`), so naming the fixture
+  // with the prefix is what makes it findable at all. That is the rule: namespace by whatever
+  // column the row can actually be found by.
   await prisma.event.deleteMany({ where: { slug: { startsWith: PREFIX } } })
   await prisma.user.deleteMany({ where: { email: { startsWith: PREFIX } } })
 }
@@ -331,11 +327,9 @@ describe('who sees what', () => {
 /**
  * A club event: the row with no project behind it.
  *
- * The model has always allowed one — `Event.projectId` is nullable and
- * `requireEventManager` has a branch for it — but this router required a
- * project, so the only rows that could reach that branch were seeded straight
- * into Postgres. The events desk is what needed them, and the authority is the
- * same one that decides everything else about the club's own calendar.
+ * The model has always allowed one — `Event.projectId` is nullable and `requireEventManager` has a
+ * branch for it — but this router required a project, so the only rows that could reach that branch
+ * were seeded straight into Postgres. The events desk is what needed them.
  */
 describe('a club-wide event', () => {
   // The title carries the prefix because the *slug* is derived from it, and the

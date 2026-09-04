@@ -3,26 +3,20 @@ import { DARK, LIGHT, setTheme, useTheme } from '../../lib/theme'
 /**
  * The light/dark switch.
  *
- * **One button, two states, and it says what it will do rather than what it
- * is.** A toggle drawn as "you are in dark mode" and a toggle drawn as "press
- * for light mode" look identical and mean opposite things, and every visitor
- * reads the icon as the second one — so that is what it is: the sun means "make
- * it light", and the accessible name says so in words.
+ * One button, two states, and it says what it will do rather than what it is. A toggle drawn as
+ * "you are in dark mode" and one drawn as "press for light mode" look identical and mean opposite
+ * things, and every visitor reads the icon as the second — so that is what it is: the sun means
+ * "make it light", and the accessible name says so in words.
  *
- * No `aria-pressed`. That would announce it as a checkbox with a state, which
- * puts the reader back in the ambiguity above; a button whose name changes is
- * unambiguous in both directions.
+ * No `aria-pressed`. That would announce it as a checkbox with a state, which puts the reader back
+ * in the ambiguity above; a button whose name changes is unambiguous in both directions.
  *
- * There is no third state for "follow the system". Everybody starts in it —
- * `lib/theme.ts` has the argument — and a control that most people would never
- * press, explaining a state they are already in, is a worse bar than a missing
- * one.
+ * There is no third state for "follow the system". Everybody starts in it — `lib/theme.ts` has the
+ * argument — and a control most people would never press, explaining a state they are already in,
+ * is a worse bar than a missing one.
  *
- * It lives in the footer, at the far right of the last row on the page —
- * `SiteFooter` has the argument for why it is not in the nav.
- *
- * Drawn rather than imported, the same call `MenuIcon` makes in the nav: an
- * icon package for two glyphs is a dependency for two glyphs.
+ * It lives in the footer, at the far right of the last row on the page; `SiteFooter` says why it is
+ * not in the nav. Drawn rather than imported, the same call `MenuIcon` makes.
  */
 export function ThemeToggle({ className = '' }: { className?: string }) {
   const theme = useTheme()

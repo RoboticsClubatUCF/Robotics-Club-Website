@@ -8,52 +8,41 @@ import type { AuthEnv, SessionUser } from './session.js'
 /**
  * Who may do what, inside a project.
  *
- * The rule that shapes everything here, with no exceptions left in it:
- * **project authority is per-project**. The lead of one project is a plain
- * member — or a stranger — on every other, so nothing in this file reads the
- * `UserRole` ladder except to let officers through and to refuse a `GUEST`.
- * The rank that grants is `ProjectMember.rank`, scoped by its primary key to
- * exactly one project.
+ * The rule that shapes everything here: project authority is per-project. The lead of
+ * one project is a plain member on every other, so nothing in this file reads the
+ * `UserRole` ladder except to let officers through and refuse a `GUEST`. The rank that
+ * grants is `ProjectMember.rank`, scoped by its primary key to one project.
  *
- * `UserRole` used to carry `PROJECT_LEAD` and `TEAM_LEAD` as roster labels,
- * spelled the same as that column's values and meaning something else, and
- * `requireProjectCreator` here read one of them to allow starting a project.
- * Both are gone. **No value of `UserRole` says anything about any project**,
- * and if a check in this file ever needs one, the check is wrong.
+ * `UserRole` used to carry `PROJECT_LEAD` and `TEAM_LEAD` as roster labels, spelled
+ * the same as that column's values and meaning something else. Both are gone: no value
+ * of `UserRole` says anything about any project, and a check here that needs one is
+ * wrong.
  *
- * Officers and admins pass every check. They are the ones who create projects
- * and appoint leads in the first place, and a lead who quits mid-term must not
- * leave a project nobody can administer.
+ * Officers and admins pass every check — they create projects and appoint leads, and a
+ * lead who quits mid-term must not leave a project nobody can administer.
  *
- * Every refusal is the same sentence and the same 403. Which check failed is
- * not something a stranger probing project ids should be able to learn, and a
- * member who genuinely lacks the rank gets nothing useful from a more specific
- * answer either — the fix is "ask your lead" in every case.
+ * Every refusal is the same sentence and the same 403. Which check failed isn't
+ * something a stranger probing project ids should learn, and the fix is "ask your lead"
+ * in every case.
  *
- * **One gate, and it is dues.** Every check below ends with
- * `requireCurrentDues`, where `hasAccess` is `duesPaidThrough > now` and
- * nothing else — the same question the dashboard draws its padlocks from and
- * the same one the Discord bot asks before handing out the Members role.
- * There is exactly one exemption, `ADMIN`, because the club cannot be in a
- * position where the only person who can fix a membership problem is locked out
- * by one. **Officers are not exempt**: a lead or an officer whose dues have
- * lapsed keeps their rank and loses the tools until they pay.
+ * One gate, and it's dues. `hasAccess` is `duesPaidThrough > now` and nothing else —
+ * the same question the dashboard draws its padlocks from and the bot asks before
+ * handing out the Members role. Exactly one exemption, `ADMIN`, because the club can't
+ * be in a position where the only person who can fix a membership is locked out by one.
+ * Officers are not exempt.
  *
- * There used to be a second gate in front of it. `requireSurvey` refused
- * everything — the tools, the desks and the dues page — until the one-time
- * member survey was answered, which meant the club could not take somebody's
- * money until it had their shirt size. The survey is an invitation now: the
- * dashboard asks once, offers *don't ask me again*, and nothing anywhere is
- * refused for a null `surveyCompletedAt`.
+ * There used to be a second gate in front of it: `requireSurvey` refused everything,
+ * including the dues page, until the one-time survey was answered — so the club
+ * couldn't take somebody's money until it had their shirt size. The survey is an
+ * invitation now and nothing is refused for a null `surveyCompletedAt`.
  *
- * **Reading is never gated.** Nothing checks dues in `requireProjectMember`,
- * because somebody who has let their dues run out is still on their projects
- * and can still look at them — they simply cannot change anything. That line is
- * the whole of what a lapsed member keeps, and it must not grow a dues check.
+ * Reading is never gated. Nothing checks dues in `requireProjectMember`, because
+ * somebody whose dues ran out is still on their projects and can still look at them.
+ * That line is the whole of what a lapsed member keeps, and it must not grow a check.
  *
- * The dues check runs *after* the rank check, and that order is deliberate.
- * Somebody who was never a lead gets the ordinary 403 rather than a note about
- * dues, which would tell them that paying would hand them a lead's tools.
+ * The dues check runs after the rank check, deliberately: somebody who was never a lead
+ * gets the ordinary 403 rather than a note about dues, which would tell them paying
+ * would hand them a lead's tools.
  */
 
 const forbidden = () =>
@@ -75,30 +64,23 @@ const CLAIM_IT =
   'Membership is free right now — claim it on the dues page and this opens straight away. It takes one press and costs nothing.'
 
 /**
- * The one gate. Everything on this site that is not reading goes through here.
+ * The one gate. Everything that isn't reading goes through here.
  *
- * **`hasAccess` is `duesPaidThrough > now` and nothing else**, so this is the
- * same question the Discord bot asks before handing out the Members role and
- * the same one the dashboard asks before drawing a padlock. There is no longer
- * a second, looser notion of access for the summer or the opening weeks:
- * those are free, but they are *claimed*, and claiming puts a real date on the
- * row like paying does.
+ * `hasAccess` is `duesPaidThrough > now` and nothing else, so this is the same question
+ * the Discord bot asks and the same one the dashboard asks before drawing a padlock.
+ * There's no looser notion of access for the summer or the opening weeks: those are
+ * free, but they're claimed, and claiming puts a real date on the row.
  *
- * `ADMIN` is exempt and always will be. Whoever can fix a membership must not
- * be lockable out by a membership — that is how a club ends up with nobody able
- * to put it right. **Nothing else is exempt, officers included.** A board that
- * has not paid is a board that cannot reach its own desks, which is the club's
- * decision and not this file's to soften.
+ * `ADMIN` is exempt and always will be — whoever can fix a membership must not be
+ * lockable out by one. Nothing else is exempt, officers included.
  *
- * Three refusals, because they need three different sentences and getting them
- * the wrong way round is how somebody two years in reads that they were never
- * a member:
+ * Three refusals, because they need three different sentences and getting them the
+ * wrong way round is how somebody two years in reads that they were never a member:
  *
- *   - a free window is running → say so, because they are one press from being
- *     let in and quoting a price at them would be false;
- *   - a date that has run out → they are a member who lapsed, and nothing has
- *     been taken away permanently;
- *   - no date ever → a newcomer, who is told what membership is.
+ *   - a free window is running -> say so, because they're one press from being let in
+ *     and quoting a price would be false;
+ *   - a date that has run out -> a member who lapsed, nothing taken away permanently;
+ *   - no date ever -> a newcomer, who is told what membership is.
  */
 export async function requireCurrentDues(user: SessionUser): Promise<void> {
   if (isAdmin(user)) return
@@ -118,11 +100,10 @@ export async function requireCurrentDues(user: SessionUser): Promise<void> {
 /**
  * The same check as middleware, for whole routers.
  *
- * The club's line: with dues owed, the dashboard is your projects and the page
- * that takes the payment, and nothing else. 3D printing and equipment borrowing
- * are the club spending money on you, so they sit behind it exactly as the
- * management tools do — and unlike those, they are refused by *rank* to nobody,
- * so this is the only thing standing between a lapsed account and a print.
+ * The club's line: with dues owed, the dashboard is your projects and the page that
+ * takes the payment. 3D printing and equipment borrowing are the club spending money on
+ * you, so they sit behind it — and unlike the management tools they're refused by rank
+ * to nobody, so this is the only thing between a lapsed account and a print.
  */
 export const requireDuesForRoute: MiddlewareHandler<AuthEnv> = async (
   c,
@@ -133,22 +114,18 @@ export const requireDuesForRoute: MiddlewareHandler<AuthEnv> = async (
 }
 
 /**
- * There used to be a second, stricter gate here, and it is gone on purpose.
+ * There used to be a second, stricter gate here, and it's gone on purpose.
  *
- * `requireClubMember` refused a `GUEST` outright *on top of* the dues check,
- * and it existed for one reason: coverage alone would have let an account made
- * ten minutes ago order prints, because the summer and the opening weeks
- * reported `hasAccess: true` for everybody. That is no longer true. Access is
- * now `duesPaidThrough > now`, which can only be set by paying, claiming or an
- * officer granting — and all three promote a `GUEST` in the same transaction.
- * So the role check had become a test that could never fail for anybody who had
- * got past the first one, and two gates that always agree are one gate and a
- * place for them to stop agreeing.
+ * `requireClubMember` refused a `GUEST` outright on top of the dues check, because
+ * coverage alone would have let an account made ten minutes ago order prints — the
+ * summer and the opening weeks reported `hasAccess: true` for everybody. Access is now
+ * `duesPaidThrough > now`, which can only be set by paying, claiming or an officer
+ * granting, and all three promote a `GUEST` in the same transaction. So the role check
+ * had become one that could never fail, and two gates that always agree are one gate
+ * and a place for them to stop agreeing.
  *
- * 3D printing and equipment borrowing now use `requireDuesForRoute` like
- * everything else. The two *sentences* survive — a newcomer and a lapsed member
- * still hear different things — but they are chosen in `requireCurrentDues`
- * from the date rather than from the role.
+ * The two sentences survive — a newcomer and a lapsed member still hear different
+ * things — but they're chosen in `requireCurrentDues` from the date rather than the role.
  */
 
 /** For the routes that are officer business outright — queues, appointments. */
@@ -161,9 +138,9 @@ export const requireOfficer: MiddlewareHandler<AuthEnv> = async (c, next) => {
 }
 
 /**
- * One person's standing on one project, or null for a stranger. Also null for
- * a project that does not exist — callers that need to tell those apart fetch
- * the project first, and mostly they already have.
+ * One person's standing on one project, or null for a stranger. Also null for a project
+ * that doesn't exist — callers that need to tell those apart fetch the project first,
+ * and mostly they already have.
  */
 export function membershipOf(userId: string, projectId: string) {
   return prisma.projectMember.findUnique({
@@ -193,12 +170,11 @@ export async function requireProjectLead(
 }
 
 /**
- * Team-lead authority over one team: its own leads, the leads of the project
- * it belongs to, and officers. Returns the team's project id because every
- * caller needs it next and the team was just read anyway.
+ * Team-lead authority over one team: its own leads, the leads of the project it belongs
+ * to, and officers. Returns the team's project id because every caller needs it next.
  *
- * A missing team is a 404 rather than the shared 403 — the id came from a URL,
- * and "no such team" is not information about anybody's rank.
+ * A missing team is a 404 rather than the shared 403 — the id came from a URL, and "no
+ * such team" isn't information about anybody's rank.
  */
 export async function requireTeamLead(
   user: SessionUser,
@@ -227,15 +203,13 @@ export async function requireTeamLead(
 }
 
 /**
- * The event permission matrix, as one predicate: officers, the person who made
- * it, the leads of the project it belongs to, and the leads of its team. That
- * last pair is deliberately asymmetric — a project lead can edit any of their
- * teams' events, a team lead only their own team's — which is exactly the
- * "project lead can manage the team leads' events" rule.
+ * The event permission matrix as one predicate: officers, the person who made it, the
+ * leads of the project it belongs to, and the leads of its team. That last pair is
+ * deliberately asymmetric — a project lead can edit any of their teams' events, a team
+ * lead only their own team's.
  *
- * Takes the event's ownership columns rather than an id: every caller has
- * already loaded the row, and a second read here would just be a place for the
- * two reads to disagree.
+ * Takes the event's ownership columns rather than an id: every caller has already
+ * loaded the row, and a second read would be a place for the two to disagree.
  */
 export async function requireEventManager(
   user: SessionUser,

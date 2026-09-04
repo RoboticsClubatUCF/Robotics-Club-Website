@@ -13,18 +13,16 @@ import type { SurveyDraft } from './survey'
 import type { ApiSurvey, ApiSurveyQuestion } from './api/api'
 
 /**
- * The rules the survey form obeys, and the reason they are worth a test.
+ * The rules the survey form obeys, and why they are worth a test.
  *
- * The big one is that **there is no NONE option** — an empty set of ticks *is*
- * "none". That is the right shape for the database, because a value that must
- * never co-occur with any other is a constraint Postgres cannot express, and it
- * leaves the form holding the difference between somebody who has no allergies
- * and somebody who scrolled past the question. The club reads that list before
- * it buys food, so the difference is worth being careful about.
+ * The big one is that there is no NONE option — an empty set of ticks *is* "none". That is the
+ * right shape for the database, because a value that must never co-occur with any other is a
+ * constraint Postgres cannot express, and it leaves the form holding the difference between
+ * somebody who has no allergies and somebody who scrolled past the question. The club reads that
+ * list before it buys food.
  *
- * The rest is here because the questions are rows an officer edits: nothing in
- * `web/` knows what the survey asks, so what these assert is what is true of a
- * question *whatever it asks*.
+ * The rest is here because the questions are rows an officer edits: nothing in `web/` knows what
+ * the survey asks, so what these assert is what is true of a question whatever it asks.
  */
 
 const option = (id: string, label: string, wantsText = false) => ({
@@ -128,10 +126,10 @@ describe('picking', () => {
 
 describe('answered', () => {
   /**
-   * The one that is about safety rather than tidiness. An empty tick list with
-   * None unticked is somebody who did not read the question, and it is
-   * indistinguishable from a deliberate "none" once it reaches the server — the
-   * answer row either exists or it does not. So the press is insisted on here.
+   * The one that is about safety rather than tidiness. An empty tick list with None unticked is
+   * somebody who did not read the question, and it is indistinguishable from a deliberate "none"
+   * once it reaches the server — the answer row either exists or it does not. So the press is
+   * insisted on here.
    */
   it('counts an empty set as answered only when None is ticked', () => {
     expect(answered(TICK, entry())).toBe(false)

@@ -26,24 +26,19 @@ import { type AuthEnv, type SessionUser, originGuard, requireAuth } from '../../
  *   POST   /api/tasks/:id/status    -> move it between labels (assignees + leads)
  *   POST   /api/tasks/:id/calendar  -> put it on my own calendar (assignees)
  *
- * The scoping rule is the same shape events use: a team lead writes against
- * their own team and nothing else; the project lead writes against any team
- * or none; officers pass everywhere. Ticking is looser than writing on
- * purpose — the person the task was assigned to is exactly who should be able
- * to mark it done, whatever their rank.
+ * The scoping rule is the shape events use: a team lead writes against their own team,
+ * the project lead against any team or none, officers pass everywhere. Ticking is
+ * looser than writing on purpose — the person the task was assigned to is exactly who
+ * should be able to mark it done.
  *
- * **A task belongs to a project or to a person.** `POST /api/tasks` is the
- * second kind — "order the shirts", which is the club's work and no build's —
- * and it is officers only, because a lead's authority is derived from a
- * project and there is no project here to derive it from. That is the rule
- * `eventManage.ts` already applies to a club-wide event. Such a task must name
- * an assignee: with neither a project nor a person it would appear on no page
- * at all.
+ * A task belongs to a project or to a person. `POST /api/tasks` is the second kind —
+ * "order the shirts" — and it's officers only, because a lead's authority is derived
+ * from a project and there's none here to derive it from. Such a task must name an
+ * assignee: with neither a project nor a person it would appear on no page at all.
  *
- * **The calendar opt-in belongs to the assignee**, not to whoever wrote the
- * task. A lead may put work on somebody's list; putting it in their week is
- * theirs to decide, which is why `TaskAssignee.onCalendar` is a column per
- * person rather than one per task.
+ * The calendar opt-in belongs to the assignee, not whoever wrote the task. A lead may
+ * put work on somebody's list; putting it in their week is theirs to decide, which is
+ * why `TaskAssignee.onCalendar` is a column per person rather than one per task.
  */
 export const tasks = new Hono<AuthEnv>()
 
@@ -51,11 +46,10 @@ export const tasks = new Hono<AuthEnv>()
 const writes = rateLimit('tasks', 60)
 
 /**
- * One shape for both readers — the project's own board and the cross-project
- * list at `/api/me/tasks`, which imports this rather than declaring a second
- * one. The board pays for a `project` and `team` it already knows; that is a
- * few dozen bytes against two selects that would drift the first time either
- * gained a column.
+ * One shape for both readers — the project's own board and the cross-project list at
+ * `/api/me/tasks`, which imports this rather than declaring a second one. The board
+ * pays for a `project` and `team` it already knows; a few dozen bytes against two
+ * selects that would drift the first time either gained a column.
  */
 export const taskSelect = {
   id: true,
@@ -111,10 +105,9 @@ const taskBody = z.object({
 })
 
 /**
- * A task with no project behind it. No `teamId` — a team is part of a project,
- * so there is nothing for one to hang off — and **at least one assignee**,
- * because a task belonging to neither a build nor a person belongs to nothing.
- * `.min(1)` says that on the way in; `checkAssignees` says it again for the
+ * A task with no project behind it. No `teamId` — a team is part of a project — and at
+ * least one assignee, because a task belonging to neither a build nor a person belongs
+ * to nothing. `.min(1)` says that on the way in; `checkAssignees` says it again for the
  * edit route, which can empty the list on a task that already exists.
  */
 const directTaskBody = taskBody.omit({ teamId: true }).extend({
@@ -122,9 +115,9 @@ const directTaskBody = taskBody.omit({ teamId: true }).extend({
 })
 
 /**
- * Who may write tasks where. Returns the teamId the task must carry — which
- * for a team lead is *their* team no matter what the body said, refused
- * rather than silently rewritten if they asked for another.
+ * Who may write tasks where. Returns the teamId the task must carry — which for a team
+ * lead is their team no matter what the body said, refused rather than silently
+ * rewritten if they asked for another.
  */
 async function writingScope(
   user: SessionUser,
@@ -135,11 +128,10 @@ async function writingScope(
     message: 'You do not have permission to do that.',
   })
 
-  // No project means the club's own work, and that is the officers'. A lead's
-  // authority is derived from a membership row, so with no project there is
-  // nothing to derive it from — the same reason `eventManage.ts` refuses a
-  // club-wide event to anybody but an officer. The rule lives here rather than
-  // at the route so both writers ask one function.
+  // No project means the club's own work, and that's the officers'. A lead's authority
+  // is derived from a membership row, so with no project there's nothing to derive it
+  // from — the same reason `eventManage.ts` refuses a club-wide event to anybody but an
+  // officer. The rule lives here so both writers ask one function.
   if (projectId === null) {
     if (!isOfficer(user)) {
       throw new HTTPException(403, {
@@ -181,11 +173,10 @@ async function writingScope(
 /**
  * Everyone assigned has to actually be somebody, checked in one query.
  *
- * Two questions, because a task with no project has no roster to check against.
- * With one, the roster is the answer and an empty list is fine — a lead may
- * write a task down before deciding who does it. Without one, the only people
- * who can be meant are current members, and the list may **not** be empty:
- * that is the whole of what keeps a project-less task attached to anything.
+ * Two questions, because a task with no project has no roster to check against. With
+ * one, the roster is the answer and an empty list is fine — a lead may write a task
+ * down before deciding who does it. Without one, the only people who can be meant are
+ * current members, and the list may not be empty.
  */
 async function checkAssignees(projectId: string | null, userIds: string[]) {
   const wanted = new Set(userIds).size
@@ -223,29 +214,23 @@ async function checkAssignees(projectId: string | null, userIds: string[]) {
 }
 
 /**
- * The project a new task may be written against: one the club is running *this
- * semester*.
+ * The project a new task may be written against: one the club is running this semester.
  *
- * A project belongs to a term, and a build that ran three semesters is three
- * rows — so without this, a lead opening last spring's manage page could add
- * work to a project nobody meets for any more, and it would land on somebody's
- * dashboard looking exactly like this week's. The rule is about **new** tasks
- * only: last term's board stays editable and tickable, because closing out work
- * that is already there is the normal way a semester ends.
+ * A project belongs to a term, and a build that ran three semesters is three rows — so
+ * without this a lead opening last spring's manage page could add work to a project
+ * nobody meets for, and it would land on somebody's dashboard looking like this week's.
+ * The rule is about new tasks only: last term's board stays editable and tickable.
  *
- * `isCurrentTerm` is exact equality against `currentTerm()`, which names the
- * term *ahead* during a break — so a task written over winter break belongs to
- * spring, and a spring project is the one that accepts it. That is the same
- * answer `/me/projects` marks rows `current` with, which is what keeps the
- * page's picker and this refusal agreeing.
+ * `isCurrentTerm` is exact equality against `currentTerm()`, which names the term ahead
+ * during a break — so a task written over winter break belongs to spring. That's the
+ * same answer `/me/projects` marks rows `current` with, which keeps the page's picker
+ * and this refusal agreeing.
  */
 /**
  * "Fall 2026", for a refusal a human reads.
  *
- * Local rather than exported: nothing else on the server prints a term, and a
- * shared helper with one caller is a file somebody has to go and find. The
- * enum is SCREAMING_SNAKE and the display form is not, the same way
- * `SponsorTier`'s underscores come out only for display.
+ * Local rather than exported: nothing else on the server prints a term, and a shared
+ * helper with one caller is a file somebody has to go and find.
  */
 const termName = (term: { year: number; season: Season }) =>
   `${term.season.charAt(0)}${term.season.slice(1).toLowerCase()} ${String(term.year)}`
@@ -260,9 +245,9 @@ async function requireCurrentProject(projectId: string) {
 
   const term = await currentTerm()
   if (!isCurrentTerm(project, term)) {
-    // 409 rather than 403: they are allowed to do this, just not here. The
-    // sentence names both terms, because "not current" is meaningless to
-    // somebody who has three rows called TapeMeasure on their dashboard.
+    // 409 rather than 403: they're allowed to do this, just not here. The sentence names
+    // both terms, because "not current" is meaningless to somebody with three rows
+    // called TapeMeasure on their dashboard.
     throw new HTTPException(409, {
       message: `${project.title} is a ${termName({ year: project.termYear, season: project.termSeason })} project, and new tasks can only go on a project running this semester (${termName(term)}).`,
     })
@@ -285,8 +270,8 @@ async function requireTaskManager(
 ): Promise<void> {
   if (isOfficer(user)) return
 
-  // Nothing below an officer manages a task with no project: there is no
-  // membership row to read a rank off. The mirror of `writingScope` above.
+  // Nothing below an officer manages a task with no project: there's no membership row
+  // to read a rank off. The mirror of `writingScope` above.
   if (task.projectId === null) {
     throw new HTTPException(403, {
       message: 'You do not have permission to do that.',
@@ -310,14 +295,12 @@ async function requireTaskManager(
 /**
  * The same scope as a `where`, for reading a person's whole desk at once.
  *
- * `requireTaskManager` answers "may this person touch *that* task"; the tasks
- * page asks the other direction — "which tasks may this person touch at all" —
- * and a page cannot answer that by calling a guard once per row. Exported so
- * `routes/member/me.ts` can read it rather than restating the rule, which is
- * the thing this file exists to keep in one place.
+ * `requireTaskManager` answers "may this person touch that task"; the tasks page asks
+ * the other direction, and a page can't answer that by calling a guard once per row.
+ * Exported so `routes/member/me.ts` reads it rather than restating the rule.
  *
- * It must agree with `requireTaskManager` above, and there is a test that
- * walks a team lead's rows to say so.
+ * It must agree with `requireTaskManager`, and there's a test that walks a team lead's
+ * rows to say so.
  */
 export async function manageableTaskFilter(
   user: SessionUser,
@@ -335,17 +318,17 @@ export async function manageableTaskFilter(
     .filter((m) => m.rank === ProjectMemberRank.PROJECT_LEAD)
     .map((m) => m.projectId)
 
-  // A team lead reaches their own team's board and nothing else, which is the
-  // sentence `writingScope` enforces on the way in. Matched on the pair rather
-  // than on `teamId` alone: a team id is unique today, and a filter that says
-  // so out loud goes on being right if that ever stops being true.
+  // A team lead reaches their own team's board and nothing else, which is what
+  // `writingScope` enforces on the way in. Matched on the pair rather than `teamId`
+  // alone: a team id is unique today, and a filter that says so goes on being right if
+  // that ever stops being true.
   const teams = memberships
     .filter((m) => m.rank === ProjectMemberRank.TEAM_LEAD && m.teamId !== null)
     .map((m) => ({ projectId: m.projectId, teamId: m.teamId }))
 
-  // Leading nothing is managing nothing. Spelled out rather than left to an
-  // empty `OR`, because "no conditions" is the one filter that would hand
-  // somebody every task in the club.
+  // Leading nothing is managing nothing. Spelled out rather than left to an empty `OR`,
+  // because "no conditions" is the one filter that would hand somebody every task in
+  // the club.
   if (led.length === 0 && teams.length === 0) return { id: { in: [] } }
 
   return {
@@ -388,9 +371,9 @@ tasks.post(
     const projectId = c.req.param('id')
     const { assigneeIds, teamId: askedTeamId, ...data } = c.req.valid('json')
 
-    // 404s for a project nobody can find and 409s for one that finished last
-    // semester, before any permission is read — a lead of last term's build is
-    // owed the sentence about the term rather than one about their rank.
+    // 404s for a project nobody can find and 409s for one that finished last semester,
+    // before any permission is read — a lead of last term's build is owed the sentence
+    // about the term rather than one about their rank.
     await requireCurrentProject(projectId)
 
     const teamId = await writingScope(user, projectId, askedTeamId)
@@ -416,10 +399,10 @@ tasks.post(
 /**
  * A task that belongs to a person rather than to a build.
  *
- * Its own route rather than a nullable `projectId` on the one above, because
- * the two are different acts with different refusals: that one 404s for a
- * project nobody can find, this one 403s for anybody who is not an officer.
- * One polymorphic route would have to work out which sentence it owed.
+ * Its own route rather than a nullable `projectId` on the one above, because the two
+ * are different acts with different refusals: that one 404s for a project nobody can
+ * find, this one 403s for anybody who isn't an officer. One polymorphic route would
+ * have to work out which sentence it owed.
  */
 tasks.post(
   '/tasks',
@@ -514,12 +497,11 @@ tasks.post(
 
     const task = await getTask(c.req.param('id'))
 
-    // Assignees may move their own work between labels; everyone else needs
-    // the write scope. Deliberately the whole set rather than the three that
-    // read as progress: somebody who has been asked to do something is
-    // entitled to say it is not going to happen, and CANCELED on a row the
-    // lead can see is how they say it. It is a statement, not a deletion —
-    // which is the reason cancelling is a label here and not a DELETE.
+    // Assignees may move their own work between labels; everyone else needs the write
+    // scope. Deliberately the whole set rather than the three that read as progress:
+    // somebody asked to do something is entitled to say it isn't going to happen, and
+    // CANCELED on a row the lead can see is how they say it. A statement, not a
+    // deletion — which is why cancelling is a label and not a DELETE.
     const assigned = await prisma.taskAssignee.findUnique({
       where: { taskId_userId: { taskId: task.id, userId: user.id } },
     })
@@ -545,14 +527,13 @@ tasks.post(
 /**
  * Putting a task on my own calendar, or taking it off again.
  *
- * The opt-in the dashboard calendar reads, and it is per assignee: two people
- * share "CAD the chassis" and only one of them wants it in their week. A lead
- * may put work on somebody's list; putting it in their calendar is theirs.
+ * The opt-in the dashboard calendar reads, per assignee: two people share "CAD the
+ * chassis" and only one wants it in their week.
  *
- * `updateMany` on the composite key rather than a read and then a write, so
- * there is one query and one refusal. Somebody who is not on the task matches
- * no rows and gets the 403 — which is also why this does not call `getTask`
- * first: a 404 there would answer a question the caller has no business asking.
+ * `updateMany` on the composite key rather than a read and then a write, so there's one
+ * query and one refusal. Somebody not on the task matches no rows and gets the 403 —
+ * which is also why this doesn't call `getTask` first: a 404 there would answer a
+ * question the caller has no business asking.
  */
 tasks.post(
   '/tasks/:id/calendar',

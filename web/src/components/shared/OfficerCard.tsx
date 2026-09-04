@@ -2,34 +2,26 @@ import { ProfileFrame } from './ProfileFrame'
 import { imageSrc } from '../../lib/media/storedFiles'
 
 /**
- * One officer, drawn as a card: a headshot in a square frame over a two-line
- * caption of the seat and the name.
+ * One officer, drawn as a card: a headshot in a square frame over a two-line caption of the seat
+ * and the name.
  *
- * This was the landing page's officer board and nothing else until
- * `/officers` wanted the same card for the archive — which is the rule in
- * `.claude/docs/frontend.md` working as intended: a component earns `shared/`
- * by being used on two pages. The two are deliberately *identical* rather than
- * merely similar. Somebody who sat on the board in 2019 should look the same on
- * this site as somebody sitting on it now, and two copies of this markup would
- * have drifted the first time one of them was touched.
+ * This was the landing page's officer board until `/officers` wanted the same card for the
+ * archive — a component earns `shared/` by being used on two pages. The two are deliberately
+ * identical rather than merely similar: somebody who sat on the board in 2019 should look the
+ * same as somebody sitting on it now, and two copies of this markup would have drifted the first
+ * time one was touched.
  *
- * The design decisions in it, all of which the board established:
+ * The design decisions, all of which the board established:
  *
- *   - **A ratio rather than a height**, so photos at eight different sizes line
- *     their captions up and the grid holds its shape before any of them load.
- *   - **Square, not standing.** That is what makes it read as a headshot; a
- *     standing frame asks to be filled to the waist, and a page of those is a
- *     wall of full-length portraits.
- *   - **The frame takes the card's full width**, so it scales with the card at
- *     every screen size. Capping it and centring it inside a wide card were
- *     both tried and both looked worse than the thing they fixed.
- *   - **The caption is the seat and the name and nothing else.** A title or a
- *     grad year printed on whichever cards happen to have one turns a board
- *     into a table of exceptions.
- *   - **The photograph is the link.** Where the officer has given a profile
- *     address the frame is an anchor to it, drawn by `ProfileFrame` so the
- *     roster's cards behave identically. The caption is not a second link: one
- *     card, one destination.
+ *   - A ratio rather than a height, so photos at eight different sizes line their captions up and
+ *     the grid holds its shape before any of them load.
+ *   - Square, not standing. That's what makes it read as a headshot.
+ *   - The frame takes the card's full width, so it scales with the card. Capping and centring it
+ *     inside a wide card were both tried and looked worse than the thing they fixed.
+ *   - The caption is the seat and the name and nothing else. A title printed on whichever cards
+ *     happen to have one turns a board into a table of exceptions.
+ *   - The photograph is the link, where the officer has given a profile address. The caption
+ *     isn't a second link: one card, one destination.
  */
 
 /**
@@ -74,10 +66,9 @@ export function OfficerCard({
   /**
    * A third line under the name, for the archive's served range.
    *
-   * The board deliberately prints nothing here. Its comment above says why —
-   * a field set on some cards and not others turns eight of them into a table
-   * of exceptions — and that argument does not apply to the archive, where
-   * every card has a range and the uniformity is the point.
+   * The board deliberately prints nothing here — a field set on some cards and not others turns
+   * eight of them into a table of exceptions — and that argument doesn't apply to the archive,
+   * where every card has a range and the uniformity is the point.
    */
   note2?: string
   /** Draws a pulse in place of both the photo and the name. */
@@ -95,13 +86,10 @@ export function OfficerCard({
         {loading ? (
           <div className="bg-base-300 h-full w-full animate-pulse" aria-hidden />
         ) : photoUrl ? (
-          /* Decorative: the name is printed directly underneath, so announcing
-             the photo too would read the officer out twice. `object-cover`
-             because a letterboxed face in a black frame looks like a mistake —
-             and `object-top` because officers send whatever their phone took.
-             Cropping a standing photo to a square from the centre lands on the
-             midriff; from the top it lands on the face, which is the one part
-             of the frame that has to survive. */
+          /* Decorative: the name is printed directly underneath, so announcing the photo too would
+             read the officer out twice. `object-cover` because a letterboxed face in a black frame
+             looks like a mistake — and `object-top` because officers send whatever their phone
+             took, and cropping a standing photo from the centre lands on the midriff. */
           <img
             src={imageSrc(photoUrl)}
             alt=""
@@ -118,11 +106,10 @@ export function OfficerCard({
       </ProfileFrame>
 
       <figcaption className="p-4">
-        {/* The board knows its eight seats before the fetch and names them
-            while it waits; the archive does not know what it holds until the
-            response lands. So an empty seat under `loading` gets a bar of its
-            own rather than a blank line — without it a loading archive card is
-            visibly a different height from a loaded one. */}
+        {/* The board knows its eight seats before the fetch and names them while it waits; the
+            archive doesn't know what it holds until the response lands. So an empty seat under
+            `loading` gets a bar of its own — without it a loading archive card is visibly a
+            different height from a loaded one. */}
         {loading && !seat ? (
           <div
             className="bg-base-300 h-2.5 w-20 animate-pulse rounded-[2px]"

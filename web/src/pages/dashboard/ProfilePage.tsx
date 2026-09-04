@@ -29,31 +29,24 @@ import type { ApiState } from '../../lib/api/useApi'
 /**
  * The account page.
  *
- * It used to be a placeholder with one real button on it — signing out had to
- * live somewhere, and the bottom of the overview was the wrong somewhere. Every
- * other thing it said was coming now exists: the name, the photo, the Discord
- * handle, the address somebody signs in with, the password, and leaving.
+ * It used to be a placeholder with one real button on it — signing out had to live somewhere, and
+ * the bottom of the overview was the wrong somewhere. Every other thing it said was coming now
+ * exists: the name, the photo, the Discord handle, the address, the password, and leaving.
  *
- * **One account read, and a panel per decision.** The page owns the
- * `GET /api/account` loader; each panel owns its own save, its own busy state
- * and its own answer line, because they are separate decisions rather than one
- * form with several parts. A single SAVE at the bottom would mean changing a
- * bio and a password in the same press, which is exactly the shape that makes
- * people careful about pressing anything.
+ * One account read, and a panel per decision. The page owns the `GET /api/account` loader; each
+ * panel owns its own save, busy state and answer line, because they're separate decisions rather
+ * than one form with several parts. A single SAVE at the bottom would mean changing a bio and a
+ * password in the same press.
  *
- * `ProfileSurveyPanel` is the one that reads something the page did not: the
- * member survey is another table behind another route, and widening the account
- * payload for one panel would be the wrong trade. Everything else about it
- * follows the same rule as its neighbours.
+ * `ProfileSurveyPanel` is the one that reads something the page didn't: the member survey is
+ * another table behind another route, and widening the account payload for one panel would be the
+ * wrong trade.
  *
- * The panels adopt their answer into the session context rather than refetching
- * — the nav bar and the rail are watching it, and a round trip is a visible
- * flicker in both for no new information. `useApi` is not used here for the
- * same reason `DashboardLayout` avoids it: this page mutates what it reads.
+ * The panels adopt their answer into the session context rather than refetching — the nav bar and
+ * the rail are watching it, and a round trip is a visible flicker in both.
  *
- * **Never dues-gated.** A lapsed member keeps this page, their own projects and
- * the dues page. Being behind on dues is not a reason somebody cannot change
- * their password or leave.
+ * Never dues-gated. Being behind on dues isn't a reason somebody can't change their password or
+ * leave.
  */
 export function ProfilePage() {
   const { user } = useOutletContext<DashboardContext>()
@@ -128,28 +121,20 @@ export function ProfilePage() {
         </div>
       </div>
 
-      {/* Columns rather than a stack, and it costs this page nothing: the whole
-          point of the account page is that each panel is its own decision with
-          its own save, so they were never a sequence to be read down. On a
-          monitor that turns eight one-line forms strung down the left edge into
-          two or three columns of them; on a laptop it is the column it always
-          was.
+      {/* Columns rather than a stack, and it costs this page nothing: the whole point of the
+          account page is that each panel is its own decision with its own save, so they were never
+          a sequence to be read down.
 
-          **Multi-column rather than `grid-fluid`, and this is the one page that
-          wants it.** A grid aligns rows, so every card in a row is followed by
-          as much empty space as the tallest card in that row leaves over —
-          and the panels here run from three lines of text to a framed square,
-          so YOUR STANDING sat above a hole the height of the photo well. Column
-          flow puts each panel directly under the last one in its column, so a
-          card ends where its content does.
+          Multi-column rather than `grid-fluid`, and this is the one page that wants it. A grid
+          aligns rows, so every card in a row is followed by as much empty space as the tallest
+          card leaves over — and the panels here run from three lines of text to a framed square,
+          so YOUR STANDING sat above a hole the height of the photo well. Column flow puts each
+          panel directly under the last one in its column.
 
-          The trade is that reading goes down a column and then down the next,
-          rather than across. Nothing here is sequential — that is the same
-          property that let these sit side by side at all — and tab order still
-          follows the markup, which is the order they are read in. `[&>*]`
-          because the panels are components: the margin and the no-break rule
-          have to reach children this page does not render itself, and
-          multi-column has no row gap to set. */}
+          The trade is that reading goes down a column and then down the next. Nothing here is
+          sequential, and tab order still follows the markup. `[&>*]` because the panels are
+          components: the margin and the no-break rule have to reach children this page doesn't
+          render itself. */}
       <div className="columns-[24rem] gap-x-5 [&>*]:mb-5 [&>*]:break-inside-avoid">
         {/* The facts nobody edits here, first, because they are the answer to
             "is this the right account" — which is the question somebody opening
@@ -169,12 +154,10 @@ export function ProfilePage() {
               }
             />
           </dl>
-          {/* PUBLIC PROFILE used to be the third row here, printing a
-              `/members/:slug` address or "No profile page yet". It said the
-              second to almost everybody and could say nothing else — a slug is
-              an officer's to set and that page is still unbuilt — so it was a
-              row nobody could act on. PROFILE LINK, below, is what it asked
-              for: the member's own address, which needs nobody's permission. */}
+          {/* PUBLIC PROFILE used to be the third row here, printing a `/members/:slug` address or
+              "No profile page yet". It said the second to almost everybody and could say nothing
+              else — a slug is an officer's to set and that page is still unbuilt — so it was a row
+              nobody could act on. PROFILE LINK, below, is what it asked for. */}
           {/* Two rows, two different origins, so the line names them rather
               than covering both with "an officer sets these" — which is now
               half wrong: nobody set the agreement, it was accepted. */}
@@ -210,15 +193,11 @@ export function ProfilePage() {
             <ProfileDiscordPanel account={account.data} onSaved={merge} />
             <ProfileEmailPanel account={account.data} onSaved={merge} />
             <ProfilePasswordPanel />
-            {/* Last, and the only panel that reads a resource of its own — the
-                survey is another table with another route, so it fetches for
-                itself rather than widening the account payload for one panel.
-                It also renders nothing until it knows, which is why it sits at
-                the end: a panel that appears late would push the ones after it
-                around. The one panel here that does not save anything, either;
-                it prints the answers back and sends you to `/dashboard/survey`
-                to change them, because the survey is a page's worth of form and
-                this page is a column of one-field decisions. */}
+            {/* Last, and the only panel that reads a resource of its own — the survey is another
+                table with another route. It also renders nothing until it knows, which is why it
+                sits at the end: a panel that appears late would push the ones after it around. The
+                one panel here that doesn't save anything, either; it prints the answers back and
+                sends you to `/dashboard/survey` to change them. */}
             <ProfileSurveyPanel gradYear={account.data.gradYear} />
           </>
         )}

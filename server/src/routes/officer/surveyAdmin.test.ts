@@ -9,24 +9,18 @@ import { createSession } from '../../auth/session.js'
 /**
  * The survey desk: what the club asks, and what it learned.
  *
- * **This suite writes the survey itself**, which is a table nothing can
- * namespace its way out of — the questions are global, because they are the one
- * form every member is shown. So it borrows rather than owns, the same shape as
- * `officerBoard.test.ts` parking real officer seats and `lab.test.ts` borrowing
- * the one lab row:
+ * This suite writes the survey itself, which is a table nothing can namespace its way out of —
+ * the questions are global, because they're the one form every member is shown. So it borrows
+ * rather than owns, the same shape as `officerBoard.test.ts` parking real seats:
  *
- * - every prompt it writes carries `test-sq-`, and those rows are cleared in
- *   `beforeEach` as well as `afterAll`, so a run that dies half way leaves
- *   nothing behind that the next run does not sweep up;
- * - the reorder case rewrites `position` on **every** live question, the club's
- *   own included, so the original order is read before each test and put back
- *   in `afterEach`. A suite that left the survey shuffled is a suite that
- *   reordered a real form.
+ * - every prompt it writes carries `test-sq-`, and those rows are cleared in `beforeEach` as well
+ *   as `afterAll`, so a run that dies half way leaves nothing behind;
+ * - the reorder case rewrites `position` on every live question, the club's own included, so the
+ *   original order is read before each test and put back in `afterEach`.
  *
- * The tallies are asserted as *deltas over this suite's own fixtures* — "the
- * count for this option went up by one" — never as absolute numbers. The desk
- * reads every row in `member_surveys` and the development database has real
- * members in it.
+ * The tallies are asserted as deltas over this suite's own fixtures — "the count for this option
+ * went up by one" — never as absolute numbers. The desk reads every row in `member_surveys` and
+ * the development database has real members in it.
  */
 
 // Nothing here should reach the club's guild. These routes do not push roles,

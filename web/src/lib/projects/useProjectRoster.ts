@@ -5,23 +5,19 @@ import type { ApiProjectTeamMember, ApiProjectTeamView, ApiTeam } from '../api/a
 /**
  * The people on a project, and its teams, for the editor.
  *
- * **Read here rather than taken from `project.members`**, which the public
- * detail route deliberately answers without user ids — a credit and a title are
- * both written by id, and widening an anonymous payload so an editor can have
- * one would be paying for it on every page view. This route wants a membership
- * or an officer's standing, which everybody who can see the editor already has.
+ * Read here rather than taken from `project.members`, which the public detail route deliberately
+ * answers without user ids — a credit and a title are both written by id, and widening an anonymous
+ * payload so an editor can have one would be paying for it on every page view. This route wants a
+ * membership or an officer's standing, which everybody who can see the editor already has.
  *
- * **One read for the whole editor.** It lives in `ProjectEditor` and is passed
- * down, rather than each section fetching its own: the documents section used to
- * defer this until its form opened, which was worth doing while it was the only
- * consumer, and stopped being worth doing the moment the team section — which
- * cannot draw a single row without it — appeared beside it. Two deferrals would
- * be two requests for one list.
+ * One read for the whole editor. It lives in `ProjectEditor` and is passed down, rather than each
+ * section fetching its own: the documents section used to defer this until its form opened, which
+ * was worth doing while it was the only consumer and stopped being worth doing the moment the team
+ * section — which cannot draw a single row without it — appeared beside it.
  *
- * A failure is silent on purpose. The sections degrade rather than break: the
- * credit picker still offers whoever is signed in, and the team section says it
- * could not load the roster. A red line about a list nobody asked for would be a
- * strange thing to meet on pressing EDIT PAGE.
+ * A failure is silent on purpose. The sections degrade rather than break: the credit picker still
+ * offers whoever is signed in, and the team section says it could not load the roster. A red line
+ * about a list nobody asked for would be a strange thing to meet on pressing EDIT PAGE.
  */
 export type ProjectRoster = {
   members: ApiProjectTeamMember[]
@@ -38,11 +34,10 @@ export const EMPTY_ROSTER: ProjectRoster = {
 }
 
 /**
- * Returned as a pair rather than a value, because one section writes to it. The
- * team editor's baseline for "has this box changed" is the roster itself, so a
- * save that did not move it would leave every field reporting itself as unsaved
- * — and the documents section beside it reads the same list, which is why the
- * answer is one piece of state up here rather than a copy in each.
+ * Returned as a pair rather than a value, because one section writes to it. The team editor's
+ * baseline for "has this box changed" is the roster itself, so a save that did not move it would
+ * leave every field reporting itself as unsaved — and the documents section beside it reads the
+ * same list, which is why the answer is one piece of state up here rather than a copy in each.
  */
 export function useProjectRoster(
   projectId: string,

@@ -10,20 +10,19 @@ import { PanelStatus, noteClass, type PanelMessage } from './profileChrome'
 /**
  * Deleting the account, and the warning in front of it.
  *
- * **The warning lists what actually goes, because the cascades are not
- * obvious.** "Your account will be deleted" reads as a login being removed;
- * what really happens is that the club's record of every payment this person
- * made, every part it printed for them and every tool it lent them goes with
- * it. Somebody is entitled to that — it is their data — but they are not
- * entitled to be surprised by it.
+ * The warning lists what actually goes, because the cascades are not obvious. "Your account will be
+ * deleted" reads as a login being removed; what really happens is that the club's record of every
+ * payment this person made, every part it printed for them and every tool it lent them goes with
+ * it. Somebody is entitled to that — it is their data — but they are not entitled to be surprised
+ * by it.
  *
- * Two things the server refuses rather than cascading, and the panel shows its
- * sentence for both: equipment still out, and an open seat on the officer
- * board. Neither is a case where the right answer is "are you sure?".
+ * Two things the server refuses rather than cascading, and the panel shows its sentence for both:
+ * equipment still out, and an open seat on the officer board. Neither is a case where the right
+ * answer is "are you sure?".
  *
- * The password is asked for inside the dialog rather than in the panel, so the
- * one credential on this page that is worth typing carefully is typed at the
- * moment of the decision and not five minutes before it.
+ * The password is asked for inside the dialog rather than in the panel, so the one credential on
+ * this page worth typing carefully is typed at the moment of the decision and not five minutes
+ * before it.
  */
 export function DeleteAccountPanel({ fullName }: { fullName: string }) {
   const { refresh } = useSession()

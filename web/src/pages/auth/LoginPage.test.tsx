@@ -15,12 +15,11 @@ import { bodyOf, urlOf } from '../../test/stubFetch'
  * Signing in.
  *
  * Real timers throughout, so `findBy*` and `waitFor` behave — see the note in
- * `.claude/docs/testing.md` about what happens when they are used under fake
- * ones. Nothing on this page is debounced, so there is no reason for fake
- * timers here.
+ * `.claude/docs/testing.md` about what happens under fake ones. Nothing on this page is debounced,
+ * so there is no reason for fake timers here.
  *
- * The page shares a `fetch` with the session provider wrapped around it, which
- * asks `/auth/me` on mount. Every stub below has to answer both.
+ * The page shares a `fetch` with the session provider wrapped around it, which asks `/auth/me` on
+ * mount. Every stub below has to answer both.
  */
 
 /**
@@ -105,10 +104,9 @@ describe('LoginPage', () => {
   })
 
   /**
-   * The server says one thing for a wrong password, an unknown address and an
-   * account with no password set, and the page shows exactly that rather than
-   * paraphrasing — paraphrasing is how the three grow apart again, and the
-   * whole point is that this form cannot answer "is this person a member".
+   * The server says one thing for a wrong password, an unknown address and an account with no
+   * password set, and the page shows exactly that rather than paraphrasing — paraphrasing is how
+   * the three grow apart again, and this form must not answer "is this person a member".
    */
   it('shows the server refusal as written, without inventing a reason', async () => {
     stubAuth({

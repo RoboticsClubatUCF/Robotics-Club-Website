@@ -12,35 +12,25 @@ import type { ApiAboutPage } from '../../lib/api/api'
 import { isOfficer, useSession } from '../../lib/auth/session'
 
 /**
- * `/about` — what the club is, for somebody who has not decided yet.
+ * `/about` — what the club is, for somebody who hasn't decided yet.
  *
- * The stat strip's "ESTABLISHED 1972" cell points here, which sets what the page
- * has to answer: who these people are, what they actually do all week, and where
- * to find them. Joining is the front page's job and the FAQ's; this page ends
- * with the link and does not repeat the argument.
+ * The stat strip's "ESTABLISHED 1972" cell points here, which sets what the page has to answer:
+ * who these people are, what they actually do all week, and where to find them. Joining is the
+ * front page's job and the FAQ's; this page ends with the link and doesn't repeat the argument.
  *
- * **Every word of it is the club's now, and officers write it here.** The
- * history was placeholder prose in `src/content/about.ts` under a panel
- * admitting as much — honest, and a dead end, because the only way to retire the
- * admission was a deploy and the person who was there in 1972 is not a
- * developer. The panel is `storyNotice` now: a field they empty when the story
- * below it is real. The whole page is one row and one short table behind
- * `GET /api/about`, and an officer gets an EDIT button on the page itself rather
- * than a desk somewhere else — see `AboutEditor`.
+ * Every word of it is the club's now, and officers write it here. The history was placeholder
+ * prose under a panel admitting as much — honest, and a dead end, because the only way to retire
+ * the admission was a deploy and the person who was there in 1972 isn't a developer. The panel is
+ * `storyNotice` now: a field they empty when the story below it is real. An officer gets an EDIT
+ * button on the page itself rather than a desk somewhere else.
  *
- * **The club's divisions are gone from this page**, and then from the club.
- * They were the live half of it, fetched from `GET /api/subteams` and drawn
- * under / WHAT WE DO, and the section was doing two jobs badly: introducing an
- * org chart to somebody who has not joined, and duplicating a filter `/members`
- * already offered. The route and the table went afterwards; a team is a working
- * group inside one project now and there is no club-wide grouping to print. The
- * page is shorter and the club's own words are what is left.
+ * The club's divisions are gone from this page, and then from the club. The section was doing two
+ * jobs badly: introducing an org chart to somebody who hasn't joined, and duplicating a filter
+ * `/members` already offered. A team is a working group inside one project now.
  *
- * **Nothing here prints the lab's hours.** The building's 8am–10pm rule lives on
- * the server and `lib/lab/lab.ts` holds the words for the officer panel that is
- * *itself* the promise — a public page saying "open at eight" commits an officer
- * who may not be coming until noon. The lab sign on the front page answers "is
- * it open right now", which is the question this page can honestly forward.
+ * Nothing here prints the lab's hours. The building's 8am-10pm rule lives on the server, and a
+ * public page saying "open at eight" commits an officer who may not be coming until noon. The lab
+ * sign on the front page answers "is it open right now".
  */
 export function AboutPage() {
   const { session } = useSession()
@@ -52,19 +42,16 @@ export function AboutPage() {
   const [editing, setEditing] = useState(false)
 
   /**
-   * Read fresh **for officers only**, and read again when the session lands.
+   * Read fresh for officers only, and read again when the session lands.
    *
-   * The public route is `s-maxage=300` like the rest of the club's content,
-   * which is right for a visitor and wrong for the person about to edit it: an
-   * officer handed a five-minute-old page would save a five-minute-old page over
-   * whatever the last one wrote. Everybody else gets the cached answer, because
-   * the alternative is giving up the cache on a public page to serve the two
-   * people who can write it.
+   * The public route is `s-maxage=300` like the rest of the club's content, which is right for a
+   * visitor and wrong for the person about to edit it: an officer handed a five-minute-old page
+   * would save a five-minute-old page over whatever the last one wrote. Everybody else gets the
+   * cached answer.
    *
-   * The effect re-runs when `officer` flips, which is the session arriving —
-   * hence one extra request for an officer and none for anyone else. `page` is
-   * deliberately not cleared on the way in, so that refetch is invisible rather
-   * than a page that blinks back to "Loading…" a moment after it appeared.
+   * The effect re-runs when `officer` flips, which is the session arriving — one extra request
+   * for an officer and none for anyone else. `page` is deliberately not cleared on the way in, so
+   * that refetch is invisible rather than a page that blinks back to "Loading…".
    */
   const load = useCallback(
     (signal?: AbortSignal) =>
@@ -132,11 +119,9 @@ export function AboutPage() {
   return (
     <>
       <section className="px-page py-12 wide:py-18">
-        {/* Beside the eyebrow rather than beside the heading, and in the same
-            quiet mono the rest of the page's chrome is set in. The heading
-            clamps from 1.6rem to 2.25rem, so a control next to *that* either
-            collides with it or leaves a hole at one end of the range — and this
-            is a door for two people rather than an invitation to the reader. */}
+        {/* Beside the eyebrow rather than the heading, and in the same quiet mono the rest of the
+            page's chrome is set in. The heading clamps from 1.6rem to 2.25rem, so a control next
+            to that either collides with it or leaves a hole at one end of the range. */}
         <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
           <FormEyebrow>/ ABOUT</FormEyebrow>
           {officer && (

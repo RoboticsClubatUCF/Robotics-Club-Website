@@ -16,27 +16,22 @@ import { rateLimit } from '../../core/rateLimit.js'
 import { type AuthEnv, originGuard, requireAuth } from '../../auth/session.js'
 
 /**
- * Writing to the calendar. Reading stays where it was: the public list in
- * `content.ts` (published rows only, an invariant with its own test) and the
- * member's own view in `me.ts`.
+ * Writing to the calendar. Reading stays where it was: the public list in `content.ts` (published
+ * rows only, an invariant with its own test) and the member's own view in `me.ts`.
  *
  *   POST   /api/events      -> a project, team or club event (leads / officers)
  *   PATCH  /api/events/:id  -> edit  (creator, project lead over their teams, officers)
  *   DELETE /api/events/:id  -> same matrix
  *
- * **Where an event hangs is what scopes the permission check**, and there are
- * three answers now rather than two: a team's lead, a project's lead, or — for
- * a row belonging to no project at all — an officer. That last case is what the
- * events desk at `/dashboard/events` is largely for; the model always allowed
- * it and `requireEventManager` always handled it, but this router could not
- * express it until now.
+ * Where an event hangs is what scopes the permission check, and there are three answers rather than
+ * two: a team's lead, a project's lead, or — for a row belonging to no project — an officer. That
+ * last case is what the events desk at `/dashboard/events` is largely for; the model always allowed
+ * it and `requireEventManager` always handled it, but this router could not express it until now.
  *
- * `published` stays false unless an officer says otherwise, so the public
- * site's calendar of *events* remains entirely officer-curated no matter how
- * many leads are scheduling things. Project **meetings** are the one deliberate
- * exception and they do not come through here at all — they are three columns
- * on `Project`, expanded by `src/projects/meetings.ts`, and gated by `meetingsPublic`,
- * which is likewise an officer's switch.
+ * `published` stays false unless an officer says otherwise, so the public calendar of events stays
+ * officer-curated however many leads are scheduling things. Project meetings are the one deliberate
+ * exception and do not come through here at all — they are three columns on `Project`, expanded by
+ * `src/projects/meetings.ts` and gated by `meetingsPublic`, which is likewise an officer's switch.
  */
 export const eventManage = new Hono<AuthEnv>()
 
@@ -68,23 +63,20 @@ const eventBody = z.object({
   endsAt: z.coerce.date().nullable().optional(),
   allDay: z.boolean().default(false),
   /**
-   * Optional, and **absent means club business** — an officer-curated row with
-   * no project, which is what the events desk is largely for.
+   * Optional, and absent means club business — an officer-curated row with no project, which is
+   * what the events desk is largely for.
    *
-   * It used to be required, which made this router able to express only half of
-   * what the model already allowed: `Event.projectId` is nullable, and
-   * `requireEventManager` has always had a branch for the null case ("an event
-   * with no project is site business"). The only rows that could reach that
-   * branch were ones seeded straight into Postgres. Now an officer can make one.
+   * It used to be required, which made this router able to express only half of what the model
+   * allowed: `Event.projectId` is nullable and `requireEventManager` has always had a branch for
+   * the null case. The only rows that could reach it were ones seeded straight into Postgres.
    */
   projectId: z.uuid().optional(),
   teamId: z.uuid().nullable().optional(),
   /**
-   * Where to sign up, when a thing needs signing up for. Read back by
-   * `managedEventSelect` and printed by the calendar since before this router
-   * existed — it simply had no way in, so the only rows carrying one were the
-   * seed's. An outreach event whose registration link can be read but not set
-   * is a column nobody can use.
+   * Where to sign up, when a thing needs signing up for. Read back by `managedEventSelect` and
+   * printed by the calendar since before this router existed — it simply had no way in, so the only
+   * rows carrying one were the seed's. An outreach event whose registration link can be read but
+   * not set is a column nobody can use.
    */
   registrationUrl: webUrl().nullable().optional(),
   published: z.boolean().optional(),

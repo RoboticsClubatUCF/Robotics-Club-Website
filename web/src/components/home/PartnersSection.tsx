@@ -3,28 +3,20 @@ import type { ApiState } from '../../lib/api/useApi'
 import { imageSrc } from '../../lib/media/storedFiles'
 
 /**
- * The programs somebody can take part in when they cannot join the club.
+ * The programs somebody can take part in when they can't join the club.
  *
- * Membership is for currently enrolled UCF students and the signup will not
- * bend on it — a working `@ucf.edu` address is the whole of step one. Until
- * now that left everybody else reading a page about robotics with nothing on
- * it they could do, which is what this section answers: the programs the club
- * is involved with that are open to people it cannot sign up itself. The join
- * page links straight here for exactly that reason.
+ * Membership is for currently enrolled UCF students and the signup won't bend on it. Until now
+ * that left everybody else reading a page about robotics with nothing on it they could do, which
+ * is what this section answers: the programs the club is involved with that are open to people it
+ * can't sign up itself. The join page links straight here.
  *
- * It sits between the officers and the FAQ on purpose. Anybody who has read
- * that far is looking for a way in, and the FAQ's first question is about
- * joining — this is the answer for the readers that question does not fit.
+ * It sits between the officers and the FAQ on purpose. Anybody who has read that far is looking
+ * for a way in, and the FAQ's first question is about joining — this is the answer for the
+ * readers that question doesn't fit.
  *
- * **The blurbs and the artwork shipped as placeholders and are rows now.** The
- * names and the two official sites are real; everything else was written to be
- * replaced, which is why a card with no image draws a held-open well rather than
- * collapsing to fit — and replacing it is a form at
- * `/dashboard/officer/front-page` rather than a pull request, which was the
- * whole problem with copy nobody on the club's side could edit.
- *
- * `HomePage` fetches these with the rest of the page's words; see the note there
- * for why one request rather than three.
+ * The blurbs and the artwork shipped as placeholders and are rows now. The names and the two
+ * official sites are real; everything else was written to be replaced, which is why a card with no
+ * image draws a held-open well rather than collapsing.
  */
 
 /**
@@ -36,11 +28,9 @@ import { imageSrc } from '../../lib/media/storedFiles'
 const gridClass = 'bg-rule border-rule grid gap-px border wide:grid-cols-2'
 
 /**
- * A fixed height whether or not there is artwork in it, the same rule the
- * sponsor logos follow: a partner who sends a wordmark must not make their card
- * taller than the one beside it. Taller than the sponsor strip's well because
- * these cards are the subject of their section rather than a passing row of
- * logos.
+ * A fixed height whether or not there's artwork in it, the same rule the sponsor logos follow: a
+ * partner who sends a wordmark must not make their card taller than the one beside it. Taller than
+ * the sponsor strip's well because these cards are the subject of their section.
  */
 const wellClass =
   'border-rule flex h-40 shrink-0 items-center justify-center border-b p-6'
@@ -49,18 +39,15 @@ export function PartnersSection({ copy }: { copy: ApiState<ApiFrontPage> }) {
   const programs = copy.status === 'ready' ? copy.data.partners : []
 
   /**
-   * **No skeleton and no error message: the section is simply not there yet.**
+   * No skeleton and no error message: the section is simply not there yet.
    *
-   * Every other section on this page holds its shape while it waits, because
-   * every other section is one a visitor came looking for. This one exists to
-   * catch the reader the club cannot sign up — it has no heading anybody is
-   * scrolling to and no fixed height — so reserving space for it would mean
-   * reserving space for something that may turn out not to exist, and a
-   * bordered empty box is worse than a section that arrives a moment late.
+   * Every other section on this page holds its shape while it waits, because every other section
+   * is one a visitor came looking for. This one exists to catch the reader the club can't sign up
+   * — it has no heading anybody is scrolling to — so reserving space would mean reserving space
+   * for something that may turn out not to exist.
    *
-   * An empty list is the same answer as a failed request here, and that is the
-   * one place on this page where it should be: taking the section down is a
-   * thing officers do, and a visitor cannot act on the difference.
+   * An empty list is the same answer as a failed request here, and this is the one place on the
+   * page where it should be: taking the section down is a thing officers do.
    */
   if (programs.length === 0) return null
 
@@ -88,16 +75,13 @@ export function PartnersSection({ copy }: { copy: ApiState<ApiFrontPage> }) {
                 }`}
               >
                 {program.imageUrl ? (
-                  /* Decorative: the name is printed directly below, so
-                     announcing the artwork too reads the program out twice.
-                     `object-contain` rather than `cover` because what lands
-                     here is most likely a wordmark, and a cropped logo looks
-                     like a mistake in a way a letterboxed photo does not.
+                  /* Decorative: the name is printed directly below, so announcing the artwork too
+                     reads the program out twice. `object-contain` rather than `cover` because
+                     what lands here is most likely a wordmark, and a cropped logo looks like a
+                     mistake in a way a letterboxed photo doesn't.
 
-                     Through `imageSrc` even though this is copy rather than a
-                     column: an upload's address is root-relative and the API is
-                     another origin, and forgetting it is the failure that shows
-                     up as a broken image with nothing in the console. */
+                     Through `imageSrc` even though this is copy rather than a column: an upload's
+                     address is root-relative and the API is another origin. */
                   <img
                     src={imageSrc(program.imageUrl)}
                     alt=""

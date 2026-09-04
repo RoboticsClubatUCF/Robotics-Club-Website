@@ -25,11 +25,10 @@ describe('SiteFooter', () => {
   })
 
   /**
-   * The row is four logos, so the *only* name each link has is the one the
-   * anchor spells out — the glyph inside it is `aria-hidden`. Drop the
-   * `aria-label` in a refactor and the footer keeps looking right while four of
-   * its links go nameless, which is the kind of break nothing else here would
-   * catch.
+   * The row is four logos, so the only name each link has is the one the anchor spells out — the
+   * glyph inside it is `aria-hidden`. Drop the `aria-label` in a refactor and the footer keeps
+   * looking right while four of its links go nameless, which is the kind of break nothing else here
+   * would catch.
    */
   it('names each account in words, since the link no longer shows any', () => {
     render(<SiteFooter />)
@@ -43,10 +42,10 @@ describe('SiteFooter', () => {
   })
 
   /**
-   * `SiteFooter` falls back to the word for a label `socialMarks` doesn't know,
-   * so a fifth account added to `content/home.ts` without a glyph ships as one
-   * plain word in a row of logos rather than as a broken footer. That is the
-   * right failure, but it is a quiet one — this is what says so out loud.
+   * `SiteFooter` falls back to the word for a label `socialMarks` does not know, so a fifth account
+   * added to `content/home.ts` without a glyph ships as one plain word in a row of logos rather
+   * than as a broken footer. That is the right failure, but it is a quiet one — this is what says
+   * so out loud.
    */
   it('has a mark for every account in the list', () => {
     for (const link of socialLinks) {
@@ -55,10 +54,9 @@ describe('SiteFooter', () => {
   })
 
   /**
-   * The footer is the theme switch's only home on the site, and it is on every
-   * route — so this is what says the control exists at all. It moved here from
-   * the nav: it is a setting rather than a destination, and the bar is a row of
-   * destinations that was already three things wide at 320px.
+   * The footer is the theme switch's only home on the site, and it is on every route — so this is
+   * what says the control exists at all. It moved here from the nav: it is a setting rather than a
+   * destination, and the bar was already three things wide at 320px.
    */
   it('carries the theme switch', () => {
     render(<SiteFooter />)

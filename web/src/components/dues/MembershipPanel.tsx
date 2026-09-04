@@ -10,15 +10,13 @@ import {
 /**
  * Where a member stands, in one panel, on both the dashboard and the dues page.
  *
- * Four statuses and four different things to say, and the split that matters is
- * between the two that look identical from the member's side today: `FREE` and
- * `TRIAL` both mean "you owe nothing right now", and only one of them has a
- * date on which that stops. Collapsing them into "membership is free" is how
- * somebody finds out otherwise at the lab door.
+ * Four statuses, and the split that matters is between the two that look identical from the
+ * member's side: `FREE` and `TRIAL` both mean "you owe nothing right now", and only one of them has
+ * a date on which that stops. Collapsing them into "membership is free" is how somebody finds out
+ * otherwise at the lab door.
  *
- * Every state names the date. A status with no date in it — "your trial is
- * active" — is the version of this panel that generates the questions it was
- * built to answer.
+ * So every state names the date. "Your trial is active", with no date in it, is the version of this
+ * panel that generates the questions it was built to answer.
  */
 export function MembershipPanel({
   membership,
@@ -60,14 +58,11 @@ export function MembershipPanel({
 /**
  * The date beside the status, which used to be the name of the term.
  *
- * The term was the least useful thing that could go there — somebody reading
- * their own membership already knows what semester it is, and what they came to
- * find out is when it runs out. Every state has a date worth naming: the day
- * cover ends for anybody active, the day the free run closes on a trial or a
- * break, and for somebody expired the day it already lapsed.
- *
- * Falls back to the term only when there is genuinely no date — an account that
- * has never paid anything and is past the trial.
+ * The term was the least useful thing that could go there — somebody reading their own membership
+ * knows what semester it is, and what they came to find out is when it runs out. Every state has a
+ * date worth naming: when cover ends for anybody active, when the free run closes on a trial or a
+ * break, and for somebody expired the day it already lapsed. Falls back to the term only when
+ * there's genuinely no date — never paid anything, past the trial.
  */
 function ExpiryChip({ membership }: { membership: ApiMembership }) {
   const [label, date] =
@@ -125,10 +120,9 @@ function Explanation({
     )
   }
 
-  // `!freeActive` is redundant against the branch above and is here anyway: it
-  // is the condition that makes this branch true on its own terms rather than
-  // by being second. `paidThrough` is only *current* cover for somebody active
-  // on a payment — a claimed free window leaves a lapsed date sitting there,
+  // `!freeActive` is redundant against the branch above and is here anyway: it's what makes this
+  // branch true on its own terms rather than by being second. `paidThrough` is only *current* cover
+  // for somebody active on a payment — a claimed free window leaves a lapsed date sitting there,
   // and reading that one back as "paid through" is a bug this page has had.
   if (
     membership.status === 'ACTIVE' &&
@@ -150,14 +144,12 @@ function Explanation({
   }
 
   /**
-   * Free, and **not claimed** — which is the state that changed meaning.
+   * Free, and not claimed — the state that changed meaning.
    *
-   * `FREE` used to say "the club is charging nobody, so you are covered". It
-   * now says "the club is charging nobody, and you are still not covered",
-   * because access is the dues date and this person has none. So the lead line
-   * has to be about them rather than about the calendar: somebody who reads
-   * "summer is free" and then cannot open the print page has been told the
-   * wrong thing.
+   * `FREE` used to say "the club is charging nobody, so you're covered". It now says "the club is
+   * charging nobody, and you're still not covered", because access is the dues date and this person
+   * has none. So the lead line has to be about them rather than about the calendar: somebody who
+   * reads "summer is free" and then can't open the print page has been told the wrong thing.
    */
   if (membership.status === 'FREE') {
     return (

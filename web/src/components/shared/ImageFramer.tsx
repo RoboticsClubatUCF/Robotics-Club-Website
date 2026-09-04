@@ -14,24 +14,20 @@ import {
 /**
  * Choosing what a picture shows, in the frame it will actually be shown in.
  *
- * The preview *is* the frame the picture ends up in — same aspect ratio, same
- * `overflow-hidden`, same `frameStyle` — so there is no interpretation between
- * what somebody drags into place and what a visitor sees. A crop tool that
- * previews at a different shape is a crop tool people have to do arithmetic
- * against, which is why `frame` is a prop rather than a constant: a gallery
- * slide is 16:10 and an avatar is square, and previewing either one against the
- * other's shape would be exactly the tool this is trying not to be.
+ * The preview *is* that frame — same aspect ratio, same `overflow-hidden`, same `frameStyle` — so
+ * there is no interpretation between what somebody drags into place and what a visitor sees. A crop
+ * tool that previews at a different shape is one people have to do arithmetic against, which is why
+ * `frame` is a prop rather than a constant: a gallery slide is 16:10 and an avatar is square.
  *
- * Drawn inline rather than in a modal. It wants to be big, it has no
- * destructive act to guard, and `ConfirmDialog`'s careful focus handling exists
- * for decisions rather than for adjustments — reproducing it here would be a
- * second copy of the fiddliest code in `shared/`.
+ * Drawn inline rather than in a modal. It wants to be big, it has no destructive act to guard, and
+ * `ConfirmDialog`'s careful focus handling exists for decisions rather than adjustments —
+ * reproducing it here would be a second copy of the fiddliest code in `shared/`.
  *
- * Nothing is written until the confirming press. Panning is continuous, so
- * saving as it moved would be a request per frame of a drag.
+ * Nothing is written until the confirming press: panning is continuous, so saving as it moved would
+ * be a request per frame of a drag.
  *
- * It lives in `shared/` because three places use it now — the project editor,
- * the draft gallery on the create page, and the profile photo.
+ * In `shared/` because three places use it — the project editor, the draft gallery on the create
+ * page, and the profile photo.
  */
 export function ImageFramer({
   url,
@@ -51,10 +47,9 @@ export function ImageFramer({
   /**
    * The confirming button's words.
    *
-   * DONE is right when the picture is already stored and this is an
-   * adjustment. It is wrong when framing happens *before* the upload, where the
-   * press is what sends the photo at all — and a button that does not say so is
-   * how somebody leaves the page believing they saved something.
+   * DONE is right when the picture is already stored and this is an adjustment. It is wrong when
+   * framing happens before the upload, where the press is what sends the photo at all — and a
+   * button that does not say so is how somebody leaves the page believing they saved something.
    */
   confirmLabel?: string
   onCancel: () => void
@@ -91,12 +86,10 @@ export function ImageFramer({
         aria-label="Drag to choose what this picture shows"
         tabIndex={0}
         onPointerDown={(event) => {
-          // Keeps the drag arriving here once the pointer leaves the frame,
-          // which it will the moment somebody pans to an edge. Guarded because
-          // it is an enhancement rather than a requirement: it throws on a
-          // pointer id the browser has already released, and jsdom does not
-          // implement it at all — and a throw in here would take the drag with
-          // it, which is the thing it exists to improve.
+          // Keeps the drag arriving here once the pointer leaves the frame, which it will the
+          // moment somebody pans to an edge. Guarded because it is an enhancement rather than a
+          // requirement: it throws on a pointer id the browser has already released, and jsdom does
+          // not implement it at all — and a throw in here would take the drag with it.
           try {
             event.currentTarget.setPointerCapture(event.pointerId)
           } catch {

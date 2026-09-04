@@ -80,10 +80,10 @@ describe('SponsorsSection', () => {
   })
 
   /**
-   * The loop is one translation: slide the track back by exactly one copy of
-   * the list and start again. That is seamless only while the shift and the
-   * number of copies agree — if they ever drift apart the strip visibly jumps
-   * once per cycle, which is the kind of bug that survives a screenshot.
+   * The loop is one translation: slide the track back by exactly one copy of the list and start
+   * again. That is seamless only while the shift and the number of copies agree — if they drift
+   * apart the strip visibly jumps once per cycle, which is the kind of bug that survives a
+   * screenshot.
    */
   it('shifts the track by exactly one copy of the list', async () => {
     vi.stubGlobal('fetch', stubFetch({ '/sponsors': [sponsor()] }))

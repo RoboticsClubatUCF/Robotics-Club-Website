@@ -21,23 +21,18 @@ type Person = { userId: string; fullName: string }
 /**
  * The `/ DOCUMENTATION` section of the project editor.
  *
- * **Nothing here is published until the page is saved**, which is the opposite
- * of what this section used to do: ADD sent the file, EDIT DETAILS wrote on the
- * spot, and REMOVE deleted bytes — none of it touched by the SAVE at the foot of
- * the page. The argument for that was that every action here owns bytes and
- * therefore owns a failure worth seeing immediately. The argument against it won:
- * a section that published a document a lead had not finished thinking about,
- * from a page whose button said SAVE, was the surprise this editor kept handing
- * people.
+ * Nothing here is published until the page is saved, which is the opposite of what this section
+ * used to do: ADD sent the file, EDIT DETAILS wrote on the spot, and REMOVE deleted bytes — none
+ * of it touched by the SAVE at the foot of the page. The argument for that was that every action
+ * owns bytes and therefore a failure worth seeing immediately. The argument against won: a
+ * section that published a document a lead hadn't finished thinking about, from a page whose
+ * button said SAVE, was the surprise this editor kept handing people.
  *
- * What that costs is the size refusal, which now arrives at save time rather than
- * at the moment of choosing. `tooBig` and `wrongFormat` below are the answer —
- * both are checked in the browser first, so the server should have nothing left
- * to say by the time it is asked.
+ * What that costs is the size refusal, which now arrives at save time rather than at the moment
+ * of choosing. `tooBig` and `wrongFormat` are the answer — both checked in the browser first.
  *
- * **ADD still validates, and that is why nothing else has to.** A row only joins
- * the list once it has a title, a credit and a file, so every draft row is
- * sendable and the page's SAVE is never blocked on this section.
+ * ADD still validates, and that's why nothing else has to: a row only joins the list once it has
+ * a title, a credit and a file, so every draft row is sendable.
  */
 export function DocumentsEditor({
   project,
@@ -57,11 +52,10 @@ export function DocumentsEditor({
   /**
    * Who this project can credit, read once by `ProjectEditor` and handed down.
    *
-   * **This section used to fetch it itself, deferred until a form opened**, on
-   * the grounds that most visits to the editor are somebody fixing a sentence
-   * and should not pay for a roster nobody reads. That was right while this was
-   * the only consumer; the team section beside it cannot draw a single row
-   * without the same list, so deferring here now only means asking twice.
+   * This section used to fetch it itself, deferred until a form opened, on the grounds that most
+   * visits are somebody fixing a sentence. That was right while this was the only consumer; the
+   * team section beside it can't draw a single row without the same list, so deferring here now
+   * only means asking twice.
    */
   roster: ProjectRoster
   registry: SaveRegistry
@@ -88,12 +82,11 @@ export function DocumentsEditor({
   })
 
   /**
-   * The roster, plus whoever is editing if they are not on it.
+   * The roster, plus whoever is editing if they aren't on it.
    *
-   * That second half is the officer case: an officer may edit any project
-   * without being a member of it, and the server credits them to themselves
-   * happily — so leaving them out would make them the one person who cannot be
-   * named as the author of the thing they just wrote.
+   * That second half is the officer case: an officer may edit any project without being a member
+   * of it, and the server credits them to themselves happily — so leaving them out would make
+   * them the one person who can't be named as the author of the thing they just wrote.
    */
   const people: Person[] = (() => {
     const listed = roster.members.map((member) => ({
@@ -371,15 +364,12 @@ const nameOf = (people: Person[], userId: string) =>
 /**
  * Title, blurb, credit — and, when adding, the file.
  *
- * One component for both because a document being edited and a document being
- * written have exactly the same fields, and two copies is how the credit box
- * ends up on one of them.
+ * One component for both because a document being edited and one being written have exactly the
+ * same fields, and two copies is how the credit box ends up on one of them.
  *
- * `currentAuthor` is what tells the two apart. A new document has to choose
- * somebody, and defaults to whoever is signed in; an existing one starts on
- * "leave the credit alone", spelled with the existing author's name so the select
- * is not lying about what it will do. That option's value is empty, and the
- * caller reads that as "send no `authorUserId`".
+ * `currentAuthor` tells the two apart. A new document has to choose somebody and defaults to
+ * whoever is signed in; an existing one starts on "leave the credit alone", spelled with the
+ * existing author's name so the select isn't lying about what it will do.
  */
 function DocumentFields({
   idPrefix,
@@ -396,10 +386,9 @@ function DocumentFields({
   idPrefix: string
   people: Person[]
   /**
-   * Who the credit starts on for a new document — whoever is signed in. Passed
-   * down rather than picked out of `people` here, because "me" is not a
-   * position in that list: a lead is usually near the top of their own roster
-   * and an officer is appended to the end of it.
+   * Who the credit starts on for a new document — whoever is signed in. Passed down rather than
+   * picked out of `people` here, because "me" isn't a position in that list: a lead is usually
+   * near the top of their own roster and an officer is appended to the end of it.
    */
   defaultAuthorId: string
   busy: boolean
@@ -545,20 +534,17 @@ function DocumentFields({
 /**
  * The two formats, as the file picker's filter and as a check before the save.
  *
- * Checked here as well as on the server, for the reason the print form checks
- * its own: a wrong file should say so instantly rather than after fifteen
- * megabytes have gone up the wire. The server is what actually refuses — the
- * `accept` attribute is a suggestion a person can override in the picker, and
- * an extension says nothing about the bytes.
+ * Checked here as well as on the server, for the reason the print form checks its own: a wrong
+ * file should say so instantly rather than after fifteen megabytes have gone up the wire. The
+ * server is what actually refuses — the `accept` attribute is a suggestion a person can override.
  */
 const ACCEPTED = '.pdf,.docx'
 
 /**
- * `MAX_DOCUMENT_FILE_MB` in `server/src/core/env.ts`, which is what the route's
- * `bodyLimit` is built from. Mirrored rather than fetched because the refusal has
- * to happen at the moment of choosing: the upload itself no longer goes until the
- * page is saved, and "that one is too big" is a useless thing to learn about a
- * file chosen ten minutes and four sections ago.
+ * `MAX_DOCUMENT_FILE_MB` in `server/src/core/env.ts`, which is what the route's `bodyLimit` is
+ * built from. Mirrored rather than fetched because the refusal has to happen at the moment of
+ * choosing: "that one is too big" is a useless thing to learn about a file chosen ten minutes and
+ * four sections ago.
  */
 const MAX_FILE_MB = 15
 

@@ -5,31 +5,26 @@ import { ProjectMemberRank } from '../generated/prisma/enums.js'
 /**
  * Seating somebody as a project's lead, or standing them down.
  *
- * **A project has at most one `PROJECT_LEAD`, and this is the only place that
- * sentence is enforced.** `TEAM_LEAD` is deliberately not this function's
- * business and stays uncapped — a project has as many team leads as it has
- * teams, and they are granted against a team by `PATCH /projects/:id/members/:userId`
- * in `projectManage.ts`, whose own enum refuses `PROJECT_LEAD` so the two routes
- * cannot both mint one.
+ * A project has at most one `PROJECT_LEAD`, and this is the only place that sentence is enforced.
+ * `TEAM_LEAD` is deliberately not this function's business and stays uncapped — a project has as
+ * many team leads as it has teams, granted against a team by
+ * `PATCH /projects/:id/members/:userId` in `projectManage.ts`, whose own enum refuses
+ * `PROJECT_LEAD` so the two routes cannot both mint one.
  *
- * It used to be two statements in a route handler: read the incumbent, then
- * upsert. Two officers appointing different people in the same instant both
- * passed the read and both wrote, and the project ended up with two leads — a
- * state `schema.prisma` says cannot exist, visible on the manage page, and
- * fixable only by noticing it. The comment in the route said so and left it.
+ * It used to be two statements in a route handler: read the incumbent, then upsert. Two officers
+ * appointing different people in the same instant both passed the read and both wrote, and the
+ * project ended up with two leads — a state `schema.prisma` says cannot exist, visible on the
+ * manage page, and fixable only by noticing it.
  *
- * **The fix is a row lock on the project, not a partial unique index and not
- * `Serializable`.** The index is refused for the reason `OfficerTerm` refuses
- * one: Prisma cannot express it, so it would live in the database and not in
- * `schema.prisma`, and the next generated migration would emit a `DROP INDEX`
- * for it into something unrelated. `Serializable` would work and costs a
- * retry loop plus decoding a 40001 out of the driver — and Prisma 7's adapter
- * buries error codes in three shapes, which `uniqueConflict` in `signup.ts`
- * already had to learn the hard way. `SELECT … FOR UPDATE` needs neither: two
- * appointments to the *same* project queue on that project's own row at the
- * default isolation level, so the second one reads the first one's committed
- * lead and answers the 409 it should have answered. Nothing else in the
- * database is blocked, because the lock is one row wide.
+ * The fix is a row lock on the project, not a partial unique index and not `Serializable`. The
+ * index is refused for the reason `OfficerTerm` refuses one: Prisma cannot express it, so it would
+ * live in the database and not in `schema.prisma`, and the next generated migration would emit a
+ * `DROP INDEX` for it into something unrelated. `Serializable` would work and costs a retry loop
+ * plus decoding a 40001 out of the driver — and Prisma 7's adapter buries error codes in three
+ * shapes, which `uniqueConflict` in `signup.ts` already learned the hard way. `SELECT … FOR UPDATE`
+ * needs neither: two appointments to the same project queue on that project's own row at the
+ * default isolation level, so the second reads the first one's committed lead and answers the 409
+ * it should have. Nothing else is blocked, because the lock is one row wide.
  */
 export async function appointLead(
   projectId: string,
@@ -37,11 +32,10 @@ export async function appointLead(
   rank: typeof ProjectMemberRank.PROJECT_LEAD | typeof ProjectMemberRank.MEMBER,
 ) {
   return prisma.$transaction(async (tx) => {
-    // The gate. Taken before the read below and held to commit, so "is there a
-    // lead" and "there is now" cannot be separated by another transaction.
-    // Demotions take it too: standing the incumbent down and appointing their
-    // successor are the two halves of one swap an officer does in two presses,
-    // and a demotion that raced an appointment could otherwise strand both.
+    // The gate. Taken before the read below and held to commit, so "is there a lead" and "there is
+    // now" cannot be separated by another transaction. Demotions take it too: standing the
+    // incumbent down and appointing their successor are two halves of one swap an officer does in
+    // two presses, and a demotion that raced an appointment could otherwise strand both.
     await tx.$executeRaw`SELECT id FROM projects WHERE id = ${projectId} FOR UPDATE`
 
     if (rank === ProjectMemberRank.PROJECT_LEAD) {

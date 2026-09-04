@@ -9,34 +9,26 @@ import { TaskStatus } from '../generated/prisma/enums.js'
  * Asking somebody about a task whose deadline has gone past.
  *
  * The second of the bot's two DM sweeps, and it borrows its shape from
- * `equipment/equipmentReminder.ts`: a task carries its own deadline, so there
- * is no fixed afternoon when the whole club needs messaging at once.
+ * `equipment/equipmentReminder.ts`: a task carries its own deadline, so there's no fixed afternoon
+ * when the whole club needs messaging at once.
  *
- * Three things about it are worth knowing before changing any of it.
+ * The claim is `Task.remindedFor`, and it holds the deadline the message named rather than a flag
+ * or a send time. That one value deduplicates across instances, survives a restart, and re-arms
+ * itself when a lead moves the due date. A task reopened against the same past deadline doesn't
+ * earn a second message, which is correct: they were already told.
  *
- * **The claim is `Task.remindedFor`, and it holds the deadline the message
- * named** rather than a flag or a send time. That one value deduplicates across
- * instances, survives a restart, and re-arms itself when a lead moves the due
- * date — a task pushed to next Friday is a different deadline and earns a
- * second message without anybody clearing anything. A task reopened against the
- * *same* past deadline does not, which is correct: they were already told.
+ * It looks back rather than forward. The loan reminder fires before a deadline, because walking a
+ * drill back to the lab is something you do in advance; there's nothing useful to say about a task
+ * before its deadline. `TASK_OVERDUE_GRACE_MINUTES` is the club's half hour, and
+ * `TASK_OVERDUE_LOOKBACK_DAYS` is the floor that stops the first sweep after a deploy asking the
+ * whole club about last semester.
  *
- * **It looks back rather than forward.** The loan reminder fires before a
- * deadline, because walking a drill back to the lab is something you do in
- * advance. There is nothing useful to say about a task before its deadline, so
- * this waits until one is properly past: `TASK_OVERDUE_GRACE_MINUTES` is the
- * club's half hour, and `TASK_OVERDUE_LOOKBACK_DAYS` is the floor that stops
- * the first sweep after a deploy asking the whole club about last semester.
+ * One message per person, not per task. Somebody who let three things slip on the same evening
+ * has had one bad week rather than three. So the loop claims tasks and the sending happens
+ * afterwards, grouped — which is why `sent` counts messages while `claimed` counts tasks.
  *
- * **One message per person, not per task.** Somebody who let three things slip
- * on the same evening has had one bad week rather than three, and three DMs
- * thirty seconds apart is the club's own robot nagging. So the loop claims
- * tasks and the sending happens afterwards, grouped — which is also why `sent`
- * and `failed` in the report count *messages* while `claimed` counts *tasks*.
- *
- * The ten-minute tick means a message lands 30 to 40 minutes after a deadline
- * rather than exactly 30. Nothing about a task goes wrong in that slack, and
- * closing it would mean a second scheduler to keep alive.
+ * The ten-minute tick means a message lands 30 to 40 minutes after a deadline rather than exactly
+ * 30. Closing that slack would mean a second scheduler to keep alive.
  */
 
 /** Anything a member could still act on. Settled work is nobody's business. */
@@ -45,9 +37,9 @@ const CHASEABLE = [TaskStatus.OPEN, TaskStatus.IN_PROGRESS, TaskStatus.DELAYED]
 /**
  * The deadline as it was meant — on the campus wall clock.
  *
- * "Due at ten" means ten in Orlando, the same rule `labStatus.ts` owns for the
- * building's hours. Rendered in the server's own zone this would tell a member
- * their task was due at an hour nobody wrote down.
+ * "Due at ten" means ten in Orlando, the same rule `labStatus.ts` owns for the building's hours.
+ * Rendered in the server's own zone this would tell a member their task was due at an hour nobody
+ * wrote down.
  */
 const when = (at: Date) =>
   at.toLocaleString('en-US', {

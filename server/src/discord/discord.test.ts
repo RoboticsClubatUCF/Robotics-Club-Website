@@ -5,20 +5,19 @@ import { isHandleShaped, normaliseHandle } from './discord.js'
 /**
  * The Discord client, with `fetch` stubbed.
  *
- * `signup.test.ts` stubs this module out entirely, so this is where the thing
- * it stubs is actually checked. Both halves matter and neither is obvious:
- * matching the username rather than the display name is the entire reason this
- * file exists, and a failure to reach Discord must never come back looking like
- * a verdict on the handle.
+ * `signup.test.ts` stubs this module out entirely, so this is where the thing it stubs is
+ * actually checked. Both halves matter: matching the username rather than the display name is
+ * the entire reason this file exists, and a failure to reach Discord must never come back
+ * looking like a verdict on the handle.
  *
- * `checkDiscordHandle` is imported inside each test, after the environment is
- * set: the module reads its token once at import time, which is what makes the
- * unconfigured case a real state rather than a flag.
+ * `checkDiscordHandle` is imported inside each test, after the environment is set: the module
+ * reads its token once at import time, which is what makes the unconfigured case a real state
+ * rather than a flag.
  */
 
 const RESULTS = {
-  /** A member whose display name is nothing like their username — the case the
-      instructions image on the join page is about. */
+  /** A member whose display name is nothing like their username — the case the instructions
+      image on the join page is about. */
   phibi: [
     {
       user: {
@@ -40,8 +39,8 @@ const guildMember = (n: number, roles: string[] = []) => ({
   roles,
 })
 
-// Parameters are declared even though the stub ignores them, so `mock.calls`
-// types as a real pair and the assertions on the URL need no cast.
+// Parameters are declared even though the stub ignores them, so `mock.calls` types as a real
+// pair and the assertions on the URL need no cast.
 function stubDiscord(body: unknown, status = 200) {
   const stub = vi.fn((_input: string | URL | Request, _init?: RequestInit) =>
     Promise.resolve(
@@ -57,42 +56,35 @@ function stubDiscord(body: unknown, status = 200) {
 }
 
 /**
- * Import fresh, so the module picks up whatever the environment now says. The
- * token is read once at import time — that is what makes "no bot configured" a
- * state of the module rather than a flag it checks per call.
+ * Import fresh, so the module picks up whatever the environment now says. The token is read
+ * once at import time — that's what makes "no bot configured" a state of the module rather
+ * than a flag it checks per call.
  *
- * `undefined` rather than an empty string: `env.ts` requires a non-empty value
- * when the key is present at all, and refuses to start otherwise. Unsetting is
- * what "no bot" actually looks like.
+ * `undefined` rather than an empty string: `env.ts` requires a non-empty value when the key is
+ * present at all. Unsetting is what "no bot" actually looks like.
  */
 /**
- * `configured: false` means *nothing* Discord is set, not just the token.
+ * `configured: false` means nothing Discord is set, not just the token.
  *
- * The role ids have to come off with it. `env.ts` refuses to parse a role id
- * with no bot behind it — a setting that reads exactly like it is running the
- * board and cannot ask Discord anything — so leaving one in place while
- * clearing the token exits the process rather than producing the unconfigured
- * client this wants. That is the refine working; it only bit here because a
- * developer with the role sync switched on in their own `.env` runs a different
- * test than one without, which is the kind of difference a suite should not
- * have.
+ * The role ids have to come off with it. `env.ts` refuses to parse a role id with no bot behind
+ * it, so leaving one in place while clearing the token exits the process rather than producing
+ * the unconfigured client this wants. It only bit here because a developer with the role sync
+ * switched on in their own `.env` runs a different test than one without.
  */
 const ROLE_KEYS = [
   'DISCORD_OFFICER_ROLE_ID',
   'DISCORD_MEMBER_ROLE_ID',
   'DISCORD_PROJECT_LEAD_ROLE_ID',
   'DISCORD_TEAM_LEAD_ROLE_ID',
-  // Not a role, and cleared for exactly the same two reasons: `env.ts` refuses
-  // it without a bot behind it, and the club's own channel id in a developer's
-  // `.env` would otherwise decide what `labChannelConfigured` says here.
-  // **Every id under the bot belongs on this list** — adding one to `env.ts`
-  // and not to this is a suite that exits the process instead of failing.
+  // Not a role, and cleared for the same two reasons: `env.ts` refuses it without a bot behind
+  // it, and the club's own channel id in a developer's `.env` would otherwise decide what
+  // `labChannelConfigured` says here. Every id under the bot belongs on this list — adding one
+  // to `env.ts` and not to this is a suite that exits the process instead of failing.
   'DISCORD_LAB_CHANNEL_ID',
   'DISCORD_LAB_MESSAGE_ID',
-  // Not a snowflake either — the application public key — and on this list for
-  // the same reason as the two above it. `env.ts` refuses it without a bot, and
-  // a developer's real one left in place would decide what
-  // `interactionsConfigured` says here.
+  // Not a snowflake either — the application public key — and on this list for the same reason:
+  // `env.ts` refuses it without a bot, and a developer's real one left in place would decide
+  // what `interactionsConfigured` says here.
   'DISCORD_PUBLIC_KEY',
 ] as const
 
@@ -101,15 +93,11 @@ async function load(configured = true) {
   vi.stubEnv('DISCORD_BOT_TOKEN', configured ? 'test-bot-token' : undefined)
   vi.stubEnv('DISCORD_GUILD_ID', configured ? '123456789012345678' : undefined)
 
-  // **Every role id is cleared, both ways round**, and the suite is hermetic
-  // because of it. Two things go wrong otherwise. Cleared bot with a role id
-  // left in place exits the process: `env.ts` refuses a role id with no bot
-  // behind it, which is that refine doing its job. And a *set* role id in a
-  // developer's own `.env` leaks in the other direction — the module constants
-  // are read at import, so `officerRoleId` would be the club's real snowflake
-  // for anybody who has switched the sync on locally and null for everybody
-  // else. A suite that tests something different depending on whose machine it
-  // runs on is worse than one that tests the wrong thing consistently.
+  // Every role id is cleared, both ways round, and the suite is hermetic because of it. A
+  // cleared bot with a role id left in place exits the process, which is `env.ts`'s refine
+  // doing its job. And a set role id in a developer's own `.env` leaks the other way — the
+  // module constants are read at import, so `officerRoleId` would be the club's real snowflake
+  // for anybody who has switched the sync on locally and null for everybody else.
   for (const key of ROLE_KEYS) vi.stubEnv(key, undefined)
 
   return import('./discord.js')
@@ -123,9 +111,9 @@ afterEach(() => {
 
 describe('normaliseHandle', () => {
   /**
-   * Both of these are what people actually type — the `@` because that is how
-   * Discord displays a handle, the capitals because that is how they think of
-   * their own name. Neither is an error worth showing anyone.
+   * Both of these are what people actually type — the `@` because that's how Discord displays a
+   * handle, the capitals because that's how they think of their own name. Neither is an error
+   * worth showing anyone.
    */
   it.each([
     ['@phibiscool', 'phibiscool'],
@@ -152,8 +140,8 @@ describe('checkDiscordHandle', () => {
     const fetchStub = stubDiscord(RESULTS.phibi)
     const { checkDiscordHandle } = await load()
 
-    // The snowflake comes back beside the handle: it is what survives somebody
-    // renaming themselves, and what the bot addresses a direct message to.
+    // The snowflake comes back beside the handle: it's what survives somebody renaming
+    // themselves, and what the bot addresses a direct message to.
     expect(await checkDiscordHandle('phibiscool')).toEqual({
       status: 'connected',
       username: 'phibiscool',
@@ -170,9 +158,9 @@ describe('checkDiscordHandle', () => {
   })
 
   /**
-   * The one that matters. Discord's search matches display names too, so it
-   * will happily hand back PhiBi's row for a query of "phibi" — and taking that
-   * as a match is exactly the mistake the whole check exists to prevent.
+   * The one that matters. Discord's search matches display names too, so it will happily hand
+   * back PhiBi's row for a query of "phibi" — and taking that as a match is exactly the mistake
+   * the whole check exists to prevent.
    */
   it('refuses to match a display name', async () => {
     stubDiscord(RESULTS.phibi)
@@ -191,10 +179,9 @@ describe('checkDiscordHandle', () => {
   })
 
   /**
-   * 403 is the Server Members Intent switched off, 401 a bad token, 429 the
-   * rate limit. None of them is a statement about the handle, so none of them
-   * may come back as `not_found` — that would tell somebody their correct
-   * username is wrong, and they have no way to argue.
+   * 403 is the Server Members Intent switched off, 401 a bad token, 429 the rate limit. None is
+   * a statement about the handle, so none may come back as `not_found` — that would tell
+   * somebody their correct username is wrong, and they have no way to argue.
    */
   it.each([401, 403, 429, 500])(
     'treats a %i from Discord as unavailable, not as an answer',
@@ -242,11 +229,10 @@ describe('checkDiscordHandle', () => {
 /**
  * The guild roster the officer sync runs on.
  *
- * Every test here is really the same assertion from a different angle: **an
- * `ok` with nothing in it and an `unavailable` are different answers.** One of
- * them means the board resigned and the other means Discord could not be
- * reached, and the caller stands the whole club's officers down if it confuses
- * them. Nothing below may ever return an empty `ok` for a failure.
+ * Every test here is the same assertion from a different angle: an `ok` with nothing in it and
+ * an `unavailable` are different answers. One means the board resigned and the other means
+ * Discord couldn't be reached, and the caller stands the whole club's officers down if it
+ * confuses them.
  */
 describe('membersWithRole', () => {
   /** Answers each call from a queue, so pagination can be driven page by page. */
@@ -289,10 +275,9 @@ describe('membersWithRole', () => {
   })
 
   /**
-   * A guild with nobody on the board is a real answer and must come back as
-   * one. It is the *caller* that refuses to act on it — see the standing-down
-   * rules in `discordOfficers.ts` — and it can only do that if this reports it
-   * honestly rather than as a failure.
+   * A guild with nobody on the board is a real answer and must come back as one. It's the caller
+   * that refuses to act on it, and it can only do that if this reports it honestly rather than
+   * as a failure.
    */
   it('reports an empty roster as ok, not as a failure', async () => {
     stubPages({ body: [guildMember(1, []), guildMember(2, [])] })
@@ -306,8 +291,8 @@ describe('membersWithRole', () => {
   })
 
   /**
-   * A full page means there may be more, and the cursor is the highest id seen
-   * — Discord sorts by id ascending and offers no other end-of-list signal.
+   * A full page means there may be more, and the cursor is the highest id seen — Discord sorts
+   * by id ascending and offers no other end-of-list signal.
    */
   it('pages until a short page, walking the cursor forward', async () => {
     const { MEMBER_PAGE_LIMIT } = await import('./discord.js')
@@ -341,20 +326,17 @@ describe('membersWithRole', () => {
   /**
    * The cursor is a number, and every fixture above hides it.
    *
-   * Snowflakes run 17 to 19 digits, and `guildMember` mints them all the same
-   * length starting with the same digit — so string order and numeric order
-   * agree and a string comparison passes. On the club's real guild they do not
-   * agree: a 2015 account's 17-digit id beginning `9` sorts above a 2016
-   * account's 18-digit id beginning `7`, the cursor goes *backwards*, the next
-   * page repeats members already seen, and the walk burns all ten pages and
-   * reports itself unavailable. A 1,600-member guild that takes three pages
-   * never finished one walk, and because `unavailable` means "write nothing"
-   * the symptom was a sync that silently did nothing for ever.
+   * Snowflakes run 17 to 19 digits, and `guildMember` mints them all the same length starting
+   * with the same digit — so string order and numeric order agree and a string comparison
+   * passes. On the club's real guild they don't: a 2015 account's 17-digit id beginning `9`
+   * sorts above a 2016 account's 18-digit id beginning `7`, the cursor goes backwards, and the
+   * walk burns all ten pages and reports itself unavailable. Because `unavailable` means "write
+   * nothing", the symptom was a sync that silently did nothing for ever.
    */
   it('advances the cursor by number, not by string order', async () => {
     const mixed = [
-      // Deliberately the shape that breaks it: the lexicographically largest
-      // id here is the numerically smallest.
+      // Deliberately the shape that breaks it: the lexicographically largest id here is the
+      // numerically smallest.
       { user: { id: '99688747573981184', username: 'old_account' }, roles: [] },
       { user: { id: '744253302585294968', username: 'newer' }, roles: [] },
       { user: { id: '1242121555605979206', username: 'newest' }, roles: [] },
@@ -373,9 +355,8 @@ describe('membersWithRole', () => {
     await guildRoster()
 
     const second = new URL(String(fetchStub.mock.calls[1]![0]))
-    // The largest by value. `900000000000000997` from the filler is bigger than
-    // the mixed three, and both orderings agree on it — so the assertion that
-    // carries the weight is the one below.
+    // The largest by value. `900000000000000997` from the filler is bigger than the mixed three,
+    // and both orderings agree on it — so the assertion that carries the weight is below.
     expect(BigInt(second.searchParams.get('after')!)).toBe(
       full.reduce(
         (highest, member) =>
@@ -388,10 +369,9 @@ describe('membersWithRole', () => {
   })
 
   /**
-   * The failure that matters most. Half a member list is indistinguishable from
-   * a guild in which half the board lost its role, and the caller would act on
-   * the second — so one bad page abandons the entire walk rather than returning
-   * what it managed to read.
+   * The failure that matters most. Half a member list is indistinguishable from a guild in which
+   * half the board lost its role, and the caller would act on the second — so one bad page
+   * abandons the entire walk rather than returning what it managed to read.
    */
   it('abandons the whole walk when a later page fails', async () => {
     const { MEMBER_PAGE_LIMIT } = await import('./discord.js')
@@ -443,8 +423,8 @@ describe('membersWithRole', () => {
   })
 
   /**
-   * Off is the default, and the whole safety story of this feature rests on it:
-   * until somebody sets a role id, nothing can stand anybody down.
+   * Off is the default, and the whole safety story of this feature rests on it: until somebody
+   * sets a role id, nothing can stand anybody down.
    */
   it('is off until a role id is configured', async () => {
     const { officerRoleId, officerSyncConfigured } = await load()
@@ -455,11 +435,10 @@ describe('membersWithRole', () => {
 })
 
 /**
- * Writing a role, which is the first thing this client has ever done to the
- * guild rather than to a DM channel. What matters is the split between a
- * refusal that will never work and an outage that might clear: the reconciler
- * behind this retries either way, and the log is what tells an officer which of
- * the two they are looking at.
+ * Writing a role, the first thing this client has ever done to the guild rather than to a DM
+ * channel. What matters is the split between a refusal that will never work and an outage that
+ * might clear: the reconciler retries either way, and the log tells an officer which they're
+ * looking at.
  */
 describe('adding and removing a role', () => {
   const USER = '246813579246813579'
@@ -507,9 +486,9 @@ describe('adding and removing a role', () => {
   })
 
   /**
-   * The reason reaches the guild's audit log, which is the difference between
-   * a bot people trust and one they switch off. Encoded because a project
-   * title is whatever a lead typed and the header is not 8-bit clean.
+   * The reason reaches the guild's audit log, which is the difference between a bot people trust
+   * and one they switch off. Encoded because a project title is whatever a lead typed and the
+   * header isn't 8-bit clean.
    */
   it('sends the reason as an encoded audit-log header', async () => {
     const stub = stubStatus(204)
@@ -524,9 +503,8 @@ describe('adding and removing a role', () => {
   })
 
   /**
-   * The bot's own role sitting at or below the target. No amount of retrying
-   * fixes it and somebody has to go and move a role, so it is `refused` and it
-   * is logged loudly.
+   * The bot's own role sitting at or below the target. No amount of retrying fixes it and
+   * somebody has to go and move a role, so it's `refused` and logged loudly.
    */
   it('treats 403 as refused rather than as an outage', async () => {
     stubStatus(403)
@@ -593,9 +571,8 @@ describe('adding and removing a role', () => {
 })
 
 /**
- * The whole guild in one walk, which both syncs now share. `membersWithRole`
- * is a filter over this, so the pagination rules are tested there and only the
- * shape is tested here.
+ * The whole guild in one walk, which both syncs now share. `membersWithRole` is a filter over
+ * this, so the pagination rules are tested there and only the shape is tested here.
  */
 describe('guildRoster', () => {
   it('carries every member and their full role set', async () => {
@@ -649,8 +626,8 @@ describe('guildRoles', () => {
     stubDiscord({ message: 'Missing Access' }, 403)
     const { guildRoles } = await load()
 
-    // Empty and unreadable must not be the same answer: an empty map would
-    // make every configured role look like a typo.
+    // Empty and unreadable must not be the same answer: an empty map would make every configured
+    // role look like a typo.
     expect((await guildRoles()).status).toBe('unavailable')
   })
 })
@@ -658,16 +635,13 @@ describe('guildRoles', () => {
 /**
  * The signature on a button press, against a real Ed25519 keypair.
  *
- * The one thing in this file worth generating a key for. `/api/discord/interactions`
- * is unauthenticated and a press opens a real room, so this check is the whole
- * of its security — and it is verified against a key Discord publishes as raw
- * hex, which Node cannot import directly. The conversion into a JWK is the part
- * that can be wrong in a way that still parses, so it is pinned here rather
- * than left to the first press.
+ * The one thing in this file worth generating a key for. `/api/discord/interactions` is
+ * unauthenticated and a press opens a real room, so this check is the whole of its security —
+ * and it's verified against a key Discord publishes as raw hex, which Node can't import
+ * directly. The conversion into a JWK is the part that can be wrong in a way that still parses.
  *
- * `routes/webhooks/discordInteractions.test.ts` mocks this function outright. That suite
- * is about what happens once a delivery is believed; this is the only place
- * that decides whether one should be.
+ * `discordInteractions.test.ts` mocks this function outright: that suite is about what happens
+ * once a delivery is believed; this is the only place that decides whether one should be.
  */
 describe('verifyInteraction', () => {
   const { publicKey, privateKey } = generateKeyPairSync('ed25519')
@@ -687,13 +661,12 @@ describe('verifyInteraction', () => {
     vi.stubEnv('DISCORD_BOT_TOKEN', 'test-bot-token')
     vi.stubEnv('DISCORD_GUILD_ID', '123456789012345678')
     for (const roleKey of ROLE_KEYS) vi.stubEnv(roleKey, '')
-    // A channel too, invented like every other id here. Without one `env.ts`
-    // warns that there is no sign for the buttons to sit on, which is correct
-    // and is a paragraph of stderr on every case below.
+    // A channel too, invented like every other id here. Without one `env.ts` warns that there's
+    // no sign for the buttons to sit on, which is correct and is a paragraph of stderr on every
+    // case below.
     vi.stubEnv('DISCORD_LAB_CHANNEL_ID', '111111111111111111')
-    // `''` and not `undefined`. Deleting a variable lets `dotenv` put the
-    // developer's real one back on the next `vi.resetModules()`; an empty
-    // string is present, so it survives, and `env.ts` reads blank as unset.
+    // `''` and not `undefined`. Deleting a variable lets `dotenv` put the developer's real one
+    // back on the next `vi.resetModules()`; an empty string is present, so it survives.
     vi.stubEnv('DISCORD_PUBLIC_KEY', key ?? '')
 
     return import('./discord.js')
@@ -712,15 +685,15 @@ describe('verifyInteraction', () => {
   })
 
   /**
-   * The reason the raw body has to reach the handler untouched. Parsing and
-   * re-serialising the JSON reorders a key or changes an escape, and this is
-   * what that looks like from the other side.
+   * The reason the raw body has to reach the handler untouched. Parsing and re-serialising the
+   * JSON reorders a key or changes an escape, and this is what that looks like from the other
+   * side.
    */
   it('refuses a body that has been through JSON and back', async () => {
     const { verifyInteraction } = await loadWithKey(publicHex)
 
-    // One space, which is all it takes. Discord's own bodies carry whitespace
-    // and escapes that `JSON.stringify` does not reproduce.
+    // One space, which is all it takes. Discord's own bodies carry whitespace and escapes that
+    // `JSON.stringify` doesn't reproduce.
     const body = '{"type":1, "id":"1"}'
     const timestamp = '1780000000'
     const signature = signed(body, timestamp)
@@ -730,9 +703,8 @@ describe('verifyInteraction', () => {
     expect(verifyInteraction(rebuilt, signature, timestamp)).toBe(false)
   })
 
-  /** The timestamp is signed with the body, so a delivery replayed under a
-      different one does not verify — which is what makes the age check in the
-      route worth anything. */
+  /** The timestamp is signed with the body, so a delivery replayed under a different one doesn't
+      verify — which is what makes the age check in the route worth anything. */
   it('refuses a signature lifted onto a different timestamp', async () => {
     const { verifyInteraction } = await loadWithKey(publicHex)
 
@@ -745,9 +717,9 @@ describe('verifyInteraction', () => {
   it('refuses a signature that is not 128 hex characters', async () => {
     const { verifyInteraction } = await loadWithKey(publicHex)
 
-    // `Buffer.from(…, 'hex')` truncates at the first character it cannot read
-    // rather than throwing, so without the shape check this would be verified
-    // as a shorter signature and fail for the wrong reason.
+    // `Buffer.from(…, 'hex')` truncates at the first character it can't read rather than
+    // throwing, so without the shape check this would be verified as a shorter signature and
+    // fail for the wrong reason.
     expect(verifyInteraction('{}', 'not hex', '1780000000')).toBe(false)
     expect(verifyInteraction('{}', 'ab', '1780000000')).toBe(false)
   })
@@ -761,19 +733,19 @@ describe('verifyInteraction', () => {
     const body = '{"type":1}'
     const timestamp = '1780000000'
 
-    // Correctly signed and still refused: an endpoint that cannot check a
-    // signature has nothing to check one against.
+    // Correctly signed and still refused: an endpoint that can't check a signature has nothing
+    // to check one against.
     expect(verifyInteraction(body, signed(body, timestamp), timestamp)).toBe(false)
   })
 
   /**
-   * The mistake that has no symptom until somebody presses a button: pasting
-   * *an* application's public key rather than *this* one. It is 64 hex
-   * characters, it imports perfectly, and every delivery is silently refused.
+   * The mistake that has no symptom until somebody presses a button: pasting an application's
+   * public key rather than this one. It's 64 hex characters, it imports perfectly, and every
+   * delivery is silently refused.
    *
-   * Which is the right refusal — the endpoint is a POST that opens a room — but
-   * it is worth having a case that says so, because from the channel it looks
-   * exactly like an endpoint URL that was never saved.
+   * Which is the right refusal — the endpoint is a POST that opens a room — but it's worth a
+   * case that says so, because from the channel it looks exactly like an endpoint URL that was
+   * never saved.
    */
   it('refuses a delivery signed by a different application', async () => {
     const other = generateKeyPairSync('ed25519')
@@ -794,22 +766,20 @@ describe('verifyInteraction', () => {
 /**
  * Whether a button press would actually land anywhere.
  *
- * `DISCORD_PUBLIC_KEY` and the portal's Interactions Endpoint URL are two
- * settings in two different places, and having only the first is the ordinary
- * half-configured state — not an exotic one. Attaching buttons on the strength
- * of the key alone puts a control in the club's channel that answers "This
- * interaction failed" in front of everybody, so the endpoint is confirmed
- * against Discord at startup and `buttonsLive` starts false.
+ * `DISCORD_PUBLIC_KEY` and the portal's Interactions Endpoint URL are two settings in two
+ * different places, and having only the first is the ordinary half-configured state. Attaching
+ * buttons on the strength of the key alone puts a control in the club's channel that answers
+ * "This interaction failed" in front of everybody, so the endpoint is confirmed at startup and
+ * `buttonsLive` starts false.
  *
- * The `verify_key` comparison in here earns its keep on its own: **another
- * application's public key** is 64 hex characters, imports cleanly, and refuses
- * every delivery with no other symptom. This is the only thing that catches it.
+ * The `verify_key` comparison earns its keep on its own: another application's public key is 64
+ * hex characters, imports cleanly, and refuses every delivery with no other symptom.
  */
 describe('confirmInteractionEndpoint', () => {
   const KEY = 'ab'.repeat(32)
 
-  /** `''` is how "no public key" is said — see the note in `loadWithKey`. A
-      default parameter would fire on `undefined` and hand back the key. */
+  /** `''` is how "no public key" is said — see the note in `loadWithKey`. A default parameter
+      would fire on `undefined` and hand back the key. */
   async function loadConfigured(publicKey: string = KEY) {
     vi.resetModules()
     vi.stubEnv('DISCORD_BOT_TOKEN', 'test-bot-token')
@@ -828,8 +798,8 @@ describe('confirmInteractionEndpoint', () => {
     })
     const { confirmInteractionEndpoint, buttonsLive } = await loadConfigured()
 
-    // False until Discord has been asked, which is the safe direction and the
-    // state a fresh process starts in.
+    // False until Discord has been asked, which is the safe direction and the state a fresh
+    // process starts in.
     expect(buttonsLive()).toBe(false)
 
     await expect(confirmInteractionEndpoint()).resolves.toEqual({
@@ -839,8 +809,8 @@ describe('confirmInteractionEndpoint', () => {
     expect(buttonsLive()).toBe(true)
   })
 
-  /** The half-configured state this whole flag exists for: key in `.env`, no
-      endpoint URL saved in the portal. */
+  /** The half-configured state this whole flag exists for: key in `.env`, no endpoint URL saved
+      in the portal. */
   it('leaves them off when the portal has no endpoint URL', async () => {
     stubDiscord({ verify_key: KEY, interactions_endpoint_url: null })
     const { confirmInteractionEndpoint, buttonsLive } = await loadConfigured()
@@ -852,12 +822,10 @@ describe('confirmInteractionEndpoint', () => {
   })
 
   /**
-   * **The worst of the four states**, and the reason it has its own answer
-   * rather than being folded into "off": an endpoint URL is registered, so
-   * Discord POSTs every press to it and tells the gateway nothing — and this
-   * server refuses every one of those deliveries because the key is not its
-   * own. Nothing works, and from inside the channel it looks exactly like a
-   * button nobody wired up.
+   * The worst of the four states, and the reason it has its own answer rather than being folded
+   * into "off": an endpoint URL is registered, so Discord POSTs every press to it and tells the
+   * gateway nothing — and this server refuses every one of those deliveries because the key
+   * isn't its own. From inside the channel it looks exactly like a button nobody wired up.
    */
   it('reports an endpoint it cannot verify, rather than calling it off', async () => {
     stubDiscord({
@@ -875,8 +843,8 @@ describe('confirmInteractionEndpoint', () => {
     expect(buttonsLive()).toBe(false)
   })
 
-  /** The same state reached the other way: a URL registered with no key here at
-      all. Presses still go there and are still refused. */
+  /** The same state reached the other way: a URL registered with no key here at all. Presses
+      still go there and are still refused. */
   it('reports an endpoint with no key behind it the same way', async () => {
     stubDiscord({
       verify_key: KEY,
@@ -893,10 +861,9 @@ describe('confirmInteractionEndpoint', () => {
   })
 
   /**
-   * A Discord that cannot be reached at boot leaves the buttons off, and the
-   * asymmetry is deliberate: the cost is churn — the next push strips them off
-   * the sign until a restart that can ask — and the cost the other way is a
-   * live button that fails in front of the club.
+   * A Discord that can't be reached at boot leaves the buttons off, and the asymmetry is
+   * deliberate: the cost is churn — the next push strips them off the sign until a restart that
+   * can ask — and the cost the other way is a live button that fails in front of the club.
    */
   it('leaves them off when Discord cannot be asked', async () => {
     stubDiscord({ message: '500: Internal Server Error' }, 500)
@@ -907,10 +874,9 @@ describe('confirmInteractionEndpoint', () => {
   })
 
   /**
-   * **Asked even with no public key**, which is the point of the reshape: the
-   * question is not "can we verify a delivery" but "which of the two roads will
-   * a press take", and that is a fact about the application. No endpoint URL
-   * means the gateway, and the gateway needs no key at all.
+   * Asked even with no public key, which is the point of the reshape: the question isn't "can we
+   * verify a delivery" but "which of the two roads will a press take", and that's a fact about
+   * the application. No endpoint URL means the gateway, and the gateway needs no key.
    */
   it('still asks without a public key, because the answer picks the road', async () => {
     const stub = stubDiscord({ interactions_endpoint_url: null })
@@ -919,14 +885,14 @@ describe('confirmInteractionEndpoint', () => {
     await expect(confirmInteractionEndpoint()).resolves.toEqual({
       status: 'no_endpoint',
     })
-    // Off until the gateway says otherwise — `setGatewayConnected` is what turns
-    // them on down that road.
+    // Off until the gateway says otherwise — `setGatewayConnected` is what turns them on down
+    // that road.
     expect(buttonsLive()).toBe(false)
     expect(stub).toHaveBeenCalled()
   })
 
-  /** And that is how the gateway turns them on: no key, no endpoint URL, a
-      connected socket. The road the club actually runs on. */
+  /** And that's how the gateway turns them on: no key, no endpoint URL, a connected socket. The
+      road the club actually runs on. */
   it('turns the buttons on for a connected gateway with no key at all', async () => {
     stubDiscord({ interactions_endpoint_url: null })
     const { confirmInteractionEndpoint, buttonsLive, setGatewayConnected } =
@@ -938,8 +904,8 @@ describe('confirmInteractionEndpoint', () => {
     setGatewayConnected(true)
     expect(buttonsLive()).toBe(true)
 
-    // And off again the moment the socket drops, so a sign pushed while Discord
-    // is unreachable does not carry a button nothing is listening for.
+    // And off again the moment the socket drops, so a sign pushed while Discord is unreachable
+    // doesn't carry a button nothing is listening for.
     setGatewayConnected(false)
     expect(buttonsLive()).toBe(false)
   })

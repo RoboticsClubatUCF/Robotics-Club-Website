@@ -32,28 +32,23 @@ import { useApi } from '../../lib/api/useApi'
 /**
  * The roles desk: who is what, and who runs what.
  *
- * One page for the decisions that are about *people* rather than about things.
- * They were scattered before — appointing a project lead lived on the projects
- * desk beside creating projects, appointing a team lead was only reachable from
- * inside one project's own manage page, and giving somebody a term was a date
- * typed into Prisma Studio. Three questions of the same shape, in three places,
- * one of which was not in the site at all.
+ * One page for the decisions about people rather than things. They were scattered
+ * before — appointing a project lead lived on the projects desk, appointing a team lead
+ * was only reachable from inside one project's manage page, and giving somebody a term
+ * was a date typed into Prisma Studio.
  *
- * **What is not here, and why.** Club role — `OFFICER`, `ADMIN` — cannot be set
- * from this page and there is no panel missing. The board is appointed in
- * Discord and the site follows the role automatically (see
- * `server/src/discord/discordOfficers.ts`); admin is a human in Prisma Studio. A
- * control here would be a second answer to a question that already has one, and
- * the sweep would overwrite it within ten minutes.
+ * What isn't here: club role. `OFFICER` and `ADMIN` can't be set from this page and
+ * there's no panel missing. The board is appointed in Discord and the site follows;
+ * admin is a human in Prisma Studio. A control here would be a second answer to a
+ * question that already has one, and the sweep would overwrite it within ten minutes.
  *
- * Every check on this page is presentation. The server re-checks on every
- * request regardless of who finds the URL, and it is the one that decides.
+ * Every check on this page is presentation. The server re-checks on every request.
  */
 export function OfficerRolesPage() {
   const { user, membership } = useOutletContext<DashboardContext>()
 
-  // Dues before role, because a lapsed officer *is* an officer and the sentence
-  // they need is about a payment rather than about the board.
+  // Dues before role, because a lapsed officer is an officer and the sentence they need
+  // is about a payment rather than about the board.
   if (duesLocked(membership, user.role)) {
     return <DuesLocked eyebrow="/ MANAGE · ROLES" />
   }
@@ -67,11 +62,10 @@ export function OfficerRolesPage() {
       <FormEyebrow>/ MANAGE · ROLES</FormEyebrow>
       <FormHeading>Who runs what.</FormHeading>
 
-      {/* Four decisions of the same shape, and an officer opens this page to
-          make one of them — they are not steps. Side by side wherever there is
-          room, so appointing a lead does not mean scrolling past the board.
-          `items-start`: the seat panel is eight chairs and a checklist, the
-          three around it are a picker and two buttons. */}
+      {/* Four decisions of the same shape, and an officer opens this page to make one
+          of them — they aren't steps. Side by side wherever there's room, so appointing
+          a lead doesn't mean scrolling past the board. `items-start`: the seat panel is
+          eight chairs and a checklist, the three around it are a picker and two buttons. */}
       <div className="grid-fluid items-start gap-5 [--col-min:29rem]">
         <GrantMembership />
         <OfficerSeats />
@@ -120,29 +114,26 @@ type PickerOption = {
   id: string
   /** The line that names it, and the first thing typing matches against. */
   label: string
-  /** The line beside it — the term, the rank. Matched on as well as printed,
-      which is what makes "rover fall" and "software lead" work. */
+  /** The line beside it — the term, the rank. Matched on as well as printed, which is
+      what makes "rover fall" and "software lead" work. */
   note?: string
 }
 
 /**
  * A text box over a list, for the lists here that are too long to scroll.
  *
- * Both appointment panels used a `<select>` of every project the club has ever
- * run, and the team panel a second one of the whole roster. A native drop-down
- * is the worst control for either: no filtering, and the keyboard's
- * type-to-jump matches only from the first character, so finding last autumn's
- * rover means scrolling past everything else. This filters as it is typed,
- * tokens match in any order and against the second line too.
+ * Both appointment panels used a `<select>` of every project the club has ever run, and
+ * the team panel a second one of the whole roster. A native drop-down is the worst
+ * control for either: no filtering, and type-to-jump matches only from the first
+ * character. This filters as it's typed, tokens match in any order and against the
+ * second line too.
  *
- * **It filters rather than asks.** Every list it is given is already in memory
- * — the projects arrive in one request, the roster arrives with the project —
- * so there is no debounce, no request per keystroke and no race to lose.
- * `MemberSearch` is the other shape and stays that way: it searches every
- * account the club has, which is hundreds and is not sent to the browser.
+ * It filters rather than asks. Every list it's given is already in memory, so there's no
+ * debounce, no request per keystroke and no race to lose. `MemberSearch` is the other
+ * shape and stays that way: it searches every account the club has.
  *
- * At most `MAX_ROWS` rows are drawn with a count of what was left out, because
- * a panel that opens into a hundred-row list has only moved the scrolling.
+ * At most `MAX_ROWS` rows are drawn with a count of what was left out, because a panel
+ * that opens into a hundred-row list has only moved the scrolling.
  */
 function SearchPicker({
   id,
@@ -160,9 +151,9 @@ function SearchPicker({
   options: PickerOption[]
   value: string
   disabled: boolean
-  /** What to say when there is nothing to search — loading, a failure, or a
-      list that is genuinely empty. Null once there is something to type at,
-      which is also what decides whether the box is live. */
+  /** What to say when there's nothing to search — loading, a failure, or a list that's
+      genuinely empty. Null once there's something to type at, which is also what decides
+      whether the box is live. */
   hint: string | null
   onChange: (id: string) => void
 }) {
@@ -170,9 +161,9 @@ function SearchPicker({
 
   const picked = options.find((option) => option.id === value) ?? null
 
-  // Collapsed to the choice once one is made, like `MemberSearch`: the list is
-  // an aid to picking, and leaving it open under a filled field is a second
-  // thing to read on a panel that has four of them.
+  // Collapsed to the choice once one is made, like `MemberSearch`: the list is an aid to
+  // picking, and leaving it open under a filled field is a second thing to read on a
+  // panel that has four of them.
   if (picked) {
     return (
       <div>
@@ -226,16 +217,15 @@ function SearchPicker({
           setQuery(event.target.value)
         }}
         onKeyDown={(event) => {
-          // The same reason `MemberSearch` does it: these panels have sat
-          // inside a form, and Enter would submit it half-filled.
+          // The same reason `MemberSearch` does it: these panels have sat inside a form,
+          // and Enter would submit it half-filled.
           if (event.key === 'Enter') event.preventDefault()
         }}
       />
 
-      {/* Shown from the start rather than only once something is typed. The
-          list is ordered so the rows an officer wants are the ones at the top,
-          and a picker that looks empty until you guess a word is worse than
-          the drop-down it replaced. */}
+      {/* Shown from the start rather than only once something is typed. The list is
+          ordered so the rows an officer wants are at the top, and a picker that looks
+          empty until you guess a word is worse than the drop-down it replaced. */}
       {hint === null && (
         <ul className="border-rule divide-rule mt-3 divide-y border">
           {matches.length === 0 && (
@@ -255,10 +245,9 @@ function SearchPicker({
                 className="hover:bg-wash flex w-full cursor-pointer items-baseline justify-between gap-4 px-3 py-2.5 text-left transition-colors duration-150 disabled:cursor-default disabled:opacity-60"
               >
                 <span className="text-sm font-medium">{option.label}</span>
-                {/* A space between the two, so the row's accessible name reads
-                    "Sam Patel project lead" rather than running them together.
-                    Flexbox drops a whitespace-only child, so it costs nothing
-                    on screen. */}
+                {/* A space between the two, so the row's accessible name reads "Sam Patel
+                    project lead" rather than running them together. Flexbox drops a
+                    whitespace-only child, so it costs nothing on screen. */}
                 {option.note && ' '}
                 {option.note && (
                   <span className="text-faint shrink-0 text-right text-[12px]">
@@ -287,15 +276,14 @@ function SearchPicker({
 /**
  * Giving somebody a term, with no money involved.
  *
- * The cash-at-a-meeting case, and the scholarship case, and the officer whose
- * dues the board waives. All three were being handled by typing a date into
- * `dues_paid_through` in Prisma Studio, which covers the person and does
- * nothing else: no `GUEST` promotion, no `joinedAt`, and no record of who
- * decided. This goes through the same three rules a card payment does.
+ * The cash-at-a-meeting case, the scholarship case, and the officer whose dues the board
+ * waives. All three were handled by typing a date into `dues_paid_through` in Prisma
+ * Studio, which covers the person and does nothing else: no `GUEST` promotion, no
+ * `joinedAt`, no record of who decided.
  *
- * The standing of whoever is picked is printed *before* the button, because
- * granting a term to somebody already paid through spring is not harmful — it
- * extends rather than resets — but it is a decision made blind otherwise.
+ * The standing of whoever is picked is printed before the button, because granting a
+ * term to somebody already paid through spring isn't harmful — it extends rather than
+ * resets — but it's a decision made blind otherwise.
  */
 function GrantMembership() {
   const id = useId()
@@ -349,8 +337,8 @@ function GrantMembership() {
           label="WHO IS BEING COVERED"
         />
 
-        {/* Where they stand right now. Only once somebody is picked, because
-            before that it would be a line about nobody. */}
+        {/* Where they stand right now. Only once somebody is picked, because before that
+            it would be a line about nobody. */}
         {member && (
           <p className="text-faint text-[12px] leading-[1.5]">
             {member.duesPaidThrough
@@ -391,9 +379,9 @@ function GrantMembership() {
         <Status message={message} />
       </div>
 
-      {/* The shared dialog rather than `window.confirm`, like the other officer
-          desks. This one is worth confirming: it is the club's money, and the
-          only way back is another officer editing the database. */}
+      {/* The shared dialog rather than `window.confirm`, like the other desks. This one
+          is worth confirming: it's the club's money, and the only way back is another
+          officer editing the database. */}
       {confirming && member && (
         <ConfirmDialog
           title={`Grant ${member.fullName} a ${plan === 'YEAR' ? 'year' : 'semester'}?`}
@@ -418,12 +406,12 @@ function GrantMembership() {
 /**
  * Appointing and standing down project leads.
  *
- * **It refuses rather than swaps.** Appointing over a sitting lead is a 409
- * naming them, and the officer presses DEMOTE first. Which of two people runs a
- * build is not something the site should decide by inferring it from a click.
+ * It refuses rather than swaps. Appointing over a sitting lead is a 409 naming them, and
+ * the officer presses DEMOTE first — which of two people runs a build isn't something
+ * the site should infer from a click.
  *
- * Moved here from the projects desk, where it sat beside the create form and a
- * second, half-hidden way to do the same thing.
+ * Moved here from the projects desk, where it sat beside the create form and a second,
+ * half-hidden way to do the same thing.
  */
 function AppointLead() {
   const id = useId()
@@ -506,19 +494,16 @@ function AppointLead() {
 }
 
 /**
- * Appointing team leads, which used to be reachable only from inside one
- * project's own manage page.
+ * Appointing team leads, which used to be reachable only from inside one project's own
+ * manage page.
  *
- * **No new endpoint.** This is `PATCH /api/projects/:id/members/:userId`, the
- * route the lead uses, which officers reach as readily because
- * `requireProjectLead` returns early for them.
+ * No new endpoint: this is `PATCH /api/projects/:id/members/:userId`, the route the lead
+ * uses, which officers reach as readily because `requireProjectLead` returns early.
  *
- * The member is searched *within the project's own roster* rather than through
- * the people-picker, and that is not a detail of the control — it is what makes
- * the two rules the route enforces reachable. It 404s for somebody who is not
- * on the project, and refuses outright if the target is the project lead, so a
- * search over every account would mostly produce errors that were the picker's
- * fault. A team lead is also pinned to a team, so the team is required too.
+ * The member is searched within the project's own roster rather than through the
+ * people-picker, and that's what makes the route's two rules reachable. It 404s for
+ * somebody not on the project and refuses if the target is the project lead, so a search
+ * over every account would mostly produce errors that were the picker's fault.
  */
 function AppointTeamLead() {
   const id = useId()
@@ -552,9 +537,8 @@ function AppointTeamLead() {
   }, [])
 
   useEffect(() => {
-    // Hand-rolled rather than `useApi`, because the roster below has to be
-    // re-read after an appointment — otherwise the select keeps describing the
-    // project as it was before the click.
+    // Hand-rolled rather than `useApi`, because the roster below has to be re-read after
+    // an appointment — otherwise the select keeps describing the project as it was.
     load(projectId)
     setTeamId('')
     setUserId('')
@@ -576,9 +560,9 @@ function AppointTeamLead() {
 
     setBusy(true)
     setMessage(null)
-    // `teamId: null` on the way down as well as `rank`: a demoted team lead
-    // keeps their seat on the team otherwise, and the server's own rule is that
-    // a rank set here is the whole answer rather than a layer over the old one.
+    // `teamId: null` on the way down as well as `rank`: a demoted team lead keeps their
+    // seat otherwise, and the server's rule is that a rank set here is the whole answer
+    // rather than a layer over the old one.
     patchJson(`/projects/${projectId}/members/${userId}`, {
       rank,
       ...(rank === 'TEAM_LEAD' ? { teamId } : {}),
@@ -621,8 +605,8 @@ function AppointTeamLead() {
           onChange={setProjectId}
         />
 
-        {/* Still a `<select>`, and deliberately: a project has a handful of
-            teams and they arrive with it, so there is nothing here to find. */}
+        {/* Still a `<select>`, deliberately: a project has a handful of teams and they
+            arrive with it, so there's nothing here to find. */}
         <div>
           <label htmlFor={`${id}-team`} className={labelClass}>
             TEAM
@@ -660,8 +644,8 @@ function AppointTeamLead() {
           options={roster.map((row) => ({
             id: row.userId,
             label: row.fullName,
-            // The rank is printed so an officer can see they are about to pick
-            // the project lead, which the route refuses outright.
+            // The rank is printed so an officer can see they're about to pick the project
+            // lead, which the route refuses outright.
             note:
               row.rank === 'PROJECT_LEAD'
                 ? 'project lead'
@@ -715,11 +699,10 @@ function AppointTeamLead() {
 /**
  * The project picker, shared by both appointment panels.
  *
- * Every project, not just this term's: appointing a lead for next semester's
- * build before the term starts is ordinary, and so is fixing last term's roster
- * after the fact. That is also why it cannot be a drop-down — the list is every
- * term the club has ever run, and the term beside the title is the only thing
- * telling this year's rover from the last three.
+ * Every project, not just this term's: appointing a lead for next semester's build
+ * before the term starts is ordinary, and so is fixing last term's roster. That's also
+ * why it can't be a drop-down — the list is every term the club has run, and the term
+ * beside the title is the only thing telling this year's rover from the last three.
  */
 function ProjectPicker({
   id,
@@ -759,11 +742,10 @@ function ProjectPicker({
 /**
  * Newest term first, then by title.
  *
- * Ordered here rather than taken as `/projects` sends it: that route orders for
- * the landing page — featured first, then a `startedAt` no route on this site
- * writes — which scatters the current term's builds through the list. An
- * officer appointing a lead is almost always doing it for the term that is
- * running, so those are the rows the picker opens on.
+ * Ordered here rather than taken as `/projects` sends it: that route orders for the
+ * landing page — featured first, then a `startedAt` no route writes — which scatters the
+ * current term's builds through the list. An officer appointing a lead is almost always
+ * doing it for the term that's running.
  */
 const projectOptions = (projects: ApiProject[]): PickerOption[] =>
   [...projects]
@@ -794,19 +776,16 @@ const seasonOf = (project: ApiProject) =>
 /**
  * Who sits in which chair on the officer board.
  *
- * The last of the four decisions that were a Prisma Studio edit — the same
- * argument that brought granting a term and appointing a lead onto this desk.
+ * The last of the four decisions that were a Prisma Studio edit.
  *
- * **The seat is not the club role, and this panel says so out loud.** Discord
- * decides *that* somebody is an officer and the site follows within a request;
- * an officer decides *which seat* they hold, here. That split is why the panel
- * can seat the faculty advisor, who is a plain member, and why it can seat an
- * admin — `UserRole` has one slot per person with `ADMIN` above `OFFICER`, so
- * the ladder could never have said "both".
+ * The seat is not the club role, and this panel says so out loud. Discord decides that
+ * somebody is an officer and the site follows within a request; an officer decides which
+ * seat they hold, here. That split is why the panel can seat the faculty advisor, who is
+ * a plain member, and why it can seat an admin — `UserRole` has one slot with `ADMIN`
+ * above `OFFICER`, so the ladder could never have said "both".
  *
- * It lists the whole board rather than only offering a picker, because the
- * question anybody arrives with is "who is where at the moment", and a form
- * with no answer on screen is one you fill in twice.
+ * It lists the whole board rather than only offering a picker, because the question
+ * anybody arrives with is "who is where at the moment".
  */
 function OfficerSeats() {
   const id = useId()
@@ -819,8 +798,8 @@ function OfficerSeats() {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<Message>(null)
 
-  // The desk owns its own loader rather than `useApi`, which has no refetch —
-  // every write here changes the list directly above the form.
+  // The desk owns its own loader rather than `useApi`, which has no refetch — every
+  // write here changes the list directly above the form.
   const reload = useCallback(() => {
     getJson<ApiOfficerDesk>('/officer/terms')
       .then((answer) => {
@@ -838,24 +817,24 @@ function OfficerSeats() {
     seat.position ? seatLabel(seat.position) : 'No seat yet'
 
   /**
-   * Rotation day's work list, and the reason it is at the top of the panel.
+   * Rotation day's work list, and the reason it's at the top of the panel.
    *
-   * Flipping the Discord roles gives the club a board of officers with no
-   * chairs and a page of empty seats, and nothing anywhere says so — the front
-   * page just reads "Seat open" eight times until somebody notices. These two
-   * numbers *are* the handover checklist.
+   * Flipping the Discord roles gives the club a board of officers with no chairs and a
+   * page of empty seats, and nothing anywhere says so — the front page just reads "Seat
+   * open" eight times until somebody notices. These two numbers are the handover
+   * checklist.
    */
   const rows = desk?.board ?? []
   const seatless = rows.filter((seat) => seat.position === null)
   const taken = new Set(rows.map((seat) => seat.position))
-  // Every seat there is, from the enum by way of the route — the desk is where
-  // an empty chair gets filled, so it needs the whole list rather than the
-  // occupied ones, and how many there are is the database's answer.
+  // Every seat there is, from the enum by way of the route — the desk is where an empty
+  // chair gets filled, so it needs the whole list, and how many there are is the
+  // database's answer.
   const empty = (desk?.seats ?? []).filter((seat) => !taken.has(seat))
 
-  /** Who is in the chair being handed out, if anybody. Read from the list the
-      panel already has, so the confirmation can name them before anything is
-      sent — the server checks again regardless. */
+  /** Who is in the chair being handed out, if anybody. Read from the list the panel
+      already has, so the confirmation can name them before anything is sent — the server
+      checks again regardless. */
   const incumbent =
     position === ''
       ? null
@@ -897,8 +876,8 @@ function OfficerSeats() {
       })
   }
 
-  /** Ask first where the chair is occupied. The server refuses a take-over that
-      was not asked for, so this is the only way to displace anybody. */
+  /** Ask first where the chair is occupied. The server refuses a take-over that wasn't
+      asked for, so this is the only way to displace anybody. */
   const submit = () => {
     if (incumbent) setDisplacing(incumbent)
     else save()
@@ -943,9 +922,8 @@ function OfficerSeats() {
         </p>
       )}
 
-      {/* Only when there is something to do. A line reading "0 officers with no
-          seat" every other day of the year is a line nobody reads on the one
-          day it matters. */}
+      {/* Only when there's something to do. A line reading "0 officers with no seat"
+          every other day of the year is a line nobody reads on the one day it matters. */}
       {desk && (seatless.length > 0 || empty.length > 0) && (
         <div className="border-primary/35 bg-primary/5 mb-5 border p-4">
           <p className="text-primary mb-1.5 font-mono text-[10px] font-medium tracking-[0.16em]">
@@ -993,10 +971,9 @@ function OfficerSeats() {
                 </p>
                 <p className="text-faint font-mono text-[10px] tracking-[0.14em] uppercase">
                   {seatOf(seat)}
-                  {/* Where the seat came from. A hand-given one survives losing
-                      the Discord role and a synced one does not, which is the
-                      difference between "why is the advisor still here" and a
-                      bug. */}
+                  {/* Where the seat came from. A hand-given one survives losing the
+                      Discord role and a synced one doesn't, which is the difference
+                      between "why is the advisor still here" and a bug. */}
                   {seat.source === 'MANUAL' && ' · by hand'}
                 </p>
               </div>
@@ -1043,9 +1020,9 @@ function OfficerSeats() {
               setPosition(event.target.value as OfficerPosition | '')
             }}
           >
-            {/* Empty is a real choice, not a prompt: somebody can be on the
-                board without a named chair, which is what the Discord sync
-                creates before anybody has been given one. */}
+            {/* Empty is a real choice, not a prompt: somebody can be on the board without
+                a named chair, which is what the Discord sync creates before anybody has
+                been given one. */}
             <option value="">No named seat</option>
             {(desk?.seats ?? []).map((seat) => (
               <option key={seat} value={seat}>
@@ -1084,9 +1061,8 @@ function OfficerSeats() {
             {displacing.fullName}&rsquo;s term ends and they move to the
             officers page, recorded as succeeded by {member.fullName}.
           </p>
-          {/* The same warning the stand-down dialog gives, for the same reason:
-              this changes the chair, not the club role, and Discord owns the
-              second one. */}
+          {/* The same warning the stand-down dialog gives, for the same reason: this
+              changes the chair, not the club role, and Discord owns the second one. */}
           {displacing.source === 'DISCORD' && (
             <p className="mt-3">
               {displacing.fullName} still carries the officer role in Discord,
@@ -1113,9 +1089,8 @@ function OfficerSeats() {
             They come off the board and onto the officers page as a past
             officer, with the dates they served.
           </p>
-          {/* The one thing that makes this look broken if unsaid: the sync is
-              the club's answer about who is an officer, and this button does
-              not overrule it. */}
+          {/* The one thing that makes this look broken if unsaid: the sync is the club's
+              answer about who is an officer, and this button doesn't overrule it. */}
           {standingDown.source === 'DISCORD' && (
             <p className="mt-3">
               They still carry the officer role in Discord, so the next sync

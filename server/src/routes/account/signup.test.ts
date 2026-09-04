@@ -9,24 +9,19 @@ import { sendSignupVerification } from '../../email/mail.js'
 /**
  * Signup, against the live database.
  *
- * The flow is two requests with an email in between, and these tests cannot
- * read that email — the token is stored as a hash and is deliberately never in
- * a response, since a token handed back to the caller proves nothing about the
- * address it was meant for. So the second half starts the way the link does: by
- * writing a verification row whose token this file chose.
+ * The flow is two requests with an email in between, and these tests can't read that email — the
+ * token is stored as a hash and is deliberately never in a response. So the second half starts
+ * the way the link does: by writing a verification row whose token this file chose.
  *
- * The two calls that leave this machine are stubbed, and only those. Everything
- * else runs for real, because a mocked Prisma would only prove the mock works.
+ * The two calls that leave this machine are stubbed, and only those. Everything else runs for
+ * real, because a mocked Prisma would only prove the mock works.
  *
- * Postmark, because a test suite must never send mail. Once a real token is in
- * `.env` — and there will be one — an unstubbed run posts to Postmark for every
- * test that starts a signup, which fails outright the moment the address is
- * suppressed and is somebody's real inbox until then.
+ * Postmark, because a test suite must never send mail: once a real token is in `.env`, an
+ * unstubbed run posts to Postmark for every test that starts a signup.
  *
- * Discord, because a suite that needs a live guild containing a fake member is
- * a suite that fails on a Tuesday for no reason. `discord.test.ts` covers the
- * real client. Stubbing it here is also what makes the four answers this route
- * has to handle — found, not found, service down, no bot at all — reachable.
+ * Discord, because a suite that needs a live guild containing a fake member fails on a Tuesday
+ * for no reason. Stubbing it is also what makes the four answers this route has to handle —
+ * found, not found, service down, no bot at all — reachable.
  */
 vi.mock('../../discord/discord.js', async (importOriginal) => ({
   // Only the network call is replaced. `normaliseHandle` and `isHandleShaped`
@@ -106,15 +101,13 @@ async function pendingLink(token: string, minutesLeft = 60) {
 }
 
 /**
- * Every scope, every time. The counters live in Postgres, so they outlive the
- * process — without this, a second run inside the window fails for reasons that
- * have nothing to do with the code.
+ * Every scope, every time. The counters live in Postgres, so they outlive the process — without
+ * this, a second run inside the window fails for reasons that have nothing to do with the code.
  *
- * Four of them now, and the last two are the ones that would bite hardest.
- * `signup-burst:` is a thirty-second floor between confirmation emails and
- * `signup-address:` is three per address per window, so a suite that walks
- * `/start` more than once — most of the cases below do — fails on the *second*
- * call rather than at the end, and reads as the route being broken.
+ * Four of them now, and the last two bite hardest. `signup-burst:` is a thirty-second floor
+ * between confirmation emails and `signup-address:` is three per address per window, so a suite
+ * that walks `/start` more than once fails on the second call and reads as the route being
+ * broken.
  */
 const clearWindows = () =>
   prisma.rateLimit.deleteMany({
@@ -237,10 +230,9 @@ describe('POST /api/signup/start', () => {
   })
 
   /**
-   * The link is the flow, not a notification on top of a stored row — which is
-   * the whole difference between this and the contact form. Reporting success
-   * for an email that failed to send leaves somebody waiting on mail that was
-   * never going to arrive.
+   * The link is the flow, not a notification on top of a stored row — the whole difference
+   * between this and the contact form. Reporting success for an email that failed to send leaves
+   * somebody waiting on mail that was never going to arrive.
    */
   it('does not claim to have sent a link that Postmark refused', async () => {
     mail.mockRejectedValue(new Error('inactive recipient'))
@@ -254,10 +246,9 @@ describe('POST /api/signup/start', () => {
   })
 
   /**
-   * No Postmark account, which is the normal state of a fresh checkout. Outside
-   * production the link goes to the API's log so the flow can still be walked
-   * end to end — but never into the response, since a token handed back to the
-   * caller proves nothing about the address it was meant for.
+   * No Postmark account, which is the normal state of a fresh checkout. Outside production the
+   * link goes to the API's log so the flow can still be walked end to end — but never into the
+   * response, since a token handed back to the caller proves nothing about the address.
    */
   it('carries on without a mailer outside production, and says nothing secret', async () => {
     mail.mockResolvedValue(false)
@@ -311,14 +302,12 @@ describe('POST /api/signup/start', () => {
   })
 
   /**
-   * The floor under that allowance, and the reason it is not redundant: all
-   * five of a ten-minute budget can be spent in the same second at five
-   * different `@ucf.edu` addresses, which is five students opening an inbox to
-   * a link they never asked for.
+   * The floor under that allowance, and why it isn't redundant: all five of a ten-minute budget
+   * can be spent in the same second at five different `@ucf.edu` addresses, which is five
+   * students opening an inbox to a link they never asked for.
    *
-   * The same address twice on purpose. The per-address budget allows three, so
-   * a 429 on the second can only be the cooldown — and the first request proves
-   * there was mail on the other end of the one that was refused.
+   * The same address twice on purpose. The per-address budget allows three, so a 429 on the
+   * second can only be the cooldown.
    */
   it('makes a caller wait half a minute before asking again', async () => {
     expect((await start({ email: EMAIL, acknowledged: true })).status).toBe(202)
@@ -457,15 +446,13 @@ describe('POST /api/signup/complete', () => {
   })
 
   /**
-   * The board is appointed in Discord, so somebody who already carries the role
-   * when they sign up is an officer from their first sign-in rather than ten
-   * minutes later when the sweep next runs. The answer costs nothing: the guild
-   * search this route already makes returns the roles with it.
+   * The board is appointed in Discord, so somebody who already carries the role when they sign up
+   * is an officer from their first sign-in rather than ten minutes later. The answer costs
+   * nothing: the guild search this route already makes returns the roles with it.
    *
-   * `joinedAt` is stamped for the same reason a payment stamps it — an officer
-   * is a member by the act of being on the board, and one with no `joinedAt`
-   * prints a blank year on their public profile. The slug still is not set:
-   * publishing a person stays a decision a person makes.
+   * `joinedAt` is stamped for the reason a payment stamps it — an officer is a member by the act
+   * of being on the board. The slug still isn't set: publishing a person stays a decision a
+   * person makes.
    */
   it('makes an officer of somebody who carries the Discord role', async () => {
     discord.mockResolvedValue({
@@ -585,11 +572,9 @@ describe('POST /api/signup/complete', () => {
     ['a missing surname', { lastName: '  ' }],
     ['a display name in the Discord field', { discordUsername: 'Phi Bi' }],
     /**
-     * The member acknowledgement, checked here as well as in the form. A
-     * checkbox is a promise the browser makes, and posting straight at this
-     * endpoint must not be a way past agreeing to the safety rules — which is
-     * the one field on this form that exists for the club's sake rather than
-     * the account's.
+     * The member acknowledgement, checked here as well as in the form. A checkbox is a promise the
+     * browser makes, and posting straight at this endpoint must not be a way past agreeing to the
+     * safety rules — the one field on this form that exists for the club's sake.
      */
     ['an unaccepted acknowledgement', { acknowledgementAccepted: false }],
     ['no acknowledgement at all', { acknowledgementAccepted: undefined }],

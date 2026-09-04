@@ -15,13 +15,12 @@ import { useSession } from '../../lib/auth/session'
 /**
  * Getting back in without a password.
  *
- * One route with two halves, keyed on `?token` — the same shape `/join` uses
- * for its start and finish screens, and for the same reason: the emailed link
- * has to land somewhere real, and `/reset-password?token=…` is a URL somebody
- * might have to read out.
+ * One route with two halves, keyed on `?token` — the same shape `/join` uses, and for the same
+ * reason: the emailed link has to land somewhere real, and `/reset-password?token=…` is a URL
+ * somebody might have to read out.
  *
- * Until this page existed the login form said there was no reset link and told
- * people to ask an officer, who set a hash by hand in Prisma Studio.
+ * Until this page existed the login form said there was no reset link and told people to ask an
+ * officer, who set a hash by hand in Prisma Studio.
  */
 
 /** Mirrors the server, which is length and nothing else. */
@@ -37,12 +36,11 @@ function field(data: FormData, name: string): string {
 /**
  * A failure, as a sentence somebody can act on.
  *
- * Its own rather than `lib/apiErrors`, for the same reason the login page has
- * one: that helper answers every 429 with "too many changes at once", which is
- * management-page wording and says the wrong thing here — nothing was changed,
- * and the server's own 429 explains that a link has already gone out and where
- * to look for it. Both of the statuses this page can produce are ones the
- * server phrases better than the browser can, so `detail` comes first.
+ * Its own rather than `lib/apiErrors`, for the same reason the login page has one: that helper
+ * answers every 429 with "too many changes at once", which is management-page wording and says the
+ * wrong thing here — nothing was changed, and the server's own 429 explains that a link has already
+ * gone out and where to look for it. Both statuses this page can produce are ones the server
+ * phrases better than the browser can, so `detail` comes first.
  */
 function explain(error: unknown): string {
   if (error instanceof ApiError) {
@@ -74,10 +72,10 @@ export function ResetPasswordPage() {
 /**
  * Step one: the address.
  *
- * The answer is the server's own sentence and it is the same one whatever was
- * found. An answer that differed for an unknown address would turn this form
- * into a way to ask whether a given student is in the club, one address at a
- * time — which is exactly what the sign-in form next door is careful not to be.
+ * The answer is the server's own sentence and it is the same one whatever was found. An answer that
+ * differed for an unknown address would turn this form into a way to ask whether a given student is
+ * in the club, one address at a time — which is what the sign-in form next door is careful not to
+ * be.
  */
 function AskForALink() {
   const id = useId()

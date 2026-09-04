@@ -68,10 +68,9 @@ describe('academicYear', () => {
   })
 
   /**
-   * **The grouping must not move with the reader's clock.** Midnight UTC on 1
-   * August is the previous July in Orlando, so reading the month locally would
-   * file the whole board a year early here and correctly in Berlin — two
-   * visitors, two different histories.
+   * The grouping must not move with the reader's clock. Midnight UTC on 1 August is the previous
+   * July in Orlando, so reading the month locally would file the whole board a year early here and
+   * correctly in Berlin — two visitors, two different histories.
    */
   it('reads the month in UTC, not in the reader s zone', () => {
     expect(academicYear(AUG_2024, MAY_2025)).toBe('2024–2025')
@@ -79,10 +78,9 @@ describe('academicYear', () => {
   })
 
   /**
-   * **August is the cut-over, and this is the case that pins it.** A term
-   * running January to May 2025 is the back half of the 2024–2025 board, not
-   * the front of 2025–2026 — filing it under 2025 would split one year's
-   * officers across two headings.
+   * August is the cut-over, and this is the case that pins it. A term running January to May 2025
+   * is the back half of the 2024–2025 board, not the front of 2025–2026 — filing it under 2025
+   * would split one year's officers across two headings.
    */
   it('files a spring-only term under the year its August began', () => {
     expect(academicYear('2025-01-13T00:00:00.000Z', MAY_2025)).toBe('2024–2025')

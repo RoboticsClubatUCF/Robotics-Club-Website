@@ -11,16 +11,15 @@ import type { ApiMyProject, Season } from '../../lib/api/api'
 /**
  * Everything somebody has ever been on, minus what they are on now.
  *
- * It exists because the dashboard became term-scoped. `/ MY PROJECTS` shows
- * this semester and nothing else, which is right for the rail — a member three
- * years in wants this Thursday's meeting, not a history — but the history is
- * the part worth keeping, so it gets a page instead of being deleted from view.
+ * It exists because the dashboard became term-scoped. `/ MY PROJECTS` shows this semester and
+ * nothing else, which is right for the rail — a member three years in wants this Thursday's
+ * meeting, not a history — but the history is worth keeping, so it gets a page instead of being
+ * deleted from view.
  *
- * **No request of its own.** The layout already fetched every membership,
- * flagged, and passes it down; this is the other half of the filter the rail
- * applies. That is also why the loading and error states here are the layout's
- * rather than something this page could retry — the panel says so plainly
- * instead of pretending it has a button.
+ * No request of its own. The layout already fetched every membership, flagged, and passes it down;
+ * this is the other half of the filter the rail applies. That is also why the loading and error
+ * states here are the layout's rather than something this page could retry — the panel says so
+ * plainly instead of pretending it has a button.
  */
 export function PastProjectsPage() {
   const { projects } = useOutletContext<DashboardContext>()
@@ -101,11 +100,10 @@ function Terms({ mine }: { mine: ApiMyProject[] }) {
     )
   })
 
-  // A term to a cell rather than a term to a row. These are years of history
-  // and each panel is short — usually one project — so stacked they were a
-  // column of near-empty boxes down the left of the screen. `items-start`
-  // because a term with one project in it has no business being as tall as the
-  // term beside it with four.
+  // A term to a cell rather than a term to a row. These are years of history and each panel is
+  // short — usually one project — so stacked they were a column of near-empty boxes down the left
+  // of the screen. `items-start` because a term with one project in it has no business being as
+  // tall as the term beside it with four.
   return (
     <div className="grid-fluid items-start gap-5 [--col-min:22rem]">
       {sorted.map(([key, memberships]) => {

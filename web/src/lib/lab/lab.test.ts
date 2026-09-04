@@ -4,16 +4,15 @@ import { CLOSES_AT, OPENS_AT } from './lab'
 /**
  * The two labels against the two numbers they claim to describe.
  *
- * These packages cannot import from one another, so the server's
- * `BUILDING_OPENS_AT` / `BUILDING_CLOSES_AT` are restated here as the plain
- * hours and compared to the words the pages print. It is the same arrangement
- * as every hand-mirrored type in `lib/api/api.ts` — nothing enforces it, so
+ * These packages cannot import from one another, so the server's `BUILDING_OPENS_AT` /
+ * `BUILDING_CLOSES_AT` are restated here as the plain hours and compared to the words the pages
+ * print. Same arrangement as every hand-mirrored type in `lib/api/api.ts` — nothing enforces it, so
  * something has to check it.
  *
- * A sentence reading "shut between 10pm and 8am" while the server refuses from
- * nine is worse than no sentence at all: it is the site telling somebody they
- * have an hour they do not have. Changing the hours means changing this file
- * too, which is the point — the failure is what sends whoever moved them here.
+ * A sentence reading "shut between 10pm and 8am" while the server refuses from nine is worse than
+ * no sentence at all: it is the site telling somebody they have an hour they do not have. Changing
+ * the hours means changing this file too, which is the point — the failure is what sends whoever
+ * moved them here.
  */
 
 /** `BUILDING_OPENS_AT` and `BUILDING_CLOSES_AT` in `server/src/lab/labStatus.ts`. */

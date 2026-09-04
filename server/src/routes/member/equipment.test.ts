@@ -8,13 +8,12 @@ import { createSession } from '../../auth/session.js'
 /**
  * Borrowing, against the live database.
  *
- * The arithmetic is what this suite is for: availability is `quantity` minus
- * the loans holding a unit, and "holding" includes APPROVED — a drill
- * promised to somebody who has not collected it yet is not free. The
- * expensive way to learn that is two members turning up for one drill.
+ * The arithmetic is what this suite is for: availability is `quantity` minus the loans holding a
+ * unit, and "holding" includes APPROVED — a drill promised to somebody who hasn't collected it
+ * isn't free. The expensive way to learn that is two members turning up for one drill.
  *
- * Discord is stubbed for the same reason `print.test.ts` stubs it: the dev
- * database has real officers with real ids in it.
+ * Discord is stubbed for the reason `print.test.ts` stubs it: the dev database has real officers
+ * with real ids in it.
  */
 
 vi.mock('../../discord/discord.js', async (importOriginal) => ({
@@ -52,12 +51,9 @@ let officerCookie: string
 let drillId: string
 
 /**
- * Paid up, and the suite is deterministic only because they are. Both routers
- * need current dues now — the club's line is that a lapsed account gets the
- * dues page and its own projects and nothing else — and whether *anybody* is
- * lapsed depends on the calendar, so fixtures with no date would pass all
- * summer and fail the week fall's trial closes. The lapsed case is covered in
- * `authz.test.ts`, which pins its clock for the same reason.
+ * Paid up, and the suite is deterministic only because they are. Both routers need current dues,
+ * and whether anybody is lapsed depends on the calendar — so fixtures with no date would pass all
+ * summer and fail the week fall's trial closes. The lapsed case is covered in `authz.test.ts`.
  */
 const PAID_UP = new Date('2035-12-31T23:59:59')
 /**
@@ -130,10 +126,9 @@ const request = (method: string, path: string, cookie: string, body?: unknown) =
 /**
  * Dates relative to now, because the route compares them to the wall clock.
  *
- * Pinning them the way the fixtures' dues are pinned would put every ask
- * either in the past or a decade past the item's borrow cap, which are the two
- * things the route refuses. `THREE_DAYS` sits comfortably inside the default
- * seven-day cap without landing on its boundary.
+ * Pinning them the way the fixtures' dues are pinned would put every ask either in the past or a
+ * decade past the item's borrow cap, which are the two things the route refuses. `THREE_DAYS`
+ * sits comfortably inside the default seven-day cap without landing on its boundary.
  */
 const daysFromNow = (n: number) =>
   new Date(Date.now() + n * 24 * 60 * 60 * 1000).toISOString()
@@ -192,19 +187,15 @@ describe('the catalogue', () => {
 })
 
 /**
- * The club lends its own things, and the gate is now the same one everything
- * else uses: `duesPaidThrough` in the future, `ADMIN` aside.
+ * The club lends its own things, and the gate is the same one everything else uses:
+ * `duesPaidThrough` in the future, `ADMIN` aside.
  *
- * This used to be a stricter check of its own that refused a `GUEST` whatever
- * their standing. It was necessary while the summer and the opening weeks
- * reported access for everybody — standing alone would then have handed the
- * loan shelf to an account made ten minutes ago — and redundant the moment
- * access became the date, since nothing sets that date without promoting the
- * account in the same transaction.
+ * This used to be a stricter check that refused a `GUEST` whatever their standing. It was
+ * necessary while the summer reported access for everybody — standing alone would have handed
+ * the loan shelf to an account made ten minutes ago — and redundant the moment access became the
+ * date.
  *
- * Which sentence each refusal gets is `authz.test.ts`'s matrix, where the clock
- * is pinned; the wording turns on whether a free window is running today, so it
- * cannot be asserted from a suite reading the real calendar.
+ * Which sentence each refusal gets is `authz.test.ts`'s matrix, where the clock is pinned.
  */
 describe('who may borrow', () => {
   const withDues = async (
@@ -566,11 +557,10 @@ describe('the borrowing window', () => {
   })
 
   /**
-   * A date box accepts a year of four *or more* digits, so a slipped
-   * keystroke reaches the API as `12345-…`. The range checks above would
-   * refuse most of these anyway — but for being longer than a week rather
-   * than for being wrong, which sends whoever reads the message looking for
-   * the wrong problem. `loanDate` answers the real one.
+   * A date box accepts a year of four or more digits, so a slipped keystroke reaches the API as
+   * `12345-…`. The range checks above would refuse most of these anyway — but for being longer
+   * than a week rather than for being wrong, which sends whoever reads the message looking for
+   * the wrong problem.
    */
   it('refuses a year with too many digits in it', async () => {
     for (const bad of [
@@ -726,10 +716,9 @@ describe('the officer desk', () => {
 /**
  * Deleting, which is the one irreversible thing on this desk.
  *
- * Retiring is right for nearly everything that stops being lent out. This is
- * for the row that should never have existed, and it takes the item's whole
- * borrowing history with it — so the only guard that matters is the one that
- * stops it happening while somebody is holding the thing.
+ * Retiring is right for nearly everything that stops being lent out. This is for the row that
+ * should never have existed, and it takes the item's whole borrowing history with it — so the
+ * only guard that matters is the one that stops it happening while somebody is holding the thing.
  */
 describe('deleting an item', () => {
   const del = (id: string, cookie = officerCookie) =>

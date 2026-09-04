@@ -13,19 +13,17 @@ import { notifyOfficers } from '../../discord/officerNotify.js'
 import { clearCalendarCache } from '../../membership/semester.js'
 import { createSession } from '../../auth/session.js'
 
-// Mocked outright, for the reason `print.test.ts` and `equipment.test.ts` mock
-// `../discord.js`: the officers in the development database are real people
-// with real Discord ids, and an unmocked run would message them about a fixture
-// walking out of a fixture project.
+// Mocked outright, for the reason `print.test.ts` mocks `../discord.js`: the officers in
+// the development database are real people with real Discord ids, and an unmocked run
+// would message them about a fixture walking out of a fixture project.
 vi.mock('../../discord/officerNotify.js', () => ({
   notifyOfficers: vi.fn(() => Promise.resolve()),
 }))
 
-// And the same again, one step further: joining, leaving, being ranked and
-// having a project deleted all push Discord roles now. That is not a message a
-// real person can ignore — it changes what they can see in the club's server —
-// and the dev `.env` carries a live bot token. Nothing in this file may reach
-// the guild.
+// And the same one step further: joining, leaving, being ranked and having a project
+// deleted all push Discord roles now. That changes what a real person can see in the
+// club's server, and the dev `.env` carries a live bot token. Nothing here may reach the
+// guild.
 vi.mock('../../discord/discord.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../discord/discord.js')>()),
   memberRoleId: null,
@@ -38,15 +36,14 @@ vi.mock('../../discord/discord.js', async (importOriginal) => ({
 }))
 
 /**
- * Project lifecycle, against the live database: officers making projects,
- * leads building teams, members joining behind the dues gate.
+ * Project lifecycle, against the live database: officers making projects, leads building
+ * teams, members joining behind the dues gate.
  *
- * The clock is pinned to **fall 2035**, and it has to be: the join gate runs
- * through `membershipStanding`, whose answer depends on today's date — run
- * against the real clock this suite would pass all summer (summer is free) and
- * start failing the day term starts. The calendar fetch is stubbed to fail, so
- * the fixed fallback dates make every term boundary deterministic. Only `Date`
- * is faked; the timers stay real or every await against Postgres would hang.
+ * The clock is pinned to fall 2035, and it has to be: the join gate runs through
+ * `membershipStanding`, whose answer depends on today's date, so against the real clock
+ * this suite would pass all summer and start failing the day term starts. The calendar
+ * fetch is stubbed to fail, so the fallback dates make every term boundary deterministic.
+ * Only `Date` is faked; the timers stay real or every await against Postgres would hang.
  */
 
 const PREFIX = 'test-projmgmt-'
@@ -54,9 +51,9 @@ const PREFIX = 'test-projmgmt-'
 /**
  * A schedule, which every created project now has to carry.
  *
- * Spread into each create body rather than repeated: the route requires the
- * days and both times together, so a test about slugs or write-ups would
- * otherwise fail on a field it is not about.
+ * Spread into each create body rather than repeated: the route requires the days and both
+ * times together, so a test about slugs or write-ups would otherwise fail on a field it
+ * isn't about.
  */
 const MEETING = {
   meetingWeekdays: [2, 4],
@@ -70,9 +67,9 @@ const MID_FALL = new Date(2035, 9, 15, 12, 0, 0)
 /** Fall 2035's fallback end is 31 December — paid through covers the term. */
 const PAID_THROUGH = new Date(2035, 11, 31)
 /**
- * The other gate, and it sits in front of the dues one. Every fixture that has
- * to reach anything needs both — a missing survey is a 403 that looks exactly
- * like a missing payment, and it is not what these tests are about.
+ * The other gate, and it sits in front of the dues one. Every fixture that has to reach
+ * anything needs both — a missing survey is a 403 that looks exactly like a missing
+ * payment, and it isn't what these tests are about.
  */
 const SURVEYED = new Date('2035-09-01T00:00:00')
 
@@ -90,12 +87,10 @@ const clearWindows = () =>
   })
 
 const clearRows = async () => {
-  // The documents' *files* first, and this is not optional. `ProjectDocument`
-  // cascades away with the project, which drops the only reference to its
-  // `stored_files` row — nothing points back, so an unswept file is invisible
-  // and permanent, in the development database, holding whatever the fixture
-  // uploaded. It is the same sweep `DELETE /projects/:id` makes, for the same
-  // reason, and leaving it out here quietly grew 87 rows before anybody looked.
+  // The documents' files first, and this isn't optional. `ProjectDocument` cascades away
+  // with the project, which drops the only reference to its `stored_files` row — so an
+  // unswept file is invisible and permanent, in the development database. Same sweep
+  // `DELETE /projects/:id` makes; leaving it out here quietly grew 87 rows.
   const documents = await prisma.projectDocument.findMany({
     where: { project: { slug: { startsWith: PREFIX } } },
     select: { fileId: true },
@@ -130,8 +125,8 @@ let projectId: string
 let otherProjectId: string
 
 beforeEach(async () => {
-  // Pin the clock before anything is created, so the sessions minted below
-  // expire in 2035's future rather than 2026's past.
+  // Pin the clock before anything is created, so the sessions minted below expire in
+  // 2035's future rather than 2026's past.
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(MID_FALL)
 
@@ -146,10 +141,9 @@ beforeEach(async () => {
   await clearRows()
 
   const [officer, lead, paid, unpaid] = await Promise.all([
-    // Both paid up, because running a project needs current dues now — see
-    // `requireCurrentDues`. Without a date these two would be locked out of
-    // every management route in this file, which is the *right* behaviour and
-    // has its own matrix in `authz.test.ts`.
+    // Both paid up, because running a project needs current dues now. Without a date these
+    // two would be locked out of every management route in this file, which is the right
+    // behaviour and has its own matrix in `authz.test.ts`.
     prisma.user.create({
       data: {
         fullName: 'PM Officer',
@@ -178,10 +172,9 @@ beforeEach(async () => {
       },
     }),
     prisma.user.create({
-      // No dues date — that is what this fixture is for — but the survey is
-      // answered, because it is the gate in front of dues. Without it the
-      // refusals below would all carry the survey's sentence and the tests
-      // asserting *which* dues sentence somebody gets would be testing nothing.
+      // No dues date — that's what this fixture is for — but the survey is answered,
+      // because it's the gate in front of dues. Without it the refusals below would all
+      // carry the survey's sentence.
       data: {
         fullName: 'PM Unpaid',
         email: email('unpaid'),
@@ -200,8 +193,8 @@ beforeEach(async () => {
     data: {
       slug: `${PREFIX}rover`,
       title: 'PM Rover',
-      // Every project needs a term now. A year nothing real uses, so a
-      // fixture can never collide with the club's own rows.
+      // Every project needs a term now. A year nothing real uses, so a fixture can never
+      // collide with the club's own rows.
       termYear: 2035,
       termSeason: Season.FALL,
       status: ProjectStatus.IN_PROGRESS,
@@ -231,8 +224,8 @@ beforeEach(async () => {
   paidCookie = await cookieFor(paid.id)
   unpaidCookie = await cookieFor(unpaid.id)
 
-  // The officer DM is asserted on by call count, so it has to start each test
-  // at zero rather than carrying the previous one's.
+  // The officer DM is asserted on by call count, so it has to start each test at zero
+  // rather than carrying the previous one's.
   vi.mocked(notifyOfficers).mockClear()
 })
 
@@ -262,11 +255,9 @@ describe('the officer desk', () => {
   /**
    * Creating makes the project and nothing else.
    *
-   * The route used to take a `leadUserId` and seat the lead inside the same
-   * write; appointing moved to the roles desk so there is one route that grants
-   * that rank instead of two. An empty roster is the correct outcome, not a
-   * missing step — the board agrees to run something before it has settled who
-   * runs it.
+   * The route used to take a `leadUserId` and seat the lead inside the same write;
+   * appointing moved to the roles desk. An empty roster is the correct outcome, not a
+   * missing step — the board agrees to run something before it has settled who runs it.
    */
   it('creates a project with nobody on it', async () => {
     const response = await request('POST', '/api/officer/projects', officerCookie, {
@@ -296,10 +287,9 @@ describe('the officer desk', () => {
   })
 
   /**
-   * The summary is the one line the projects list prints under a title, so a
-   * project without one is an empty row on the page people read before they
-   * decide to join. Required at the schema, which is why this is a 400 and not
-   * something the handler has to remember.
+   * The summary is the one line the projects list prints under a title, so a project
+   * without one is an empty row on the page people read before they decide to join.
+   * Required at the schema, which is why this is a 400.
    */
   it('refuses a project with no summary', async () => {
     const response = await request('POST', '/api/officer/projects', officerCookie, {
@@ -313,16 +303,13 @@ describe('the officer desk', () => {
   })
 
   /**
-   * The write-up goes up *with* the project, because it is a column and needs
-   * nothing to exist first — unlike a gallery picture or a resource link, which
-   * hang off its id. That is what lets the desk put the whole form on one page
-   * and gate only the two things that genuinely cannot be filled in yet.
+   * The write-up goes up with the project, because it's a column and needs nothing to
+   * exist first — unlike a gallery picture or a resource link, which hang off its id.
+   * That's what lets the desk put the whole form on one page.
    *
-   * **The repository used to ride along here and is a resource link now.** The
-   * column is gone, and zod strips what it does not declare — so an old client
-   * still sending `repoUrl` gets a 201 and a project without one, which is the
-   * failure worth pinning: re-adding the field silently would restore a second
-   * way to write a resource.
+   * The repository used to ride along here and is a resource link now. The column is gone,
+   * and zod strips what it doesn't declare — so an old client still sending `repoUrl` gets
+   * a 201 and a project without one, which is the failure worth pinning.
    */
   it('stores the write-up given at creation, and ignores a repository', async () => {
     const response = await request('POST', '/api/officer/projects', officerCookie, {
@@ -346,10 +333,9 @@ describe('the officer desk', () => {
   })
 
   /**
-   * A project with no lead yet is a normal state. The board agreeing to run
-   * something and the board settling who runs it are two decisions, often a
-   * week apart, and making the first wait on the second gets a project a lead
-   * who was picked to unblock a form.
+   * A project with no lead yet is a normal state. The board agreeing to run something and
+   * settling who runs it are two decisions, often a week apart, and making the first wait
+   * on the second gets a project a lead who was picked to unblock a form.
    */
   it('creates a project with no lead at all', async () => {
     const response = await request('POST', '/api/officer/projects', officerCookie, {
@@ -369,9 +355,9 @@ describe('the officer desk', () => {
   /**
    * Seating a lead is a fact about the membership row and nothing else.
    *
-   * It used to also stamp a matching `PROJECT_LEAD` label on `User.role`, which
-   * is the duplication the two-role-systems refactor removed. This test is what
-   * would catch somebody rebuilding it.
+   * It used to also stamp a matching `PROJECT_LEAD` label on `User.role`, which is the
+   * duplication the two-role-systems refactor removed. This test is what would catch
+   * somebody rebuilding it.
    */
   it('seats the lead without touching what they are in the club', async () => {
     const response = await request('POST', '/api/officer/projects', officerCookie, {
@@ -395,10 +381,9 @@ describe('the officer desk', () => {
   })
 
   /**
-   * The case that would once have been a quiet disaster: an officer taking a
-   * build on themselves and being demoted off the board by the act of doing it.
-   * Nothing here writes `User.role` at all now, so it holds by construction
-   * rather than by a guard — and this is the test that says so.
+   * The case that would once have been a quiet disaster: an officer taking a build on
+   * themselves and being demoted off the board by the act of doing it. Nothing here writes
+   * `User.role` at all now, so it holds by construction — and this says so.
    */
   it('does not demote an officer who makes themselves the lead', async () => {
     const response = await request('POST', '/api/officer/projects', officerCookie, {
@@ -466,10 +451,10 @@ describe('the officer desk', () => {
 /**
  * A project has one lead.
  *
- * The rule is enforced by this route rather than by a database index — Prisma
- * cannot express a partial unique index, so one would live in the database and
- * not in `schema.prisma`, and the next generated migration would emit a DROP
- * for it. That makes these tests the only thing holding the invariant up.
+ * Enforced by this route rather than a database index — Prisma can't express a partial
+ * unique index, so one would live in the database and not in `schema.prisma`, and the next
+ * generated migration would emit a DROP for it. That makes these tests the only thing
+ * holding the invariant up.
  */
 describe('one project lead per project', () => {
   it('refuses a second, and names the one already sitting there', async () => {
@@ -481,8 +466,8 @@ describe('one project lead per project', () => {
     )
 
     expect(response.status).toBe(409)
-    // Named, because standing that particular person down is the next thing
-    // the officer has to do and a generic refusal would not say who.
+    // Named, because standing that particular person down is the next thing the officer has
+    // to do and a generic refusal wouldn't say who.
     expect(((await response.json()) as { error: string }).error).toMatch(
       /PM Lead already leads this project/i,
     )
@@ -544,8 +529,8 @@ describe('one project lead per project', () => {
       { rank: 'PROJECT_LEAD' },
     )
 
-    // `lead` already holds the seat on `otherProjectId` from the fixtures, so
-    // this is the ordinary conflict — swap them and the point still stands.
+    // `lead` already holds the seat on `otherProjectId` from the fixtures, so this is the
+    // ordinary conflict — swap them and the point still stands.
     expect(response.status).toBe(409)
 
     await request(
@@ -570,20 +555,18 @@ describe('one project lead per project', () => {
   })
 
   /**
-   * **The rule the row lock in `projects/projectLead.ts` exists for.**
+   * The rule the row lock in `projects/projectLead.ts` exists for.
    *
-   * This used to be check-then-act in the route handler: read the incumbent,
-   * then upsert. Two officers appointing different people in the same instant
-   * both passed the read and both wrote, and the project ended up with two
-   * leads — a state the schema says cannot exist. The comment on the route said
-   * so and left it there.
+   * This used to be check-then-act in the route handler: read the incumbent, then upsert.
+   * Two officers appointing different people in the same instant both passed the read and
+   * both wrote, and the project ended up with two leads.
    *
-   * Both requests go out before either is awaited, which is as close to the same
-   * instant as this suite can get. One of them has to lose.
+   * Both requests go out before either is awaited, which is as close to the same instant as
+   * this suite can get. One of them has to lose.
    */
   it('cannot be raced into two leads', async () => {
-    // Clear the seat first, so both requests below are appointing into an empty
-    // project rather than one of them hitting the ordinary incumbent 409.
+    // Clear the seat first, so both requests below are appointing into an empty project
+    // rather than one of them hitting the ordinary incumbent 409.
     await request(
       'PATCH',
       `/api/officer/projects/${projectId}/members/${leadId}/rank`,
@@ -606,8 +589,8 @@ describe('one project lead per project', () => {
       ),
     ])
 
-    // Exactly one winner, and the loser gets the same 409 it would have got had
-    // it simply arrived second.
+    // Exactly one winner, and the loser gets the same 409 it would have got had it simply
+    // arrived second.
     const codes = [first.status, second.status].sort((a, b) => a - b)
     expect(codes).toEqual([200, 409])
 
@@ -619,9 +602,9 @@ describe('one project lead per project', () => {
   })
 
   /**
-   * The cap is on `PROJECT_LEAD` alone. A project has as many team leads as it
-   * has teams, they are granted through a different route against a team, and
-   * nothing about the one-lead rule touches them.
+   * The cap is on `PROJECT_LEAD` alone. A project has as many team leads as it has teams,
+   * they're granted through a different route against a team, and nothing about the
+   * one-lead rule touches them.
    */
   it('does not cap team leads', async () => {
     const teams = await prisma.team.createManyAndReturn({
@@ -663,8 +646,8 @@ describe('one project lead per project', () => {
 })
 
 /**
- * The cover a project shows on `/projects`, what it calls its own sections, and
- * the switch between the two ways of choosing a cover.
+ * The cover a project shows on `/projects`, what it calls its own sections, and the switch
+ * between the two ways of choosing a cover.
  */
 describe('the cover and the section headings', () => {
   it('writes the cover switch, its framing and the headings', async () => {
@@ -694,8 +677,8 @@ describe('the cover and the section headings', () => {
     })
   })
 
-  /** Blank clears the column, so there is one spelling of "no heading" and the
-      pages fall back to the standing word. */
+  /** Blank clears the column, so there's one spelling of "no heading" and the pages fall
+      back to the standing word. */
   it('clears a heading to null', async () => {
     await request('PATCH', `/api/projects/${projectId}`, leadCookie, {
       galleryHeading: 'THE BUILD',
@@ -710,8 +693,8 @@ describe('the cover and the section headings', () => {
     expect(stored?.galleryHeading).toBeNull()
   })
 
-  /** The framing is bounded the same way a gallery picture's is — these numbers
-      go straight into a CSS transform. */
+  /** The framing is bounded the same way a gallery picture's is — these numbers go straight
+      into a CSS transform. */
   it('refuses framing outside the bounds', async () => {
     const response = await request('PATCH', `/api/projects/${projectId}`, leadCookie, {
       coverZoom: 9,
@@ -731,9 +714,9 @@ describe('the cover and the section headings', () => {
 /**
  * Creating a project is officer business and nothing else opens that door.
  *
- * A `PROJECT_LEAD` roster label used to buy the right to start a single project
- * of your own — the one place a `UserRole` value said anything about projects.
- * The label is not a role any more and the delegation went with it.
+ * A `PROJECT_LEAD` roster label used to buy the right to start a single project of your own
+ * — the one place a `UserRole` value said anything about projects. The label isn't a role
+ * any more and the delegation went with it.
  */
 describe('creating a project', () => {
   const ownProject = {
@@ -760,11 +743,10 @@ describe('creating a project', () => {
   /**
    * The field is gone, and a body still carrying it seats nobody.
    *
-   * Zod strips what it does not declare rather than refusing it, so an old
-   * client — or a hand-written request copied from the previous shape — gets a
-   * 201 and an empty roster. That is the right answer and worth pinning: the
-   * failure this guards against is somebody re-adding `leadUserId` to the
-   * schema and quietly restoring a second route that grants `PROJECT_LEAD`.
+   * Zod strips what it doesn't declare rather than refusing it, so an old client gets a 201
+   * and an empty roster. That's the right answer and worth pinning: the failure this guards
+   * against is somebody re-adding `leadUserId` and quietly restoring a second route that
+   * grants `PROJECT_LEAD`.
    */
   it('ignores a lead named at creation', async () => {
     const response = await request(
@@ -786,10 +768,9 @@ describe('creating a project', () => {
 /** The appointment panel, and the picker that feeds it. */
 describe('appointing a project lead', () => {
   /**
-   * The upsert arm: somebody an officer appoints has often never joined through
-   * the site, and appointing them *is* how they land on the project. Run against
-   * a project with the seat free, since a project has one lead and appointing
-   * over a sitting one is its own test.
+   * The upsert arm: somebody an officer appoints has often never joined through the site,
+   * and appointing them is how they land on the project. Run against a project with the
+   * seat free, since appointing over a sitting one is its own test.
    */
   it('appoints a lead who was never a member, by making them one', async () => {
     const empty = await prisma.project.create({
@@ -814,9 +795,9 @@ describe('appointing a project lead', () => {
   })
 
   /**
-   * Discord is where the club actually talks, and an account may carry a handle
-   * and no email at all — until this arm existed those people could not be
-   * found by the picker that appoints project leads.
+   * Discord is where the club actually talks, and an account may carry a handle and no
+   * email at all — until this arm existed those people couldn't be found by the picker that
+   * appoints project leads.
    */
   it('finds a member by their Discord handle as well as their name', async () => {
     const handle = `${PREFIX}rowan_c`
@@ -897,15 +878,13 @@ describe('joining a project', () => {
   })
 
   /**
-   * And *not* in words about dues while the club is charging nothing.
+   * And not in words about dues while the club is charging nothing.
    *
-   * This route used to read `hasAccess` itself and throw its own sentence,
-   * which was fine while "no cover" meant one thing. It means three now, and
-   * the hardcoded one told somebody inside a free window to settle dues they
-   * did not owe for a thing that was one free press away. It defers to
-   * `requireCurrentDues`, so the sentence follows the date — asserted by moving
-   * the clock into the August gap rather than by moving the fixture, because
-   * the window is a property of the calendar.
+   * This route used to read `hasAccess` itself and throw its own sentence, which was fine
+   * while "no cover" meant one thing. It means three now, and the hardcoded one told
+   * somebody inside a free window to settle dues they didn't owe. It defers to
+   * `requireCurrentDues`, so the sentence follows the date — asserted by moving the clock
+   * into the August gap, because the window is a property of the calendar.
    */
   it('tells somebody inside a free window to claim it instead', async () => {
     vi.setSystemTime(new Date(2035, 7, 15, 12, 0, 0))
@@ -969,12 +948,10 @@ describe('joining a project', () => {
   })
 
   /**
-   * This used to be a 409 telling the only lead to ask an officer to appoint
-   * another first — an instruction nobody can follow now a project has exactly
-   * one lead, because there is no second seat to appoint anybody into while
-   * they still hold the first. So they go, and the project is left leaderless,
-   * which is a state the board sits in anyway between agreeing to run something
-   * and settling who runs it.
+   * This used to be a 409 telling the only lead to ask an officer to appoint another first
+   * — an instruction nobody can follow now a project has exactly one lead, because there's
+   * no second seat to appoint anybody into while they hold the first. So they go, and the
+   * project is left leaderless, which is a state the board sits in anyway.
    */
   it('lets the only lead walk out, leaving the project leaderless', async () => {
     const response = await request(
@@ -993,20 +970,18 @@ describe('joining a project', () => {
 })
 
 /**
- * Leaving a project changes what you *run*, never what you *are*.
+ * Leaving a project changes what you run, never what you are.
  *
- * This block used to be called "leaving, and what it costs", and it cost a
- * roster label: walking out of your last lead seat rewrote `User.role`. Two
- * enums spelled the same thing and a whole file existed to keep them in step.
- * Now nothing about a project touches that column, and these rows are what
- * would catch it coming back.
+ * This block used to be called "leaving, and what it costs", and it cost a roster label:
+ * walking out of your last lead seat rewrote `User.role`. Two enums spelled the same thing
+ * and a whole file existed to keep them in step. Now nothing about a project touches that
+ * column, and these rows are what would catch it coming back.
  */
 describe('leaving, and what it does not cost', () => {
   /**
-   * Straight to the database rather than through the appointment route, and the
-   * existing lead is stood down first — otherwise seating a second one would
-   * build a state the site itself refuses, which is not a state worth asserting
-   * anything about.
+   * Straight to the database rather than through the appointment route, and the existing
+   * lead is stood down first — otherwise seating a second one would build a state the site
+   * itself refuses.
    */
   const seat = async (
     userId: string,
@@ -1061,9 +1036,8 @@ describe('leaving, and what it does not cost', () => {
   })
 
   /**
-   * The row that mattered most when leaving *did* write roles, and still worth
-   * keeping: an officer holds their role for reasons that have nothing to do
-   * with any project.
+   * The row that mattered most when leaving did write roles, and still worth keeping: an
+   * officer holds their role for reasons that have nothing to do with any project.
    */
   it('never touches an officer who was running a build', async () => {
     await seat(officerId, ProjectMemberRank.PROJECT_LEAD, otherProjectId)
@@ -1074,9 +1048,9 @@ describe('leaving, and what it does not cost', () => {
   })
 
   /**
-   * The whole lifecycle in one row, which is the clearest single statement of
-   * the model: join, be made a lead, be stood down, walk out — and be a club
-   * `MEMBER` at every one of those points, because none of it is about the club.
+   * The whole lifecycle in one row, which is the clearest single statement of the model:
+   * join, be made a lead, be stood down, walk out — and be a club `MEMBER` at every one of
+   * those points, because none of it is about the club.
    */
   it('keeps the club role inert across the whole lifecycle', async () => {
     const expectMember = async () =>
@@ -1121,10 +1095,9 @@ describe('leaving, and what it does not cost', () => {
   })
 
   /**
-   * Nobody but an officer can run a leaderless project, so somebody has to be
-   * told. Best-effort on purpose — the DM is fired and not awaited, because a
-   * member's departure must not depend on Discord being up — which is why these
-   * assertions wait on the mock rather than on the response.
+   * Nobody but an officer can run a leaderless project, so somebody has to be told.
+   * Best-effort on purpose — the DM is fired and not awaited, because a member's departure
+   * must not depend on Discord being up — which is why these assertions wait on the mock.
    */
   describe('when it leaves the project with no lead', () => {
     it('tells the officers, naming the project', async () => {
@@ -1170,10 +1143,10 @@ describe('the gallery', () => {
   })
 
   /**
-   * A gallery assembled on the create page is framed before there is a project
-   * to attach it to, so the framing arrives *with* the picture. Otherwise
-   * publishing that draft would be two requests each, the second of which could
-   * fail alone and leave a photo sitting visibly wrong.
+   * A gallery assembled on the create page is framed before there's a project to attach it
+   * to, so the framing arrives with the picture. Otherwise publishing that draft would be
+   * two requests each, the second of which could fail alone and leave a photo sitting
+   * visibly wrong.
    */
   it('takes framing given at the moment a picture is added', async () => {
     const response = await request(
@@ -1282,8 +1255,8 @@ describe('the gallery', () => {
   })
 
   /**
-   * The lost-update guard. Without it, a tab that loaded the gallery before a
-   * second picture was added would quietly drop it on the next reorder.
+   * The lost-update guard. Without it, a tab that loaded the gallery before a second
+   * picture was added would quietly drop it on the next reorder.
    */
   it('refuses an order whose ids are not exactly the gallery', async () => {
     const first = (await (await addImage(leadCookie, 'https://example.test/1.png')).json()) as {
@@ -1357,9 +1330,9 @@ describe('the gallery', () => {
   })
 
   /**
-   * The one that would go wrong quietly: a caption edit must not re-centre a
-   * picture somebody framed, and a framing edit must not wipe their caption.
-   * That is only true because no field in the schema carries a `.default()`.
+   * The one that would go wrong quietly: a caption edit must not re-centre a picture
+   * somebody framed, and a framing edit must not wipe their caption. That's only true
+   * because no field in the schema carries a `.default()`.
    */
   it('leaves the fields a patch did not mention alone', async () => {
     const image = (await (await addImage(leadCookie)).json()) as { id: string }
@@ -1410,9 +1383,8 @@ describe('the gallery', () => {
   })
 
   /**
-   * Matched on the pair, not on the id alone — otherwise the lead of one
-   * project could aim a delete at another project's gallery and the id would be
-   * the only thing standing in the way.
+   * Matched on the pair, not the id alone — otherwise the lead of one project could aim a
+   * delete at another project's gallery and the id would be the only thing in the way.
    */
   it('404s an image id that belongs to another project', async () => {
     const stray = await prisma.projectImage.create({
@@ -1517,15 +1489,14 @@ describe('teams, through their lifecycle', () => {
   /**
    * The description, which this route has always taken and nothing ever sent.
    *
-   * It is worth its own row because its absence looked exactly like a working
-   * feature: the column is here, the roster route answers with it and the
-   * project dashboard renders it, so a team simply had no description and
-   * nothing anywhere said why. The manage page writes one now.
+   * Worth its own row because its absence looked exactly like a working feature: the column
+   * is here, the roster route answers with it and the dashboard renders it, so a team simply
+   * had no description and nothing said why.
    *
-   * The clear is the half that can regress quietly. `teamBody.partial()` means
-   * a patch carrying only `description` leaves `name` undefined, and Prisma
-   * skips an undefined field rather than nulling it — so this also pins that
-   * clearing the description does not take the name with it.
+   * The clear is the half that can regress quietly. `teamBody.partial()` means a patch
+   * carrying only `description` leaves `name` undefined, and Prisma skips an undefined field
+   * rather than nulling it — so this also pins that clearing the description doesn't take
+   * the name with it.
    */
   it('stores a team description, and clears it without touching the name', async () => {
     const created = await request(
@@ -1558,10 +1529,9 @@ describe('teams, through their lifecycle', () => {
   })
 
   /**
-   * Deleting a team is the delicate one: the composite FK is RESTRICT, so the
-   * route has to detach the seated members itself — and a TEAM_LEAD rank left
-   * behind with no team would quietly attach to whatever team its holder
-   * joined next.
+   * Deleting a team is the delicate one: the composite FK is RESTRICT, so the route has to
+   * detach the seated members itself — and a TEAM_LEAD rank left behind with no team would
+   * quietly attach to whatever team its holder joined next.
    */
   it('deleting a team detaches its members and retires its lead rank', async () => {
     const team = await prisma.team.create({
@@ -1607,12 +1577,11 @@ describe('deleting a project', () => {
 })
 
 /**
- * `PATCH /api/projects/:id` is what the public page's editor saves through, and
- * that editor does not re-read the project afterwards — `/projects/:slug` is a
- * publicly cached route, so a read taken straight after a write can honestly
- * answer with the copy from before it. What comes back from the write *is* the
- * editor's new state, which makes the response shape part of this route's
- * contract rather than an implementation detail.
+ * `PATCH /api/projects/:id` is what the public page's editor saves through, and that editor
+ * doesn't re-read the project afterwards — `/projects/:slug` is publicly cached, so a read
+ * straight after a write can honestly answer with the copy from before it. What comes back
+ * from the write is the editor's new state, which makes the response shape part of this
+ * route's contract.
  */
 describe('editing the writing', () => {
   it('answers with every column it was given, the write-up included', async () => {
@@ -1626,9 +1595,9 @@ describe('editing the writing', () => {
     })
 
     expect(response.status).toBe(200)
-    // `description` is the one that has been missing: absent from the response,
-    // it lands in the editor as `undefined`, blanks the write-up on screen and
-    // leaves the form permanently dirty — a save that looks like it failed.
+    // `description` is the one that has been missing: absent from the response, it lands in
+    // the editor as `undefined`, blanks the write-up on screen and leaves the form
+    // permanently dirty — a save that looks like it failed.
     expect(await response.json()).toMatchObject({
       title: 'PM Rover Renamed',
       summary: 'A rover, described in one line.',
@@ -1640,9 +1609,9 @@ describe('editing the writing', () => {
   })
 
   /**
-   * Not every project is built for a competition, so the column is nullable and
-   * emptying the box has to clear it — in the row *and* in the answer, or the
-   * editor puts the old name straight back on screen.
+   * Not every project is built for a competition, so the column is nullable and emptying the
+   * box has to clear it — in the row and in the answer, or the editor puts the old name
+   * straight back on screen.
    */
   it('clears the competition when the box is emptied', async () => {
     await prisma.project.update({
@@ -1694,17 +1663,17 @@ describe('the meeting schedule', () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toMatchObject({
-      // Sorted and deduplicated on the way in, so every reader downstream gets
-      // to assume it rather than each sorting for itself.
+      // Sorted and deduplicated on the way in, so every reader downstream gets to assume it
+      // rather than each sorting for itself.
       meetingWeekdays: [2, 4],
       meetingStartTime: '18:00',
       meetingEndTime: '22:00',
       meetingLocation: 'ENG2 Lab',
     })
 
-    // Found by slug rather than by position: the lead runs more than one
-    // project in these fixtures, and asserting on the whole array would make
-    // this test about how many rather than about the schedule.
+    // Found by slug rather than by position: the lead runs more than one project in these
+    // fixtures, and asserting on the whole array would make this test about how many rather
+    // than about the schedule.
     const mine = await request('GET', '/api/me/projects', leadCookie)
     const rows = (await mine.json()) as {
       project: { slug: string; meetingStartTime: string | null }
@@ -1730,12 +1699,12 @@ describe('the meeting schedule', () => {
   })
 
   /**
-   * Half a schedule is the state worth refusing: a project with days and no
-   * times reads as scheduled on every page that prints it and is skipped by
-   * the expander, so it appears on no calendar and nobody can see why.
+   * Half a schedule is the state worth refusing: a project with days and no times reads as
+   * scheduled on every page that prints it and is skipped by the expander, so it appears on
+   * no calendar and nobody can see why.
    *
-   * Checked against the *resulting* row, not the body, which is why clearing
-   * one half of an existing schedule is what this sends.
+   * Checked against the resulting row, not the body, which is why clearing one half of an
+   * existing schedule is what this sends.
    */
   it('refuses to leave a schedule half set', async () => {
     await patch({
@@ -1769,11 +1738,10 @@ describe('the meeting schedule', () => {
   })
 
   /**
-   * The note is the one part of a schedule that is optional everywhere,
-   * creation included, and it is what a meeting carries as its description on
-   * to a member's calendar — so an empty one has to mean an empty description
-   * rather than a stored blank line. A textarea typed into and cleared sends
-   * `''`, which is why absent and empty land in the same place.
+   * The note is the one part of a schedule that's optional everywhere, creation included,
+   * and it's what a meeting carries as its description onto a member's calendar — so an
+   * empty one has to mean an empty description rather than a stored blank line. A textarea
+   * typed into and cleared sends `''`, which is why absent and empty land in the same place.
    */
   it('stores the lead note and treats an emptied one as cleared', async () => {
     const written = await patch({
@@ -1794,9 +1762,8 @@ describe('the meeting schedule', () => {
   })
 
   /**
-   * The public calendar is the officers', the same way `published` on an event
-   * is. A lead decides when the project meets; whether the front page carries
-   * that is not theirs.
+   * The public calendar is the officers', the same way `published` on an event is. A lead
+   * decides when the project meets; whether the front page carries that isn't theirs.
    */
   it('refuses meetingsPublic from a lead and takes it from an officer', async () => {
     expect((await patch({ meetingsPublic: false })).status).toBe(403)
@@ -1850,14 +1817,12 @@ describe('creating a project needs a schedule', () => {
 })
 
 /**
- * `ProjectMember.title` is the free-text display string — "Software Lead" — and
- * it was called `role` until the two role systems were told apart, sitting
- * beside a `UserRole` it had nothing to do with.
+ * `ProjectMember.title` is the free-text display string — "Software Lead" — and it was
+ * called `role` until the two role systems were told apart.
  *
- * The rename is the kind that fails quietly. Zod strips unknown keys rather
- * than refusing them, so a caller still sending `role` gets a 200 and saves
- * nothing at all: a stale browser bundle against a new server would look like
- * display titles that simply stopped working. That is the second test here.
+ * The rename is the kind that fails quietly. Zod strips unknown keys rather than refusing
+ * them, so a caller still sending `role` gets a 200 and saves nothing at all: a stale
+ * browser bundle against a new server would look like display titles that stopped working.
  */
 describe("a member's display title", () => {
   const patch = (body: unknown) =>
@@ -1937,9 +1902,9 @@ describe('GET /api/me/projects', () => {
 /**
  * Running last term's project again this term.
  *
- * A build that carries across semesters is several rows now, one per term, and
- * this is how the next one gets made. What it copies is the writing; what it
- * deliberately does not copy is the people.
+ * A build that carries across semesters is several rows now, one per term, and this is how
+ * the next one gets made. What it copies is the writing; what it deliberately doesn't copy
+ * is the people.
  */
 describe('duplicating a project', () => {
   const duplicate = (body: Record<string, unknown>) =>
@@ -1957,8 +1922,8 @@ describe('duplicating a project', () => {
         summary: 'A rover',
         description: 'The long write-up',
         competition: 'UNIVERSITY ROVER CHALLENGE',
-        // What this project calls its own sections travels with the writing:
-        // the same build next semester calls them the same things.
+        // What this project calls its own sections travels with the writing: the same build
+        // next semester calls them the same things.
         galleryHeading: 'THE BUILD',
         coverUrl: 'https://example.com/cover.png',
         coverFromGallery: false,
@@ -1995,9 +1960,9 @@ describe('duplicating a project', () => {
       summary: 'A rover',
       competition: 'UNIVERSITY ROVER CHALLENGE',
       galleryHeading: 'THE BUILD',
-      // The cover's framing comes across with the bytes. Copying the picture
-      // and leaving these behind would recentre the one image the copy shows on
-      // `/projects` — the same failure as copying gallery rows without theirs.
+      // The cover's framing comes across with the bytes. Copying the picture and leaving
+      // these behind would recentre the one image the copy shows on `/projects` — the same
+      // failure as copying gallery rows without theirs.
       coverFromGallery: false,
       coverFocalX: 25,
       coverFocalY: 75,
@@ -2011,9 +1976,9 @@ describe('duplicating a project', () => {
   })
 
   /**
-   * The whole reason the roster is left behind: a new term is when people
-   * decide again, and a copy that re-enrolled last spring's team would put a
-   * project back on the dashboard of somebody who has graduated.
+   * The whole reason the roster is left behind: a new term is when people decide again, and
+   * a copy that re-enrolled last spring's team would put a project back on the dashboard of
+   * somebody who has graduated.
    */
   it('starts with nobody on it', async () => {
     const response = await duplicate({ slug: `${PREFIX}rover-empty` })
@@ -2036,8 +2001,8 @@ describe('duplicating a project', () => {
       where: { projectId: copy.id },
       orderBy: { sortOrder: 'asc' },
     })
-    // Both of them, the repository included — it is one of these rows now
-    // rather than a column, so "copies the writing" has to carry it here.
+    // Both of them, the repository included — it's one of these rows now rather than a
+    // column, so "copies the writing" has to carry it here.
     expect(links).toHaveLength(2)
     expect(links[0]).toMatchObject({
       label: 'Docs',
@@ -2050,11 +2015,10 @@ describe('duplicating a project', () => {
   })
 
   /**
-   * The sharp edge. Copying the image *rows* alone looks right in every test —
-   * both galleries render — and breaks on deletion, because every delete route
-   * calls `deleteIfStored` by hand and would take the bytes out from under the
-   * other project. So the copy gets its own `StoredFile`, and this is what says
-   * the two are genuinely separate rather than two names for one row.
+   * The sharp edge. Copying the image rows alone looks right in every test — both galleries
+   * render — and breaks on deletion, because every delete route calls `deleteIfStored` by
+   * hand and would take the bytes out from under the other project. So the copy gets its own
+   * `StoredFile`, and this says the two are genuinely separate.
    */
   it('copies an uploaded picture rather than sharing it', async () => {
     const stored = await prisma.storedFile.create({
@@ -2112,8 +2076,8 @@ describe('duplicating a project', () => {
   })
 
   /**
-   * Duplicating an archived project is how a build comes *back*, so inheriting
-   * the status would get the one case this route exists for wrong.
+   * Duplicating an archived project is how a build comes back, so inheriting the status
+   * would get the one case this route exists for wrong.
    */
   it('brings an archived project back as in progress', async () => {
     await prisma.project.update({
@@ -2157,9 +2121,9 @@ describe('duplicating a project', () => {
 /**
  * An officer giving somebody a term, with no money involved.
  *
- * The cash-at-a-meeting case. It used to be a date typed into Prisma Studio,
- * which covers the person and does nothing else — no promotion, no `joinedAt`,
- * and no record of who decided. All three of those are what these assert.
+ * The cash-at-a-meeting case. It used to be a date typed into Prisma Studio, which covers
+ * the person and does nothing else — no promotion, no `joinedAt`, and no record of who
+ * decided. All three are what these assert.
  */
 describe('granting a membership', () => {
   const grant = (userId: string, plan: 'SEMESTER' | 'YEAR') =>
@@ -2187,10 +2151,9 @@ describe('granting a membership', () => {
   })
 
   /**
-   * A payment row for nothing, with a name on it. The zero amount says the club
-   * collected nothing, `grantedById` says who decided, and the sentinel keeps
-   * the unique constraint that stops Stripe crediting twice meaning what it
-   * means rather than the column going nullable.
+   * A payment row for nothing, with a name on it. The zero amount says the club collected
+   * nothing, `grantedById` says who decided, and the sentinel keeps the unique constraint
+   * that stops Stripe crediting twice meaning what it means.
    */
   it('records who granted it, for nothing', async () => {
     await grant(unpaidId, 'SEMESTER')
@@ -2210,9 +2173,9 @@ describe('granting a membership', () => {
   })
 
   /**
-   * Quoted against what they already hold, the same way the checkout page is,
-   * so a second grant reaches further out instead of shortening somebody to the
-   * term they are already covered for.
+   * Quoted against what they already hold, the same way the checkout page is, so a second
+   * grant reaches further out instead of shortening somebody to the term they're already
+   * covered for.
    */
   it('extends rather than resets', async () => {
     await grant(unpaidId, 'SEMESTER')
@@ -2275,10 +2238,10 @@ describe('project documents', () => {
     new TextEncoder().encode(`%PDF-1.7\n${tail}\n%%EOF\n`)
 
   /**
-   * A zip whose first entry is named `[Content_Types].xml`, which is what makes
-   * a zip a DOCX as far as the sniff is concerned: the local file header, the
-   * name length as a little-endian `uint16` at offset 26, and the name at 30.
-   * Enough to pass, and deliberately not a real document.
+   * A zip whose first entry is named `[Content_Types].xml`, which is what makes a zip a
+   * DOCX as far as the sniff is concerned: the local file header, the name length as a
+   * little-endian `uint16` at offset 26, and the name at 30. Enough to pass, and
+   * deliberately not a real document.
    */
   function docxBytes(): Uint8Array<ArrayBuffer> {
     const name = '[Content_Types].xml'
@@ -2356,8 +2319,8 @@ describe('project documents', () => {
       authorName: 'PM Lead',
       fileName: 'design-review.pdf',
     })
-    // Nothing has been revised yet, which is the whole reason there are two
-    // columns: the page prints one date until they differ.
+    // Nothing has been revised yet, which is why there are two columns: the page prints one
+    // date until they differ.
     expect(document['updatedAt']).toBe(document['uploadedAt'])
 
     const stored = await prisma.storedFile.findUniqueOrThrow({
@@ -2453,8 +2416,8 @@ describe('project documents', () => {
   })
 
   it('refuses the twenty-first, and says the number', async () => {
-    // Straight into the database: twenty round trips through the route would
-    // spend the upload budget this suite shares.
+    // Straight into the database: twenty round trips through the route would spend the
+    // upload budget this suite shares.
     await prisma.$transaction(
       Array.from({ length: 20 }, (_, index) =>
         prisma.projectDocument.create({
@@ -2489,8 +2452,8 @@ describe('project documents', () => {
   it('replaces the file, moves updatedAt, and leaves uploadedAt alone', async () => {
     const first = await published()
 
-    // A frozen clock would make both stamps identical and the assertion
-    // meaningless — the whole point is that one of them moved.
+    // A frozen clock would make both stamps identical and the assertion meaningless — the
+    // whole point is that one of them moved.
     vi.advanceTimersByTime(60_000)
 
     const response = await revise(leadCookie, first.id)
@@ -2502,8 +2465,8 @@ describe('project documents', () => {
       new Date(document['uploadedAt']).getTime(),
     )
 
-    // The old bytes are gone, which is the storage rule this feature ships
-    // with: nothing keeps a revision nobody can reach.
+    // The old bytes are gone, which is the storage rule this feature ships with: nothing
+    // keeps a revision nobody can reach.
     expect(
       await prisma.storedFile.count({ where: { id: first.fileId } }),
     ).toBe(0)
@@ -2539,8 +2502,8 @@ describe('project documents', () => {
       { title: 'Stolen' },
     )
 
-    // A 404 rather than a 403: the pairing is wrong, and which project a
-    // document belongs to is not something a probe should learn.
+    // A 404 rather than a 403: the pairing is wrong, and which project a document belongs to
+    // isn't something a probe should learn.
     expect(response.status).toBe(404)
   })
 
@@ -2586,8 +2549,8 @@ describe('project documents', () => {
     )
 
     expect(response.status).toBe(200)
-    // The cascade takes the row and drops the reference; without the sweep in
-    // the delete route the file would sit in `stored_files` unreachable.
+    // The cascade takes the row and drops the reference; without the sweep in the delete
+    // route the file would sit in `stored_files` unreachable.
     expect(await prisma.storedFile.count({ where: { id: first.fileId } })).toBe(0)
   })
 })

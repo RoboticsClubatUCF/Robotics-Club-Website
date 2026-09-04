@@ -5,17 +5,15 @@ import type { ApiMeEvent, ApiMeetingSeries } from '../../lib/api/api'
 import { stubFetch, stubFetchStatus, urlOf } from '../../test/stubFetch'
 
 /**
- * Pinned to a fixed "now" — Wednesday 12 August 2026 — the same one the public
- * calendar's suite uses, because everything here is about which square a thing
- * lands on and a test reading the real clock would drift.
+ * Pinned to a fixed "now" — Wednesday 12 August 2026 — the same one the public calendar's suite
+ * uses, because everything here is about which square a thing lands on and a test reading the real
+ * clock would drift.
  *
- * **This suite used to prove the weekday arithmetic**: the component expanded
- * `meetingWeekday` into a chip per matching Thursday, and the test walked
- * August's Thursdays. That expansion has moved to `server/src/projects/meetings.ts`,
- * where it can see the term's end and finals week, and is covered by
- * `server/src/projects/meetings.test.ts`. What is left to prove here is what the
- * component still does: ask the right endpoint, and draw whatever comes back —
- * meetings and stored events alike, with no idea which is which.
+ * This suite used to prove the weekday arithmetic: the component expanded `meetingWeekday` into a
+ * chip per matching Thursday, and the test walked August's Thursdays. That expansion has moved to
+ * `server/src/projects/meetings.ts`, where it can see the term's end and finals week. What is left
+ * to prove here is what the component still does: ask the right endpoint, and draw whatever comes
+ * back — meetings and stored events alike, with no idea which is which.
  */
 const NOW = new Date(2026, 7, 12, 9, 0)
 

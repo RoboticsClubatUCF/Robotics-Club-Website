@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { initialsOf } from './initials'
 
 /**
- * The avatar's fallback. Worth its own test because `fullName` is one free-text
- * column that everything from the signup form to an officer's typing lands in,
- * and the failure mode is a blank square in the top corner of every page.
+ * The avatar's fallback. Worth its own test because `fullName` is one free-text column that
+ * everything from the signup form to an officer's typing lands in, and the failure mode is a blank
+ * square in the top corner of every page.
  */
 describe('initialsOf', () => {
   it('takes the first and last name', () => {

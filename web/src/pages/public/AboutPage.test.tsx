@@ -10,20 +10,19 @@ import { stubFetch, stubFetchNetworkError } from '../../test/stubFetch'
 /**
  * `/about`.
  *
- * **The page is a row now and the / WHAT WE DO list is gone from it**, so what
- * this suite is about has moved: it used to check a list the API sent and a
- * placeholder panel the component hardcoded, and both of those facts are
- * different. What matters here is the three things the page can get wrong in a
- * way nothing else would notice.
+ * The page is a row now and the / WHAT WE DO list is gone from it, so what this suite is about has
+ * moved: it used to check a list the API sent and a placeholder panel the component hardcoded, and
+ * both of those facts are different. What matters here is the three things the page can get wrong
+ * in a way nothing else would notice.
  *
- * - The placeholder warning is **printed when there is one and absent when there
- *   is not**. It is a field now, and emptying it is how the club retires the
- *   admission — a panel that stayed would call a written history invented, and
- *   one that never drew would put invented history under the club's name.
- * - The address panel **comes off the page rather than printing half of one**.
- * - The EDIT button is drawn for an officer and for nobody else. It decides
- *   nothing — `requireOfficer` on the route is the gate — but a button offered
- *   to a member is a 403 somebody had to walk into to find.
+ * - The placeholder warning is printed when there is one and absent when there is not. It is a
+ *   field now, and emptying it is how the club retires the admission — a panel that stayed would
+ *   call a written history invented, and one that never drew would put invented history under the
+ *   club's name.
+ * - The address panel comes off the page rather than printing half of one.
+ * - The EDIT button is drawn for an officer and for nobody else. It decides nothing —
+ *   `requireOfficer` on the route is the gate — but a button offered to a member is a 403 somebody
+ *   had to walk into to find.
  */
 const page = (over: Partial<ApiAboutPage> = {}): ApiAboutPage => ({
   heading: 'Building robots at UCF since 1972.',

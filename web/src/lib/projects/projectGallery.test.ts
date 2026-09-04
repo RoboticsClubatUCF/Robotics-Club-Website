@@ -45,10 +45,9 @@ describe('slidesOf', () => {
 
 describe('inWindow', () => {
   /**
-   * The current slide and its two neighbours, and nothing else. This is the
-   * whole loading strategy — `loading="lazy"` cannot do it, because absolutely
-   * stacked slides are all inside the viewport as far as the browser is
-   * concerned.
+   * The current slide and its two neighbours, and nothing else. This is the whole loading strategy
+   * — `loading="lazy"` cannot do it, because absolutely stacked slides are all inside the viewport
+   * as far as the browser is concerned.
    */
   it('mounts the current slide and one either side', () => {
     expect([0, 1, 2, 3, 4].filter((index) => inWindow(index, 2))).toEqual([1, 2, 3])

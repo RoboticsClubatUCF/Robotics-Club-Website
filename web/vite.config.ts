@@ -12,26 +12,22 @@ import tailwindcss from '@tailwindcss/vite'
 /**
  * Say, at the end of every build, which API address went into the bundle.
  *
- * `VITE_API_URL` is substituted at build time, so a build carries whatever the
- * env files said at the moment it ran and there is no way to correct it
- * afterwards — the value is a string literal inside a minified chunk. Ship the
- * wrong one and the deployed site fails in a way that names nothing: an `http`
- * URL on an `https` page is blocked as mixed content *before the request is
- * sent*, so there is no CORS error, no status code and no server log, just
- * every page rendering its "couldn't reach the server" state.
+ * `VITE_API_URL` is substituted at build time, so a build carries whatever the env files said at
+ * the moment it ran and there is no way to correct it afterwards — the value is a string literal
+ * inside a minified chunk. Ship the wrong one and the deployed site fails in a way that names
+ * nothing: an `http` URL on an `https` page is blocked as mixed content before the request is sent,
+ * so there is no CORS error, no status code and no server log, just every page rendering its
+ * "couldn't reach the server" state.
  *
- * The specific way this goes wrong is a missing `.env.production`. Vite layers
- * that file over `.env` for `vite build` and says nothing at all when it is not
- * there — it simply falls back to the development value, which is
- * `http://localhost:4000`, which on a deployed site means *the visitor's own
- * machine*. That has now happened twice on this project, and both times the
- * build looked completely normal.
+ * The specific way this goes wrong is a missing `.env.production`. Vite layers that file over
+ * `.env` for `vite build` and says nothing when it is not there — it falls back to the development
+ * value, `http://localhost:4000`, which on a deployed site means the visitor's own machine. That
+ * has happened twice on this project, and both times the build looked completely normal.
  *
- * A warning rather than a hard failure, deliberately: `npm run typecheck` at the
- * repo root runs `vite build`, and so does CI, and neither has any business
- * knowing the club's production hostname. So the check cannot refuse — it can
- * only make the answer impossible to miss, and leave refusing to the deploy
- * step, which greps the built bundle before it copies anything.
+ * A warning rather than a hard failure, deliberately: `npm run typecheck` at the repo root runs
+ * `vite build`, and so does CI, and neither has any business knowing the club's production
+ * hostname. So the check cannot refuse — it can only make the answer impossible to miss, and leave
+ * refusing to the deploy step, which greps the built bundle before it copies anything.
  */
 function reportApiUrl(mode: string): Plugin {
   return {

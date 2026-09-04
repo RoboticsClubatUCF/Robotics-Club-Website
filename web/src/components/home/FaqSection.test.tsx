@@ -8,23 +8,19 @@ import { stubFetch } from '../../test/stubFetch'
 /**
  * The FAQ.
  *
- * **The questions are a prop now**, not an import — `HomePage` fetches the whole
- * page's copy in one request and hands each section its slice — so this file
- * gained the three states every fetched section has to have an answer for. The
- * error one is the interesting case: the contact form beside the questions is
- * the half of this section that works without the API, and a visitor whose
- * question is not answered is exactly who it is for, so it is drawn in every
- * state.
+ * The questions are a prop now, not an import — `HomePage` fetches the whole page's copy in one
+ * request and hands each section its slice — so this file gained the three states every fetched
+ * section has to answer for. The error one is the interesting case: the contact form beside the
+ * questions is the half of this section that works without the API, and a visitor whose question is
+ * not answered is exactly who it is for, so it is drawn in every state.
  *
- * What was already worth pinning down still is: a closed answer stays in the
- * document, so the browser's own find-in-page reaches it. An accordion that
- * unmounted its answers would pass every other assertion here and quietly lose
- * that.
+ * What was already worth pinning still is: a closed answer stays in the document, so the browser's
+ * own find-in-page reaches it. An accordion that unmounted its answers would pass every other
+ * assertion here and quietly lose that.
  *
- * The one request on this section belongs to `ContactForm`, which asks whether
- * this visitor may still write in before it draws the box. Nothing here is about
- * that — but an unstubbed `fetch` in jsdom is a real call to a real port, and
- * the API is often up on this machine.
+ * The one request on this section belongs to `ContactForm`, which asks whether this visitor may
+ * still write in before it draws the box. Nothing here is about that — but an unstubbed `fetch` in
+ * jsdom is a real call to a real port, and the API is often up on this machine.
  */
 const faqs: ApiFaq[] = [
   {
@@ -81,10 +77,9 @@ describe('FaqSection', () => {
   })
 
   /**
-   * The animation is carried by a `group-open:` class, which means it exists
-   * only while the disclosure is open and replays on every reopen. If it were
-   * ever applied unconditionally it would run once on page load and never
-   * again, which looks identical in a screenshot and wrong in use.
+   * The animation is carried by a `group-open:` class, so it exists only while the disclosure is
+   * open and replays on every reopen. Applied unconditionally it would run once on page load and
+   * never again, which looks identical in a screenshot and wrong in use.
    */
   it('animates the answer on open only', () => {
     render(<FaqSection copy={ready()} />)

@@ -5,11 +5,10 @@ import { urlOf } from '../../test/stubFetch'
 /**
  * Turning a filled-in create page into rows on a project that now exists.
  *
- * The two rules worth protecting are both about what happens *after* the
- * project has been created, when there is no longer an option to give up: the
- * pictures must land in the order they were added, and nothing may throw,
- * because the caller is holding a live project and needs to be told what got
- * there rather than handed an exception.
+ * The two rules worth protecting are both about what happens after the project has been created,
+ * when there is no longer an option to give up: the pictures must land in the order they were
+ * added, and nothing may throw, because the caller is holding a live project and needs to be told
+ * what got there rather than handed an exception.
  */
 
 const json = (body: unknown, status = 200) =>

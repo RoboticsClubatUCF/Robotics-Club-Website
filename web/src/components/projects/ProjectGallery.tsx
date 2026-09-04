@@ -7,19 +7,14 @@ import { imageSrc } from '../../lib/media/storedFiles'
 /**
  * A project's pictures, one at a time.
  *
- * **It does not auto-advance, and that is the design rather than an omission.**
- * The site's rule is that movement can never be the only thing carrying
- * meaning, so anything that moved on its own would have to ship a second
- * behaviour for `prefers-reduced-motion` — plus a pause-on-hover-and-focus
- * contract and a timer that survives a backgrounded tab — for six build photos
- * somebody is looking at deliberately. With no ambient motion the rule is
- * satisfied by construction: the only animation here is a cross-fade in direct
- * response to a press, and the counter, the caption and the thumbnail highlight
- * all change alongside it, so flattening the fade (which the global
- * reduced-motion block in `index.css` does, with `!important`) loses nothing.
+ * It doesn't auto-advance, and that's the design rather than an omission. The site's rule is
+ * that movement can never be the only thing carrying meaning, so anything that moved on its
+ * own would need a second behaviour for `prefers-reduced-motion`, a pause-on-hover contract
+ * and a timer that survives a backgrounded tab — for six build photos somebody is looking at
+ * deliberately. With no ambient motion the rule is satisfied by construction.
  *
  * Three slides are mounted at a time — see `SLIDE_WINDOW` in
- * `lib/projects/projectGallery.ts` for why `loading="lazy"` cannot do this job.
+ * `lib/projects/projectGallery.ts` for why `loading="lazy"` can't do this job.
  */
 export function ProjectGallery({
   slides,
@@ -30,45 +25,41 @@ export function ProjectGallery({
 }: {
   slides: ApiProjectImage[]
   /**
-   * Drops the `/ GALLERY` eyebrow and the thumbnail strip, and stops being a
-   * landmark.
+   * Drops the `/ GALLERY` eyebrow and the thumbnail strip, and stops being a landmark.
    *
-   * The projects list draws one of these per project. Six regions all called
-   * "Project gallery" is six landmarks that tell a screen reader nothing apart,
-   * and six thumbnail strips is more chrome than pictures — the arrows and the
-   * counter are the whole control there. A `<section>` with no accessible name
-   * is not a landmark, which is what makes this one attribute rather than a
-   * second element.
+   * The projects list draws one of these per project. Six regions all called "Project
+   * gallery" is six landmarks that tell a screen reader nothing apart, and six thumbnail
+   * strips is more chrome than pictures. A `<section>` with no accessible name isn't a
+   * landmark, which is why this is one attribute rather than a second element.
    */
   compact?: boolean
   /**
    * Whether this gallery's first slide is the page's largest paintable element.
    *
-   * True on a project's own page, where there is exactly one gallery. The list
-   * passes it for its first card and nothing else: `fetchPriority="high"` on
-   * every card is the same as it on none, and it would put six full-size
-   * photographs in front of the one the reader can actually see.
+   * True on a project's own page. The list passes it for its first card and nothing else:
+   * `fetchPriority="high"` on every card is the same as it on none, and it would put six
+   * full-size photographs in front of the one the reader can see.
    */
   priority?: boolean
-  /** The image group's accessible name. The list names the project, because
-      "Project images" repeated down a page says nothing about any of them. */
+  /** The image group's accessible name. The list names the project, because "Project images"
+      repeated down a page says nothing about any of them. */
   label?: string
   /**
-   * The eyebrow's words, without the `/ ` — a project may call this section
-   * whatever it likes. Ignored under `compact`, which draws no eyebrow at all.
+   * The eyebrow's words, without the `/ ` — a project may call this section whatever it
+   * likes. Ignored under `compact`, which draws no eyebrow at all.
    */
   heading?: string
 }) {
   const [index, setIndex] = useState(0)
-  // Where a drag started. Null between drags, and reset on cancel so a pointer
-  // that leaves the frame mid-swipe doesn't arm the next tap.
+  // Where a drag started. Null between drags, and reset on cancel so a pointer that leaves
+  // the frame mid-swipe doesn't arm the next tap.
   const [dragFrom, setDragFrom] = useState<{ x: number; y: number } | null>(null)
 
   if (slides.length === 0) return null
 
   const last = slides.length - 1
-  // Guards the case where the list shrinks under an editor's delete: the index
-  // is state, and clamping on read is cheaper than an effect that chases it.
+  // Guards the case where the list shrinks under an editor's delete: the index is state, and
+  // clamping on read is cheaper than an effect that chases it.
   const current = Math.min(index, last)
   const single = slides.length === 1
 
@@ -77,10 +68,9 @@ export function ProjectGallery({
   }
 
   /**
-   * A swipe, if it was one. Horizontal *and* mostly horizontal, so scrolling
-   * the page with a thumb that happens to start on the picture still scrolls
-   * the page. Pointer events rather than touch events, so a trackpad drag works
-   * the same way; if they never fire, the arrows are still there.
+   * A swipe, if it was one. Horizontal and mostly horizontal, so scrolling the page with a
+   * thumb that happens to start on the picture still scrolls the page. Pointer events rather
+   * than touch events, so a trackpad drag works the same way.
    */
   const onPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!dragFrom) return
@@ -103,12 +93,10 @@ export function ProjectGallery({
         </p>
       )}
 
-      {/* The frame owns the aspect ratio, so the box exists at its final size
-          before a single byte arrives and does not move when one does —
-          whatever the picture's own dimensions turn out to be. That is the
-          whole layout-shift story, and it is why no image here carries a
-          `width`/`height` attribute. The hatch shows through until a slide
-          loads, and keeps showing if one never does. */}
+      {/* The frame owns the aspect ratio, so the box exists at its final size before a byte
+          arrives and doesn't move when one does. That's the whole layout-shift story, and
+          why no image here carries a `width`/`height` attribute. The hatch shows through
+          until a slide loads, and keeps showing if one never does. */}
       <div
         role="group"
         aria-label={label}
@@ -168,9 +156,8 @@ export function ProjectGallery({
             }}
           />
 
-          {/* The one live region. The images themselves are not announced —
-              this line says where the reader is and what they are looking at,
-              once, as text. */}
+          {/* The one live region. The images themselves aren't announced — this line says
+              where the reader is and what they're looking at, once, as text. */}
           <p
             role="status"
             className="text-faint min-w-0 truncate font-mono text-[11px] font-medium tracking-[0.14em]"
@@ -187,9 +174,9 @@ export function ProjectGallery({
       )}
 
       {!single && !compact && (
-        /* A genuine horizontal scroller, unlike the frame above — so the rules
-           between cells come from the container's background through a 1px gap,
-           the strip idiom the rest of the site uses. */
+        /* A genuine horizontal scroller, unlike the frame above — so the rules between cells
+           come from the container's background through a 1px gap, the strip idiom the rest of
+           the site uses. */
         <ul className="bg-rule border-rule mt-2 flex gap-px overflow-x-auto border">
           {slides.map((slide, position) => (
             <li key={slide.id} className="shrink-0">
@@ -204,8 +191,8 @@ export function ProjectGallery({
                   position === current ? 'opacity-100' : 'opacity-45 hover:opacity-80'
                 }`}
               >
-                {/* Framed like the slide it stands for, or the strip would
-                    advertise a crop the frame does not show. */}
+                {/* Framed like the slide it stands for, or the strip would advertise a crop
+                    the frame doesn't show. */}
                 <img
                   src={imageSrc(slide.url)}
                   alt=""
@@ -237,28 +224,27 @@ function Slide({
 
   return (
     <img
-      /* Through `imageSrc`, or an upload's root-relative address resolves
-         against this page instead of the API and silently never loads. */
+      /* Through `imageSrc`, or an upload's root-relative address resolves against this page
+         instead of the API and silently never loads. */
       src={imageSrc(slide.url)}
-      /* Empty when there is no caption, because a caption is printed under the
-         frame and announcing it twice is worse than not announcing it. */
+      /* Empty when there's no caption, because a caption is printed under the frame and
+         announcing it twice is worse than not announcing it. */
       alt={slide.caption ?? ''}
-      /* The page's largest paintable element says so out loud rather than
-         leaving the browser to guess. Everything else is honestly deferrable —
-         though the mount window, not this attribute, is what actually stops
-         eleven other pictures downloading. */
+      /* The page's largest paintable element says so out loud rather than leaving the browser
+         to guess. Everything else is honestly deferrable — though the mount window, not this
+         attribute, is what actually stops eleven other pictures downloading. */
       loading={lcp ? 'eager' : 'lazy'}
       fetchPriority={lcp ? 'high' : 'auto'}
-      /* So a decode never blocks the main thread at the moment the index
-         changes, which is exactly when the page is being interacted with. */
+      /* So a decode never blocks the main thread at the moment the index changes, which is
+         exactly when the page is being interacted with. */
       decoding="async"
       onLoad={() => {
         setLoaded(true)
       }}
-      /* The lead's framing. `object-cover` lives in here rather than in the
-         class list, because the two have to be set together — a class saying
-         `object-cover` and a style saying `object-position` would put one rule
-         where the reader can see it and the other where they cannot. */
+      /* The lead's framing. `object-cover` lives in here rather than the class list, because
+         the two have to be set together — a class saying `object-cover` and a style saying
+         `object-position` would put one rule where the reader can see it and one where they
+         cannot. */
       style={frameStyle(slide)}
       className={`absolute inset-0 h-full w-full transition-opacity duration-200 ${
         shown && loaded ? 'opacity-100' : 'opacity-0'
@@ -285,9 +271,9 @@ function Arrow({
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      /* Disabled rather than wrapping. In a seven-image gallery "am I at the
-         end" has to be answerable, and a dead arrow beside `07 / 07` answers it
-         twice. Touch-sized below the breakpoint, per the site's rule. */
+      /* Disabled rather than wrapping. In a seven-image gallery "am I at the end" has to be
+         answerable, and a dead arrow beside `07 / 07` answers it twice. Touch-sized below the
+         breakpoint, per the site's rule. */
       className="border-rule text-dim enabled:hover:border-primary enabled:hover:text-primary flex size-11 shrink-0 cursor-pointer items-center justify-center border text-lg leading-none transition-colors duration-200 disabled:cursor-default disabled:opacity-30 wide:size-8"
     >
       {glyph}

@@ -3,15 +3,13 @@ import { ApiError } from './api'
 /**
  * A failed write, as a sentence somebody can act on.
  *
- * This was written out twice, near-identically, in `ProjectManagePage` and
- * `OfficerProjectsPage`. The public page's editor would have been the third
- * copy, which is the point at which it moves.
+ * This was written out twice, near-identically, in `ProjectManagePage` and `OfficerProjectsPage`.
+ * The public page's editor would have been the third copy, which is the point at which it moves.
  *
- * The order matters. A status the browser can explain better than the server
- * can is handled here; everything else defers to `error.detail`, which is the
- * server's own wording — that is how "A project shows up to 12 images" and the
- * dues-lapsed sentence reach the reader intact rather than being flattened into
- * a generic apology.
+ * The order matters. A status the browser can explain better than the server can is handled here;
+ * everything else defers to `error.detail`, which is the server's own wording — that is how "A
+ * project shows up to 12 images" and the dues-lapsed sentence reach the reader intact rather than
+ * being flattened into a generic apology.
  */
 export function explainApiError(
   error: unknown,

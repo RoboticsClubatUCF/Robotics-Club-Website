@@ -27,25 +27,19 @@ import {
 /**
  * The one-time member survey.
  *
- * **Nothing locks it and it locks nothing.** It was briefly the one page in the
- * dashboard that could not be shut, because it was where every other lock sent
- * people — the survey gated the site, the dues page included. That gate is
- * gone; the form is an invitation, reached from a prompt that can be switched
- * off and from two standing panels. It still follows `DuesPage`'s shape rather
- * than the print page's — its own session redirect, its own load, and all three
- * remote states rendered — because it has to work for somebody arriving cold
- * with nothing else on the screen to explain itself.
+ * Nothing locks it and it locks nothing. It was briefly the one page in the dashboard that
+ * couldn't be shut, because it was where every other lock sent people — the survey gated the
+ * site, the dues page included. That gate is gone; the form is an invitation. It still follows
+ * `DuesPage`'s shape — its own session redirect, its own load, all three remote states — because
+ * it has to work for somebody arriving cold.
  *
- * **It stays reachable after it is answered.** Being *asked* once is the
- * promise; a shirt size nobody could correct afterwards would just mean the
- * club orders the wrong shirt. So the same form comes back pre-filled and
- * `PUT`s instead, and the heading says which of the two is happening.
+ * It stays reachable after it's answered. Being asked once is the promise; a shirt size nobody
+ * could correct afterwards would just mean the club orders the wrong shirt. So the same form
+ * comes back pre-filled and `PUT`s instead.
  *
- * **What it asks is not written down anywhere in `web/`.** The questions are
- * rows officers edit at `/dashboard/officer/survey/questions`, so they arrive
- * with the answers and this page is the load, the validation, the two verbs and
- * the redirect. A question added after somebody answered turns up here the next
- * time they open it — nobody is prompted a second time, which is the promise.
+ * What it asks isn't written down anywhere in `web/`. The questions are rows officers edit, so
+ * they arrive with the answers and this page is the load, the validation, the two verbs and the
+ * redirect. A question added after somebody answered turns up the next time they open it.
  */
 
 type PageState =
@@ -74,14 +68,12 @@ export function MemberSurveyPage() {
   const [saving, setSaving] = useState<Saving>({ status: 'idle' })
   const [gradYear, setGradYear] = useState('')
   /**
-   * The whole form is controlled, which is the one place this departs from the
-   * print form's read-it-from-`FormData`-at-submit idiom. Answers change what
-   * the fields around them render — an OTHER opens a text box, NONE clears a
-   * set — so the state has to exist anyway, and a form half-controlled by state
-   * and half by the DOM is the version that eventually disagrees with itself.
+   * The whole form is controlled, which is the one place this departs from the print form's
+   * read-it-from-`FormData`-at-submit idiom. Answers change what the fields around them render —
+   * an OTHER opens a text box, NONE clears a set — so the state has to exist anyway, and a form
+   * half-controlled by state and half by the DOM eventually disagrees with itself.
    *
-   * Keyed by question id rather than by field name, because the questions are
-   * rows an officer edits: there is no name to write down.
+   * Keyed by question id rather than field name, because the questions are rows an officer edits.
    */
   const [draft, setDraft] = useState<SurveyDraft>({})
 
@@ -240,17 +232,14 @@ export function MemberSurveyPage() {
         ) : (
           <>
             This is how the club knows what size shirts to order and what it can
-            safely feed people at meetings. Nothing on the site waits on it
-            &mdash; the club is asking, not charging admission.
+            safely feed people at meetings. Nothing on the site waits on it.
           </>
         )}
       </p>
 
-      {/* An officer removed every question, which is allowed and is not an
-          error. Saying so beats a page with a heading, a paragraph and one
-          gold button on it and nothing in between — and the button still
-          works, because an empty survey is one somebody can still answer, which
-          is what takes them off the club's "has not answered" list. */}
+      {/* An officer removed every question, which is allowed and isn't an error. Saying so beats a
+          page with a heading, a paragraph and one gold button and nothing in between — and the
+          button still works, because an empty survey is one somebody can still answer. */}
       {page.data.questions.length === 0 && (
         <p className="text-faint mb-7 max-w-[46rem] text-sm leading-[1.7] text-pretty">
           There is nothing to fill in just now &mdash; the club has not put any
@@ -258,13 +247,10 @@ export function MemberSurveyPage() {
         </p>
       )}
 
-      {/* The groups sit side by side wherever there is room for them. They are
-          five unrelated questions rather than a form to be filled in order —
-          nothing below depends on anything above — so a single column down a
-          monitor was making a two-minute survey look like a long one.
-          `items-start`, because the groups are different heights and a shirt
-          size stretched to the height of the allergen list is mostly empty
-          box. */}
+      {/* The groups sit side by side wherever there's room. They're five unrelated questions
+          rather than a form to be filled in order, so a single column down a monitor was making a
+          two-minute survey look like a long one. `items-start`, because a shirt size stretched to
+          the height of the allergen list is mostly empty box. */}
       <form
         onSubmit={submit}
         className="grid-fluid items-start gap-5 [--col-min:21rem]"

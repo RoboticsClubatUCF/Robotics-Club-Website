@@ -165,10 +165,9 @@ describe('ProjectDocsPage', () => {
   })
 
   /**
-   * Opening and saving were one link once, and which one it did depended on a
-   * file extension the reader could not see. Both are named now, and the one
-   * that saves has to carry `?download=1` — `<a download>` is ignored across
-   * origins, and the API is always a different origin.
+   * Opening and saving were one link once, and which one it did depended on a file extension the
+   * reader could not see. Both are named now, and the one that saves has to carry `?download=1` —
+   * `<a download>` is ignored across origins, and the API is always a different origin.
    */
   it('separates opening from saving, and asks the server for the download', async () => {
     vi.stubGlobal(

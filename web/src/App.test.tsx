@@ -7,26 +7,22 @@ import { bodyOf, urlOf } from './test/stubFetch'
 /**
  * The whole app, assembled, at one URL each time.
  *
- * Every other suite renders a component with its parents stubbed out, which is
- * the right default and cannot see the two things this one is for: that the
- * dashboard shell and a page inside it compose without either drawing the
- * other's chrome, and that `/dues` still reaches the dues page now that the
- * dues page has moved.
+ * Every other suite renders a component with its parents stubbed out, which is the right default
+ * and cannot see the two things this one is for: that the dashboard shell and a page inside it
+ * compose without either drawing the other's chrome, and that `/dues` still reaches the dues page
+ * now that the dues page has moved.
  *
- * That second one carries money. `/dues` was the Stripe `return_url` for every
- * payment started before the move, and a bank returns a member to
- * `/dues?payment_intent=…` — that parameter being dropped somewhere along the
- * redirect would leave somebody who has just been charged looking at a page
- * telling them they still owe $25.
+ * That second one carries money. `/dues` was the Stripe `return_url` for every payment started
+ * before the move, and a bank returns a member to `/dues?payment_intent=…` — that parameter being
+ * dropped somewhere along the redirect would leave somebody who has just been charged looking at a
+ * page telling them they still owe $25.
  *
- * **Every `findBy` here waits on a dynamic import, which is why the timeout is
- * raised.** This is the only suite that renders `App` itself, and every route
- * under `/dashboard` is a `React.lazy` — so each assertion below is waiting for
- * Vitest to resolve *and transform* a module tree it has not seen yet, not just
- * for a render. One second is plenty when this file runs alone and is not when
- * seventy-four others are competing for the same workers; the failure looked
- * like a missing `$25` on the dues page rather than like a slow import, which
- * is why it is written down rather than nudged.
+ * Every `findBy` here waits on a dynamic import, which is why the timeout is raised. This is the
+ * only suite that renders `App` itself, and every route under `/dashboard` is a `React.lazy` — so
+ * each assertion is waiting for Vitest to resolve and transform a module tree it has not seen yet.
+ * One second is plenty when this file runs alone and is not when seventy-four others are competing
+ * for the same workers; the failure looked like a missing `$25` on the dues page rather than like a
+ * slow import, which is why it is written down rather than nudged.
  */
 configure({ asyncUtilTimeout: 5_000 })
 

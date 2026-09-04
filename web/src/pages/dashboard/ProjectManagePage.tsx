@@ -45,14 +45,12 @@ import { isOfficer } from '../../lib/auth/session'
 /**
  * The lead's side of a project: members, teams, and the meeting schedule.
  *
- * Which controls appear follows the caller's rank on *this* project — a team
- * lead gets exactly their own team's roster, a project lead gets everything —
- * but appearance is all it is. Every button lands on a server route that
- * re-checks the same rank, so hiding here is layout, not security.
+ * Which controls appear follows the caller's rank on this project — a team lead gets their own
+ * team's roster, a project lead gets everything — but appearance is all it is. Every button
+ * lands on a server route that re-checks the same rank.
  *
- * Officers see the project-lead view of any project. They resolve the slug
- * through the public detail route because nothing guarantees they are on the
- * project's member list at all.
+ * Officers see the project-lead view of any project. They resolve the slug through the public
+ * detail route because nothing guarantees they're on the project's member list at all.
  */
 
 const smallButton =
@@ -230,17 +228,15 @@ function Manage({
   const { project, teams, members } = view.data
 
   /**
-   * Whether a *new* task may go on this project.
+   * Whether a new task may go on this project.
    *
-   * The server refuses one on anything but this semester's build, so the form
-   * says so instead of offering a button that 409s. The term comes off the
-   * membership context — the layout has already read it for the rail — rather
-   * than from `/me/projects`, because an officer managing a project they are
-   * not on has no membership row to read `current` from.
+   * The server refuses one on anything but this semester's build, so the form says so instead of
+   * offering a button that 409s. The term comes off the membership context — the layout has
+   * already read it for the rail — rather than `/me/projects`, because an officer managing a
+   * project they're not on has no membership row to read `current` from.
    *
-   * **Defaults to allowed while the standing is still in flight**, the same
-   * rule the dues padlocks follow: nothing should flash as blocked at somebody
-   * whose answer simply has not arrived.
+   * Defaults to allowed while the standing is still in flight, the same rule the dues padlocks
+   * follow.
    */
   const term = membership.status === 'ready' ? membership.data.term : null
   const canCreateTasks =
@@ -252,12 +248,10 @@ function Manage({
       <FormEyebrow>/ PROJECT · MANAGE</FormEyebrow>
       <FormHeading>{project.title}</FormHeading>
 
-      {/* Seven sections, none of which reads on from the one above it — a lead
-          comes here to do one of them. Stacked, that meant scrolling past four
-          panels to reach the fifth while the right half of the screen stayed
-          empty; side by side, most of them are visible at once. `items-start`
-          keeps the short ones short: DISCORD ROLE is four lines and has no
-          business being as tall as the roster. */}
+      {/* Seven sections, none of which reads on from the one above — a lead comes here to do one
+          of them. Stacked, that meant scrolling past four panels to reach the fifth while the
+          right half of the screen stayed empty. `items-start` keeps the short ones short: DISCORD
+          ROLE is four lines and has no business being as tall as the roster. */}
       <div className="grid-fluid items-start gap-5 [--col-min:30rem]">
         {rank === 'PROJECT_LEAD' ? (
           <>
@@ -528,11 +522,10 @@ function TeamsSection({
           {teams.map((team) => {
             const count = members.filter((m) => m.teamId === team.id).length
 
-            // The row *becomes* the form rather than growing one underneath
-            // the list: a lead editing "Chassis" is looking at the line that
-            // says Chassis, and putting the fields anywhere else loses that
-            // thread. Mounting on press is also what lets the inputs stay
-            // uncontrolled — they pick the team up as their defaults.
+            // The row becomes the form rather than growing one underneath the list: a lead editing
+            // "Chassis" is looking at the line that says Chassis, and putting the fields anywhere
+            // else loses that thread. Mounting on press is also what lets the inputs stay
+            // uncontrolled.
             if (editing?.id === team.id) {
               return (
                 <li key={team.id} className="py-3">
@@ -661,9 +654,9 @@ function TeamsSection({
 /**
  * Upcoming events of this project, and the form that makes more of them.
  *
- * A team lead's form is pinned to their own team and their list only carries
- * controls on events they could actually touch; the project lead gets the
- * whole board. The server re-checks every one of these distinctions.
+ * A team lead's form is pinned to their own team and their list only carries controls on events
+ * they could touch; the project lead gets the whole board. The server re-checks every one of
+ * these distinctions.
  */
 function EventsSection({
   projectId,
@@ -993,11 +986,10 @@ function EventsSection({
 // ------------------------------------------------------------------- tasks
 
 /**
- * The project's checklist, and the form that grows it. Same scoping story as
- * events: a team lead's tasks land on their own team, and the rows they can
- * touch are exactly the ones on it. Assignment is checkboxes over the roster —
- * a task routinely belongs to two people, and the server holds everyone
- * assigned to actually being on the project.
+ * The project's checklist, and the form that grows it. Same scoping story as events: a team
+ * lead's tasks land on their own team. Assignment is checkboxes over the roster — a task
+ * routinely belongs to two people, and the server holds everyone assigned to actually being on
+ * the project.
  */
 function TasksSection({
   projectId,
@@ -1465,11 +1457,10 @@ function MeetingSection({
           </div>
         </div>
 
-        {/* The one part of a schedule the columns above cannot hold, and the
-            one that is genuinely optional — the days and the times are not.
-            Left empty, the meeting reaches a member's calendar with no
-            description at all, which is deliberate: the site used to write one
-            here and it only ever repeated the title and the room. */}
+        {/* The one part of a schedule the columns above can't hold, and the one that's genuinely
+            optional. Left empty, the meeting reaches a member's calendar with no description at
+            all, which is deliberate: the site used to write one here and it only ever repeated
+            the title and the room. */}
         <div>
           <label htmlFor={`${id}-note`} className={labelClass}>
             NOTE (OPTIONAL)
@@ -1501,13 +1492,11 @@ function MeetingSection({
         </button>
       </form>
 
-      {/* An officer's switch, not a lead's, and the server refuses it from
-          anyone else — the same split as `published` on an event. Drawn only
-          for officers rather than disabled for leads: a control somebody
-          cannot use is a question they will ask. Outside the form and saving on
-          its own, because it is not part of the schedule — it is a decision
-          about the front page, and pairing it with SAVE would mean a lead's
-          unsaved edits were the price of flipping it. */}
+      {/* An officer's switch, not a lead's, and the server refuses it from anyone else — the same
+          split as `published` on an event. Drawn only for officers rather than disabled for leads:
+          a control somebody can't use is a question they'll ask. Outside the form and saving on
+          its own, because pairing it with SAVE would mean a lead's unsaved edits were the price
+          of flipping it. */}
       {officer && (
         <label className="border-rule mt-4 flex cursor-pointer items-start gap-2.5 border-t pt-4">
           <input
@@ -1537,15 +1526,14 @@ function MeetingSection({
         </label>
       )}
 
-      {/* What the schedule actually produces, read back from the saved row
-          rather than from the form. A lead who has just typed 18:00 wants to
-          see "6:00 – 10:00 PM" agree with them, and the bound is the part
-          nobody expects: the meetings stop at the end of the term. */}
+      {/* What the schedule actually produces, read back from the saved row rather than the form.
+          A lead who has just typed 18:00 wants to see "6:00 - 10:00 PM" agree with them, and the
+          bound is the part nobody expects: the meetings stop at the end of the term. */}
       {line && (
         <div className="border-rule mt-4 border-t pt-3">
           <p className="text-faint text-[12px] leading-[1.5] text-pretty">
             {line}. It repeats to the end of this project&rsquo;s semester, and
-            finals week is left out — the club puts every project on halt for it.
+            skips finals week.
           </p>
           {/* Quoted rather than restated, so a lead can see the note as a
               member will read it. Absent when there is none, which is the
@@ -1576,11 +1564,10 @@ function MeetingSection({
 /**
  * The crew's Discord role.
  *
- * Its own panel rather than a field on the meeting form, because it is not a
- * setting of the same kind: everything else on this page describes the
- * project, and this one hands out and takes away access to a channel. The copy
- * says so, since a lead pasting a number into a box has no other way to know
- * that pressing SAVE is about to change what a dozen people can see.
+ * Its own panel rather than a field on the meeting form, because it isn't a setting of the same
+ * kind: everything else on this page describes the project, and this hands out and takes away
+ * access to a channel. The copy says so, since a lead pasting a number into a box has no other
+ * way to know that pressing SAVE is about to change what a dozen people can see.
  */
 function DiscordRoleSection({
   project,
@@ -1691,11 +1678,9 @@ function DangerSection({
     })
 
   /**
-   * Drawn as the destructive panel it is, matching `DeleteAccountPanel` — the
-   * other place on the site where somebody can delete something that does not
-   * come back. It used to be the word DANGER in grey over a text-link button
-   * that only turned red on hover, which is the same weight the page gives
-   * REMOVE on a single task.
+   * Drawn as the destructive panel it is, matching `DeleteAccountPanel` — the other place on the
+   * site where somebody can delete something that doesn't come back. It used to be the word
+   * DANGER in grey over a text-link button that only turned red on hover.
    */
   return (
     <div className="border-error/40 bg-error/5 border p-5">
@@ -1710,11 +1695,10 @@ function DangerSection({
 
       <p className="text-faint mb-2 text-[12px] leading-[1.6]">What goes with it:</p>
 
-      {/* Named one by one rather than summarised, the same rule the account
-          panel follows: a lead is entitled to delete all of this and is not
-          entitled to be surprised by it. Every line is something the delete
-          route actually destroys — the two file sweeps in particular, which are
-          bytes no other copy exists of. */}
+      {/* Named one by one rather than summarised, the same rule the account panel follows: a lead
+          is entitled to delete all of this and isn't entitled to be surprised by it. Every line is
+          something the delete route actually destroys — the two file sweeps in particular, which
+          are bytes no other copy exists of. */}
       <ul className="text-faint mb-3 list-disc space-y-1 pl-5 text-[12px] leading-[1.6]">
         <li>its roster and its teams, and every task on them</li>
         <li>every event it has scheduled, on every calendar they appear on</li>

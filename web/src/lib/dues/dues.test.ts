@@ -9,17 +9,15 @@ import {
 import type { ApiMembership, ApiTerm } from '../api/api'
 
 /**
- * Why a page is shut, and what it is allowed to say about it.
+ * Why a page is shut, and what it's allowed to say about it.
  *
- * This is one function and a lookup table, which is the point of it existing.
- * Access used to be loose enough that "no cover" only ever happened when money
- * was genuinely owed, so five different pages each hardcoded a PAY MY DUES
- * button and all five were right. Access is the dues date now, so "no cover"
- * also means "the club is charging nothing and you have not claimed it" — and
- * all five became wrong on the same day.
+ * This is one function and a lookup table, which is the point of it existing. Access used to be
+ * loose enough that "no cover" only ever happened when money was genuinely owed, so five different
+ * pages each hardcoded a PAY MY DUES button and all five were right. Access is the dues date now,
+ * so "no cover" also means "the club is charging nothing and you haven't claimed it" — and all
+ * five became wrong on the same day.
  *
- * The tests below are mostly about the third reason, because the other two were
- * already handled and the third is the one that keeps getting forgotten.
+ * The tests below are mostly about the third reason, because the other two were already handled.
  */
 
 const term: ApiTerm = {
@@ -168,17 +166,13 @@ describe('LOCK_COPY', () => {
 })
 
 /**
- * The survey, which is not a reason at all.
+ * The survey, which isn't a reason at all.
  *
- * It used to be the fourth and the one that outranked the other three: the
- * server ran `requireSurvey` as the first statement of `requireCurrentDues`, so
- * `coverGap` had to branch on it before `hasAccess` or the browser would offer
- * a page the server then refused. The gate is gone. What is left is
- * `surveyPrompt`, which lives in the same file and deliberately is not an
- * `AccessLock` — every reason above shuts a page, and this one only asks a
- * question.
- *
- * The tests below are the ones that would have failed while it was a gate.
+ * It used to be the fourth and the one that outranked the other three: the server ran
+ * `requireSurvey` as the first statement of `requireCurrentDues`, so `coverGap` had to branch on
+ * it before `hasAccess` or the browser would offer a page the server then refused. The gate is
+ * gone. What's left is `surveyPrompt`, which deliberately isn't an `AccessLock` — every reason
+ * above shuts a page, and this one only asks a question.
  */
 describe('the survey', () => {
   it('is not a lock reason', () => {

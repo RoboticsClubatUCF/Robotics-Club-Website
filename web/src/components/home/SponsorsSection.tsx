@@ -8,20 +8,16 @@ import { useApi } from '../../lib/api/useApi'
 /**
  * The club's top sponsors, on a strip that scrolls itself.
  *
- * "Top" is not computed here: `GET /api/sponsors` already orders by tier, so
- * asking for five rows is asking for the five highest. Keeping that on the
- * server means the ordering can change — a `sortOrder` column, a pinned
- * sponsor — without this component learning what a tier is worth. The full list
- * belongs on `/sponsors`, which is what the link in the header is for.
+ * "Top" isn't computed here: `GET /api/sponsors` already orders by tier, so asking for five rows
+ * is asking for the five highest. Keeping that on the server means the ordering can change without
+ * this component learning what a tier is worth.
  */
 const LIMIT = 5
 
 /**
- * Cards on the track, at least. The loop works by translating the track back by
- * exactly one copy of the list, which is seamless only while the copies that
- * remain still cover the viewport — one copy of five cards is 1600px, and a wide
- * monitor is wider than that. Three copies clear roughly 3200px; a club with two
- * sponsors gets proportionally more of them.
+ * Cards on the track, at least. The loop works by translating the track back by exactly one copy
+ * of the list, which is seamless only while the copies that remain still cover the viewport — one
+ * copy of five cards is 1600px, and a wide monitor is wider. Three copies clear roughly 3200px.
  */
 const MIN_CARDS = 15
 
@@ -29,15 +25,13 @@ const cardClass =
   'bg-base-100 hover:bg-wash group flex h-full w-full flex-col justify-between p-5 transition-colors duration-200'
 
 /**
- * A hairline per card, on the card — not a `gap-px` over a `bg-rule` track like
- * the grids elsewhere. A gap between the copies would make the track a hair
- * wider than a whole number of cards, and the loop's translation would drift by
- * that half-pixel on every pass.
+ * A hairline per card, on the card — not a `gap-px` over a `bg-rule` track like the grids
+ * elsewhere. A gap between the copies would make the track a hair wider than a whole number of
+ * cards, and the loop's translation would drift by that half-pixel on every pass.
  *
- * The width caps at 20rem but gives way on a phone: a card exactly as wide as
- * the screen leaves nothing of its neighbour showing, and a strip that appears
- * to hold one card doesn't look like it moves. 82vw keeps the next one's edge in
- * frame. Every copy is still the same width, which is all the loop needs.
+ * The width caps at 20rem but gives way on a phone: a card exactly as wide as the screen leaves
+ * nothing of its neighbour showing, and a strip that appears to hold one card doesn't look like it
+ * moves. Every copy is still the same width, which is all the loop needs.
  */
 const itemClass = 'border-rule flex w-[min(20rem,82vw)] shrink-0 border-r'
 
@@ -86,16 +80,14 @@ export function SponsorsSection() {
 }
 
 /**
- * The list, repeated until it is longer than any screen, sliding left by exactly
- * one copy and starting over. Because every copy is identical, the restart lands
- * on a frame identical to the one before it and the seam is invisible.
+ * The list, repeated until it's longer than any screen, sliding left by exactly one copy and
+ * starting over. Because every copy is identical, the restart lands on a frame identical to the
+ * one before it and the seam is invisible.
  *
- * It stops while the pointer is on it and while anything inside it has focus —
- * a card you are trying to read or click should not be moving. Under
- * `prefers-reduced-motion` it stops being a marquee at all: the animation is
- * off, the duplicate copies are dropped from the layout, and the strip becomes
- * an ordinary horizontal scroller, so the sponsors past the fold are still
- * reachable rather than lost with the movement.
+ * It stops while the pointer is on it and while anything inside has focus. Under
+ * `prefers-reduced-motion` it stops being a marquee at all: the animation is off, the duplicate
+ * copies are dropped, and the strip becomes an ordinary horizontal scroller, so the sponsors past
+ * the fold are still reachable.
  */
 function SponsorMarquee({ sponsors }: { sponsors: ApiSponsor[] }) {
   const copies = Math.max(3, Math.ceil(MIN_CARDS / sponsors.length))
@@ -134,11 +126,10 @@ function SponsorCard({ sponsor, repeat }: { sponsor: ApiSponsor; repeat?: boolea
   const body = (
     <>
       <div>
-        {/* The logo well is a fixed height whether or not there is a logo in it,
-            so a sponsor who sends artwork does not make their card taller than
-            the ones beside it. The hatch is the two off-black surface tones —
-            the same "nothing here yet" language the build-night photo used —
-            rather than a broken-image icon. */}
+        {/* The logo well is a fixed height whether or not there's a logo in it, so a sponsor who
+            sends artwork doesn't make their card taller than its neighbours. The hatch is the two
+            off-black surface tones — the same "nothing here yet" language the build-night photo
+            used — rather than a broken-image icon. */}
         <div
           className={`border-rule flex h-20 items-center justify-center border p-2.5 ${
             sponsor.logoUrl ? 'bg-base-200' : 'bg-hatch'

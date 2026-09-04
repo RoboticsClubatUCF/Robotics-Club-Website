@@ -12,18 +12,16 @@ import {
 } from '../../test/stubFetch'
 
 /**
- * The only write path on the site, so this is the only component whose failure
- * states cost someone a message rather than a number on a page. What is worth
- * pinning down is that each way it can fail says something different — an
- * unreachable server, a rate limit and a rejected field want three different
+ * The only write path on the site, so this is the only component whose failure states cost someone
+ * a message rather than a number on a page. What is worth pinning is that each way it can fail says
+ * something different — an unreachable server, a rate limit and a rejected field want three
  * sentences, because only one of them is worth retrying immediately.
  *
- * It now asks `GET /api/contact` whether it may write *before* drawing the box,
- * which puts two calls on one path in one component — the only place on the
- * site that happens. `stubFetch` keys on the path alone, so the suite routes by
- * method itself rather than teaching the shared helper about verbs for one
- * caller. Keeping the POST in its own `vi.fn` is what lets the assertions below
- * still read `mock.calls[0]` and mean the submission.
+ * It now asks `GET /api/contact` whether it may write before drawing the box, which puts two calls
+ * on one path in one component — the only place on the site that happens. `stubFetch` keys on the
+ * path alone, so the suite routes by method itself rather than teaching the shared helper about
+ * verbs for one caller. Keeping the POST in its own `vi.fn` is what lets the assertions below still
+ * read `mock.calls[0]` and mean the submission.
  */
 const AVAILABLE: ApiContactAvailability = {
   allowed: true,

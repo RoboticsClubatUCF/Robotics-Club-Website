@@ -41,35 +41,29 @@ import { imageSrc, isStoredUpload } from '../../lib/media/storedFiles'
 /**
  * `/dashboard/officer/sponsors` — the whole of `/sponsors`, written by officers.
  *
- * **The price list used to be a commit, and the list of sponsors used to be
- * Prisma Studio.** What a tier costs and what the club promises for it were four
- * objects in `web/src/content/sponsorship.ts` with every amount spelled
- * PLACEHOLDER, under a panel on the public page admitting as much; adding a
- * company that had just signed meant opening a database client. This is both of
- * those becoming a page.
+ * The price list used to be a commit, and the list of sponsors used to be Prisma Studio.
+ * What a tier costs and what the club promises for it were four objects in
+ * `web/src/content/sponsorship.ts` with every amount spelled PLACEHOLDER, under a panel on
+ * the public page admitting as much.
  *
- * **Three sections because the public page has three**, and they are in its
- * order: who backs the club, what backing it costs, and the ways to help that
- * are not money. An officer working here is looking at the page they are
- * writing, top to bottom, rather than at three tables that happen to be related.
+ * Three sections because the public page has three, and in its order: who backs the club,
+ * what backing it costs, and the ways to help that aren't money. An officer working here is
+ * looking at the page they're writing, top to bottom.
  *
- * **Publishing a tier is writing it; unpublishing is deleting it.** There is no
- * draft state and no `published` column, because "we have not settled this yet"
- * and "here is what it costs" are two different rows to have, not two values of
- * one column — and an unpriced tier is absent from the public sheet rather than
- * quoting a figure nobody agreed to. The same rule the front-page slideshow
- * follows: empty is a supported state and the page says so.
+ * Publishing a tier is writing it; unpublishing is deleting it. There's no draft state and
+ * no `published` column, because "we haven't settled this yet" and "here is what it costs"
+ * are two different rows to have — and an unpriced tier is absent from the public sheet
+ * rather than quoting a figure nobody agreed to.
  *
- * A sponsor, by contrast, is **hidden rather than deleted** nearly every time. A
- * sponsorship that has run out is a fact about a year, not a reason to erase the
- * club's record of who paid for the rover — so HIDE is the ordinary way off the
- * list and the ✕ is for a typo.
+ * A sponsor, by contrast, is hidden rather than deleted nearly every time. A sponsorship
+ * that has run out is a fact about a year, not a reason to erase the club's record of who
+ * paid for the rover — so HIDE is the ordinary way off the list and the cross is for a typo.
  */
 export function OfficerSponsorsPage() {
   const { user, membership } = useOutletContext<DashboardContext>()
 
-  // Dues before role, the order every other desk uses: a lapsed officer is
-  // still an officer, and the sentence they need is about a payment.
+  // Dues before role, the order every other desk uses: a lapsed officer is still an officer,
+  // and the sentence they need is about a payment.
   if (duesLocked(membership, user.role)) {
     return <DuesLocked eyebrow="/ MANAGE · SPONSORS" />
   }
@@ -99,10 +93,9 @@ function Desk() {
   const [loadError, setLoadError] = useState('')
 
   /**
-   * One read for the whole desk, matching the route: three fetches would be
-   * three loading states for a screen that means nothing with any of them
-   * missing. Each section below then patches its own slice of it, so a save in
-   * one never redraws the other two out from under somebody mid-sentence.
+   * One read for the whole desk, matching the route: three fetches would be three loading
+   * states for a screen that means nothing with any of them missing. Each section patches its
+   * own slice, so a save in one never redraws the other two out from under somebody.
    */
   useEffect(() => {
     const controller = new AbortController()
@@ -185,16 +178,16 @@ function Desk() {
 /**
  * A logo chosen before the row it belongs to exists.
  *
- * The add form collects one along with the name, because a company that has
- * just signed arrives as a name *and* a PNG in the same email — and a form that
- * takes only half of that leaves the other half to a second act somebody has to
- * remember. Same idea as `DraftImage` on the project create page, and the same
- * two shapes for the same reason: they become two different requests. An
- * address is a column on the sponsor and rides in with the row; a file is a
- * multipart upload against a path that needs the id, so it can only follow.
+ * The add form collects one along with the name, because a company that has just signed
+ * arrives as a name and a PNG in the same email — and a form that takes only half of that
+ * leaves the other half to a second act somebody has to remember.
  *
- * A file carries `previewUrl`, an object URL that **must be revoked** — which is
- * why nothing sets this state without going through the drop below.
+ * Two shapes because they become two different requests: an address is a column on the
+ * sponsor and rides in with the row; a file is a multipart upload against a path that needs
+ * the id, so it can only follow.
+ *
+ * A file carries `previewUrl`, an object URL that must be revoked — which is why nothing sets
+ * this state without going through the drop below.
  */
 type DraftLogo =
   | { kind: 'file'; file: File; previewUrl: string; shrunk: boolean }
@@ -203,21 +196,20 @@ type DraftLogo =
 /**
  * What the preview shows: the object URL for a file, the address for a link.
  *
- * Drawn only once the box holds something that could resolve, or the well
- * flickers a broken image through every keystroke of "https://" — which reads
- * as the address being wrong when it is merely half-typed.
+ * Drawn only once the box holds something that could resolve, or the well flickers a broken
+ * image through every keystroke of "https://" — which reads as the address being wrong when
+ * it's merely half-typed.
  *
- * **The missing scheme is filled in here because the server fills it in too.**
- * `webUrl` in `server/src/core/validate.ts` stores `company.com/logo.png` as
- * `https://company.com/logo.png`, and a preview that stayed blank until the
- * `https://` was typed would be the desk arguing with the route that accepts it.
+ * The missing scheme is filled in here because the server fills it in too: `webUrl` stores
+ * `company.com/logo.png` as `https://company.com/logo.png`, and a preview that stayed blank
+ * until the `https://` was typed would be the desk arguing with the route that accepts it.
  */
 const draftLogoSrc = (logo: DraftLogo): string | null => {
   if (logo.kind === 'file') return logo.previewUrl
 
   const typed = logo.url.trim()
-  // A root-relative address is one of our own uploads and `imageSrc` owns it;
-  // a scheme in front of that would be a URL pointing at nothing.
+  // A root-relative address is one of our own uploads and `imageSrc` owns it; a scheme in
+  // front of that would be a URL pointing at nothing.
   const address =
     typed.startsWith('/') || /^[a-z][a-z0-9+.-]*:/i.test(typed)
       ? typed
@@ -231,10 +223,10 @@ const draftLogoSrc = (logo: DraftLogo): string | null => {
 /**
  * The list itself.
  *
- * Rows write on blur rather than behind a save button, the way the lending desk
- * writes its inventory: an officer here is correcting a URL or fixing a spelling,
- * one field at a time, and a form that has to be submitted turns four
- * corrections into four submissions somebody can forget.
+ * Rows write on blur rather than behind a save button, the way the lending desk writes its
+ * inventory: an officer here is correcting a URL or fixing a spelling, one field at a time,
+ * and a form that has to be submitted turns four corrections into four submissions somebody
+ * can forget.
  */
 function SponsorList({
   sponsors,
@@ -255,9 +247,9 @@ function SponsorList({
 
   const [name, setName] = useState('')
   const [tier, setTier] = useState<SponsorTier>(
-    // The lowest level, which is where all but a handful of these start. Read
-    // off the end of the list rather than named, so the default follows the
-    // enum if the club ever adds a rung under it.
+    // The lowest level, which is where all but a handful of these start. Read off the end of
+    // the list rather than named, so the default follows the enum if the club ever adds a
+    // rung under it.
     tiers.at(-1) ?? 'ALUMINUM_ALLY',
   )
   const [website, setWebsite] = useState('')
@@ -267,11 +259,10 @@ function SponsorList({
   /**
    * Hand the browser back the memory behind a preview.
    *
-   * An object URL pins the whole file until it is revoked, so a few logos tried
-   * and abandoned while filling the form would otherwise sit in memory for the
-   * life of the tab. Read through a ref so leaving the page revokes whatever is
-   * held then, rather than the cleanup re-running — and revoking the preview
-   * still on screen — every time anything else on this desk changes.
+   * An object URL pins the whole file until it's revoked, so a few logos tried and abandoned
+   * would sit in memory for the life of the tab. Read through a ref so leaving the page
+   * revokes whatever is held then, rather than the cleanup re-running — and revoking the
+   * preview still on screen — every time anything else changes.
    */
   const held = useRef(logo)
   held.current = logo
@@ -291,11 +282,10 @@ function SponsorList({
   /**
    * Shrink the moment a file is picked rather than at send time.
    *
-   * It is the same work either way, and doing it here means the logo in the
-   * well is the logo that will go up — a file too large to send is found out
-   * about while there is still a form to fix it in. It also takes the race out
-   * of ADD: the section is busy until the picture is ready, so the button
-   * cannot fire against a logo that has not finished being one.
+   * It's the same work either way, and doing it here means the logo in the well is the logo
+   * that will go up — a file too large to send is found out about while there's still a form
+   * to fix it in. It also takes the race out of ADD: the section is busy until the picture is
+   * ready.
    */
   const chooseLogo = (picked: File) =>
     run(async () => {
@@ -310,9 +300,9 @@ function SponsorList({
       })
     })
 
-  // The same search the lending desk carries, for the same reason on top of the
-  // obvious one: it is how an officer checks whether a company is already listed
-  // before adding it a second time. The server refuses the duplicate either way.
+  // The same search the lending desk carries, for the same reason on top of the obvious one:
+  // it's how an officer checks whether a company is already listed before adding it a second
+  // time. The server refuses the duplicate either way.
   const shown = sponsors.filter((sponsor) =>
     hits([sponsor.name, sponsor.blurb], query),
   )
@@ -333,10 +323,9 @@ function SponsorList({
         tier,
         websiteUrl: website.trim() || null,
         blurb: blurb.trim() || null,
-        // An address is one of this row's own columns, so it goes up in the
-        // create — a sponsor listed by link is one request, and a link the
-        // server refuses takes the whole add down with it rather than leaving
-        // a row behind with a bad URL on it.
+        // An address is one of this row's own columns, so it goes up in the create — a sponsor
+        // listed by link is one request, and a link the server refuses takes the whole add down
+        // with it rather than leaving a row behind with a bad URL on it.
         ...(logo?.kind === 'url' ? { logoUrl: logo.url.trim() } : {}),
       })
 
@@ -353,12 +342,10 @@ function SponsorList({
             body,
           )
         } catch (error) {
-          // **This cannot throw.** The sponsor exists by now, so a failure that
-          // escaped would leave the row unlisted and the form still full —
-          // and the next press would be the same company a second time, which
-          // the server refuses as a duplicate. The upload is the part that
-          // failed, so the upload is the part that gets retried, in the panel
-          // this opens below.
+          // This cannot throw. The sponsor exists by now, so a failure that escaped would leave
+          // the row unlisted and the form still full — and the next press would be the same
+          // company a second time, which the server refuses as a duplicate. The upload is the
+          // part that failed, so the upload is the part that gets retried.
           stalled = explainApiError(error)
         }
       }
@@ -368,14 +355,13 @@ function SponsorList({
       setWebsite('')
       setBlurb('')
       dropLogo()
-      // The search is cleared too, or a company added while the list is
-      // narrowed lands outside it — which looks exactly like an add that did
-      // nothing, right up until somebody adds it a second time.
+      // The search is cleared too, or a company added while the list is narrowed lands outside
+      // it — which looks exactly like an add that did nothing, right up until somebody adds it
+      // a second time.
       setQuery('')
-      // Straight into the logo panel when the row still has no logo: a company
-      // that has just been added is a company whose logo is sitting in
-      // somebody's downloads folder. One that arrived with its logo needs
-      // nothing next, and an opened panel would only say so.
+      // Straight into the logo panel when the row still has no logo: a company that has just
+      // been added is one whose logo is sitting in somebody's downloads folder. One that
+      // arrived with its logo needs nothing next.
       setLogoFor(listed.logoUrl === null ? listed.id : null)
 
       if (stalled !== '') {
@@ -459,8 +445,8 @@ function SponsorList({
                     if (next !== '' && next !== sponsor.name) {
                       void patch(sponsor, { name: next })
                     } else {
-                      // Put the box back rather than leaving a blank one
-                      // sitting there looking saved.
+                      // Put the box back rather than leaving a blank one sitting there looking
+                      // saved.
                       event.target.value = sponsor.name
                     }
                   }}
@@ -662,11 +648,10 @@ function SponsorList({
         />
 
         <div>
-          {/* Two buttons on this page say ADD and they do different things.
-              The visible word stays short — the label above the form is what a
-              sighted reader is going by — and the accessible name carries the
-              rest, so somebody tabbing through or listing the buttons is not
-              choosing between two identical ones. */}
+          {/* Two buttons on this page say ADD and they do different things. The visible word
+              stays short — the label above the form is what a sighted reader is going by — and
+              the accessible name carries the rest, so somebody tabbing through isn't choosing
+              between two identical ones. */}
           <button
             type="button"
             aria-label="Add a sponsor"
@@ -697,9 +682,8 @@ function SponsorList({
           }}
         >
           <p className="text-dim text-sm leading-[1.7] text-pretty">
-            {/* One expression rather than a sentence split around a
-                conditional: JSX joins adjacent lines with a space, so a
-                full stop on its own line arrives as " ." */}
+            {/* One expression rather than a sentence split around a conditional: JSX joins
+                adjacent lines with a space, so a full stop on its own line arrives as " ." */}
             {doomed.logoUrl !== null && isStoredUpload(doomed.logoUrl)
               ? 'This removes the row for good, and the logo file with it.'
               : 'This removes the row for good.'}{' '}
@@ -715,14 +699,12 @@ function SponsorList({
 /**
  * The logo well, at desk size.
  *
- * Drawn whether or not there is artwork in it, and with the same
- * `object-contain` the public card uses — a wordmark cropped to fill would look
- * like a mistake out there, and this is what an officer checks it against. The
- * empty state is the hatch, which is what the public card falls back to as well.
+ * Drawn whether or not there's artwork in it, and with the same `object-contain` the public
+ * card uses — a wordmark cropped to fill would look like a mistake out there, and this is what
+ * an officer checks it against.
  *
- * One component rather than two copies because the second caller is the add
- * form, and a picture that previewed differently from the way it will be listed
- * would defeat the point of previewing it.
+ * One component rather than two copies because the second caller is the add form, and a
+ * picture that previewed differently from the way it will be listed would defeat the point.
  */
 function LogoWell({ src }: { src: string | null }) {
   return (
@@ -751,11 +733,10 @@ function LogoWell({ src }: { src: string | null }) {
 /**
  * The line under the picker.
  *
- * The branch that earns its place is the empty well: a link the preview cannot
- * draw is either half-typed or wrong, and without a word about it the well
- * looks broken rather than waiting. It says what an address looks like rather
- * than demanding `https://`, because the route no longer does either. A nudge
- * and not a block — the field is optional and ADD stays live.
+ * The branch that earns its place is the empty well: a link the preview can't draw is either
+ * half-typed or wrong, and without a word about it the well looks broken rather than waiting.
+ * It says what an address looks like rather than demanding `https://`, because the route no
+ * longer does either. A nudge and not a block — the field is optional and ADD stays live.
  */
 const hint = (logo: DraftLogo | null): string => {
   if (logo?.kind === 'url' && draftLogoSrc(logo) === null) {
@@ -772,14 +753,12 @@ const hint = (logo: DraftLogo | null): string => {
 /**
  * The logo half of the add form: a picture settled before the company exists.
  *
- * The desk used to take the name first and the logo strictly second — the add
- * created the row and opened `LogoPanel` on it — which is two acts for one
- * email and leaves a company on the public page with `[ LOGO ]` where their
- * mark should be for as long as it takes somebody to come back to it.
+ * The desk used to take the name first and the logo strictly second, which is two acts for one
+ * email and leaves a company on the public page with `[ LOGO ]` where their mark should be for
+ * as long as it takes somebody to come back to it.
  *
- * **Nothing here sends anything.** A file is shrunk and held; a link is text.
- * Both land in `add`, which is what makes this a preview rather than a save —
- * and why the well beside the controls is the same one the rows draw.
+ * Nothing here sends anything. A file is shrunk and held; a link is text. Both land in `add`,
+ * which is what makes this a preview rather than a save.
  */
 function LogoChoice({
   id,
@@ -813,10 +792,9 @@ function LogoChoice({
             disabled={busy}
             onChange={(event) => {
               const chosen = event.target.files?.[0]
-              // Cleared before the file is used rather than after, so choosing
-              // the *same* file again still fires a change event — an input
-              // whose value has not moved does not emit one, which is how a
-              // second attempt silently does nothing.
+              // Cleared before the file is used rather than after, so choosing the same file
+              // again still fires a change event — an input whose value hasn't moved doesn't
+              // emit one, which is how a second attempt silently does nothing.
               event.target.value = ''
               if (chosen) onChoose(chosen)
             }}
@@ -826,10 +804,9 @@ function LogoChoice({
           <div className="flex flex-wrap gap-2">
             <input
               type="url"
-              // The two ways in are one field: typing an address drops a file
-              // that was chosen, and choosing a file empties this. A sponsor
-              // has one logo, and a form that let both be filled would have to
-              // decide which won without saying so.
+              // The two ways in are one field: typing an address drops a file that was chosen,
+              // and choosing a file empties this. A sponsor has one logo, and a form that let
+              // both be filled would have to decide which won without saying so.
               value={logo?.kind === 'url' ? logo.url : ''}
               maxLength={500}
               placeholder="https://… (or a link to one)"
@@ -861,15 +838,14 @@ function LogoChoice({
 }
 
 /**
- * The logo, which is the one field here that is a file rather than a sentence.
+ * The logo, which is the one field here that's a file rather than a sentence.
  *
- * Its own component with its own status line because it is the only thing on the
- * row that can fail slowly — an upload is seconds where every other control is a
- * PATCH — and a spinner shared with the name box would freeze the whole row
- * while a 4 MB PNG went up.
+ * Its own component with its own status line because it's the only thing on the row that can
+ * fail slowly — an upload is seconds where every other control is a PATCH — and a spinner
+ * shared with the name box would freeze the whole row while a 4 MB PNG went up.
  *
- * Choosing a file *is* the upload. A picker already ends in a deliberate act,
- * and a confirm step after it asks the same question twice.
+ * Choosing a file is the upload. A picker already ends in a deliberate act, and a confirm step
+ * after it asks the same question twice.
  */
 function LogoPanel({
   sponsor,
@@ -929,10 +905,9 @@ function LogoPanel({
             disabled={busy}
             onChange={(event) => {
               const chosen = event.target.files?.[0]
-              // Cleared before the upload rather than after, so choosing the
-              // *same* file again still fires a change event — an input whose
-              // value has not moved does not emit one, which is how a retry
-              // after a failure silently does nothing.
+              // Cleared before the upload rather than after, so choosing the same file again
+              // still fires a change event — an input whose value hasn't moved doesn't emit
+              // one, which is how a retry after a failure silently does nothing.
               event.target.value = ''
               if (chosen) void upload(chosen)
             }}
@@ -1003,16 +978,14 @@ function LogoPanel({
 /**
  * What each level costs, one block per tier.
  *
- * Every level gets a block whether or not it is published, because the row an
- * officer needs in order to publish a tier is exactly the one a filtered list
- * would hide. How many blocks there are comes from the server — see
- * `ApiSponsorDesk` — so a fifth tier added to the schema draws a fifth block
- * with nothing edited here.
+ * Every level gets a block whether or not it's published, because the row an officer needs in
+ * order to publish a tier is exactly the one a filtered list would hide. How many blocks there
+ * are comes from the server, so a fifth tier in the schema draws a fifth block with nothing
+ * edited here.
  *
- * Saved on a button rather than on blur, which is the opposite of the sponsor
- * rows above and deliberate: a tier is three fields that are one statement, and
- * an amount that saved itself while the benefits under it still said last year's
- * thing would be a public price list mid-edit.
+ * Saved on a button rather than on blur, the opposite of the sponsor rows and deliberate: a
+ * tier is three fields that are one statement, and an amount that saved itself while the
+ * benefits under it still said last year's thing would be a public price list mid-edit.
  */
 function TierSheet({
   tiers,
@@ -1029,10 +1002,10 @@ function TierSheet({
 
       <div className="border-rule bg-base-200 mb-4 border p-4">
         <p className="text-dim text-[13px] leading-[1.6] text-pretty">
-          A tier appears on <code>/sponsors</code> once it is saved here, and
-          nowhere until then — a level nobody has priced is left off the sheet
-          rather than shown with a number the club has not agreed to. Companies
-          already in a tier are listed above whatever this says.
+          A tier appears on <code>/sponsors</code> once it is saved here, and a
+          level nobody has priced is left off the sheet rather than shown with a
+          number nobody agreed to. Companies already in a tier are listed above
+          whatever this says.
         </p>
       </div>
 
@@ -1070,9 +1043,8 @@ function TierBlock({
   const { message, busy, run } = useSectionStatus()
 
   /**
-   * A draft, keyed on the tier through the parent's `key`, so a save that fails
-   * leaves what somebody typed on the screen rather than snapping back to what
-   * the server still holds.
+   * A draft, keyed on the tier through the parent's `key`, so a save that fails leaves what
+   * somebody typed on the screen rather than snapping back to what the server still holds.
    */
   const [amount, setAmount] = useState(offer?.amount ?? '')
   const [blurb, setBlurb] = useState(offer?.blurb ?? '')
@@ -1096,17 +1068,16 @@ function TierBlock({
     run(async () => {
       await deleteJson(`/officer/sponsors/tiers/${tier}`)
       onChange(null)
-      // The boxes keep what was in them. Taking a tier off the page while the
-      // club argues about the number is not the same as throwing the wording
-      // away, and putting it back should be one press.
+      // The boxes keep what was in them. Taking a tier off the page while the club argues about
+      // the number isn't the same as throwing the wording away, and putting it back should be
+      // one press.
     })
 
   return (
-    /* A named region per tier, and the heading is the name. Four blocks carry
-       four boxes labelled WHAT IT COSTS, so without this the only way to reach
-       one of them — by keyboard, by screen reader or from a test — is to count.
-       `aria-labelledby` rather than a repeated `aria-label`, so the name cannot
-       drift from the heading it is sitting under. */
+    /* A named region per tier, and the heading is the name. Four blocks carry four boxes
+       labelled WHAT IT COSTS, so without this the only way to reach one of them is to count.
+       `aria-labelledby` rather than a repeated `aria-label`, so the name can't drift from the
+       heading it's sitting under. */
     <section
       aria-labelledby={`${id}-tier`}
       className="border-rule bg-base-200 border p-3"
@@ -1140,9 +1111,9 @@ function TierBlock({
             }}
             className="input border-rule bg-base-100 h-9 min-h-0 w-full text-[13px]"
           />
-          {/* Free text on purpose, and worth saying: an officer typing into a
-              box marked "cost" will otherwise assume it wants a number and
-              leave out the half that makes it mean something. */}
+          {/* Free text on purpose, and worth saying: an officer typing into a box marked "cost"
+              will otherwise assume it wants a number and leave out the half that makes it mean
+              something. */}
           <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
             Printed exactly as written — “$500+”, “In kind, by arrangement” and
             “$2,500 a season” are all fine.
@@ -1164,11 +1135,10 @@ function TierBlock({
             }}
             className="input border-rule bg-base-100 h-9 min-h-0 w-full text-[13px]"
           />
-          {/* Optional, and said so on the field rather than left to be
-              discovered by pressing PUBLISH. The club's own sheet is an amount
-              over a list of what you get, so most of these are blank, and a box
-              that looks required is one somebody writes a sentence into to get
-              past it. */}
+          {/* Optional, and said so on the field rather than left to be discovered by pressing
+              PUBLISH. The club's own sheet is an amount over a list of what you get, so most of
+              these are blank, and a box that looks required is one somebody writes a sentence
+              into to get past it. */}
           <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
             Most tiers leave this empty — the amount and the list below usually
             say it.
@@ -1228,17 +1198,14 @@ function TierBlock({
 // -------------------------------------------------------------- the fine print
 
 /**
- * What a `*` on a benefit means, and the club's note about a sponsorship being
- * tax-deductible.
+ * What a `*` on a benefit means, and the club's note about a sponsorship being tax-deductible.
  *
- * Under the tier sheet rather than inside it, because that is where it prints:
- * the same marker is cited by two different tiers, so it belongs to the grid
- * and not to any card in it. One box rather than a list of footnotes — they are
- * read as a paragraph and never referenced by number, and a schema that tried to
- * check every `*` had a matching note would be checking prose.
+ * Under the tier sheet rather than inside it, because that's where it prints: the same marker
+ * is cited by two different tiers, so it belongs to the grid and not to any card in it. One box
+ * rather than a list of footnotes — they're read as a paragraph and never referenced by number.
  *
- * Saved on a button and not on blur, like the tiers above and for the same
- * reason: it is one statement, and half of it published is worse than none.
+ * Saved on a button and not on blur, like the tiers and for the same reason: it's one
+ * statement, and half of it published is worse than none.
  */
 function FinePrint({
   footnotes,
@@ -1285,9 +1252,9 @@ function FinePrint({
           page altogether, which is how it was before anybody wrote any.
         </p>
 
-        {/* Named for a screen reader, because the tier blocks above carry a
-            SAVE of their own and a list of buttons that reads SAVE, SAVE, SAVE
-            says nothing about which is which. The visible word stays short. */}
+        {/* Named for a screen reader, because the tier blocks above carry a SAVE of their own
+            and a list of buttons that reads SAVE, SAVE, SAVE says nothing about which is
+            which. The visible word stays short. */}
         <button
           type="button"
           aria-label="Save the fine print"
@@ -1307,11 +1274,11 @@ function FinePrint({
 // ------------------------------------------------------- the other ways to help
 
 /**
- * The half of the pitch a price list cannot carry: machine time, materials, an
- * engineer for an hour a month.
+ * The half of the pitch a price list can't carry: machine time, materials, an engineer for an
+ * hour a month.
  *
- * Ordered by hand, because these are not ranked by anything the database knows —
- * which one to lead with is whatever the club is short of this semester.
+ * Ordered by hand, because these aren't ranked by anything the database knows — which one to
+ * lead with is whatever the club is short of this semester.
  */
 function InKindList({
   rows,
@@ -1329,10 +1296,9 @@ function InKindList({
   const full = rows.length >= MAX_IN_KIND
 
   /**
-   * The reorder is debounced, and it is the one debounce here that earns itself:
-   * the route takes the *whole* order, so it is idempotent and a lost
-   * intermediate press costs nothing, while four arrow presses in a row would
-   * otherwise be four writes. Lifted straight from the front-page desk.
+   * The reorder is debounced, and it's the one debounce here that earns itself: the route takes
+   * the whole order, so it's idempotent and a lost intermediate press costs nothing, while four
+   * arrow presses in a row would otherwise be four writes.
    */
   const pending = useRef<number | null>(null)
   useEffect(

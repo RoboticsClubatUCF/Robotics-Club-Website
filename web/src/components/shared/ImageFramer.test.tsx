@@ -46,10 +46,9 @@ describe('ImageFramer', () => {
   })
 
   /**
-   * jsdom gives every element a 0×0 rectangle, so a drag cannot change
-   * anything here — which is the point of this test: the guard in `panBy` is
-   * what stops that becoming `Infinity` in a style. The arithmetic itself is
-   * covered in `imageFraming.test.ts`, where it can be checked against real
+   * jsdom gives every element a 0×0 rectangle, so a drag cannot change anything here — which is the
+   * point of this test: the guard in `panBy` is what stops that becoming `Infinity` in a style. The
+   * arithmetic itself is covered in `imageFraming.test.ts`, where it can be checked against real
    * numbers.
    */
   it('survives a drag in a zero-sized frame without corrupting the style', () => {

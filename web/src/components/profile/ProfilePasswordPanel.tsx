@@ -18,10 +18,9 @@ const MIN_LENGTH = 10
 /**
  * Setting a new password while signed in.
  *
- * Three fields rather than two. The confirmation is not ceremony: this form has
- * no way to tell somebody they mistyped, and the cost of a typo here is being
- * locked out of an account whose reset link goes to an address they may be
- * changing on the same page.
+ * Three fields rather than two. The confirmation is not ceremony: this form has no way to tell
+ * somebody they mistyped, and the cost of a typo is being locked out of an account whose reset link
+ * goes to an address they may be changing on the same page.
  */
 export function ProfilePasswordPanel() {
   const id = useId()

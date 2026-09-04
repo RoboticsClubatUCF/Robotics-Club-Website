@@ -66,10 +66,9 @@ const renderSection = () =>
 /**
  * The covers on the page.
  *
- * Queried out of the DOM rather than by role: a cover is decorative and carries
- * `alt=""`, because the title beside it is what names the project and a second
- * announcement of "Project S.T.O.R.M." helps nobody. An `alt=""` image has no
- * `img` role, which is exactly the point.
+ * Queried out of the DOM rather than by role: a cover is decorative and carries `alt=""`, because
+ * the title beside it names the project and a second announcement of "Project S.T.O.R.M." helps
+ * nobody. An `alt=""` image has no `img` role, which is the point.
  */
 const covers = (container: HTMLElement) => Array.from(container.querySelectorAll('img'))
 

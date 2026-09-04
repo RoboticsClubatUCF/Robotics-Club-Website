@@ -13,15 +13,13 @@ import { createSession } from '../../auth/session.js'
 /**
  * Print requests, against the live database.
  *
- * Discord is stubbed at the module boundary, and not optionally: the dev
- * database holds real officers with real Discord ids, and an unstubbed run
- * of this suite would DM them about fixture uploads. The stub answers
- * `refused` on purpose — the property under test is that a delivery failing
- * never fails the member's upload.
+ * Discord is stubbed at the module boundary, and not optionally: the dev database holds real
+ * officers with real Discord ids, and an unstubbed run would DM them about fixture uploads. The
+ * stub answers `refused` on purpose — the property under test is that a delivery failing never
+ * fails the member's upload.
  *
- * The storage rule gets its teeth checked here: DONE and REJECTED delete the
- * `stored_files` row in the same transaction, while the request row keeps the
- * name and size as history.
+ * The storage rule gets its teeth checked here: DONE and REJECTED delete the `stored_files` row
+ * in the same transaction, while the request row keeps the name and size as history.
  */
 
 vi.mock('../../discord/discord.js', async (importOriginal) => ({
@@ -72,12 +70,9 @@ let otherProjectId: string
 let term: { termYear: number; termSeason: Season }
 
 /**
- * Paid up, and the suite is deterministic only because they are. Both routers
- * need current dues now — the club's line is that a lapsed account gets the
- * dues page and its own projects and nothing else — and whether *anybody* is
- * lapsed depends on the calendar, so fixtures with no date would pass all
- * summer and fail the week fall's trial closes. The lapsed case is covered in
- * `authz.test.ts`, which pins its clock for the same reason.
+ * Paid up, and the suite is deterministic only because they are. Both routers need current dues,
+ * and whether anybody is lapsed depends on the calendar — so fixtures with no date would pass all
+ * summer and fail the week fall's trial closes. The lapsed case is covered in `authz.test.ts`.
  */
 const PAID_UP = new Date('2035-12-31T23:59:59')
 /**
@@ -393,16 +388,12 @@ describe('submitting', () => {
 /**
  * Who may ask at all.
  *
- * The printers run on club money, and the gate is now the same one everything
- * else uses: `duesPaidThrough` in the future, `ADMIN` aside. This used to be a
- * stricter check of its own that refused a `GUEST` whatever their standing —
- * necessary while the summer and the opening weeks reported access for
- * everybody, and redundant the moment access became the date, since nothing can
- * set that date without promoting the account in the same transaction.
+ * The printers run on club money, and the gate is the same one everything else uses:
+ * `duesPaidThrough` in the future, `ADMIN` aside. This used to be a stricter check that refused a
+ * `GUEST` whatever their standing — necessary while the summer reported access for everybody, and
+ * redundant the moment access became the date.
  *
- * The wording each refusal gets is `authz.test.ts`'s matrix, which pins its
- * clock; those assertions turn on which sentence, and the sentence turns on
- * whether a free window is running today. What is checked here is that this
+ * The wording each refusal gets is `authz.test.ts`'s matrix. What's checked here is that this
  * router is behind the gate at all.
  */
 describe('who may ask', () => {
@@ -423,10 +414,8 @@ describe('who may ask', () => {
   })
 
   /**
-   * **The role does not decide this any more, and that is the change.** A
-   * `GUEST` carrying a live date is somebody an officer set a date on by hand,
-   * and under one rule they are covered — the old check refused them for a
-   * reason that no longer exists.
+   * The role doesn't decide this any more, and that's the change. A `GUEST` carrying a live date
+   * is somebody an officer set a date on by hand, and under one rule they're covered.
    */
   it('lets a covered account through whatever its role says', async () => {
     const guest = await prisma.user.create({
@@ -710,10 +699,9 @@ describe('the officer queue', () => {
   })
 
   /**
-   * `?all=1` is what lets the browser's search box on LIVE find a print that
-   * has already been done or declined — it cannot search rows it was never
-   * sent. History also comes back newest-first, because `take` cuts at a
-   * hundred and the oldest hundred is the least useful hundred there are.
+   * `?all=1` is what lets the browser's search box on LIVE find a print already done or declined
+   * — it can't search rows it was never sent. History comes back newest-first, because `take` cuts
+   * at a hundred and the oldest hundred is the least useful there are.
    */
   it('answers with every status on ?all=1, newest first', async () => {
     const older = await submit()
@@ -793,11 +781,9 @@ describe('the officer queue', () => {
   })
 
   /**
-   * `REJECTED` is two events wearing one status — a request nobody started
-   * being declined, and a print already running being stopped — and this
-   * column is the only thing that tells them apart. The dashboard reads it to
-   * name the action, so a decline that looked like a cancellation would put a
-   * false sentence in front of the member who asked.
+   * `REJECTED` is two events wearing one status — a request nobody started being declined, and a
+   * print already running being stopped — and this column is the only thing that tells them apart.
+   * The dashboard reads it to name the action.
    */
   it('stamps when a print went on a printer, and only then', async () => {
     const declined = await submit()
@@ -876,11 +862,10 @@ describe('the officer queue', () => {
   /**
    * Found by id, never by "the first personal row".
    *
-   * This queue is roster-wide by nature — it is the officers' whole to-do list
-   * — so it answers with whatever real members have asked for as well as with
-   * this suite's fixtures, and a real request sorts ahead of one made a moment
-   * ago. Matching on a *shape* rather than on identity is how a test starts
-   * asserting things about the club's actual data, and this one did.
+   * This queue is roster-wide by nature, so it answers with whatever real members have asked for
+   * as well as this suite's fixtures, and a real request sorts ahead of one made a moment ago.
+   * Matching on a shape rather than identity is how a test starts asserting things about the
+   * club's actual data, and this one did.
    */
   it('puts the requester’s remaining grams beside a personal row, and not a project one', async () => {
     await alreadySpent(120)

@@ -3,23 +3,19 @@ import type { ApiMyProject, UserRole } from '../api/api'
 /**
  * Who may edit a project's public page, in the browser's opinion.
  *
- * Mirrors `requireProjectLead` in `server/src/auth/authz.ts`, and mirrors rot — so
- * it lives here, alone, with its own test, rather than as a condition inside a
- * component. The rule, both halves of it:
+ * Mirrors `requireProjectLead` in `server/src/auth/authz.ts`, and mirrors rot — so it lives here,
+ * alone, with its own test, rather than as a condition inside a component. Both halves of the rule:
  *
- *   - **Officers and admins pass on the role alone**, with no membership row on
- *     the project at all. That is how an officer edits a page for a project
- *     they have never been on.
- *   - **Everybody else needs `PROJECT_LEAD` on *this* project.** `TEAM_LEAD`
- *     grants nothing here, exactly as it grants nothing there, and leading
- *     project A grants nothing on project B.
+ *   - Officers and admins pass on the role alone, with no membership row on the project at all.
+ *     That is how an officer edits a page for a project they have never been on.
+ *   - Everybody else needs `PROJECT_LEAD` on this project. `TEAM_LEAD` grants nothing here, exactly
+ *     as it grants nothing there, and leading project A grants nothing on project B.
  *
- * `role` is read for exactly one thing — waving officers through — and that is
- * the whole of what `UserRole` has to say about any project.
+ * `role` is read for exactly one thing — waving officers through — and that is the whole of what
+ * `UserRole` has to say about any project.
  *
- * Presentation only. Every button this ungates lands on a route that asks the
- * same question again, so being wrong here shows somebody a form the server
- * will refuse — never the other way round.
+ * Presentation only. Every button this ungates lands on a route that asks the same question again,
+ * so being wrong here shows somebody a form the server will refuse — never the other way round.
  */
 export function canEditProject(
   role: UserRole,

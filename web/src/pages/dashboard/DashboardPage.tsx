@@ -18,25 +18,23 @@ import { whereLabel } from '../../lib/tasks'
 import { useApi } from '../../lib/api/useApi'
 
 /**
- * The dashboard overview: the one page everybody lands on, whatever their
- * standing.
+ * The dashboard overview: the one page everybody lands on, whatever their standing.
  *
- * It reads as a stack of panels, and the panels do the role-splitting by
- * their own empty states rather than by branching on who is looking. A guest
- * has no projects, so MY PROJECTS shows them how to get one; a member has
- * some, so it shows those. Nothing here checks a role, because nothing here
- * needs to — the server already scoped every answer to the person asking.
+ * It reads as a stack of panels, and the panels do the role-splitting by their own empty
+ * states rather than by branching on who is looking. A guest has no projects, so MY
+ * PROJECTS shows them how to get one. Nothing here checks a role, because the server
+ * already scoped every answer to the person asking.
  *
- * The session gate lives in `DashboardLayout`, which is the only reason this
- * component can read the outlet context without checking anybody signed in.
+ * The session gate lives in `DashboardLayout`, which is the only reason this can read
+ * the outlet context without checking anybody signed in.
  */
 
 export function DashboardPage() {
   const { user, projects, membership } = useOutletContext<DashboardContext>()
-  // The survey locks nothing, so it is not one of `accessLock`'s reasons and
-  // is read straight off the membership. Two facts rather than one, because
-  // the panel below has three states: answered, still being asked for, and
-  // unanswered by somebody who said stop.
+  // The survey locks nothing, so it isn't one of `accessLock`'s reasons and is read
+  // straight off the membership. Two facts rather than one, because the panel below has
+  // three states: answered, still being asked for, and unanswered by somebody who said
+  // stop.
   const surveyPending =
     membership.status === 'ready' && membership.data.surveyPending
   const askingForSurvey = surveyPrompt(membership)
@@ -45,29 +43,24 @@ export function DashboardPage() {
 
   return (
     <>
-      {/* `/ OVERVIEW`, not `/ DASHBOARD`. The rail already says which section
-          this is; what the page has to say is which page of it you are on, and
-          the two saying the same word read as one label printed twice. */}
+      {/* `/ OVERVIEW`, not `/ DASHBOARD`. The rail already says which section this is;
+          what the page has to say is which page of it you're on, and the two saying the
+          same word read as one label printed twice. */}
       <FormEyebrow>/ OVERVIEW</FormEyebrow>
       <FormHeading>Hello, {firstName}.</FormHeading>
 
-      {/* One grid for the whole page, rather than a status block and a prompt
-          stacked full-width above a grid of panels. Every cell in here is the
-          same kind of thing — something true about this person right now — and
-          the two at the top only sat apart because the page was a column. As
-          many columns as the screen has room for, so this fills a monitor
-          instead of leaving its right half empty; the reading order down the
-          markup is unchanged, so standing still comes first and whatever is
-          owed comes second. */}
+      {/* One grid for the whole page, rather than a status block and a prompt stacked
+          full-width above a grid of panels. Every cell in here is the same kind of thing
+          — something true about this person right now — and the two at the top only sat
+          apart because the page was a column. As many columns as the screen has room
+          for; the reading order down the markup is unchanged. */}
       <div className="grid-fluid mt-8 gap-5">
         <Membership state={membership} />
 
-        {/* One prompt here, and it is about money. The survey used to take this
-            slot whenever it was owed, because it outranked dues on the server
-            and telling somebody to pay would have sent them to a page the gate
-            then refused. It shuts nothing now, so it is back to being one panel
-            among the rest further down rather than the first thing anybody
-            reads. */}
+        {/* One prompt here, and it's about money. The survey used to take this slot
+            whenever it was owed, because it outranked dues on the server and telling
+            somebody to pay would have sent them to a page the gate then refused. It shuts
+            nothing now. */}
         {duesLocked(membership, user.role) && (
           <FormPanel tone="accent">
             <p className="mb-1.5 text-sm font-semibold">
@@ -80,10 +73,9 @@ export function DashboardPage() {
           </FormPanel>
         )}
 
-        {/* Ahead of the rest, because it is the only panel here that is
-            different this evening from what it was this morning — and for an
-            officer it is the one thing on the page that is a press rather than
-            a link. */}
+        {/* Ahead of the rest, because it's the only panel here that's different this
+            evening from what it was this morning — and for an officer it's the one thing
+            on the page that's a press rather than a link. */}
         <LabPanel user={user} membership={membership} />
         <MyProjects projects={projects} />
         <OpenProjects />
@@ -91,11 +83,10 @@ export function DashboardPage() {
         <SurveyPanel pending={surveyPending} asking={askingForSurvey} />
       </div>
 
-      {/* The page ends on the calendar. It used to end on a link to the Discord
-          and a sign-out button — one of them a way off the site and the other a
-          once-a-term action, both sitting under the page people open daily.
-          Signing out is on the profile page now; the Discord is in the footer,
-          where every other outbound link on the site already lives. */}
+      {/* The page ends on the calendar. It used to end on a link to the Discord and a
+          sign-out button — one a way off the site and the other a once-a-term action,
+          both under the page people open daily. Signing out is on the profile page now;
+          the Discord is in the footer with every other outbound link. */}
       <div className="mt-10">
         <DashboardCalendar />
       </div>
@@ -106,12 +97,10 @@ export function DashboardPage() {
 /**
  * Dues, from the layout's one read of them rather than a second of its own.
  *
- * It used to fetch here. The rail needs the same answer to know whether to lock
- * the management links, and `/dues/status` is the expensive endpoint on the site
- * — it reads UCF's academic calendar — so two reads per page load was one too
- * many. Three states still, like every other remote read here: a failure
- * degrades to a line and a link rather than blanking the page or, worse,
- * implying dues are paid when nobody knows.
+ * It used to fetch here. The rail needs the same answer to know whether to lock the
+ * management links, and `/dues/status` is the expensive endpoint on the site — it reads
+ * UCF's academic calendar — so two reads per page load was one too many. A failure
+ * degrades to a line and a link rather than implying dues are paid when nobody knows.
  */
 function Membership({ state }: { state: DashboardContext['membership'] }) {
 
@@ -138,21 +127,19 @@ function Membership({ state }: { state: DashboardContext['membership'] }) {
   const membership = state.data
   const gap = coverGap(membership)
 
-  // One element, not a fragment: this is a cell of the page's grid now, and a
-  // fragment would spill the button into a cell of its own halfway across the
-  // row from the panel it belongs to.
+  // One element, not a fragment: this is a cell of the page's grid now, and a fragment
+  // would spill the button into a cell of its own halfway across the row from the panel
+  // it belongs to.
   return (
     <div>
       <MembershipPanel membership={membership} />
 
-      {/* Shown whatever the status, so somebody reading this inside a free
-          window can settle the term ahead now rather than being told to come
-          back when it costs something.
+      {/* Shown whatever the status, so somebody reading this inside a free window can
+          settle the term ahead now rather than being told to come back.
 
-          The label follows `coverGap`, not `duesRequired`, and that distinction
-          is the bug this replaced. `duesRequired` is false during a free window
-          — nothing is owed — so this said VIEW DUES & PAYMENTS to somebody with
-          no access at all, when what they needed was one free press. */}
+          The label follows `coverGap`, not `duesRequired`, and that distinction is the
+          bug this replaced: `duesRequired` is false during a free window, so this said
+          VIEW DUES & PAYMENTS to somebody with no access at all. */}
       <div className="mt-5">
         <Link
           to="/dashboard/dues"
@@ -166,11 +153,11 @@ function Membership({ state }: { state: DashboardContext['membership'] }) {
 }
 
 /**
- * The projects I am on *this term*: name, standing, and when they meet.
+ * The projects I'm on this term: name, standing, and when they meet.
  *
- * Only the current ones, because the point of the panel is what somebody is
- * working on — a member three years in would otherwise scroll past a history to
- * find this Thursday's meeting. The rest are one link away.
+ * Only the current ones, because the point of the panel is what somebody is working on —
+ * a member three years in would otherwise scroll past a history to find this Thursday's
+ * meeting. The rest are one link away.
  */
 function MyProjects({ projects }: { projects: DashboardContext['projects'] }) {
   const mine = projects.status === 'ready' ? projects.data : []
@@ -199,9 +186,9 @@ function MyProjects({ projects }: { projects: DashboardContext['projects'] }) {
       {projects.status === 'ready' &&
         (thisTerm.length === 0 ? (
           <p className="text-dim text-sm leading-[1.7] text-pretty">
-            {/* Two different situations and two different sentences. Somebody
-                who has never joined needs to be told where to; somebody between
-                terms needs to know the list is right rather than broken. */}
+            {/* Two different situations and two different sentences. Somebody who has
+                never joined needs to be told where to; somebody between terms needs to
+                know the list is right rather than broken. */}
             {before === 0
               ? "You're not on a project yet. Join one from the list beside this."
               : "You're not on a project this semester. Projects run a term at a time."}
@@ -241,8 +228,8 @@ function MyProjects({ projects }: { projects: DashboardContext['projects'] }) {
                       {meets}
                     </p>
                   )}
-                  {/* The lead's own words under the times, in the tier below
-                      them: the schedule is the fact, this is the aside. */}
+                  {/* The lead's own words under the times, in the tier below them: the
+                      schedule is the fact, this is the aside. */}
                   {note && (
                     <p className="text-faint mt-0.5 text-[13px] leading-[1.5] text-pretty">
                       {note}
@@ -254,8 +241,8 @@ function MyProjects({ projects }: { projects: DashboardContext['projects'] }) {
           </ul>
         ))}
 
-      {/* Only when there is something behind it, and outside the branch above
-          so it shows whether or not this term is empty. */}
+      {/* Only when there's something behind it, and outside the branch above so it shows
+          whether or not this term is empty. */}
       {projects.status === 'ready' && before > 0 && (
         <Link
           to="/dashboard/projects/past"
@@ -269,9 +256,8 @@ function MyProjects({ projects }: { projects: DashboardContext['projects'] }) {
 }
 
 /**
- * My open assignments, tickable in place. Hand-rolled fetch rather than
- * `useApi` because ticking has to refresh the list — the same reason the dues
- * page rolls its own.
+ * My open assignments, tickable in place. Hand-rolled fetch rather than `useApi` because
+ * ticking has to refresh the list — the same reason the dues page rolls its own.
  */
 function MyTasks() {
   const [tasks, setTasks] = useState<ApiMyTask[] | null | 'loading'>('loading')
@@ -308,8 +294,8 @@ function MyTasks() {
         <p className="text-faint font-mono text-[10px] font-medium tracking-[0.16em]">
           MY TASKS
         </p>
-        {/* The card is the five nearest deadlines; the page is the rest of it,
-            plus the labels, the search and — for a lead — the form. */}
+        {/* The card is the five nearest deadlines; the page is the rest of it, plus the
+            labels, the search and — for a lead — the form. */}
         <Link
           to="/dashboard/tasks"
           className="text-faint hover:text-primary font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200"
@@ -374,14 +360,14 @@ function MyTasks() {
 }
 
 /**
- * Every project currently running, whoever is looking — this is the guest's
- * window into what the club is doing, and the member's way to a second
- * project. Joining happens on the project's own page, behind the dues check.
+ * Every project currently running, whoever is looking — the guest's window into what the
+ * club is doing, and the member's way to a second project. Joining happens on the
+ * project's own page, behind the dues check.
  */
 function OpenProjects() {
-  // This term's only. Offering somebody a place on last spring's build is an
-  // invitation to join a project that finished, and the server computes which
-  // term that is — the browser has no way to know and no business guessing.
+  // This term's only. Offering somebody a place on last spring's build is an invitation
+  // to join a project that finished, and the server computes which term that is — the
+  // browser has no way to know and no business guessing.
   const state = useApi<ApiProject[]>(
     '/projects?status=IN_PROGRESS&term=current&limit=100',
   )
@@ -436,19 +422,15 @@ function OpenProjects() {
 /**
  * The survey's own panel on the overview.
  *
- * **This is the standing offer, and it is what lets the prompt carry a
- * *don't ask me again*.** Nothing makes anybody fill the survey in and the
- * dialog can be switched off for good, so the club's last chance at a shirt
- * size is a panel that is always here, on the page everybody lands on, in all
- * three states. It is also the way back for somebody correcting an answer a
- * year later, which the rail's row cannot be — that row goes the moment the
- * survey stops being asked for.
+ * This is the standing offer, and it's what lets the prompt carry a *don't ask me
+ * again*. Nothing makes anybody fill the survey in and the dialog can be switched off
+ * for good, so the club's last chance at a shirt size is a panel that's always here, on
+ * the page everybody lands on. It's also the way back for somebody correcting an answer
+ * a year later, which the rail's row can't be.
  *
- * Three states, two props. `asking` is a strictly narrower `pending`: somebody
- * who ticked the box is pending and not asked, and they are owed a different
- * sentence from the one a newcomer gets. Telling a person who has just said
- * *stop* that they have not filled it in yet, in accent, is the exact nag they
- * turned off.
+ * Three states, two props. `asking` is a strictly narrower `pending`: somebody who ticked
+ * the box is pending and not asked, and telling them they haven't filled it in yet, in
+ * accent, is the exact nag they turned off.
  */
 function SurveyPanel({
   pending,
@@ -458,9 +440,8 @@ function SurveyPanel({
   asking: boolean
 }) {
   return (
-    // Accent only while the club is still asking. A dismissal takes the colour
-    // off it as well as taking the prompt down — the offer stays, the pull does
-    // not.
+    // Accent only while the club is still asking. A dismissal takes the colour off it as
+    // well as taking the prompt down — the offer stays, the pull doesn't.
     <FormPanel tone={asking ? 'accent' : 'plain'}>
       <p className="text-faint mb-3 font-mono text-[10px] font-medium tracking-[0.16em]">
         MEMBER SURVEY
@@ -468,10 +449,10 @@ function SurveyPanel({
 
       <p className="text-dim text-[13px] leading-[1.6] text-pretty">
         {!pending
-          ? 'Answered, and you will not be asked again. Shirt sizes and graduation years move, so change yours whenever they do.'
+          ? 'Answered. Shirt sizes and graduation years move, so change yours whenever they do.'
           : asking
-            ? 'Not filled in yet. It is two minutes, it is asked once, and nothing on the site waits on it.'
-            : 'Not filled in yet, and we will not ask again. It is still here whenever you want it — two minutes, and it is how the club knows what size shirts to order.'}
+            ? 'Not filled in yet. Two minutes, asked once, and nothing waits on it.'
+            : 'Not filled in yet, and we will not ask again. It is still here whenever you want it.'}
       </p>
 
       <Link

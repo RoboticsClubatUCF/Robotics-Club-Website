@@ -12,15 +12,14 @@ interface WindowRow {
 /**
  * Identify the caller.
  *
- * `X-Forwarded-For` is only honoured when TRUST_PROXY says a proxy actually
- * sets it. Trusting it unconditionally would make the limit trivial to bypass:
- * the header is client-supplied, so a script can put a fresh random value on
- * every request and never share a counter with itself.
+ * `X-Forwarded-For` is only honoured when TRUST_PROXY says a proxy actually sets it.
+ * Trusting it unconditionally would make the limit trivial to bypass: the header is
+ * client-supplied, so a script can put a fresh random value on every request and never
+ * share a counter with itself.
  *
- * Exported because the middleware below is not the only shape a budget comes
- * in. A route that spends one window from a POST and *reads* the same window
- * from a GET — the contact form does exactly that — has to build the identical
- * key on both, and two spellings of "who is this" would be two rows.
+ * Exported because the middleware below isn't the only shape a budget comes in. A route
+ * that spends one window from a POST and reads the same window from a GET — the contact
+ * form does exactly that — has to build the identical key on both.
  */
 export function clientAddress(c: Context): string {
   if (env.TRUST_PROXY) {
@@ -31,12 +30,10 @@ export function clientAddress(c: Context): string {
   try {
     return getConnInfo(c).remote.address ?? 'unknown'
   } catch {
-    // `getConnInfo` reaches for the Node socket behind the request and throws
-    // outright when there isn't one — an in-process `app.request()`, or any
-    // adapter that isn't @hono/node-server. That is the same situation as an
-    // address it cannot read, so it lands in the same place rather than
-    // turning every guarded write into a 500. Callers that can't be told apart
-    // share one bucket, which errs toward limiting too much, not too little.
+    // `getConnInfo` reaches for the Node socket behind the request and throws outright when
+    // there isn't one — an in-process `app.request()`, or any adapter that isn't
+    // @hono/node-server. Same situation as an address it can't read, so it lands in the same
+    // place rather than turning every guarded write into a 500.
     return 'unknown'
   }
 }
@@ -44,9 +41,9 @@ export function clientAddress(c: Context): string {
 /**
  * Count one request against `key` and report whether it may proceed.
  *
- * The whole window lives in a single statement so two instances incrementing
- * at once can't lose an update: the row is locked by the upsert, and the reset
- * decision is made from the database clock rather than any one process's.
+ * The whole window lives in a single statement so two instances incrementing at once can't
+ * lose an update: the row is locked by the upsert, and the reset decision is made from the
+ * database clock rather than any one process's.
  */
 export async function consume(
   key: string,
@@ -70,8 +67,8 @@ export async function consume(
   `
 
   if (!row) {
-    // RETURNING on an upsert always yields a row; treat anything else as a bug
-    // rather than silently letting the request through.
+    // RETURNING on an upsert always yields a row; treat anything else as a bug rather than
+    // silently letting the request through.
     throw new Error('rate limit upsert returned no row')
   }
 
@@ -81,10 +78,9 @@ export async function consume(
       1,
       Math.ceil((row.expires_at.getTime() - Date.now()) / 1000),
     ),
-    // What is left *after* this request, so a caller that wants to tell
-    // somebody how many they have does not have to know the limit twice.
-    // Floored at zero: the count keeps climbing past the limit on every
-    // refused attempt, and "-14 messages left" is not a thing to say.
+    // What's left after this request, so a caller that wants to tell somebody how many they
+    // have doesn't have to know the limit twice. Floored at zero: the count keeps climbing
+    // past the limit on every refused attempt, and "-14 messages left" isn't a thing to say.
     remaining: Math.max(0, limit - row.count),
   }
 }
@@ -92,18 +88,15 @@ export async function consume(
 /**
  * Read a window without spending it.
  *
- * The counterpart to `consume`, for an endpoint that has to answer "could I?"
- * before anybody has done anything — the contact form asks this before it puts
- * a box on the page, and a check that incremented would spend the budget it was
- * reporting on. Nothing is written, so hammering this costs one indexed read.
+ * The counterpart to `consume`, for an endpoint that has to answer "could I?" before
+ * anybody has done anything — the contact form asks this before it puts a box on the page.
+ * Nothing is written, so hammering this costs one indexed read.
  *
- * An absent row and a closed one are the same answer, which is why the
- * predicate is `expires_at > now()` rather than the row existing: `sweep`
- * only tidies, so a used-up window from yesterday is still sitting there.
+ * An absent row and a closed one are the same answer, which is why the predicate is
+ * `expires_at > now()` rather than the row existing: `sweep` only tidies.
  *
- * `count` here is what has already been spent, where `consume` compares the
- * count *including* the current request — hence `<` against the same limit
- * that `consume` reads as `<=`.
+ * `count` here is what has already been spent, where `consume` compares the count including
+ * the current request — hence `<` against the same limit that `consume` reads as `<=`.
  */
 export async function peek(
   key: string,
@@ -129,28 +122,21 @@ export async function peek(
 /**
  * Middleware form. `scope` keeps unrelated endpoints from sharing a counter.
  *
- * `max` overrides `RATE_LIMIT_MAX` for endpoints where the default is the wrong
- * shape of limit. Five is right for something that writes a row per call; it is
- * not right for a field that checks itself as you correct a typo, where the
- * budget is spent getting the answer the form was asking for.
+ * `max` overrides `RATE_LIMIT_MAX` where the default is the wrong shape of limit. Five is
+ * right for something that writes a row per call; it isn't right for a field that checks
+ * itself as you correct a typo.
  *
- * `options.windowSeconds` overrides `RATE_LIMIT_WINDOW_SECONDS` for a limit
- * that is not a *rate* at all — the thirty-second floor between password reset
- * emails is a ceiling on how often a thing may happen to somebody else's inbox,
- * not on how busy this endpoint may get, and ten minutes is not a number it can
- * be talked into. Change the window and the scope together: a scope holds one
- * row per caller, so two windows under one name means one of them silently
- * inherits the other's `expires_at`.
+ * `options.windowSeconds` overrides the window for a limit that isn't a rate at all — the
+ * thirty-second floor between password reset emails is a ceiling on how often a thing may
+ * happen to somebody else's inbox. Change the window and the scope together: a scope holds
+ * one row per caller, so two windows under one name means one silently inherits the
+ * other's `expires_at`.
  *
- * `options.message` replaces the sentence in the 429 for the same reason the
- * contact form tells three failures apart: "try again later" is the right
- * answer for a burst on a form, and the wrong one where the caller is owed a
- * number. It reaches the browser as `{ error }`, which is what `ApiError.detail`
- * carries.
+ * `options.message` replaces the sentence in the 429, because "try again later" is right
+ * for a burst on a form and wrong where the caller is owed a number.
  *
- * If the database is unreachable this throws rather than failing open — the
- * routes it guards all write to that same database, so they could not have
- * succeeded anyway.
+ * If the database is unreachable this throws rather than failing open — the routes it
+ * guards all write to that same database.
  */
 export function rateLimit(
   scope: string,

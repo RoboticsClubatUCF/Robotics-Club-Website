@@ -10,16 +10,14 @@ import type { ApiEvent, ApiMeetingSeries } from '../api/api'
 /**
  * The two files somebody's calendar app actually reads.
  *
- * Neither is rendered, so nothing here is about what a page looks like — it is
- * about a string a *different* program parses, which is the one kind of output
- * where being nearly right produces silence rather than a visible mistake. An
- * unescaped comma truncates a description, a `UNTIL` without its `Z` makes a
- * series that never ends, and a floating time is an hour out for six weeks of
- * the year.
+ * Neither is rendered, so nothing here is about what a page looks like — it is about a string a
+ * different program parses, which is the one kind of output where being nearly right produces
+ * silence rather than a visible mistake. An unescaped comma truncates a description, a `UNTIL`
+ * without its `Z` makes a series that never ends, and a floating time is an hour out for six weeks
+ * of the year.
  *
- * Instants are written in UTC and asserted against the campus wall clock, since
- * that is the whole claim: 22:00Z in September and 23:00Z in December are both
- * six in the evening in Orlando.
+ * Instants are written in UTC and asserted against the campus wall clock, since that is the whole
+ * claim: 22:00Z in September and 23:00Z in December are both six in the evening in Orlando.
  */
 
 const NOW = new Date('2035-09-01T12:00:00Z')

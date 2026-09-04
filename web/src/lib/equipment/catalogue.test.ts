@@ -17,10 +17,10 @@ describe('hits', () => {
   })
 
   /**
-   * Every word has to land somewhere, in any field — so two facts about a row
-   * narrow it, and a surname typed before a forename still works. A single
-   * substring across a joined string would find "rowan chen" and not "chen
-   * rowan", which is a difference nobody can see and everybody trips over.
+   * Every word has to land somewhere, in any field — so two facts about a row narrow it, and a
+   * surname typed before a forename still works. A single substring across a joined string would
+   * find "rowan chen" and not "chen rowan", which is a difference nobody can see and everybody
+   * trips over.
    */
   it('takes the words in any order and across fields', () => {
     expect(hits(row, 'chen rowan')).toBe(true)

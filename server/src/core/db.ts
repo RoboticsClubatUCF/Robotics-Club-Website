@@ -2,9 +2,9 @@ import { PrismaPg } from '@prisma/adapter-pg'
 import { env } from './env.js'
 import { PrismaClient } from '../generated/prisma/client.js'
 
-// Prisma 7 talks to Postgres through a driver adapter rather than the old Rust
-// query engine, so the pool is ours to size. The ceiling matters once more than
-// one instance is running: each holds its own pool against the same server.
+// Prisma 7 talks to Postgres through a driver adapter rather than the old Rust query engine, so the
+// pool is ours to size. The ceiling matters once more than one instance is running: each holds its
+// own pool against the same server.
 const adapter = new PrismaPg({
   connectionString: env.DATABASE_URL,
   max: env.DATABASE_POOL_MAX,

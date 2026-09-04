@@ -15,27 +15,22 @@ import {
 /**
  * Where this member's photograph points.
  *
- * **It replaced PUBLIC PROFILE**, which was a row in YOUR STANDING that said
- * "No profile page yet" to almost everybody and could say nothing else: a slug
- * is an officer's to set, `/members/:slug` is still unbuilt, and a fact nobody
- * reading it can change or use is a fact worth deleting. What people actually
- * wanted from that row — somewhere on the club's site that points at *them* —
- * is a field, and this is it. Their face on `/members` and on the officer board
- * becomes a link to whatever they put here.
+ * It replaced PUBLIC PROFILE, a row in YOUR STANDING that said "No profile page yet" to almost
+ * everybody and could say nothing else: a slug is an officer's to set, `/members/:slug` is still
+ * unbuilt, and a fact nobody reading it can change or use is worth deleting. What people actually
+ * wanted from that row — somewhere on the club's site that points at them — is a field, and this is
+ * it. Their face on `/members` and on the officer board becomes a link to whatever they put here.
  *
- * **The check is the server's and there is no copy of it here.** `socialUrl` in
- * `server/src/core/validate.ts` holds an allowlist of known platforms, because
- * this is the only public address on the site an ordinary member types and the
- * roster is several hundred anchors. A second list in the browser would be a
- * second answer to "what is allowed" — so a refusal arrives as the server's own
- * sentence, in the same strip that says "Saved.", and the note below says
+ * The check is the server's and there is no copy of it here. `socialUrl` in
+ * `server/src/core/validate.ts` holds an allowlist of known platforms, because this is the only
+ * public address on the site an ordinary member types and the roster is several hundred anchors. A
+ * second list in the browser would be a second answer to "what is allowed" — so a refusal arrives
+ * as the server's own sentence, in the same strip that says "Saved.", and the note below says
  * roughly what the list holds without pretending to be it.
  *
- * The box takes what people paste. `linkedin.com/in/someone` has no scheme
- * because no browser has shown one since 2018, and the server adds it — so what
- * comes back is not always what was typed, and the field adopts the answer
- * rather than keeping the input. Somebody who typed `http://` and finds
- * `https://` in the box is looking at what was stored.
+ * The box takes what people paste. `linkedin.com/in/someone` has no scheme because no browser has
+ * shown one since 2018, and the server adds it — so what comes back is not always what was typed,
+ * and the field adopts the answer rather than keeping the input.
  */
 export function ProfileLinkPanel({
   account,

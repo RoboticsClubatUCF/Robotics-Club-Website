@@ -39,20 +39,17 @@ import { isOfficer } from '../../lib/auth/session'
 /**
  * `/dashboard/tasks` — everything with somebody's name on it, in one list.
  *
- * **One page for everybody**, branching on what the reader may *do* rather than
- * on who they are, which is the overview's rule. A member gets their own work
- * and the controls to move it between labels; anybody who runs a project or
- * sits on the board gets a scope switch and the form that writes new tasks.
- * Two pages would have meant two lists of the same rows.
+ * One page for everybody, branching on what the reader may do rather than on who they
+ * are, which is the overview's rule. A member gets their own work and the controls to
+ * move it between labels; anybody who runs a project gets a scope switch and the form
+ * that writes new tasks. Two pages would have meant two lists of the same rows.
  *
- * It sits in `/ GENERAL` and is never dues-locked. The server does not gate
- * reading a task, and drawing a padlock on a door that is not locked is worse
- * than no padlock at all.
+ * It sits in `/ GENERAL` and is never dues-locked. The server doesn't gate reading a
+ * task, and drawing a padlock on a door that isn't locked is worse than no padlock.
  *
- * Every refusal here is cosmetic. `requireTaskManager` and the assignee check
- * in `server/src/routes/projects/tasks.ts` are what actually refuse, and the
- * two must agree — `canManage` below is the mirror, and the shape of it is the
- * thing to keep in step if either moves.
+ * Every refusal here is cosmetic. `requireTaskManager` and the assignee check in
+ * `server/src/routes/projects/tasks.ts` are what actually refuse, and `canManage` below
+ * is the mirror to keep in step if either moves.
  */
 
 type Scope = 'mine' | 'managed' | 'all'
@@ -65,8 +62,8 @@ const SCOPES: readonly { value: Scope; label: string }[] = [
 ]
 
 /**
- * ALL first, then the labels in the enum's own order — which is the order rows
- * arrive in, so the chips read down the list the same way the list does.
+ * ALL first, then the labels in the enum's own order — which is the order rows arrive
+ * in, so the chips read down the list the same way the list does.
  */
 const STATUS_FILTERS: readonly { value: StatusFilter; label: string }[] = [
   { value: 'ALL', label: 'ALL' },
@@ -81,13 +78,13 @@ export function TasksPage() {
 
   const officer = isOfficer(user.role)
   const mine = projects.status === 'ready' ? projects.data : []
-  // Read off the membership rows, never off `user.role` — no club role says
-  // anything about any project, which is the rule this codebase states most.
+  // Read off the membership rows, never off `user.role` — no club role says anything
+  // about any project, which is the rule this codebase states most.
   const leads = mine.filter(({ rank }) => rank !== 'MEMBER')
 
-  // Nothing until the memberships land. Drawing the member's version first and
-  // then growing a create panel under a lead's cursor is worse than a moment
-  // of skeleton, and an officer needs no memberships to be sure.
+  // Nothing until the memberships land. Drawing the member's version first and then
+  // growing a create panel under a lead's cursor is worse than a moment of skeleton, and
+  // an officer needs no memberships to be sure.
   if (!officer && projects.status !== 'ready') {
     return (
       <div aria-busy="true" className="border-rule bg-base-200 h-64 border" />
@@ -119,26 +116,23 @@ function Tasks({
   const canWrite = officer || leads.length > 0
 
   /**
-   * Where a *new* task may go, which is not the same list as what somebody
-   * runs.
+   * Where a new task may go, which isn't the same list as what somebody runs.
    *
-   * A project belongs to a term and a build that ran three semesters is three
-   * rows, so the server refuses a new task on any project but this semester's.
-   * `leads` stays the wider list on purpose — last spring's board is still
-   * theirs to tick, edit and tidy — and only the create form narrows.
-   * `current` is computed server-side against `currentTerm()`, so this picker
-   * and that refusal are reading one answer.
+   * A project belongs to a term and a build that ran three semesters is three rows, so
+   * the server refuses a new task on any project but this semester's. `leads` stays the
+   * wider list on purpose — last spring's board is still theirs to tick and tidy — and
+   * only the create form narrows. `current` is computed server-side, so this picker and
+   * that refusal read one answer.
    */
   const writable = leads.filter(({ current }) => current)
 
   /**
    * Every label in one request, narrowed in the browser.
    *
-   * The equipment page's call rather than the print queue's, and for its
-   * reason: this is one person's work rather than a club-wide queue, so the
-   * list is short enough to send whole — and a status chip that refetched
-   * would put a network round trip behind a filter that is pure arithmetic.
-   * Only `scope` changes which *rows* exist, so only `scope` reloads.
+   * The equipment page's call rather than the print queue's, and for its reason: this is
+   * one person's work rather than a club-wide queue, so the list is short enough to send
+   * whole — and a status chip that refetched would put a network round trip behind a
+   * filter that's pure arithmetic. Only `scope` changes which rows exist.
    */
   const load = useCallback(async () => {
     try {
@@ -159,10 +153,9 @@ function Tasks({
     task.assignees.some((who) => who.userId === user.id)
 
   /**
-   * The mirror of `requireTaskManager`. Officers everywhere; a project lead
-   * anywhere in their project; a team lead on their own team and nowhere else;
-   * and a task with no project is the officers', because there is no
-   * membership row to read a rank off.
+   * The mirror of `requireTaskManager`. Officers everywhere; a project lead anywhere in
+   * their project; a team lead on their own team and nowhere else; and a task with no
+   * project is the officers', because there's no membership row to read a rank off.
    */
   const canManage = (task: ApiTask) => {
     if (officer) return true
@@ -229,8 +222,8 @@ function Tasks({
           disabled={busy}
         />
 
-        {/* Only for somebody with a second list to look at. A member has one
-            scope and a switch offering it back to them says nothing. */}
+        {/* Only for somebody with a second list to look at. A member has one scope, and a
+            switch offering it back to them says nothing. */}
         {canWrite && (
           <FilterChips
             label="SHOW"
@@ -242,9 +235,9 @@ function Tasks({
         )}
       </div>
 
-      {/* Capped, unlike the list under it. `fieldClass` is `w-full`, and a
-          search box the width of a monitor looks like the page's main event
-          rather than the thing you narrow it with. */}
+      {/* Capped, unlike the list under it. `fieldClass` is `w-full`, and a search box the
+          width of a monitor looks like the page's main event rather than the thing you
+          narrow it with. */}
       <div className="mb-5 max-w-[46rem]">
         <label htmlFor={`${id}-search`} className="sr-only">
           Search tasks
@@ -355,9 +348,9 @@ function Tasks({
 /**
  * One task.
  *
- * The strikethrough-and-fade treatment the project board already uses for
- * settled work, plus the label chip the print and equipment queues use — this
- * page is the third desk of that shape and copying the vocabulary is the point.
+ * The strikethrough-and-fade treatment the project board already uses for settled work,
+ * plus the label chip the print and equipment queues use — this page is the third desk of
+ * that shape and copying the vocabulary is the point.
  */
 function TaskRow({
   task,
@@ -415,9 +408,9 @@ function TaskRow({
             .join(' · ')}
         </p>
 
-        {/* Its own line and its own colour, because it is the one fact on the
-            row that changes what somebody does next. Folded into the meta line
-            above it would be the fifth item in a grey run-on. */}
+        {/* Its own line and its own colour, because it's the one fact on the row that
+            changes what somebody does next. Folded into the meta line above it would be
+            the fifth item in a grey run-on. */}
         {overdue && (
           <p className="text-error mt-1 font-mono text-[10px] font-medium tracking-[0.14em]">
             PAST ITS DEADLINE
@@ -458,10 +451,9 @@ function TaskRow({
           </div>
         )}
 
-        {/* Only on work that is mine and has a deadline to put anywhere. The
-            wording says where it goes, because "add to calendar" beside an
-            .ics button on every other list on this site would be two different
-            promises spelled the same way. */}
+        {/* Only on work that's mine and has a deadline to put anywhere. The wording says
+            where it goes, because "add to calendar" beside an .ics button on every other
+            list on this site would be two different promises spelled the same way. */}
         {mine && task.dueAt !== null && !isSettled(task.status) && (
           <label className="flex cursor-pointer items-center gap-2 text-[12px]">
             <input
@@ -509,16 +501,13 @@ function TaskRow({
 /**
  * The form that writes one, and the form that edits one.
  *
- * A task **stays where it was written** — the server's `PATCH` omits both
- * `projectId` and `teamId`, exactly as the events desk does — so editing shows
- * where it lives as a fact rather than as a picker. Moving a task between
- * projects is not a thing the club does; recreating it is.
+ * A task stays where it was written — the server's `PATCH` omits both `projectId` and
+ * `teamId`, exactly as the events desk does — so editing shows where it lives as a fact
+ * rather than a picker. Moving a task between projects isn't a thing the club does.
  *
- * **`leads` here is the current-term subset**, not everything the caller runs:
- * a new task may only go on a project running this semester, and the server
- * answers 409 for any other. Editing is unaffected and deliberately so, which
- * is why the early return below is guarded on there being nothing to *create*
- * against rather than on the list being empty.
+ * `leads` here is the current-term subset, not everything the caller runs: a new task may
+ * only go on a project running this semester. Editing is unaffected, which is why the
+ * early return below is guarded on there being nothing to create against.
  */
 function TaskForm({
   officer,
@@ -544,20 +533,18 @@ function TaskForm({
   /**
    * Who a project-less task is for.
    *
-   * Just a name and an id, rather than the `ApiOfficerMember` the picker hands
-   * over: the extra columns on that type are what the *search* answers with —
-   * a dues date and a club role — and keeping them here would mean inventing
-   * both when this list is seeded from a task that already exists.
+   * Just a name and an id, rather than the `ApiOfficerMember` the picker hands over: the
+   * extra columns on that type are what the search answers with, and keeping them here
+   * would mean inventing both when this list is seeded from a task that already exists.
    */
   const [direct, setDirect] = useState<{ id: string; fullName: string }[]>([])
 
   const project = editing === null ? projectId : (editing.projectId ?? '')
 
   /**
-   * An officer may write against a project they are not on, so their picker
-   * cannot come from `/me/projects`. The public listing is the whole
-   * current-term set and is already cached; a lead's picker needs no request
-   * at all, since the rail's memberships are the answer.
+   * An officer may write against a project they aren't on, so their picker can't come
+   * from `/me/projects`. The public listing is the whole current-term set and is already
+   * cached; a lead's picker needs no request at all.
    */
   useEffect(() => {
     if (!officer) return
@@ -676,10 +663,9 @@ function TaskForm({
     })
   }
 
-  // Nothing of theirs is running this semester, so there is no project a new
-  // task could go on. Said in words rather than drawn as an empty picker over
-  // a button that would 409 — and it says what they *can* still do, because
-  // last term's boards are right there in the list above.
+  // Nothing of theirs is running this semester, so there's no project a new task could go
+  // on. Said in words rather than drawn as an empty picker over a button that would 409 —
+  // and it says what they can still do, because last term's boards are in the list above.
   if (!officer && editing === null && leads.length === 0) {
     return (
       <FormPanel>
@@ -717,9 +703,9 @@ function TaskForm({
                 }}
                 className="select border-rule bg-base-200 w-full text-sm"
               >
-                {/* Officers only. A lead's authority comes from a project, so
-                    for them there is no such thing as a task without one — the
-                    server says the same and says it first. */}
+                {/* Officers only. A lead's authority comes from a project, so for them
+                    there's no such thing as a task without one — the server says the same
+                    and says it first. */}
                 {officer && <option value="">No project — the club&apos;s own work</option>}
                 {!officer && <option value="">Pick a project</option>}
                 {options.map((row) => (
@@ -790,8 +776,8 @@ function TaskForm({
             </div>
           </div>
 
-          {/* A team lead's tasks land on their own team whatever this said, so
-              they are not asked. The server refuses any other answer. */}
+          {/* A team lead's tasks land on their own team whatever this said, so they
+              aren't asked. The server refuses any other answer. */}
           {editing === null && project !== '' && !teamLeadOnly && (
             <div>
               <label htmlFor={`${id}-team`} className={labelClass}>
@@ -834,8 +820,8 @@ function TaskForm({
         {project === '' ? (
           <fieldset>
             <legend className={labelClass}>ASSIGN TO</legend>
-            {/* No roster to tick through, so the club is the list. Officer-gated
-                on the server, which is the same audience this branch is. */}
+            {/* No roster to tick through, so the club is the list. Officer-gated on the
+                server, which is the same audience this branch is. */}
             <MemberSearch
               label="ADD SOMEBODY"
               picked={picked}

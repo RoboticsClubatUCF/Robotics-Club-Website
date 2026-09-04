@@ -4,10 +4,9 @@ import type { FileKind } from '../generated/prisma/enums.js'
 /**
  * Stored files: bytes in Postgres, addressed as `/api/files/<id>`.
  *
- * The prefix is load-bearing. Image columns (`Project.coverUrl` and friends)
- * hold either an external URL somebody typed or the address of an upload, and
- * the difference matters exactly once: when a replacement arrives, the old
- * value is deleted **only if it was ours**. `deleteIfStored` is that rule in
+ * The prefix is load-bearing. Image columns hold either an external URL somebody typed or
+ * the address of an upload, and the difference matters exactly once: when a replacement
+ * arrives, the old value is deleted only if it was ours. `deleteIfStored` is that rule in
  * one place, so no route re-implements it slightly differently.
  */
 
@@ -26,9 +25,8 @@ export async function storeFile(
   const stored = await prisma.storedFile.create({
     data: {
       kind,
-      // The browser's word for it, good enough for a Content-Type header. The
-      // things that matter — kind, size, magic bytes for prints — are checked
-      // by the routes, not taken on faith from here.
+      // The browser's word for it, good enough for a Content-Type header. The things that
+      // matter — kind, size, magic bytes for prints — are checked by the routes.
       mimeType: file.type || 'application/octet-stream',
       byteSize: bytes.byteLength,
       originalName: file.name.slice(0, 200) || 'upload',
@@ -44,16 +42,14 @@ export async function storeFile(
 /**
  * The bytes behind a URL, copied, if the URL is one of ours.
  *
- * The mirror of `deleteIfStored`, and it exists because of it. Duplicating a
- * project could copy the image *rows* alone in one line and would look right in
- * every test — both galleries render, because both point at the same file. It
- * breaks on deletion: every route that removes an image calls `deleteIfStored`
- * by hand, so deleting either project takes the pictures out of the other one,
- * months later, with nothing to connect the two events. Bytes are cheap and a
- * gallery is a handful of them; a shared row is a bug with a long fuse.
+ * The mirror of `deleteIfStored`, and it exists because of it. Duplicating a project could
+ * copy the image rows alone in one line and would look right in every test — both
+ * galleries render, because both point at the same file. It breaks on deletion: every
+ * route that removes an image calls `deleteIfStored` by hand, so deleting either project
+ * takes the pictures out of the other one, months later. Bytes are cheap; a shared row is
+ * a bug with a long fuse.
  *
- * External URLs fall straight through unchanged, exactly as they do on the way
- * out — somebody else's hosting is not ours to copy or to delete.
+ * External URLs fall straight through unchanged, exactly as they do on the way out.
  */
 export async function copyIfStored(
   url: string,
@@ -75,9 +71,9 @@ export async function copyIfStored(
     },
   })
 
-  // A URL of ours whose file is gone. Copying nothing is right: the caller gets
-  // the same dangling address the original carries, which renders the same
-  // broken image rather than failing the whole duplication over it.
+  // A URL of ours whose file is gone. Copying nothing is right: the caller gets the same
+  // dangling address the original carries, which renders the same broken image rather than
+  // failing the whole duplication over it.
   if (!source) return url
 
   const copy = await prisma.storedFile.create({
@@ -89,11 +85,10 @@ export async function copyIfStored(
 }
 
 /**
- * Delete the file behind a URL, if the URL is one of ours. External URLs fall
- * straight through — they are somebody else's hosting and none of our
- * business. `deleteMany` so a URL whose file is already gone (or was never
- * real) is a no-op rather than an error; deleting is cleanup, and cleanup
- * that can fail the request it rides on is worse than a stray row.
+ * Delete the file behind a URL, if the URL is one of ours. External URLs fall straight
+ * through — somebody else's hosting and none of our business. `deleteMany` so a URL whose
+ * file is already gone is a no-op rather than an error; cleanup that can fail the request
+ * it rides on is worse than a stray row.
  */
 export async function deleteIfStored(url: string | null | undefined): Promise<void> {
   if (!url?.startsWith(STORED_PREFIX)) return
@@ -107,19 +102,17 @@ export async function deleteIfStored(url: string | null | undefined): Promise<vo
 /**
  * Whether a file is plausibly the 3D model it claims to be.
  *
- * Extension first — that is the promise the form made — then a cheap look at
- * the actual bytes, because "report.pdf renamed to part.stl" is the failure
- * an extension check alone waves through:
+ * Extension first — that's the promise the form made — then a cheap look at the actual
+ * bytes, because "report.pdf renamed to part.stl" is the failure an extension check alone
+ * waves through:
  *
  *   - STEP files open with an `ISO-10303-21` header;
  *   - ASCII STL opens with the word `solid`;
- *   - binary STL has an 80-byte header, a 4-byte little-endian triangle
- *     count, and then exactly 50 bytes per triangle — so the length is
- *     arithmetic, and checking it is as close to parsing as this needs to be.
+ *   - binary STL has an 80-byte header, a 4-byte little-endian triangle count, and exactly
+ *     50 bytes per triangle — so the length is arithmetic.
  *
- * Not a parser, deliberately. A malformed-but-well-prefixed file gets caught
- * by the slicer, by a person, at no risk; the check here only has to stop the
- * obviously mislabeled.
+ * Not a parser, deliberately. A malformed-but-well-prefixed file gets caught by the
+ * slicer, by a person, at no risk; this only has to stop the obviously mislabeled.
  */
 export function looksLikePrintModel(name: string, bytes: Uint8Array): boolean {
   const lower = name.toLowerCase()
@@ -144,9 +137,9 @@ export function looksLikePrintModel(name: string, bytes: Uint8Array): boolean {
 }
 
 /**
- * Whether bytes open like one of the image formats browsers actually render.
- * Magic numbers only — same philosophy as the print check: stop the renamed
- * PDF, let a merely broken image be a broken image.
+ * Whether bytes open like one of the image formats browsers actually render. Magic numbers
+ * only — same philosophy as the print check: stop the renamed PDF, let a merely broken
+ * image be a broken image.
  */
 export function looksLikeImage(bytes: Uint8Array): boolean {
   const startsWith = (...magic: number[]) =>
@@ -165,20 +158,16 @@ export function looksLikeImage(bytes: Uint8Array): boolean {
 /**
  * Whether a file is plausibly the document it claims to be.
  *
- * Same shape as the print check above, and the same modest ambition: extension
- * first, because that is the promise the form made, then enough of the bytes to
- * catch the file that was renamed rather than converted.
+ * Same shape as the print check, and the same modest ambition: extension first, then
+ * enough of the bytes to catch the file that was renamed rather than converted.
  *
  *   - a PDF opens `%PDF-`;
- *   - a DOCX is a zip — it opens `50 4B 03 04` — and Word writes
- *     `[Content_Types].xml` as the archive's first entry. That entry's name
- *     length is a little-endian `uint16` at offset 26 and the name itself
- *     begins at 30, so checking it is arithmetic rather than unzipping, the
- *     way binary STL's triangle count is. Without that second half, every zip
- *     in the world is a valid `.docx`.
+ *   - a DOCX is a zip — it opens `50 4B 03 04` — and Word writes `[Content_Types].xml` as
+ *     the archive's first entry. That entry's name length is a little-endian `uint16` at
+ *     offset 26 and the name begins at 30, so checking it is arithmetic rather than
+ *     unzipping. Without that second half, every zip in the world is a valid `.docx`.
  *
- * Not a parser. A corrupt-but-well-formed file is somebody's problem when they
- * open it, at no risk to anybody else; this only has to stop the mislabelled.
+ * Not a parser. A corrupt-but-well-formed file is somebody's problem when they open it.
  */
 export function looksLikeDocument(name: string, bytes: Uint8Array): boolean {
   const lower = name.toLowerCase()
@@ -204,17 +193,16 @@ export function looksLikeDocument(name: string, bytes: Uint8Array): boolean {
 }
 
 /**
- * What to answer `GET /api/files/:id` with for a document, decided from the
- * name rather than from the stored `mimeType`.
+ * What to answer `GET /api/files/:id` with for a document, decided from the name rather
+ * than the stored `mimeType`.
  *
- * `storeFile` records what the browser called the file, which is fine as a note
- * and unsafe as a response header: it is attacker-chosen, and a document is the
- * one kind this site serves **inline**. Deciding it here keeps the rule in one
- * place, on the side that matters, and covers rows written before this existed.
+ * `storeFile` records what the browser called the file, which is fine as a note and unsafe
+ * as a response header: it's attacker-chosen, and a document is the one kind this site
+ * serves inline. Deciding it here keeps the rule in one place and covers rows written
+ * before this existed.
  *
- * Anything that is not one of the two formats the upload routes accept comes
- * back as a download of unknown bytes, which is the safe answer to a question
- * that should not have been askable.
+ * Anything that isn't one of the two formats the upload routes accept comes back as a
+ * download of unknown bytes.
  */
 export const documentContentType = (originalName: string): string => {
   const lower = originalName.toLowerCase()

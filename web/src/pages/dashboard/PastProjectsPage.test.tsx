@@ -8,11 +8,10 @@ import type { ApiMyProject, ApiTerm } from '../../lib/api/api'
 /**
  * Everything somebody has ever been on, minus what they are on now.
  *
- * The page makes no request of its own — the layout already fetched every
- * membership and flagged each one — so these render it against a context rather
- * than a stubbed `fetch`. What is worth asserting is the grouping: a build run
- * three years running is three rows with one name, and the term heading is the
- * only thing that tells them apart.
+ * The page makes no request of its own — the layout already fetched every membership and flagged
+ * each one — so these render it against a context rather than a stubbed `fetch`. What is worth
+ * asserting is the grouping: a build run three years running is three rows with one name, and the
+ * term heading is the only thing that tells them apart.
  */
 
 const term: ApiTerm = {

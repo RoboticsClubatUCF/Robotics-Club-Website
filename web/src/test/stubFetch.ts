@@ -3,10 +3,9 @@ import { vi } from 'vitest'
 /**
  * Replace `fetch` for one test.
  *
- * Tests here never touch the network — that would make them depend on a running
- * API and a seeded database, and they exist precisely to check what the page
- * does when those aren't cooperating. `useApi` calls `fetch` exactly once per
- * path, so a map from path fragment to response is enough.
+ * Tests here never touch the network — that would make them depend on a running API and a seeded
+ * database, and they exist precisely to check what the page does when those are not cooperating.
+ * `useApi` calls `fetch` exactly once per path, so a map from path fragment to response is enough.
  */
 /**
  * `fetch` accepts a string, a URL or a Request, and only the first two survive
@@ -18,10 +17,9 @@ export function urlOf(input: string | URL | Request): string {
 }
 
 /**
- * Every stub takes `init` even when it ignores it. Declaring only the first
- * parameter would type `mock.calls` as a one-element tuple, and a test that
- * wants to assert on the method or the body of a POST could then only get at it
- * through a cast.
+ * Every stub takes `init` even when it ignores it. Declaring only the first parameter would type
+ * `mock.calls` as a one-element tuple, and a test wanting to assert on the method or body of a POST
+ * could then only get at it through a cast.
  */
 export function stubFetch(routes: Record<string, unknown>) {
   return vi.fn((input: string | URL | Request, _init?: RequestInit) => {

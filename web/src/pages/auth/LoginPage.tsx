@@ -14,14 +14,12 @@ import { useSession } from '../../lib/auth/session'
 /**
  * Signing in.
  *
- * The counterpart to `/join`, and much the smaller half: signup is four screens
- * because it has to prove an address and connect a Discord account, while this
- * is two fields and a cookie.
+ * The counterpart to `/join`, and much the smaller half: signup is four screens because it has to
+ * prove an address and connect a Discord account, while this is two fields and a cookie.
  *
- * Where somebody lands afterwards is whichever page sent them here — the dues
- * page pushes `state.from` when it finds nobody signed in, so paying dues from
- * a cold start is sign in, then straight back to what you were doing, rather
- * than a detour through the dashboard.
+ * Where somebody lands afterwards is whichever page sent them here — the dues page pushes
+ * `state.from` when it finds nobody signed in, so paying dues from a cold start is sign in and
+ * straight back to it, rather than a detour through the dashboard.
  */
 
 type SignInState =
@@ -30,14 +28,12 @@ type SignInState =
   | { status: 'failed'; message: string }
 
 /**
- * The same three the other forms separate by status alone — unreachable, rate
- * limited, rejected — plus the one sentence the server writes itself.
+ * The same three the other forms separate by status alone — unreachable, rate limited, rejected —
+ * plus the one sentence the server writes itself.
  *
- * A 401 is deliberately not given a message here. The server says the same
- * thing for a wrong password, an unknown address and an account that has never
- * had a password set, and paraphrasing it would risk splitting them apart
- * again; the whole point is that a login form must not answer "is this person a
- * member".
+ * A 401 deliberately gets no message here. The server says the same thing for a wrong password, an
+ * unknown address and an account that has never had a password set, and paraphrasing it would risk
+ * splitting them apart again: a login form must not answer "is this person a member".
  */
 function explain(error: unknown): string {
   if (error instanceof ApiError) {

@@ -29,12 +29,11 @@ import { useApi } from '../../lib/api/useApi'
 /**
  * `/projects/:slug` — one project's public profile.
  *
- * This is where "open projects" links from the dashboard land, and it is
- * reachable signed out on purpose: a guest deciding whether to pay dues should
- * be able to read what they would be joining. The join panel below the fold is
- * where the gate lives — signed out it points at signing in, unpaid it points
- * at the dues page, and only a covered member gets the button. The server
- * re-checks all three, so the panel is honesty rather than enforcement.
+ * Reachable signed out on purpose: a guest deciding whether to pay dues should be
+ * able to read what they'd be joining. The join panel below the fold is where the
+ * gate lives — signed out it points at signing in, unpaid at the dues page, and only
+ * a covered member gets the button. The server re-checks all three, so the panel is
+ * honesty rather than enforcement.
  */
 export function ProjectPage() {
   const { slug = '' } = useParams()
@@ -43,14 +42,13 @@ export function ProjectPage() {
   })
 
   /**
-   * Its own loader rather than `useApi`, for the one thing `useApi` cannot do:
-   * refetch. The editor changes this page, and a page that cannot re-read
-   * itself would have to guess at what the server now holds.
+   * Its own loader rather than `useApi`, for the one thing `useApi` can't do:
+   * refetch. The editor changes this page, and a page that can't re-read itself would
+   * have to guess at what the server now holds.
    *
-   * `fresh` bypasses the browser's HTTP cache. `/projects/:slug` is a public,
-   * cacheable route by design, so the read after a save would otherwise be
-   * answered from the cache with the copy from *before* the save — which looks
-   * exactly like the save having failed. See `getJson`.
+   * `fresh` bypasses the browser's HTTP cache. `/projects/:slug` is public and
+   * cacheable, so the read after a save would otherwise come back from the cache with
+   * the copy from before it — which looks exactly like the save having failed.
    */
   const load = useCallback(
     async (fresh = false) => {
@@ -127,16 +125,14 @@ export function ProjectPage() {
 }
 
 /**
- * What being signed in adds to this page: the join panel's answer, and whether
- * the edit affordance appears at all.
+ * What being signed in adds to this page: the join panel's answer, and whether the
+ * edit affordance appears at all.
  *
- * Both halves need the same two reads, so they are taken **once, here, and only
- * when somebody is signed in**. That last part is the contract worth keeping:
- * a signed-out visitor — which is most of this page's traffic, and the whole
- * reason it is reachable signed out — makes exactly one request for the whole
- * page. `useApi` has no dedupe, so a hook added at the top of `ProjectBody`
- * instead would be a request every visitor paid for so that a handful of leads
- * could see a button. There is a test on this.
+ * Both halves need the same two reads, so they're taken once, here, and only when
+ * somebody is signed in. That last part is the contract: a signed-out visitor — most
+ * of this page's traffic — makes exactly one request for the whole page. `useApi` has
+ * no dedupe, so a hook at the top of `ProjectBody` would be a request every visitor
+ * paid for so a handful of leads could see a button. There's a test on this.
  */
 type SignedIn = {
   user: ApiUser
@@ -167,9 +163,9 @@ function SignedInBody({
   reload: (fresh?: boolean) => Promise<void>
   apply: (project: ApiProjectDetail) => void
 }) {
-  // Unconditionally, for any project status. The join panel used to bail out
-  // before fetching on a finished project; the editor has to work on one, so
-  // a signed-in reader of an archived project now costs these two reads too.
+  // Unconditionally, for any project status. The join panel used to bail out before
+  // fetching on a finished project; the editor has to work on one, so a signed-in
+  // reader of an archived project now costs these two reads too.
   const dues = useApi<ApiDuesStatus>('/dues/status')
   const mine = useApi<ApiMyProject[]>('/me/projects')
 
@@ -192,16 +188,15 @@ function ProjectBody({
   const { guard, dialog } = useUnsavedGuard(dirty)
 
   /**
-   * The way out, guarded. Nothing in the editor reaches the server before its
-   * SAVE, so leaving is genuinely destructive and `useUnsavedGuard` is what asks
-   * — and the refetch afterwards is what puts the reader back on the server's
-   * copy rather than on a draft they abandoned.
+   * The way out, guarded. Nothing in the editor reaches the server before its SAVE, so
+   * leaving is genuinely destructive — and the refetch afterwards puts the reader back
+   * on the server's copy rather than a draft they abandoned.
    */
   const leaveEditing = guard(() => {
     setEditing(false)
     setDirty(false)
-    // Fresh, so what the reader lands back on is the server's copy and not a
-    // cached one from before any of this.
+    // Fresh, so what the reader lands back on is the server's copy and not a cached
+    // one from before any of this.
     void reload(true)
   })
 
@@ -212,18 +207,14 @@ function ProjectBody({
 
   return (
     <>
-      {/* The eyebrow shares its line with the edit affordance, so the button is
-          above the fold and out of the reading column. For everyone else —
-          which is most people, most of the time — nothing is rendered here at
-          all, rather than something greyed out.
+      {/* The eyebrow shares its line with the edit affordance, so the button is above
+          the fold and out of the reading column. For everyone else nothing is rendered
+          here at all, rather than something greyed out.
 
-          **Nothing takes its place while editing.** This slot used to hold a
-          second DONE EDITING, on the argument that the way out belongs where
-          somebody last saw the way in. That was worth its weight while the page
-          saved as you touched it; now that it saves once, at the bottom, the
-          exit belongs with the button it is the alternative to — and two of them
-          on one page was one of the three duplicate controls this editor was
-          asked to stop having. */}
+          Nothing takes its place while editing. This slot used to hold a second DONE
+          EDITING, which was worth its weight while the page saved as you touched it;
+          now that it saves once at the bottom, the exit belongs with the button it's
+          the alternative to. */}
       <div className="mb-5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
         <p className="text-faint font-mono text-[13px] font-bold tracking-[0.2em]">
           / PROJECT
@@ -285,11 +276,10 @@ function ReadView({
 }) {
   return (
     <>
-      {/* Where the bare cover `<img>` used to sit, so nothing has moved for a
-          reader — the picture just got better. Above the prose because the
-          picture is what makes somebody read the paragraph. The spacing lives
-          inside the component, which renders nothing at all for a project with
-          no pictures. */}
+      {/* Where the bare cover `<img>` used to sit, so nothing has moved for a reader.
+          Above the prose because the picture is what makes somebody read the
+          paragraph. The spacing lives inside the component, which renders nothing at
+          all for a project with no pictures. */}
       <ProjectGallery
         slides={slidesOf(project)}
         heading={project.galleryHeading ?? 'GALLERY'}
@@ -306,8 +296,8 @@ function ReadView({
 
       <Resources project={project} />
 
-      {/* The margin lives on the wrapper because the panel renders nothing at
-          all for finished projects, and an empty div's margins collapse away. */}
+      {/* The margin lives on the wrapper because the panel renders nothing at all for
+          finished projects, and an empty div's margins collapse away. */}
       <div className="mt-10">
         <JoinPanel project={project} signedIn={signedIn} reload={reload} />
       </div>
@@ -324,15 +314,12 @@ function ReadView({
         ) : (
           <ul className="divide-y divide-rule border border-rule">
             {project.members.map((member) => {
-              /* **Rank, then whatever they typed — and never the club title.**
-                 This row used to print `User.title` beside the name, which is
-                 the club-wide one nothing in the product writes, so an officer's
-                 "Lab Manager" turned up on a rover roster meaning nothing. It
-                 printed no rank at all, so the person running the build was
-                 indistinguishable from everybody else on it — `rank` only sorted
-                 them to the top and said nothing about why. `memberLabel` is the
-                 one place that order of preference lives; the dashboard reads
-                 the same function. */
+              /* Rank, then whatever they typed — and never the club title. This row
+                 used to print `User.title`, the club-wide one nothing in the product
+                 writes, so an officer's "Lab Manager" turned up on a rover roster
+                 meaning nothing. It printed no rank at all, so the person running the
+                 build was indistinguishable from everybody else. `memberLabel` is the
+                 one place that order of preference lives. */
               const label = memberLabel(member)
 
               return (
@@ -361,20 +348,17 @@ function ReadView({
  *
  * Three outcomes, and the middle one is the interesting one:
  *
- *   - **Not a lead here, and not an officer** → nothing at all. Not a disabled
- *     button; the affordance simply does not exist for the overwhelming
- *     majority of people who will ever read this page.
- *   - **A lead or officer whose dues have lapsed** → one line saying so, and a
- *     way to fix it. Not silence, because somebody who has edited this page
- *     before will look for the button, fail to find it, and conclude the site
- *     is broken. And deliberately not the dashboard's whole-page `DuesLocked`:
- *     this is a *public* page, and blanking it over one reader's unpaid dues
- *     would be absurd. The wording follows the server's promise — nothing has
- *     been taken away, and paying gives it straight back.
- *   - **A lead or officer in good standing** → the button.
+ *   - Not a lead here and not an officer -> nothing at all. Not a disabled button; the
+ *     affordance simply doesn't exist for most people who read this page.
+ *   - A lead or officer whose dues have lapsed -> one line saying so, and a way to fix
+ *     it. Not silence, because somebody who has edited this page before will look for
+ *     the button and conclude the site is broken. Deliberately not the dashboard's
+ *     whole-page `DuesLocked`: this is a public page, and blanking it over one
+ *     reader's unpaid dues would be absurd.
+ *   - A lead or officer in good standing -> the button.
  *
- * Nothing renders until both reads have landed, so no lapsed line ever flashes
- * at a paid-up lead on the way past.
+ * Nothing renders until both reads have landed, so no lapsed line flashes at a paid-up
+ * lead on the way past.
  */
 function EditAffordance({
   project,
@@ -390,10 +374,9 @@ function EditAffordance({
   if (dues.status === 'loading' || mine.status === 'loading') return null
   if (!canEditProject(user.role, minesOf(signedIn), project.id)) return null
 
-  // `accessLock` wants the membership itself, and `/dues/status` wraps it —
-  // the dashboard gets the unwrapped form from its layout context, this page
-  // does not. It also handles the ADMIN exemption and "not ready reads as
-  // unlocked", so neither is re-decided here.
+  // `accessLock` wants the membership itself and `/dues/status` wraps it — the
+  // dashboard gets the unwrapped form from its layout context, this page doesn't. It
+  // also handles the ADMIN exemption and "not ready reads as unlocked".
   const locked = accessLock(
     dues.status === 'ready'
       ? { status: 'ready', data: dues.data.membership }
@@ -404,8 +387,8 @@ function EditAffordance({
   if (locked) {
     return (
       <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1 font-mono text-[10px] font-medium tracking-[0.14em]">
-        {/* Not always "DUES LAPSED": the same lock now fires inside a free
-            window, where nothing has lapsed and nothing is owed. */}
+        {/* Not always "DUES LAPSED": the same lock now fires inside a free window,
+            where nothing has lapsed and nothing is owed. */}
         <span className="text-faint">{LOCK_COPY[locked].short}</span>
         <Link
           to="/dashboard/dues"
@@ -429,26 +412,21 @@ function EditAffordance({
 }
 
 /**
- * Everything a project points at: its own documentation, the design doc, the
- * CAD, the rules, and the repository.
+ * Everything a project points at: its own documentation, the design doc, the CAD, the
+ * rules, and the repository.
  *
- * Two kinds of row, and the difference is visible on purpose. Documentation is
- * the club's own writing and stays on the site, so it is a `<Link>` with a
- * count and a `›`; everything else is somebody else's hosting, opens in a new
- * tab, and carries the bare host and a `↗`. A reader deciding whether to follow
- * a link is asking where it goes, and those two answers are not the same shape.
+ * Two kinds of row, and the difference is visible on purpose. Documentation is the
+ * club's own writing and stays on the site, so it's a `<Link>` with a count and a `›`;
+ * everything else is somebody else's hosting, opens in a new tab, and carries the bare
+ * host and a `↗`. A reader deciding whether to follow a link is asking where it goes.
  *
- * **There is no `SOURCE CODE` row any more, and nothing was lost.** `repoUrl`
- * was a column of its own, printed here as a fixed row and asked for by a fixed
- * box in the editor — on a site where most of what the club builds has no
- * repository, so the section could never be empty and the box could never be
- * removed. Every value moved into an ordinary `ProjectLink` and the column went
- * with the migration; a repository is a resource like the rest of them, labelled
- * by whoever added it.
+ * There's no `SOURCE CODE` row any more and nothing was lost. `repoUrl` was a column
+ * of its own, printed as a fixed row and asked for by a fixed box in the editor — on a
+ * site where most of what the club builds has no repository. Every value moved into an
+ * ordinary `ProjectLink`.
  *
- * Documentation goes first because it is the only row that stays on the site,
- * and because a project that has written something down would rather be read
- * than cloned. Its label is not a project's to rename — it names a route.
+ * Documentation goes first because it's the only row that stays on the site. Its label
+ * isn't a project's to rename — it names a route.
  */
 function Resources({ project }: { project: ApiProjectDetail }) {
   const rows: ResourceRow[] = [
@@ -494,10 +472,9 @@ function Resources({ project }: { project: ApiProjectDetail }) {
                 className={rowClass}
               >
                 <span className="text-sm font-medium">{row.label}</span>
-                {/* The bare host, not the whole URL: a reader is deciding
-                    whether they trust where this goes, and a 90-character
-                    Notion link wrapping onto three lines answers that worse
-                    than "notion.so" does. `↗` says it leaves the site. */}
+                {/* The bare host, not the whole URL: a reader is deciding whether they
+                    trust where this goes, and a 90-character Notion link wrapping onto
+                    three lines answers that worse than "notion.so" does. */}
                 <span className="text-faint font-mono text-[11px] font-medium tracking-[0.06em]">
                   {hostOf(row.url)} ↗
                 </span>
@@ -518,10 +495,9 @@ type ResourceRow =
 /**
  * The host a link points at, for the right-hand column.
  *
- * Total, because these URLs come from a database rather than from a validator
- * on this render: the routes check them with `z.url()` on the way in, but a row
- * written before that check existed, or by hand in Studio, must not throw
- * inside a map and blank the page. An unparseable value falls back to itself.
+ * Total, because these URLs come from a database rather than a validator on this
+ * render: the routes check them with `z.url()` on the way in, but a row written before
+ * that check existed must not throw inside a map and blank the page.
  */
 function hostOf(url: string): string {
   try {
@@ -532,9 +508,9 @@ function hostOf(url: string): string {
 }
 
 /**
- * The join gate, in its three honest states. Not rendered at all for a
- * project that isn't running — a join button on an archived project is an
- * invitation to a room with the lights off.
+ * The join gate, in its three honest states. Not rendered at all for a project that
+ * isn't running — a join button on an archived project is an invitation to a room with
+ * the lights off.
  */
 function JoinPanel({
   project,
@@ -552,8 +528,8 @@ function JoinPanel({
   if (session.status === 'loading') {
     return <div aria-busy="true" className="mt-10 h-24 border border-rule bg-base-200" />
   }
-  // The page itself loaded, so the API is up — this is a blip. The project is
-  // still readable; only the join panel goes quiet.
+  // The page itself loaded, so the API is up — this is a blip. The project is still
+  // readable; only the join panel goes quiet.
   if (session.status === 'error') return null
 
   if (signedIn)
@@ -588,15 +564,13 @@ function JoinAction({
   project: ApiProjectDetail
   signedIn: SignedIn
   /**
-   * Joining and leaving both change `/ THE TEAM` directly above this panel, and
-   * that list is part of the *project* read rather than of anything this panel
-   * holds. Without a refetch the roster somebody has just put their name on
-   * still does not carry it, which reads as the join not having worked — the
-   * same failure the editor's `reload` was added for.
+   * Joining and leaving both change `/ THE TEAM` directly above this panel, and that
+   * list is part of the project read rather than anything this panel holds. Without a
+   * refetch the roster somebody has just put their name on still doesn't carry it,
+   * which reads as the join not having worked.
    *
-   * `fresh`, for the reason spelled out on `getJson`: `/projects/:slug` is
-   * public and answers `max-age=60`, so the read taken a second after the write
-   * comes back from the browser's cache with the pre-join copy.
+   * `fresh`, because `/projects/:slug` is public and answers `max-age=60`, so the read
+   * taken a second after the write comes back from the cache with the pre-join copy.
    */
   reload: (fresh?: boolean) => Promise<void>
 }) {
@@ -604,17 +578,14 @@ function JoinAction({
     | { status: 'idle' }
     | { status: 'joining' }
     /**
-     * Joined just now, carrying the rank the *server* answered with.
+     * Joined just now, carrying the rank the server answered with.
      *
      * It has to be carried rather than looked up: `rank` below comes from
-     * `/me/projects`, `useApi` cannot refetch it, and so the snapshot this panel
-     * holds is from before the join and knows nothing about it. That left the
-     * LEAVE THIS PROJECT link absent until a page refresh — somebody had joined,
-     * the panel said so, and the only way back out was to reload the page.
+     * `/me/projects`, `useApi` can't refetch it, so the snapshot this panel holds is
+     * from before the join. That left LEAVE THIS PROJECT absent until a page refresh.
      *
-     * The join route returns `{ projectId, rank }` for exactly this, so nothing
-     * here has to assume a new member lands on `MEMBER` — which is true today
-     * and is not this component's fact to depend on.
+     * The join route returns `{ projectId, rank }` for exactly this, so nothing here
+     * assumes a new member lands on `MEMBER`.
      */
     | { status: 'joined'; rank: ProjectMemberRank }
     /** Left just now, so `/me/projects` still says otherwise. */
@@ -626,8 +597,8 @@ function JoinAction({
     return <div aria-busy="true" className="mt-10 h-24 border border-rule bg-base-200" />
   }
 
-  // `state` wins over the fetched list in both directions: `/me/projects` has
-  // no refetch, so it is a snapshot from before whichever of these happened.
+  // `state` wins over the fetched list in both directions: `/me/projects` has no
+  // refetch, so it's a snapshot from before whichever of these happened.
   const alreadyOn =
     state.status !== 'left' &&
     (state.status === 'joined' ||
@@ -635,8 +606,8 @@ function JoinAction({
         mine.data.some((m) => m.project.id === project.id)))
 
   if (alreadyOn) {
-    // The join's own answer first, for the same reason `alreadyOn` prefers
-    // `state`: the fetched list is a snapshot from before it happened.
+    // The join's own answer first, for the reason `alreadyOn` prefers `state`: the
+    // fetched list is a snapshot from before it happened.
     const rank =
       state.status === 'joined'
         ? state.rank
@@ -655,12 +626,10 @@ function JoinAction({
           .
         </p>
 
-        {/* Leaving is offered here as well as on the dashboard, because this is
-            where somebody who has decided a project is not for them actually
-            is. Absent only while there is genuinely no rank to draw the dialog
-            from — the warning turns on it, and a dialog that guessed would be
-            worse than a moment's wait. Somebody who joined a second ago has one
-            from the join itself, so this no longer waits on `/me/projects`. */}
+        {/* Leaving is offered here as well as on the dashboard, because this is where
+            somebody who has decided a project isn't for them actually is. Absent only
+            while there's genuinely no rank to draw the dialog from — the warning turns
+            on it, and a dialog that guessed would be worse than a moment's wait. */}
         {rank && (
           <span className="mt-3 block">
             <LeaveProjectButton
@@ -674,10 +643,9 @@ function JoinAction({
                   : null
               }
               onLeft={() => {
-                // The panel goes back to the join gate, and the roster above
-                // has to lose the name in the same beat — leaving a project and
-                // still being listed on it is the same lie as joining one and
-                // not being.
+                // The panel goes back to the join gate, and the roster above has to
+                // lose the name in the same beat — leaving a project and still being
+                // listed on it is the same lie as joining one and not being.
                 setState({ status: 'left' })
                 void reload(true)
               }}
@@ -688,8 +656,8 @@ function JoinAction({
     )
   }
 
-  // If the dues read failed there is no way to promise the join will pass the
-  // gate — send them via the dues page, which can explain properly.
+  // If the dues read failed there's no way to promise the join will pass the gate —
+  // send them via the dues page, which can explain properly.
   const gap =
     dues.status === 'error' ? 'newcomer' : coverGap(dues.data.membership)
 
@@ -699,10 +667,9 @@ function JoinAction({
         <p className="text-faint mb-2 font-mono text-[10px] font-medium tracking-[0.16em]">
           JOIN THIS PROJECT
         </p>
-        {/* Three reasons, three sentences, matching the 403 this route would
-            answer with. It used to say "settle your dues" whatever the reason,
-            which inside a free window is telling somebody to pay for a thing
-            that is free and one press away. */}
+        {/* Three reasons, three sentences, matching the 403 this route would answer
+            with. It used to say "settle your dues" whatever the reason, which inside a
+            free window is telling somebody to pay for a thing that's free. */}
         <p className="text-dim mb-4 text-sm leading-[1.7] text-pretty">
           {gap === 'claim'
             ? 'Joining needs a current membership, and yours is free to switch on right now. One press, no card.'
@@ -728,9 +695,9 @@ function JoinAction({
     )
       .then((membership) => {
         setState({ status: 'joined', rank: membership.rank })
-        // The panel answers from `state` either way, so the roster is what this
-        // is for. Not awaited: the panel has already flipped, and a slow read
-        // must not leave the button spinning.
+        // The panel answers from `state` either way, so the roster is what this is for.
+        // Not awaited: the panel has already flipped, and a slow read must not leave
+        // the button spinning.
         void reload(true)
       })
       .catch((error: unknown) => {
@@ -775,8 +742,8 @@ function ProjectSkeleton() {
       <div className="bg-base-300 h-3 w-24 animate-pulse rounded-[2px]" />
       <div className="bg-base-300 mt-6 h-9 w-72 max-w-full animate-pulse rounded-[2px]" />
       <div className="bg-base-300 mt-5 h-3 w-48 animate-pulse rounded-[2px]" />
-      {/* Same aspect ratio as the gallery frame, so the page does not jump the
-          moment the pictures land. */}
+      {/* Same aspect ratio as the gallery frame, so the page doesn't jump the moment
+          the pictures land. */}
       <div className="bg-base-300 mt-6 aspect-[16/10] w-full animate-pulse rounded-[2px]" />
       <div className="mt-8 space-y-2.5">
         <div className="bg-base-300 h-3 w-full animate-pulse rounded-[2px]" />

@@ -4,32 +4,23 @@ import { LIGHT, type Theme } from '../../lib/theme'
 /**
  * The theme for Stripe's payment form.
  *
- * This is the one place in `components/` where colour is written as a literal,
- * and it is the same exception `server/src/email/emails.ts` gets for the same reason:
- * the thing being styled is not on this page. Stripe's Elements render inside
- * an iframe served from stripe.com, which cannot see `index.css`, cannot
- * inherit a custom property, and takes only the values handed to it through
- * this object.
+ * The one place in `components/` where colour is written as a literal, and it is the same exception
+ * `server/src/email/emails.ts` gets for the same reason: the thing being styled is not on this
+ * page. Stripe's Elements render inside an iframe served from stripe.com, which cannot see
+ * `index.css`, cannot inherit a custom property, and takes only what is handed to it through this
+ * object. So these are copies, kept in step with the two theme blocks in `src/index.css` by hand —
+ * if a value here looks wrong against the rest of the page, that file is the original.
  *
- * So these are copies, and they have to be kept in step with the two theme
- * blocks in `src/index.css` by hand. If a value here looks wrong against the
- * rest of the page, that file is the original.
+ * Two themes means two of everything, Stripe's own base included. `theme: 'night'` is the dark
+ * starting point rather than `'stripe'` because the defaults it brings for everything not named
+ * below — placeholder text, the card brand icons, the tab strip — are dark ones; starting from the
+ * light base leaves a white flash on load and an icon set nobody notices is wrong until it ships.
+ * In light mode that argument runs the other way, so light mode starts from `'stripe'`.
  *
- * **Two themes means two of everything, including Stripe's own base.**
- * `theme: 'night'` is the dark starting point rather than `'stripe'` because
- * the defaults it brings for everything *not* named below — placeholder text,
- * the card brand icons, the tab strip — are dark ones; starting from the light
- * base and overriding the dozen colours back leaves a white flash on load and
- * an icon set nobody notices is wrong until it ships. In light mode that
- * argument runs the other way round, so light mode starts from `'stripe'`.
- *
- * **The form does not restyle itself when the theme changes mid-payment, and
- * that is deliberate.** `Elements` takes its appearance when it mounts and
- * `PaymentForm` keys the tree on the client secret; re-keying it on the theme
- * as well would tear down a mounted card field — losing whatever has been typed
- * into it — because somebody pressed a switch in the nav. Somebody who changes
- * theme with a payment open gets the form they opened, and the next one is in
- * the theme they chose.
+ * The form does not restyle itself when the theme changes mid-payment. `Elements` takes its
+ * appearance when it mounts and `PaymentForm` keys the tree on the client secret; re-keying it on
+ * the theme would tear down a mounted card field — losing whatever has been typed into it — because
+ * somebody pressed a switch in the nav.
  */
 
 /** The gold, per theme: bright on near-black, and the deep ochre on off-white.

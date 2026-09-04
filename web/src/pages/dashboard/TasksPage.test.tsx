@@ -15,17 +15,14 @@ import { bodyOf, urlOf } from '../../test/stubFetch'
 /**
  * The tasks page.
  *
- * Two things are worth holding here and the rest is chrome. **Who gets the
- * form**: a plain member manages their own work and cannot write any, which is
- * the sentence the server enforces and the only reason this page can be one
- * page instead of two. And **the calendar toggle is the member's own** — it
- * appears on work assigned to them and nowhere else, because a control that
- * offered to put somebody else's deadline in their week would be a button that
- * lands on a 403.
+ * Two things are worth holding here and the rest is chrome. Who gets the form: a plain member
+ * manages their own work and cannot write any, which is the sentence the server enforces and the
+ * only reason this can be one page instead of two. And the calendar toggle is the member's own — it
+ * appears on work assigned to them and nowhere else, because a control that offered to put somebody
+ * else's deadline in their week would be a button that lands on a 403.
  *
- * The label filter and the search are the third thing, and they are tested
- * together: both narrow the same list in the browser, so a bug in either shows
- * up as rows that should not be there.
+ * The label filter and the search are the third thing, tested together: both narrow the same list
+ * in the browser, so a bug in either shows up as rows that should not be there.
  */
 
 const term: ApiTerm = {

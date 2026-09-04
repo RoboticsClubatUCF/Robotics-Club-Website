@@ -14,16 +14,14 @@ import { bodyOf, stubFetch, urlOf } from '../../test/stubFetch'
 /**
  * The officer's half of the material budget, and the three ways a job ends.
  *
- * Four things have to be right, and all four are about not doing damage by
- * accident. The grams have to reach the server. Going past somebody's allowance
- * has to be a deliberate press with the numbers in view. A project print has to
- * show no balance at all — weighing one against a budget it does not come out
- * of is exactly the mistake a stray number would cause. And every irreversible
- * act has to be confirmed in a box that says what it is about to destroy.
+ * Four things have to be right, and all four are about not doing damage by accident. The grams
+ * have to reach the server. Going past somebody's allowance has to be a deliberate press with the
+ * numbers in view. A project print has to show no balance at all — weighing one against a budget
+ * it doesn't come out of is exactly the mistake a stray number would cause. And every irreversible
+ * act has to be confirmed in a box that says what it's about to destroy.
  *
- * The fifth is the correction: officers print in whatever is on the shelf, so
- * the controls start on what was asked for and only send `printed` when the
- * officer actually changed something.
+ * The fifth is the correction: officers print in whatever is on the shelf, so the controls start
+ * on what was asked for and only send `printed` when the officer actually changed something.
  */
 
 const term: ApiTerm = {
@@ -154,10 +152,9 @@ afterEach(() => {
 /**
  * Finding one request among a term's worth of them.
  *
- * The rule that needs a test is the widening: a search typed into LIVE has to
- * reach a print that was finished last month, and the only way it can is if
- * the page asks the server for every status. Inside a named section it must
- * *not* — widening there would quietly undo the filter just pressed.
+ * The rule that needs a test is the widening: a search typed into LIVE has to reach a print
+ * finished last month, and the only way it can is if the page asks the server for every status.
+ * Inside a named section it must not — widening there would undo the filter just pressed.
  */
 describe('searching the queue', () => {
   const people = [
@@ -687,12 +684,12 @@ describe('going past somebody’s allowance', () => {
 })
 
 /**
- * What was *done*, not where the row ended up.
+ * What was done, not where the row ended up.
  *
- * The status is not the event: `REJECTED` is a request somebody declined or a
- * print somebody stopped, and only `startedAt` knows which. Reading "declined
- * the request" about a print you watched come off the bed half-finished is the
- * kind of small wrongness that makes people stop trusting a page.
+ * The status isn't the event: `REJECTED` is a request somebody declined or a print somebody
+ * stopped, and only `startedAt` knows which. Reading "declined the request" about a print you
+ * watched come off the bed half-finished is the kind of small wrongness that makes people stop
+ * trusting a page.
  */
 describe('who did what', () => {
   it.each([

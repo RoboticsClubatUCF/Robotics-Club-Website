@@ -19,20 +19,16 @@ import {
 } from '../../test/stubFetch'
 
 /**
- * What this page has to get right is the file rule, the storage rule and the
- * budget rule.
+ * What this page has to get right is the file rule, the storage rule and the budget rule.
  *
- * The file rule: a wrong extension is refused here, before anything is
- * uploaded, because the alternative is thirty megabytes and then a 400.
+ * The file rule: a wrong extension is refused here, before anything is uploaded, because the
+ * alternative is thirty megabytes and then a 400.
  *
- * The storage rule: a settled request has had its model deleted, so its row
- * must not offer a withdraw or imply the file is still there. The API says so
- * by returning `fileId: null`, and the page has to believe it.
+ * The storage rule: a settled request has had its model deleted, so its row must not offer a
+ * withdraw or imply the file is still there. The API says so by returning `fileId: null`.
  *
- * The budget rule: resin has no infill, so choosing it has to take those
- * fields off the form *and* out of the body — the server refuses a resin
- * request that carries them, and refusing a member who did nothing wrong is
- * the failure worth a test.
+ * The budget rule: resin has no infill, so choosing it has to take those fields off the form and
+ * out of the body — the server refuses a resin request that carries them.
  */
 
 const request = (over: Partial<ApiPrintRequest> = {}): ApiPrintRequest => ({
@@ -241,11 +237,9 @@ describe('PrintRequestPage', () => {
   })
 
   /**
-   * The pairing rule as the member meets it. Resin has one material and no
-   * infill at all, so choosing it has to take those controls away — and, more
-   * importantly, take the fields out of the body. The server refuses a resin
-   * request carrying infill, so leaving them in would 400 somebody who did
-   * nothing wrong.
+   * The pairing rule as the member meets it. Resin has one material and no infill at all, so
+   * choosing it has to take those controls away — and, more importantly, take the fields out of
+   * the body, since the server refuses a resin request carrying infill.
    */
   it('drops the infill controls and fields when the resin printer is chosen', async () => {
     const fetchStub = stubFetch(pageData({ '/print': request() }))
@@ -458,9 +452,9 @@ describe('the material allowance', () => {
 /**
  * The two gates in front of this page, and the context they read.
  *
- * Shared rather than scoped to one describe, because the page has two ways of
- * being shut and they are only meaningful next to each other: `hasAccess`
- * false is a lapsed member, and `role: 'GUEST'` is somebody who never joined.
+ * Shared rather than scoped to one describe, because the page has two ways of being shut and
+ * they're only meaningful next to each other: `hasAccess` false is a lapsed member, and
+ * `role: 'GUEST'` is somebody who never joined.
  */
 const term: ApiTerm = {
   year: 2035,
@@ -533,10 +527,9 @@ const renderIn = (dashboard: DashboardContext) =>
 /**
  * The dues gate in front of the page.
  *
- * Printing is the club spending money on somebody, so a lapsed account gets the
- * notice rather than the form — and, because the gate is a wrapper, the page
- * underneath never mounts and never fires the requests the server would only
- * refuse. That absence is the second assertion here.
+ * Printing is the club spending money on somebody, so a lapsed account gets the notice rather
+ * than the form — and, because the gate is a wrapper, the page underneath never mounts and never
+ * fires the requests the server would only refuse. That absence is the second assertion here.
  */
 describe('when dues have lapsed', () => {
   it('shows the notice instead of the form, and asks the server nothing', async () => {
@@ -598,14 +591,11 @@ describe('when dues have lapsed', () => {
 })
 
 /**
- * The stricter of the two gates: the printers want a member, not merely
- * somebody with an account.
+ * The stricter of the two gates: the printers want a member, not merely somebody with an account.
  *
- * `hasAccess` is the whole of it now. These fixtures used to pass
- * `hasAccess: true` alongside a guest role, because the summer and the opening
- * weeks reported everybody covered and a second, stricter check refused a
- * guest anyway. Both are gone: access is the dues date, so an uncovered account
- * is uncovered whatever its role says, and the only question left is which of
+ * `hasAccess` is the whole of it now. These fixtures used to pass `hasAccess: true` alongside a
+ * guest role, because the summer reported everybody covered and a second, stricter check refused
+ * a guest anyway. Both are gone: access is the dues date, and the only question left is which of
  * the three sentences it gets.
  */
 describe('when there is no cover', () => {

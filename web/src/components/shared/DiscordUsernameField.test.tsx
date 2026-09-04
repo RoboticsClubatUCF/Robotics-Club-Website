@@ -7,25 +7,22 @@ import { bodyOf, stubFetch, stubFetchStatus } from '../../test/stubFetch'
 /**
  * The Discord handle field.
  *
- * Everything the club builds on an account joins on this string, so the two
- * answers it gives have to be the right way round every time: a handle that is
- * in the club's server says so, and anything else — a display name, a typo,
- * somebody who has not joined the server yet — says it cannot be found. What
- * must never happen is the field implying a connection nobody confirmed, which
- * is why the states where nothing was actually checked have their own words.
+ * Everything the club builds on an account joins on this string, so the two answers it gives have
+ * to be the right way round every time: a handle that is in the club's server says so, and anything
+ * else — a display name, a typo, somebody who has not joined the server yet — says it cannot be
+ * found. What must never happen is the field implying a connection nobody confirmed, which is why
+ * the states where nothing was actually checked have their own words.
  *
- * The field checks on a debounce, so every test here drives the clock rather
- * than waiting on it. `shouldAdvanceTime` is what keeps Testing Library's own
- * polling alive under fake timers.
+ * The field checks on a debounce, so every test here drives the clock rather than waiting on it.
+ * `shouldAdvanceTime` is what keeps Testing Library's own polling alive under fake timers.
  */
 
 /**
  * Type into the field and let the debounce elapse.
  *
- * Inside `act`, because the answer lands in two steps the test has to wait out:
- * the timer fires, and then a promise resolves. Advancing the clock on its own
- * runs the first and leaves React with the second still pending, so the status
- * line is read before it has been written.
+ * Inside `act`, because the answer lands in two steps the test has to wait out: the timer fires,
+ * and then a promise resolves. Advancing the clock on its own runs the first and leaves React with
+ * the second still pending, so the status line is read before it has been written.
  */
 async function type(value: string) {
   fireEvent.change(screen.getByLabelText(/DISCORD USERNAME/i), {

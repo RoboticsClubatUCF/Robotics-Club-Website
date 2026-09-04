@@ -1,19 +1,15 @@
 /**
- * Shrinking a photo before it is uploaded.
+ * Shrinking a photo before it's uploaded.
  *
- * A phone camera produces 4-to-8 MB files, and a gallery of twelve of those is
- * a project page nobody on campus wifi waits for. The club has no image
- * pipeline and should not grow one — `StoredFile` puts bytes in Postgres, and
- * every upload is buffered through the API process — so the cheapest place to
- * fix this is before the bytes ever leave: decode, draw smaller, re-encode.
+ * A phone camera produces 4-to-8 MB files, and a gallery of twelve of those is a project page
+ * nobody on campus wifi waits for. The club has no image pipeline and shouldn't grow one — every
+ * upload is buffered through the API process — so the cheapest place to fix this is before the
+ * bytes ever leave: decode, draw smaller, re-encode.
  *
- * **Every function here is total.** Canvas missing, `toBlob` missing, an
- * undecodable source, a format that cannot be re-encoded safely — all of them
- * end with the original file going up unchanged, where `bodyLimit` and
- * `MAX_IMAGE_FILE_MB` are the hard backstop that refuses it with a sentence.
- * That is also why this is testable in jsdom, which has no canvas at all: there,
- * `downscaleImage` returns its input, and the upload path can be exercised
- * without a shim.
+ * Every function here is total. Canvas missing, `toBlob` missing, an undecodable source, a format
+ * that can't be re-encoded safely — all end with the original file going up unchanged, where
+ * `bodyLimit` and `MAX_IMAGE_FILE_MB` are the hard backstop. That's also why this is testable in
+ * jsdom, which has no canvas at all.
  */
 
 /**
@@ -41,13 +37,10 @@ export const ACCEPTED_IMAGE_TYPES = 'image/png,image/jpeg,image/gif,image/webp'
 /**
  * How long to wait for a decode before giving up and uploading the original.
  *
- * A `try`/`catch` cannot catch a hang, and the `<img>` fallback below can
- * genuinely produce one: an environment where neither `onload` nor `onerror`
- * ever fires leaves that promise pending for the life of the page, and the
- * upload button waits with it. Everything else here degrades to "send the
+ * A `try`/`catch` can't catch a hang, and the `<img>` fallback below can genuinely produce one: an
+ * environment where neither `onload` nor `onerror` ever fires leaves that promise pending for the
+ * life of the page, and the upload button waits with it. Everything else degrades to "send the
  * original"; without this, that one path degrades to nothing happening at all.
- * Four seconds is far longer than decoding a photo takes and far shorter than
- * somebody will sit looking at a button that has stopped responding.
  */
 const DECODE_TIMEOUT_MS = 4_000
 
@@ -107,11 +100,10 @@ const toBlob = (
 /**
  * Decode a file to something drawable.
  *
- * `imageOrientation: 'from-image'` is the EXIF answer — without it a portrait
- * photo off a phone decodes to its sensor orientation and lands on its side,
- * which is the single most common complaint about home-made image uploads.
- * The `<img>` fallback relies on the browser's default `image-orientation:
- * from-image`, which current engines honour; less explicit, not wrong.
+ * `imageOrientation: 'from-image'` is the EXIF answer — without it a portrait photo off a phone
+ * decodes to its sensor orientation and lands on its side, which is the single most common
+ * complaint about home-made image uploads. The `<img>` fallback relies on the browser's default
+ * `image-orientation: from-image`, which current engines honour.
  */
 async function decode(file: File): Promise<CanvasImageSource & {
   width: number

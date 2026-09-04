@@ -7,23 +7,18 @@ import type { ApiSurveyEditorQuestion, ApiTerm, UserRole } from '../../lib/api/a
 import { bodyOf, urlOf } from '../../test/stubFetch'
 
 /**
- * The question editor.
+ * The question editor. Three things are worth pinning and the rest is form plumbing.
  *
- * Three things are worth pinning and the rest is form plumbing.
+ * What REMOVE is going to do, said before it is pressed. A question nobody has answered is deleted;
+ * one with answers is retired and its answers kept. The officer cannot tell which from the button,
+ * so the confirmation has to.
  *
- * **What REMOVE is going to do, said before it is pressed.** A question nobody
- * has answered is deleted; one with answers is retired and its answers kept.
- * The officer cannot tell which from the button, so the confirmation has to.
+ * That editing an option sends its id. An option edited by id keeps the answers already given
+ * against it; one that lost its id on the way through this page would be deleted and recreated,
+ * silently resetting a tally to nought — which nobody notices until it is in a shirt order.
  *
- * **That editing an option sends its id.** An option edited by id keeps the
- * answers already given against it; one that lost its id on the way through
- * this page would be deleted and recreated, silently resetting a tally to
- * nought — which is the kind of thing nobody notices until it is in a shirt
- * order.
- *
- * **That nothing here talks about locking anybody out**, because that is the
- * fear that would otherwise stop an officer touching the page, and it is not
- * true: the gate is stamped once and never moves.
+ * That nothing here talks about locking anybody out, because that is the fear that would otherwise
+ * stop an officer touching the page, and it is not true: the gate is stamped once and never moves.
  */
 
 const term: ApiTerm = {

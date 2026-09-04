@@ -17,14 +17,12 @@ import qrCodeUrl from '../../assets/qr-code.png'
 /**
  * Step two: everything else, once the address has been proved.
  *
- * The address itself is not a field here — it comes from the link, and showing
- * it read-only is what tells someone with three UCF addresses forwarded into
- * one inbox which account they are making.
+ * The address itself is not a field here — it comes from the link, and showing it read-only is what
+ * tells someone with three UCF addresses forwarded into one inbox which account they are making.
  *
- * The Discord half of the form is deliberately one block: the invite, the
- * instruction, and the field that will fail without them, in the order somebody
- * needs them. Asking for a handle above a QR code that would have got them one
- * is how you collect handles for accounts that do not exist.
+ * The Discord half of the form is deliberately one block: the invite, the instruction, and the
+ * field that will fail without them, in the order somebody needs them. Asking for a handle above a
+ * QR code that would have got them one is how you collect handles for accounts that do not exist.
  */
 
 const PASSWORD_MIN = 10
@@ -218,16 +216,14 @@ export function SignupFinish({
             Scan to join, then give us the username you joined with.
           </p>
 
-          {/* On white, with a margin of it. A QR code needs light modules on a
-              dark-enough background and a quiet zone around the outside — on
-              the page's near-black it is a decoration that no phone will read.
+          {/* On white, with a margin of it. A QR code needs light modules on a dark-enough
+              background and a quiet zone around the outside — on the page's near-black it is a
+              decoration no phone will read.
 
-              **Literal white in both themes, deliberately.** This is not the
-              page's surface, it is the code's own quiet zone, and a scanner
-              cares about the contrast between the modules and their margin
-              rather than about our palette. It keeps a rule in light mode
-              because an off-white page under a pure-white card otherwise leaves
-              the quiet zone with no edge to it. */}
+              Literal white in both themes, deliberately: this is not the page's surface, it is the
+              code's own quiet zone, and a scanner cares about the contrast between the modules and
+              their margin rather than about our palette. It keeps a rule in light mode because an
+              off-white page under a pure-white card otherwise leaves the quiet zone with no edge. */}
           <div className="border-rule mb-5 inline-block border bg-white p-3">
             <img
               src={qrCodeUrl}

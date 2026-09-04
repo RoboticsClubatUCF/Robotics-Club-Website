@@ -8,19 +8,17 @@ import { urlOf } from '../../test/stubFetch'
 /**
  * The survey, as the account page shows it back.
  *
- * It used to carry the whole form and does not any more: on a page of one- and
- * two-field panels it was several times the height of anything around it, and
- * the editor it held was `/dashboard/survey`'s editor anyway. So what this
- * suite has to hold down is the pair of properties that replaced it.
+ * It used to carry the whole form. On a page of one- and two-field panels it was several times the
+ * height of anything around it, and the editor it held was `/dashboard/survey`'s anyway. What is
+ * left is the pair of properties that replaced it.
  *
- * **It prints every answer back.** The point of a summary is that somebody
- * checking whether their shirt size is right gets it without a press — a panel
- * that only offered a link would be a worse version of the rail row that
+ * It prints every answer back, so somebody checking whether their shirt size is right gets it
+ * without a press — a panel that only offered a link would be a worse version of the rail row that
  * already went away.
  *
- * **It writes nothing.** No `PUT` leaves this panel, which is what makes the
- * old "must not send a stale graduation year" hazard impossible rather than
- * merely tested — ABOUT YOU two panels up owns that field.
+ * And it writes nothing. No `PUT` leaves this panel, which makes the old "must not send a stale
+ * graduation year" hazard impossible rather than merely tested — ABOUT YOU two panels up owns that
+ * field.
  */
 
 const option = (id: string, label: string, wantsText = false) => ({
@@ -254,10 +252,9 @@ describe('ProfileSurveyPanel', () => {
   })
 
   /**
-   * The gap between the two pages. ABOUT YOU allows a null graduation year —
-   * right for anybody who never answered the survey — so somebody who did can
-   * clear it and end up holding a survey with a hole in it. `PUT /api/survey`
-   * answers 409, and this is the only screen that would ever say so.
+   * The gap between the two pages. ABOUT YOU allows a null graduation year — right for anybody who
+   * never answered the survey — so somebody who did can clear it and end up holding a survey with a
+   * hole in it. `PUT /api/survey` answers 409, and this is the only screen that would say so.
    */
   describe('with no graduation year on the account', () => {
     it('says so beside the answers', async () => {

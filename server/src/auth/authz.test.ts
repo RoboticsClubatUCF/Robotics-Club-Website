@@ -13,37 +13,26 @@ import { createSession } from './session.js'
 /**
  * The permission matrix, against the live database.
  *
- * This suite is the contract the whole dashboard rests on: project authority
- * is *per-project*. The two rows that carry the most weight are the ones that
- * would rot silently —
+ * This suite is the contract the whole dashboard rests on: project authority is per-project.
+ * The two rows that carry the most weight are the ones that would rot silently — somebody on
+ * no project gets 403 everywhere, because no value of `UserRole` says anything about any
+ * project; and the lead of project A is a plain member on project B, because rank lives on
+ * the membership row rather than the person.
  *
- *   - somebody on no project gets 403 everywhere, because **no value of
- *     `UserRole` says anything about any project**; and
- *   - the lead of project A is a plain member on project B and gets 403 there,
- *     because rank lives on the membership row, not the person.
+ * The first used to be proved by a fixture carrying a global `PROJECT_LEAD` role — a roster
+ * label that granted nothing and was spelled identically to the rank that grants everything.
+ * Those values aren't roles any more, so what's left is the stronger claim: there's no role to
+ * try.
  *
- * The first of those used to be proved by a fixture carrying a *global*
- * `PROJECT_LEAD` role — a roster label that granted nothing and was spelled
- * identically to the rank that grants everything. Those two values are not
- * roles any more, so the trap they set cannot be rebuilt; what is left is the
- * stronger claim, which is that there is no role to try.
+ * Fixtures are created and deleted by this suite, keyed on a `test-authz-` prefix.
  *
- * Fixtures are all created and deleted by this suite, keyed on a `test-authz-`
- * prefix so nothing real is ever touched.
+ * The clock is pinned and every fixture is paid up through 2035. Whether anybody can be lapsed
+ * is a property of the calendar rather than of a person, so on the real clock this suite would
+ * pass all summer, go red the week fall's trial closes, and go green again in December. The
+ * clock sits in October 2035, term time, past the trial.
  *
- * **The clock is pinned and every fixture is paid up through 2035.** Management
- * is gated on current dues now, and whether *anybody* can be lapsed is a
- * property of the calendar rather than of a person: through the summer, the gap
- * between terms and a term's opening weeks, `hasAccess` is true for everyone
- * whatever their date says. Left on the real clock this suite would pass all
- * summer, go red the week fall's trial closes, and go green again in December —
- * on days nobody changed anything. So the clock sits in October 2035, term time,
- * past the trial, with `fetch` stubbed to fail so the terms are the fixed
- * fallbacks rather than whatever calendar.ucf.edu says today.
- *
- * The time is set *before* the fixtures, because `createSession` dates a session
- * from the clock it was issued under — moving nine years forward afterwards
- * would expire every cookie in the file and every test would 401.
+ * The time is set before the fixtures, because `createSession` dates a session from the clock
+ * it was issued under — moving nine years forward afterwards would expire every cookie.
  */
 
 const PREFIX = 'test-authz-'
@@ -51,9 +40,8 @@ const PREFIX = 'test-authz-'
 /**
  * A schedule, which every created project now has to carry.
  *
- * Spread into each create body rather than repeated: the route requires the
- * days and both times together, so a test about slugs or write-ups would
- * otherwise fail on a field it is not about.
+ * Spread into each create body rather than repeated: the route requires the days and both
+ * times together, so a test about slugs would otherwise fail on a field it isn't about.
  */
 const MEETING = {
   meetingWeekdays: [2, 4],
@@ -69,9 +57,8 @@ const PAID_UP = new Date('2035-12-31T23:59:59')
 /** Far enough back that nothing can read it as current cover. */
 const LAPSED = new Date('2020-01-01T00:00:00')
 /**
- * The survey, answered. It is the gate *in front of* dues, so every fixture
- * here carries it — otherwise each of the dues refusals below would be masked
- * by a survey refusal, and the matrix would be testing the wrong sentence.
+ * The survey, answered. It's the gate in front of dues, so every fixture carries it —
+ * otherwise each of the dues refusals below would be masked by a survey refusal.
  */
 const SURVEYED = new Date('2035-09-01T00:00:00')
 
@@ -487,16 +474,13 @@ describe('placing members, as the project lead', () => {
 })
 
 /**
- * Which projects the club runs is a board decision, so creating one is officer
- * business and nothing else opens that door.
+ * Which projects the club runs is a board decision, so creating one is officer business.
  *
- * It briefly did: a `PROJECT_LEAD` roster label used to buy the right to start
- * a single project of your own, which was the one place in the whole codebase
- * where a `UserRole` value said something about projects. The label is not a
- * role any more and the delegation went with it. **Running a project confers
- * nothing here** — `leadA` leads project A and still gets a 403, because
- * authority inside a project and permission to make another are different
- * things and the second one is the board's.
+ * It briefly wasn't: a `PROJECT_LEAD` roster label used to buy the right to start a single
+ * project of your own, the one place a `UserRole` value said something about projects. The
+ * label isn't a role any more. Running a project confers nothing here — `leadA` leads project
+ * A and still gets a 403, because authority inside a project and permission to make another
+ * are different things.
  */
 describe('the officer desk', () => {
   const newProject = {
@@ -521,10 +505,9 @@ describe('the officer desk', () => {
   })
 
   /**
-   * A project has one lead. Appointing over a sitting one is refused rather
-   * than swapped — the site does not get to decide which of two people runs a
-   * build — and the sentence names the incumbent, because standing that
-   * particular person down is the next thing the officer has to do.
+   * A project has one lead. Appointing over a sitting one is refused rather than swapped — the
+   * site doesn't get to decide which of two people runs a build — and the sentence names the
+   * incumbent, because standing them down is the next thing the officer has to do.
    */
   it('refuses a second project lead, naming the one already there', async () => {
     const response = await request(
@@ -601,18 +584,15 @@ describe('the officer desk', () => {
 /**
  * Dues lapsing takes the tools away and leaves everything else alone.
  *
- * The club's rule, and the reason it is a separate axis from rank: somebody who
- * has let their dues run out is still on their projects and can still see them
- * — that is the whole of `/ MY PROJECTS` — but they cannot run anything until
- * they pay. Their rank does not move; only what it opens does.
+ * The club's rule, and the reason it's a separate axis from rank: somebody whose dues have run
+ * out is still on their projects and can still see them, but can't run anything until they
+ * pay. Their rank doesn't move; only what it opens does.
  *
- * `ADMIN` is exempt on purpose and forever. Whoever can fix a membership must
- * not be lockable out by a membership, or the club reaches a state nobody can
- * put right from inside the site.
+ * `ADMIN` is exempt on purpose and forever. Whoever can fix a membership must not be lockable
+ * out by one, or the club reaches a state nobody can put right from inside the site.
  *
- * Fixtures here are re-pointed at a date in 2020 rather than being created
- * separately, so the *same* people who pass every test above are the ones
- * failing here — which is the point being made.
+ * Fixtures here are re-pointed at a date in 2020 rather than created separately, so the same
+ * people who pass every test above are the ones failing here.
  */
 describe('when dues lapse', () => {
   const lapse = (person: Person) =>
@@ -723,9 +703,8 @@ describe('when dues lapse', () => {
 
   /**
    * The role follows on the very next request rather than waiting on the timer.
-   * `demoteIfLapsed` runs inside session resolution, so the answer is live for
-   * anybody who is actually using the site; the sweep is the backstop for the
-   * far larger group who have stopped turning up.
+   * `demoteIfLapsed` runs inside session resolution, so the answer is live for anybody actually
+   * using the site; the sweep is the backstop for the larger group who have stopped turning up.
    */
   it('takes MEMBER back on the next request, not on the next sweep', async () => {
     await lapse('memberA')
@@ -782,11 +761,10 @@ describe('when dues lapse', () => {
   })
 
   /**
-   * The club's line, widened past management: with dues owed the dashboard is
-   * the page that takes the payment and the projects you are already on, and
-   * nothing else. Printing and borrowing are the club spending money on you,
-   * and no *rank* refuses anybody from them — so this check is the only thing
-   * standing between a lapsed account and a spool of filament.
+   * The club's line, widened past management: with dues owed the dashboard is the page that
+   * takes the payment and the projects you're already on. Printing and borrowing are the club
+   * spending money on you, and no rank refuses anybody from them — so this check is the only
+   * thing between a lapsed account and a spool of filament.
    */
   it('locks a plain member out of printing and borrowing', async () => {
     await lapse('memberA')
@@ -838,19 +816,14 @@ describe('when dues lapse', () => {
 /**
  * The three sentences a refusal can carry, and which one you get.
  *
- * There is one gate now — `requireCurrentDues`, which is `duesPaidThrough` in
- * the future and `ADMIN` — where there used to be two. The stricter of the pair
- * refused a `GUEST` outright and picked its wording from the role; that check
- * is gone, because nothing can set a dues date without promoting the account in
- * the same transaction, so it had become a test that could never fail for
- * anybody who got past the first one.
+ * There's one gate now — `requireCurrentDues` — where there used to be two. The stricter of the
+ * pair refused a `GUEST` outright and picked its wording from the role; that's gone, because
+ * nothing can set a dues date without promoting the account in the same transaction.
  *
- * What survives is the wording, chosen from the date instead. Getting it the
- * wrong way round is how somebody two years in reads that they were never a
- * member, so it is worth a matrix of its own — and it lives here rather than in
- * `print.test.ts` and `equipment.test.ts` because the sentence turns on whether
- * a free window is running, and this is the suite with a pinned clock. `NOW` is
- * mid-fall 2035: term time, well past the free weeks, nothing free on offer.
+ * What survives is the wording, chosen from the date instead. Getting it the wrong way round is
+ * how somebody two years in reads that they were never a member, so it's worth a matrix of its
+ * own — and it lives here because the sentence turns on whether a free window is running, and
+ * this is the suite with a pinned clock.
  */
 describe('what a refusal says', () => {
   const asking = (person: Person) =>
@@ -890,19 +863,17 @@ describe('what a refusal says', () => {
   })
 
   /**
-   * A `GUEST` with a date that has run out is a member the sweep demoted, and
-   * gets the lapsed sentence rather than the newcomer's — the role is not what
-   * decides this any more, and this is the case that proves it.
+   * A `GUEST` with a date that has run out is a member the sweep demoted, and gets the lapsed
+   * sentence rather than the newcomer's — the role isn't what decides this any more.
    */
   it('reads the date, not the role', async () => {
     expect(await refusalFor(LAPSED, UserRole.GUEST)).toMatch(/dues have lapsed/i)
   })
 
   /**
-   * And the third sentence, which is new: while a free window is running,
-   * quoting a price at somebody would be false. They are one press from being
-   * let in. Checked by moving the clock into the August gap rather than by
-   * moving the fixture, because the window is a property of the calendar.
+   * And the third sentence: while a free window is running, quoting a price would be false.
+   * They're one press from being let in. Checked by moving the clock into the August gap rather
+   * than the fixture, because the window is a property of the calendar.
    */
   it('tells somebody to claim it while the window is open', async () => {
     vi.setSystemTime(new Date('2035-08-15T12:00:00'))
@@ -918,12 +889,10 @@ describe('what a refusal says', () => {
 /**
  * The survey, which is no longer a gate.
  *
- * It used to refuse everything until it was answered — the tools, the desks
- * and the dues page — so the club could not take somebody's money before it
- * had their shirt size. That is gone, and these tests are the ones that would
- * have failed then: an unanswered survey now refuses nothing at all, and the
- * only thing left of it on the wire is a pair of flags the dashboard reads to
- * decide whether it still has something to ask for.
+ * It used to refuse everything until it was answered — the tools, the desks and the dues page —
+ * so the club couldn't take somebody's money before it had their shirt size. These tests are
+ * the ones that would have failed then: an unanswered survey now refuses nothing, and the only
+ * thing left of it on the wire is a pair of flags the dashboard reads.
  */
 describe('an unanswered member survey', () => {
   const asking = (person: Person) =>
@@ -965,10 +934,9 @@ describe('an unanswered member survey', () => {
   })
 
   /**
-   * The two dues writes, which is where this mattered most. `checkout` creates
-   * the payment intent and `activate` claims a free window; both were shut
-   * behind the survey, so a member with a card in their hand could be refused
-   * for not having said what size shirt they wear.
+   * The two dues writes, which is where this mattered most. `checkout` creates the payment
+   * intent and `activate` claims a free window; both were shut behind the survey, so a member
+   * with a card in their hand could be refused for not having said what size shirt they wear.
    */
   it('does not shut the two dues writes', async () => {
     await unanswered('memberA')
@@ -983,10 +951,9 @@ describe('an unanswered member survey', () => {
   })
 
   /**
-   * And what the dashboard reads instead. `surveyPending` is what puts the
-   * prompt up; `surveyPromptDismissed` is the checkbox on it, and the two are
-   * separate because answering and declining to be asked are different facts —
-   * see the column comments in `schema.prisma`.
+   * And what the dashboard reads instead. `surveyPending` puts the prompt up;
+   * `surveyPromptDismissed` is the checkbox on it, and the two are separate because answering
+   * and declining to be asked are different facts.
    */
   it('is reported on the dues status for the dashboard to ask about', async () => {
     await unanswered('memberA')

@@ -4,12 +4,10 @@ import { ThemeToggle } from './ThemeToggle'
 import { DARK, LIGHT, STORAGE_KEY, followSystem } from '../../lib/theme'
 
 /**
- * jsdom's own `matchMedia` answers `false` to every query, with listeners that
- * never fire — which would make the system look like it prefers light in every
- * test here, and make an OS change untestable. Replaced so each test can say
- * what the operating system is asking for, and change its mind.
- *
- * Returns the flip, the same shape `lib/theme.test.ts` uses.
+ * jsdom's own `matchMedia` answers `false` to every query, with listeners that never fire — which
+ * would make the system look like it prefers light in every test here, and make an OS change
+ * untestable. Replaced so each test can say what the operating system is asking for, and change its
+ * mind. Returns the flip, the same shape `lib/theme.test.ts` uses.
  */
 function stubMatchMedia(prefersDark: boolean) {
   const listeners = new Set<() => void>()
@@ -99,10 +97,9 @@ describe('ThemeToggle', () => {
   })
 
   /**
-   * **The reason the module keeps a listener set.** A press is not the only
-   * thing that moves the theme: somebody who has never chosen is still
-   * following their operating system, and an OS that flips at sunset flips the
-   * page under an open tab. Without the subscription the page would change and
+   * The reason the module keeps a listener set. A press is not the only thing that moves the theme:
+   * somebody who has never chosen is still following their operating system, and an OS that flips
+   * at sunset flips the page under an open tab. Without the subscription the page would change and
    * the button would go on offering the theme it is already in.
    */
   it('relabels itself when the operating system changes under it', async () => {
@@ -123,11 +120,10 @@ describe('ThemeToggle', () => {
   })
 
   /**
-   * There is one of these on the site — the footer's — so this is a property of
-   * the mechanism rather than of the current layout. It is worth pinning
-   * anyway: the day a second switch is drawn anywhere, two buttons showing
-   * opposite states is the bug, and it would be found here rather than on the
-   * page.
+   * There is one of these on the site — the footer's — so this is a property of the mechanism
+   * rather than of the current layout. Worth pinning anyway: the day a second switch is drawn
+   * anywhere, two buttons showing opposite states is the bug, and it would be found here rather
+   * than on the page.
    */
   it('keeps any two toggles in step', () => {
     stubMatchMedia(true)

@@ -20,17 +20,15 @@ import {
 /**
  * Moving the address the account signs in with.
  *
- * Two steps with an email in between, the same shape as signup, and for a
- * sharper reason here: a typo on signup is a link that never arrives, while a
- * typo written straight onto an existing account is a member locked out of a
- * site they belong to. So the link goes to the *new* address and nothing moves
+ * Two steps with an email in between, the same shape as signup and for a sharper reason: a typo on
+ * signup is a link that never arrives, while a typo written straight onto an existing account is a
+ * member locked out of a site they belong to. So the link goes to the new address and nothing moves
  * until it is followed.
  *
- * This panel is also where that link lands. The confirmation URL is this page
- * with `?emailToken=…` on it, so the token is spent by a POST rather than by
- * the GET that opened it — mail scanners follow every link in an incoming
- * message, and against a GET endpoint the confirmation would be used up before
- * anybody clicked it.
+ * This panel is also where that link lands. The confirmation URL is this page with `?emailToken=…`
+ * on it, so the token is spent by a POST rather than by the GET that opened it — mail scanners
+ * follow every link in an incoming message, and against a GET endpoint the confirmation would be
+ * used up before anybody clicked it.
  */
 export function ProfileEmailPanel({
   account,
@@ -53,21 +51,20 @@ export function ProfileEmailPanel({
   /**
    * The token this panel has already posted.
    *
-   * A ref rather than a shortened dependency list: `onSaved` is rebuilt on
-   * every render of the page above, so the effect genuinely does re-run, and a
-   * token must be spent exactly once — the second post would answer 410 and
-   * replace "that is your address now" with a refusal about a link that worked.
+   * A ref rather than a shortened dependency list: `onSaved` is rebuilt on every render of the page
+   * above, so the effect genuinely does re-run, and a token must be spent exactly once — the second
+   * post would answer 410 and replace "that is your address now" with a refusal about a link that
+   * worked.
    */
   const spent = useRef<string | null>(null)
 
   /**
    * Spend the token the moment the page opens with one.
    *
-   * No button, because there is nothing left to decide: following the link from
-   * an inbox *was* the confirmation, and asking again on arrival is the same
-   * question twice. The token comes out of the URL as soon as it is used, so a
-   * reload does not re-post a link that is now spent and answer with a 410 the
-   * reader cannot act on.
+   * No button, because there is nothing left to decide: following the link from an inbox was the
+   * confirmation, and asking again on arrival is the same question twice. The token comes out of
+   * the URL as soon as it is used, so a reload does not re-post a spent link and answer with a 410
+   * the reader cannot act on.
    */
   useEffect(() => {
     if (!token || spent.current === token) return

@@ -20,23 +20,19 @@ import { duesLocked } from '../../lib/dues/dues'
 /**
  * `/dashboard/officer/semesters` — when the club says a term starts and ends.
  *
- * The site reads UCF's academic calendar to decide what everybody is charged
- * and when a membership lapses, and that feed is somebody else's document: it
- * publishes late, renames the events the parser looks for, and sometimes omits
- * a term entirely. When it cannot be read the server falls back to fixed dates
- * in `server/src/membership/semester.ts`, and until this page existed the only way to
- * correct one was to edit those constants and deploy.
+ * The site reads UCF's academic calendar to decide what everybody is charged and when a
+ * membership lapses, and that feed is somebody else's document: it publishes late, renames the
+ * events the parser looks for, and sometimes omits a term. When it can't be read the server falls
+ * back to fixed dates, and until this page existed the only way to correct one was to edit those
+ * constants and deploy.
  *
- * **So the first thing every row says is where its dates came from.** A term
- * reading FALLBACK is the site guessing, and that is the whole reason to open
- * this page; CALENDAR is UCF answering; SET BY THE CLUB is a row somebody here
- * typed. Without that line the page would be three pairs of dates with no way
+ * So the first thing every row says is where its dates came from. FALLBACK is the site guessing,
+ * and that's the whole reason to open this page; CALENDAR is UCF answering; SET BY THE CLUB is a
+ * row somebody here typed. Without that line the page would be three pairs of dates with no way
  * to tell a fact from a guess.
  *
- * **Changing a term does not re-charge anybody.** Every payment stores the
- * dates it was sold against, so this moves what the *next* one buys and leaves
- * settled ones alone — the same property that makes the fallback dates
- * survivable at all. The page says so, because "will this bill people again"
+ * Changing a term doesn't re-charge anybody. Every payment stores the dates it was sold against,
+ * so this moves what the next one buys. The page says so, because "will this bill people again"
  * is the question anybody hesitates over.
  */
 
@@ -238,13 +234,10 @@ function Semesters() {
           </div>
         )}
 
-        {/* Three terms across rather than three rows down. A year is what this
-            page is about — the picker above it moves a year at a time — and
-            three cards side by side is a year you can compare at a glance,
-            where three rules across a monitor was one fact per screenful with
-            the buttons stranded at the far right. Each term carries its own
-            border now, since there is no longer a single stack for a shared
-            hairline to sit between. */}
+        {/* Three terms across rather than three rows down. A year is what this page is about, and
+            three cards side by side is a year you can compare at a glance — where three rules
+            across a monitor was one fact per screenful with the buttons stranded at the far
+            right. */}
         {terms && (
           <ul className="grid-fluid items-start gap-3 [--col-min:22rem]">
             {terms.map((term) => (
@@ -277,13 +270,10 @@ function Semesters() {
                         {asDateValue(term.startsAt)} &rarr;{' '}
                         {asDateValue(term.endsAt)}
                       </p>
-                      {/* Finals, on its own line, because it answers a
-                          different question from the term dates: not "when is
-                          the semester" but "when does every project stop".
-                          Said in words when nobody has set it — a blank pair of
-                          dates reads as a finals week of no days rather than as
-                          a question still open, and nothing is paused either
-                          way. */}
+                      {/* Finals, on its own line, because it answers a different question from the
+                          term dates: not "when is the semester" but "when does every project
+                          stop". Said in words when nobody has set it — a blank pair of dates reads
+                          as a finals week of no days rather than a question still open. */}
                       <p className="text-dim mt-0.5 text-[12px]">
                         {term.finalsStartAt && term.finalsEndAt ? (
                           <>
@@ -379,10 +369,9 @@ function Semesters() {
 /**
  * The two dates and a note, as a form.
  *
- * Native `type="date"` rather than anything hand-rolled: it is one of the few
- * inputs where the platform's is better than a component, it comes with a
- * keyboard and a picker for free, and the value it produces — `YYYY-MM-DD` — is
- * exactly what the route parses.
+ * Native `type="date"` rather than anything hand-rolled: it's one of the few inputs where the
+ * platform's is better than a component, and the value it produces — `YYYY-MM-DD` — is exactly
+ * what the route parses.
  */
 function TermForm({
   term,

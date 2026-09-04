@@ -7,14 +7,13 @@ import type { ApiMyProject, ApiTerm } from '../../lib/api/api'
 import { urlOf } from '../../test/stubFetch'
 
 /**
- * Leaving a project from the dashboard, and the one thing it has to do that is
- * not on this page: refresh the *public* project page's cached roster.
+ * Leaving a project from the dashboard, and the one thing it has to do that is not on this page:
+ * refresh the public project page's cached roster.
  *
- * `/projects/:slug` answers `Cache-Control: max-age=60`, and this page never
- * reads it — so nothing here would evict the copy the browser is holding, which
- * still lists the person who just left. Going straight from leaving a project
- * to looking at its page is the obvious thing to do next, and inside that
- * minute it showed them still on the roster.
+ * `/projects/:slug` answers `Cache-Control: max-age=60`, and this page never reads it — so nothing
+ * here would evict the copy the browser is holding, which still lists the person who just left.
+ * Going straight from leaving a project to looking at its page is the obvious thing to do next, and
+ * inside that minute it showed them still on the roster.
  */
 
 const term: ApiTerm = {
@@ -158,9 +157,9 @@ describe('ProjectDashboardPage', () => {
   })
 
   /**
-   * Leaving has already succeeded by the time the refresh runs, so a failure
-   * there must not surface as "leaving didn't work" — the row is gone either
-   * way, and the worst case is a roster that is stale for under a minute.
+   * Leaving has already succeeded by the time the refresh runs, so a failure there must not surface
+   * as "leaving didn't work" — the row is gone either way, and the worst case is a roster that is
+   * stale for under a minute.
    */
   it('still leaves when the cache refresh fails', async () => {
     const fetchMock = vi.fn((input: string | URL | Request, _init?: RequestInit) => {

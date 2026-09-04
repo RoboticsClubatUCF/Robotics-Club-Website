@@ -36,11 +36,10 @@ describe('canEditProject', () => {
   })
 
   /**
-   * This used to pass `'PROJECT_LEAD'` and `'TEAM_LEAD'` as *club* roles — a
-   * roster label spelled exactly like the rank that grants everything, and
-   * granting nothing. They are not roles any more, so the trap cannot be set;
-   * what is left is the stronger version, which is that being a club member in
-   * good standing buys nothing on a project you are not on.
+   * This used to pass `'PROJECT_LEAD'` and `'TEAM_LEAD'` as club roles — a roster label spelled
+   * exactly like the rank that grants everything, and granting nothing. They are not roles any
+   * more, so the trap cannot be set; what is left is the stronger version, which is that being a
+   * club member in good standing buys nothing on a project you are not on.
    */
   it('refuses a club member who is on no project at all', () => {
     expect(canEditProject('MEMBER', [], 'p1')).toBe(false)

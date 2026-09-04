@@ -1,25 +1,18 @@
 /**
  * A project's write-up, parsed.
  *
- * The schema has called `description` markdown since `0_init` and nothing ever
- * shipped a renderer, so the column was set as plain paragraphs and the editor
- * said "no markdown yet" underneath it. This is the renderer, and it lives here
+ * The schema has called `description` markdown since `0_init` and nothing ever shipped a
+ * renderer, so the column was set as plain paragraphs. This is the renderer, and it lives here
  * rather than in a dependency for two reasons.
  *
- * **It emits a tree, not HTML.** `ProjectProse.tsx` turns these nodes into React
- * elements, so there is no `dangerouslySetInnerHTML` anywhere on the path and
- * React escapes every string. A write-up is typed by a lead and read by the
- * public, which is exactly the shape where an HTML-producing renderer becomes an
- * XSS hole the day somebody pastes something. Raw HTML in the source is not
- * supported and is printed as the text it is.
+ * It emits a tree, not HTML. `ProjectProse.tsx` turns these nodes into React elements, so there's
+ * no `dangerouslySetInnerHTML` anywhere on the path. A write-up is typed by a lead and read by
+ * the public, which is exactly the shape where an HTML-producing renderer becomes an XSS hole the
+ * day somebody pastes something.
  *
- * **The subset is what a build write-up actually uses**: headings, paragraphs,
- * lists, quotes, code, rules, and inline bold/italic/code/links. No tables, no
- * footnotes, no reference links. `web/` carries ten runtime dependencies and a
- * full CommonMark implementation is forty packages to set six kinds of block.
- *
- * This file is the half that can be tested without a DOM, the same split
- * `projectGallery.ts` makes.
+ * The subset is what a build write-up actually uses: headings, paragraphs, lists, quotes, code,
+ * rules, and inline bold/italic/code/links. `web/` carries ten runtime dependencies and a full
+ * CommonMark implementation is forty packages to set six kinds of block.
  */
 
 export type Inline =
@@ -47,13 +40,10 @@ const FENCE = /^```/
 /**
  * Whether a link may be rendered as one.
  *
- * An allowlist rather than a blocklist, because the interesting schemes are the
- * ones nobody thinks of: `javascript:` is the obvious one, `data:` carries a
- * whole document, and both are one paste away in a field a lead types into.
- * Anything else is printed as its own text, so nothing is silently dropped.
- *
- * Relative paths are allowed and stay relative — a write-up linking to another
- * page of the site is ordinary.
+ * An allowlist rather than a blocklist, because the interesting schemes are the ones nobody
+ * thinks of: `javascript:` is the obvious one, `data:` carries a whole document, and both are one
+ * paste away in a field a lead types into. Anything else is printed as its own text, so nothing
+ * is silently dropped. Relative paths stay relative.
  */
 export function isSafeHref(href: string): boolean {
   const trimmed = href.trim()
@@ -70,10 +60,9 @@ export const isExternalHref = (href: string): boolean =>
 /**
  * The write-up, as blocks.
  *
- * A line scanner rather than a grammar: every block here is recognised by how
- * its first line starts, and the only one that spans an unknown number of lines
- * without a marker on each is a paragraph, which ends at a blank line or at the
- * start of anything else.
+ * A line scanner rather than a grammar: every block here is recognised by how its first line
+ * starts, and the only one that spans an unknown number of lines without a marker on each is a
+ * paragraph, which ends at a blank line or at the start of anything else.
  */
 export function parseProse(description: string): Block[] {
   // Windows line endings arrive from a textarea on this machine, and a stray
@@ -175,13 +164,11 @@ const startsBlock = (line: string): boolean =>
 /**
  * Inline markup, in precedence order: code, links, bold, italic.
  *
- * Code comes first because its contents are literal — `` `**not bold**` `` has
- * to survive — and links come before emphasis so that `[**bold link**](url)`
- * nests the right way round rather than tearing the brackets apart.
+ * Code comes first because its contents are literal — `` `**not bold**` `` has to survive — and
+ * links come before emphasis so `[**bold link**](url)` nests the right way round.
  *
- * Anything unmatched is text. An unclosed `**` is the state of every write-up
- * halfway through being typed, so it prints as the asterisks it is rather than
- * swallowing the rest of the paragraph.
+ * Anything unmatched is text. An unclosed `**` is the state of every write-up halfway through
+ * being typed, so it prints as the asterisks it is rather than swallowing the rest.
  */
 export function parseInline(source: string): Inline[] {
   const out: Inline[] = []

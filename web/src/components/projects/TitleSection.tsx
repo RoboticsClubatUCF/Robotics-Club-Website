@@ -11,19 +11,16 @@ import { draftSrc, type DraftImage } from '../../lib/projects/projectDraft'
 import { useSectionSave, type SaveRegistry } from '../../lib/projects/editorSaves'
 
 /**
- * The `/ TITLE` section: what a project is called, the line the projects list
- * prints, the picture beside it, and what this project calls its own sections.
+ * The `/ TITLE` section: what a project is called, the line the projects list prints, the picture
+ * beside it, and what this project calls its own sections.
  *
- * **It is first because it is the top of the page it edits**, and because the
- * cover and the summary are the only two things a stranger sees before deciding
- * whether to open the project at all — everything below this section is read by
- * somebody who has already decided.
+ * It's first because it's the top of the page it edits, and because the cover and the summary are
+ * the only two things a stranger sees before deciding whether to open the project at all.
  *
- * **It used to carry a SAVE of its own and no longer does.** The cover went up
- * the moment a file was chosen, the checkbox wrote as it was ticked, and the
- * words waited for a button here while the writing below waited for a different
- * button with the same label on it. All of it waits for the page's one SAVE now,
- * so the picture in the frame below is a preview until then and says so.
+ * It used to carry a SAVE of its own and no longer does. The cover went up the moment a file was
+ * chosen, the checkbox wrote as it was ticked, and the words waited for a button here while the
+ * writing below waited for a different button with the same label on it. All of it waits for the
+ * page's one SAVE now, so the picture in the frame below is a preview until then and says so.
  */
 export function TitleSection({
   project,
@@ -33,12 +30,11 @@ export function TitleSection({
 }: {
   project: ApiProjectDetail
   /**
-   * The gallery **as it is being edited**, not as the server holds it.
+   * The gallery as it's being edited, not as the server holds it.
    *
-   * The cover can be the gallery's first picture, and the two sections are far
-   * apart on the page — so a preview drawn from `project.images` would go on
-   * showing the old first photo while a new one sat unsaved at the top of the
-   * gallery below. It is the same list `DraftGallery` is drawing.
+   * The cover can be the gallery's first picture, and the two sections are far apart on the page —
+   * so a preview drawn from `project.images` would go on showing the old first photo while a new
+   * one sat unsaved at the top of the gallery below.
    */
   images: DraftImage[]
   registry: SaveRegistry
@@ -433,10 +429,9 @@ export function TitleSection({
 /**
  * What the cover is about to become.
  *
- * `kept` is the state this starts and ends in: whatever the project already
- * holds, untouched. The other three are the three things somebody can do to it,
- * and each is a different write — an upload is multipart, an address is a column,
- * and clearing it is that column set to null.
+ * `kept` is the state this starts and ends in: whatever the project already holds, untouched. The
+ * other three are the three things somebody can do to it, and each is a different write — an
+ * upload is multipart, an address is a column, and clearing it is that column set to null.
  */
 type CoverDraft =
   | { kind: 'kept' }

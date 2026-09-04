@@ -47,10 +47,9 @@ const json = (body: unknown, status = 200) =>
 /**
  * The section, under the machinery that stands behind the page's one SAVE.
  *
- * `images` is the *draft* gallery rather than the project's stored one, because
- * that is what the cover preview reads — the two sections are far apart on the
- * page and a preview drawn from the server's copy would show yesterday's first
- * photo while a new one sat unsaved below.
+ * `images` is the draft gallery rather than the project's stored one, because that is what the
+ * cover preview reads — the two sections are far apart on the page and a preview drawn from the
+ * server's copy would show yesterday's first photo while a new one sat unsaved below.
  */
 const show = (over: Partial<ApiProjectDetail> = {}, images: DraftImage[] = []) =>
   render(

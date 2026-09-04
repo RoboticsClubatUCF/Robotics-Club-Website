@@ -2,52 +2,40 @@ import { createPublicKey, verify } from 'node:crypto'
 import { env } from '../core/env.js'
 
 /**
- * The club's Discord bot, doing one job: confirming that a handle someone typed
+ * The club's Discord bot, doing one job: confirming that a handle somebody typed
  * into the signup form is a real account in the club's server.
  *
- * Why this matters more than it looks: most of what the club plans to build on
- * top of an account — project sign-ups, meeting attendance, the `/teams` bot
- * command — joins on this string. A handle that is off by a character is not a
- * bad field, it is a member who quietly never gets anything, and nobody finds
- * out until someone asks why they were never added.
+ * It matters more than it looks. Most of what the club plans to build on an
+ * account joins on this string, so a handle off by a character is a member who
+ * quietly never gets anything, and nobody finds out for months.
  *
- * Two mistakes account for nearly all of them, and both are handled here rather
- * than by asking people to be careful:
+ * Two mistakes account for nearly all of them, handled here rather than by asking
+ * people to be careful. Typing the display name instead of the username — Discord
+ * shows the display name everywhere and the username almost nowhere — so only
+ * `user.username` is ever matched and `global_name` is ignored. And not being in
+ * the server at all: searching the guild rather than looking the account up
+ * globally turns that into "we can't find you", which is what gets somebody to
+ * scan the QR code on the same card.
  *
- * - Typing the *display name* instead of the username. Discord shows the
- *   display name everywhere and the username almost nowhere, so this is the
- *   default mistake, not an unusual one. Only `user.username` is ever matched —
- *   `global_name` is deliberately ignored, and the join page shows a screenshot
- *   of where to find the right one.
- * - Not being in the server at all. Searching the guild rather than looking the
- *   account up globally means "not in the club Discord yet" comes back as "we
- *   can't find you", which is the answer that gets someone to scan the QR code
- *   on the same card.
- *
- * REST rather than a gateway connection, and so no `discord.js`: a websocket
- * that stays open, resumes, and reconnects is a large amount of machinery for
- * one lookup that happens a few times a day, and it would have to be held open
- * by every API instance.
+ * REST rather than a gateway connection, so no `discord.js`: a socket that stays
+ * open, resumes and reconnects is a lot of machinery for one lookup a few times a
+ * day, held open by every API instance.
  */
 
 export type DiscordCheck =
   /** The handle is a member of the club's server. `username` is Discord's own
-      spelling of it, `id` the account's snowflake — the handle is what a person
-      can change, the id is what the bot addresses a message to — and `roles`
-      the snowflakes they carry in the guild, which is what decides whether a
-      signup lands as an officer.
+      spelling, `id` the snowflake the bot addresses a message to, `roles` what
+      they carry in the guild — which decides whether a signup lands as an officer.
 
-      `roles` is required rather than optional, and that is deliberate: an
-      optional field lets a caller conflate "holds no roles" with "was never
-      asked", which is the exact distinction the rest of this file is built
-      around. It costs nothing to fill — the search already returns it. */
+      `roles` is required rather than optional so a caller can't conflate "holds no
+      roles" with "was never asked". It costs nothing; the search already returns it. */
   | { status: 'connected'; username: string; id: string; roles: string[] }
   /** Discord answered, and nobody in the guild has that username. */
   | { status: 'not_found' }
   /** No bot configured. Nothing was asked, so nothing is known. */
   | { status: 'unchecked' }
-  /** Discord could not be reached, or refused. Different from `not_found`:
-      the handle may be perfectly good and it would be wrong to say otherwise. */
+  /** Discord couldn't be reached, or refused. Different from `not_found`: the
+      handle may be perfectly good and it would be wrong to say otherwise. */
   | { status: 'unavailable' }
 
 const bot =
@@ -59,13 +47,12 @@ const bot =
 export const discordConfigured = bot !== null
 
 /**
- * The role that makes somebody an officer, or null if the club has not handed
- * that decision to Discord.
+ * The role that makes somebody an officer, or null if the club hasn't handed that
+ * decision to Discord.
  *
- * A module constant rather than a read of `env` at the call site, and that is
- * about testability as much as tidiness: `env` is parsed once at import, so
- * stubbing the variable afterwards does nothing, while this is something the
- * suites' `vi.mock(… importOriginal)` can override like any other export.
+ * A module constant rather than a read of `env` at the call site, for testability:
+ * `env` is parsed once at import, so stubbing the variable afterwards does nothing
+ * while this is something a suite's `vi.mock` can override.
  */
 export const officerRoleId = env.DISCORD_OFFICER_ROLE_ID ?? null
 
@@ -73,17 +60,15 @@ export const officerRoleId = env.DISCORD_OFFICER_ROLE_ID ?? null
 export const officerSyncConfigured = bot !== null && officerRoleId !== null
 
 /**
- * The club's **Officer Alumni** role — who used to run it.
+ * The club's Officer Alumni role — who used to run it.
  *
- * Read in the same direction as `officerRoleId` and for the same reason: the
- * club keeps this list in Discord and has done for years, so the site follows
- * rather than asking anybody to maintain it twice. It lands in
- * `User.officerAlumnus`; `discordAlumni.ts` is the sweep.
+ * Read in the same direction as `officerRoleId` and for the same reason: the club
+ * has kept this list in Discord for years, so the site follows rather than asking
+ * anybody to maintain it twice. It lands in `User.officerAlumnus`.
  *
- * **Never put this in `clubRoles()`.** It is read-only here, it sits *below*
- * the bot in the hierarchy — so unlike the Officers role, nothing stops the bot
- * writing it — and the moment `discordRoles.ts` counted it as managed, the
- * first sweep would take it off everybody, because the site never asks anyone
+ * Never put this in `clubRoles()`. It's read-only, it sits below the bot in the
+ * hierarchy so nothing at Discord's end would refuse, and the first sweep that
+ * counted it as managed would take it off everybody — the site never asks anyone
  * to carry it.
  */
 export const officerAlumniRoleId =
@@ -94,12 +79,11 @@ export const alumniSyncConfigured =
   bot !== null && officerAlumniRoleId !== null
 
 /**
- * The three roles that go the other way — the site decides them and writes
- * them into the guild. Module constants for the same reason `officerRoleId`
- * is one: `env` is parsed at import, so this is what a suite can override.
+ * The three roles that go the other way — the site decides them and writes them
+ * into the guild. Module constants for the reason `officerRoleId` is one.
  *
- * Null each means "never read, never written". There is deliberately no
- * combined switch: a club turning this on wants to do it one role at a time.
+ * Null each means "never read, never written". Deliberately no combined switch: a
+ * club turning this on wants to do it one role at a time.
  */
 export const memberRoleId = env.DISCORD_MEMBER_ROLE_ID ?? null
 export const projectLeadRoleId = env.DISCORD_PROJECT_LEAD_ROLE_ID ?? null
@@ -107,20 +91,18 @@ export const teamLeadRoleId = env.DISCORD_TEAM_LEAD_ROLE_ID ?? null
 
 /**
  * The channel the lab sign lives in — a message the bot keeps up to date and a
- * name it keeps in step with it. A module constant for the same reason as the
- * four above: `env` is parsed at import, so this is what a suite can override.
+ * name it keeps in step with it. A module constant for the reason the four above
+ * are.
  */
 export const labChannelId = env.DISCORD_LAB_CHANNEL_ID ?? null
 
-/** Whether anything about the lab is pushed at all: needs the bot *and* the
-    channel. Logged at startup, because unpushed looks exactly like pushed from
-    inside the site. */
+/** Whether anything about the lab is pushed at all: needs the bot and the channel.
+    Logged at startup, because unpushed looks exactly like pushed from inside. */
 export const labChannelConfigured = bot !== null && labChannelId !== null
 
 /**
- * A message id to adopt as the sign, on a row that has never pushed one. Only
- * a seed — see the setting's comment in `env.ts`. Module constant for the same
- * reason as everything above it: `env` is parsed at import.
+ * A message id to adopt as the sign, on a row that has never pushed one. Only a
+ * seed — see the setting's comment in `env.ts`.
  */
 export const labMessageId = env.DISCORD_LAB_MESSAGE_ID ?? null
 
@@ -128,15 +110,13 @@ export const labMessageId = env.DISCORD_LAB_MESSAGE_ID ?? null
  * The application's Ed25519 public key, as Discord's own hex.
  *
  * Held as a `KeyObject` rather than the string, so the import happens once at
- * startup rather than on every press — and so a key this Node build will not
- * take is a line in the log at boot instead of a refusal three weeks later that
- * looks like an endpoint URL nobody saved. Null means unset or unusable, and
- * they behave identically: nothing is believed and no buttons are attached.
+ * startup and a key this Node build won't take is a line in the log at boot
+ * instead of a refusal three weeks later. Null means unset or unusable, and both
+ * behave identically: nothing is believed and no buttons are attached.
  *
- * **A key of the right shape is not a key that will verify anything.** Any 32
- * bytes import cleanly, so pasting some *other* application's public key here
- * gets a working endpoint that silently refuses every delivery. `discord.test.ts`
- * has the case; there is nothing this can check to catch it.
+ * A key of the right shape is not a key that will verify anything. Any 32 bytes
+ * import cleanly, so pasting another application's public key gets a working
+ * endpoint that silently refuses every delivery. Nothing here can catch it.
  */
 export const interactionKey = (() => {
   if (!env.DISCORD_PUBLIC_KEY) return null
@@ -147,10 +127,9 @@ export const interactionKey = (() => {
       key: {
         kty: 'OKP',
         crv: 'Ed25519',
-        // Discord publishes the raw 32 bytes as hex; a JWK wants them
-        // base64url. Node has no "raw Ed25519" import, and wrapping them in an
-        // SPKI prefix by hand is the same conversion with a magic byte string
-        // in front of it.
+        // Discord publishes the raw 32 bytes as hex; a JWK wants base64url. Node
+        // has no raw Ed25519 import, and an SPKI prefix by hand is the same
+        // conversion with a magic byte string in front.
         x: Buffer.from(env.DISCORD_PUBLIC_KEY, 'hex').toString('base64url'),
       },
     })
@@ -163,34 +142,32 @@ export const interactionKey = (() => {
   }
 })()
 
-/** Whether a button press can be *believed* — the key half. Not the same
-    question as whether one will ever arrive; see `buttonsLive` below. */
+/** Whether a button press can be believed — the key half. Not the same question as
+    whether one will ever arrive; see `buttonsLive`. */
 export const interactionsConfigured = bot !== null && interactionKey !== null
 
 /**
- * Whether a press would reach this process right now, and by which of the two
- * roads.
+ * Whether a press would reach this process right now, and by which road.
  *
- * **A bot is told about a button press in exactly two ways and there is no
- * third**, so this is two flags rather than one:
+ * A bot is told about a press in exactly two ways and there is no third, so this is
+ * two flags:
  *
- *   - **The gateway** — a WebSocket held open by `src/discord/discordGateway.ts`. Needs
- *     no public address and no key; the connection is authenticated once, at
- *     IDENTIFY, by the bot token this file already has. It is how the club runs.
- *   - **An HTTP interactions endpoint** — Discord POSTs to a public HTTPS URL
- *     registered on the application, and every delivery is signature-checked
- *     against `DISCORD_PUBLIC_KEY`. For the day the API is on a real domain.
+ *   - The gateway — a WebSocket held open by `discordGateway.ts`. Needs no public
+ *     address and no key; authenticated once at IDENTIFY by the bot token. It's how
+ *     the club runs.
+ *   - An HTTP interactions endpoint — Discord POSTs to a public HTTPS URL on the
+ *     application, signature-checked against `DISCORD_PUBLIC_KEY`. For the day the
+ *     API is on a real domain.
  *
- * Both start false and are only ever turned on by something that has confirmed
- * itself, which is the safe direction: **a button whose press goes nowhere
- * answers "This interaction failed" in front of the whole club**, which is
- * worse than a sign with no button on it.
+ * Both start false and are only turned on by something that has confirmed itself: a
+ * button whose press goes nowhere answers "This interaction failed" in front of the
+ * whole club, which is worse than a sign with no button.
  */
 let gatewayLive = false
 let endpointLive = false
 
-/** Set by the gateway as it connects and drops. Not exported as a value,
-    because the whole point is that it changes. */
+/** Set by the gateway as it connects and drops. Not exported as a value, because
+    the whole point is that it changes. */
 export const setGatewayConnected = (connected: boolean): void => {
   gatewayLive = connected
 }
@@ -200,9 +177,9 @@ export const gatewayConnected = (): boolean => gatewayLive
 /**
  * Whether to put buttons on anything.
  *
- * A function rather than a constant, unlike the settings above it, because this
- * one genuinely is not known at import — it takes a connection or a round trip
- * to find out. `labButtons` is the only caller.
+ * A function rather than a constant because this one genuinely isn't known at
+ * import — it takes a connection or a round trip to find out. `labButtons` is the
+ * only caller.
  */
 export const buttonsLive = (): boolean =>
   discordConfigured && (gatewayLive || (interactionsConfigured && endpointLive))
@@ -211,10 +188,9 @@ export type EndpointCheck =
   /** An endpoint URL is registered and the key checks out. Discord will POST
       presses there, and the gateway must stay shut. */
   | { status: 'live'; url: string }
-  /** An endpoint URL is registered and this server could not use a delivery to
-      it — no `DISCORD_PUBLIC_KEY`, or the wrong one. **The worst state of the
-      four**: presses go to that URL and are refused, and the gateway is told
-      nothing, so nothing works and nothing says why. */
+  /** An endpoint URL is registered and this server couldn't use a delivery to it —
+      no `DISCORD_PUBLIC_KEY`, or the wrong one. The worst of the four: presses go
+      there and are refused, the gateway is told nothing, and nothing says why. */
   | { status: 'endpoint_unusable'; url: string; reason: string }
   /** No endpoint URL. Nothing is POSTed anywhere, so the gateway is the road. */
   | { status: 'no_endpoint' }
@@ -224,19 +200,16 @@ export type EndpointCheck =
   | { status: 'unavailable'; reason: string }
 
 /**
- * Ask Discord, once at startup, whether this application has an HTTP
- * interactions endpoint — which decides which of the two roads is open.
+ * Ask Discord, once at startup, whether this application has an HTTP interactions
+ * endpoint — which decides which of the two roads is open.
  *
- * **An application with an endpoint URL has every interaction POSTed there and
- * its gateway told nothing.** So this is not a preference to be configured on
- * our side; it is a fact about the application that has to be read off Discord
- * before deciding whether to hold a socket open.
+ * An application with an endpoint URL has every interaction POSTed there and its
+ * gateway told nothing, so this isn't a preference to configure on our side; it's a
+ * fact to read off Discord before deciding whether to hold a socket open.
  *
  * The application object also carries `verify_key`, the same 64 hex characters
- * `DISCORD_PUBLIC_KEY` is meant to hold — so this doubles as the one check that
- * catches **another application's public key**. It is the right length, it
- * imports cleanly, and the only symptom is an endpoint that refuses every
- * delivery.
+ * `DISCORD_PUBLIC_KEY` should hold — so this doubles as the one check that catches
+ * another application's public key.
  */
 export async function confirmInteractionEndpoint(): Promise<EndpointCheck> {
   if (!bot) return { status: 'unchecked' }
@@ -294,13 +267,11 @@ export async function confirmInteractionEndpoint(): Promise<EndpointCheck> {
  * Answer an interaction that arrived over the gateway.
  *
  * The HTTP route replies in its own response body; a press delivered down the
- * socket has no response to write into, so the answer goes back as a REST call
- * against the interaction's own id and token. Three seconds, same as the other
- * road.
+ * socket has none, so the answer goes back as a REST call against the interaction's
+ * id and token. Three seconds, same as the other road.
  *
- * **No Authorization header**, deliberately: an interaction token is its own
- * credential, and sending the bot token alongside it is what makes Discord
- * answer 401.
+ * No Authorization header, deliberately: an interaction token is its own credential
+ * and sending the bot token alongside it is what makes Discord answer 401.
  */
 export async function respondToInteraction(
   interactionId: string,
@@ -332,21 +303,20 @@ export async function respondToInteraction(
 export const roleSyncDryRun = env.DISCORD_ROLE_SYNC_DRY_RUN
 
 /**
- * Discord usernames under the current scheme: 2–32 characters of lowercase
- * letters, digits, underscore and full stop. The old `Name#1234` discriminator
- * is gone, and so are capitals — Discord lowercases on the way in, which is why
- * `normaliseHandle` can too without losing anything.
+ * Discord usernames under the current scheme: 2-32 characters of lowercase letters,
+ * digits, underscore and full stop. The old `Name#1234` discriminator is gone, and
+ * so are capitals — Discord lowercases on the way in, which is why
+ * `normaliseHandle` can too.
  */
 const HANDLE = /^[a-z0-9._]{2,32}$/
 
 /**
- * What someone types is not what Discord stores.
+ * What somebody types is not what Discord stores.
  *
- * The `@` comes from the UI showing handles as `@someone`, and the capitals come
- * from people typing their name the way they think of it. Both are removed
- * rather than rejected: refusing `@PhiBiscool` when `phibiscool` is right would
- * be a validation error about punctuation, and the person on the other end has
- * no way to know that is what it meant.
+ * The `@` comes from the UI showing handles as `@someone`, the capitals from people
+ * typing their name the way they think of it. Both are removed rather than
+ * rejected: refusing `@PhiBiscool` when `phibiscool` is right would be a validation
+ * error about punctuation, and the person has no way to know that's what it meant.
  */
 export function normaliseHandle(input: string): string {
   return input.trim().replace(/^@+/, '').toLowerCase()
@@ -359,10 +329,8 @@ export function isHandleShaped(handle: string): boolean {
 interface GuildMember {
   user?: { id?: string; username?: string }
   /**
-   * The role snowflakes this member carries in the guild. Discord has always
-   * sent these and nothing here read them until officers started being
-   * appointed by role. Optional because this is somebody else's JSON, not
-   * because it is ever legitimately absent.
+   * The role snowflakes this member carries. Optional because this is somebody
+   * else's JSON, not because it's ever legitimately absent.
    */
   roles?: string[]
 }
@@ -376,15 +344,14 @@ const HEADERS = {
 /**
  * One call to Discord, with the deadline every one of them needs.
  *
- * Somebody else's service, on the request path of a form. Five seconds is
- * already longer than anyone will sit still for, and without a deadline a hung
- * connection holds the request open until the proxy gives up on it.
+ * Somebody else's service on the request path of a form. Five seconds is already
+ * longer than anyone will sit still for, and without a deadline a hung connection
+ * holds the request open until the proxy gives up.
  *
  * `reason` becomes `X-Audit-Log-Reason`, which is what an officer reading the
- * guild's audit log sees beside the change. Worth the parameter: a bot that
- * removes somebody's role and gives no reason is a bot the club turns off.
- * Discord caps the header at 512 characters and it must be URI-encoded, since
- * a project title can carry anything a lead typed.
+ * guild's audit log sees beside the change — a bot that removes somebody's role and
+ * gives no reason is a bot the club turns off. Discord caps it at 512 characters
+ * and it must be URI-encoded, since a project title can carry anything.
  */
 async function call(
   path: string,
@@ -417,8 +384,8 @@ async function call(
  * Look a handle up in the club's guild.
  *
  * The search endpoint matches on a prefix and across both username and display
- * name, so it is a way to narrow the guild down — not an answer. The answer is
- * the exact comparison below.
+ * name, so it narrows the guild down rather than answering. The answer is the exact
+ * comparison below.
  */
 export async function checkDiscordHandle(
   handle: string,
@@ -430,8 +397,8 @@ export async function checkDiscordHandle(
 
   const search = new URLSearchParams({
     query,
-    // A prefix search on a 32-character exact string cannot sensibly return
-    // more than a handful, and only an exact match counts anyway.
+    // A prefix search on a 32-character exact string can't sensibly return more
+    // than a handful, and only an exact match counts anyway.
     limit: '10',
   })
 
@@ -442,10 +409,10 @@ export async function checkDiscordHandle(
   if (!response) return { status: 'unavailable' }
 
   if (!response.ok) {
-    // 401 is a bad token, 403 is the Server Members Intent switched off or the
-    // bot not being in the guild, 429 is the rate limit. None of them are a
-    // statement about the handle, so none of them may come back as `not_found`
-    // — that would tell someone their correct username is wrong.
+    // 401 is a bad token, 403 is the Server Members Intent off or the bot not being
+    // in the guild, 429 is the rate limit. None is a statement about the handle, so
+    // none may come back as `not_found` — that tells somebody their correct
+    // username is wrong.
     console.error(
       `discord: member search returned ${response.status} ${response.statusText}`,
     )
@@ -478,15 +445,13 @@ export async function checkDiscordHandle(
 /**
  * Everyone in the guild carrying one role.
  *
- * `ok` with an empty set and `unavailable` are different answers, and the
- * caller must be able to tell them apart: one of them means the board resigned
- * and the other means we could not ask. Acting on the second would stand the
- * club's officers down because Discord had a bad minute.
+ * `ok` with an empty set and `unavailable` are different answers and the caller must
+ * tell them apart: one means the board resigned, the other means we couldn't ask.
+ * Acting on the second would stand the club's officers down over a bad minute.
  *
- * There is no "list members with role X" endpoint, so this is the whole guild,
- * paginated. Any page that comes back wrong aborts the entire walk — half a
- * member list is indistinguishable from a guild where half the board lost its
- * role, and the second of those is a thing this would act on.
+ * There's no "list members with role X" endpoint, so this is the whole guild,
+ * paginated. Any page that comes back wrong aborts the walk — half a member list is
+ * indistinguishable from half the board losing its role.
  */
 export type RoleRoster =
   | {
@@ -494,7 +459,7 @@ export type RoleRoster =
       /** Snowflakes of everyone carrying the role. */
       ids: Set<string>
       /** Their handles, lowercased, mapped to the same snowflake — so a member
-          matched by handle can have `discordId` backfilled from the match. */
+          matched by handle can have `discordId` backfilled. */
       byHandle: Map<string, string>
     }
   /** No bot configured. Nothing was asked, so nothing is known. */
@@ -508,26 +473,24 @@ export type RoleRoster =
 export const MEMBER_PAGE_LIMIT = 1_000
 
 /**
- * Ten full pages is ten thousand members. A guild that large is not this
- * club's, so reaching the cap means the cursor is not advancing — and a
- * silently truncated list is exactly the input that would demote people. An
- * outage is the safer answer.
+ * Ten full pages is ten thousand members. A guild that large isn't this club's, so
+ * reaching the cap means the cursor isn't advancing — and a silently truncated list
+ * is exactly the input that would demote people. An outage is the safer answer.
  */
 const MAX_PAGES = 10
 
 /**
  * The whole guild, once: who is in it and what each of them carries.
  *
- * `membersWithRole` below used to do this walk and throw away everything but
- * one role. Pushing roles *out* needs every matched member's full set, and
- * both syncs run on the same ten-minute tick, so the walk is done once here
- * and filtered by whoever asked.
+ * `membersWithRole` used to do this walk and throw away everything but one role.
+ * Pushing roles out needs every matched member's full set, and both syncs run on the
+ * same ten-minute tick, so the walk happens once here and is filtered by whoever asked.
  */
 export interface GuildRoster {
   /** Snowflake → the role snowflakes they carry. */
   byId: Map<string, string[]>
-  /** Lowercased handle → snowflake, so a row with only a handle can be matched
-      and have `discordId` backfilled from it. */
+  /** Lowercased handle -> snowflake, so a row with only a handle can be matched and
+      have `discordId` backfilled from it. */
   idByHandle: Map<string, string>
 }
 
@@ -554,9 +517,9 @@ export async function guildRoster(): Promise<GuildRosterResult> {
     if (!response) return { status: 'unavailable', reason: 'network' }
 
     if (!response.ok) {
-      // 403 is the Server Members Intent switched off — the same one the handle
-      // search needs, so this adds no new setup step. 429 is the rate limit.
-      // None of them is a statement about who holds the role.
+      // 403 is the Server Members Intent off — the same one the handle search needs,
+      // so this adds no setup step. 429 is the rate limit. Neither is a statement
+      // about who holds the role.
       console.error(
         `discord: member list returned ${response.status} ${response.statusText}`,
       )
@@ -577,18 +540,17 @@ export async function guildRoster(): Promise<GuildRosterResult> {
 
     for (const member of members) {
       const id = member.user?.id
-      // The cursor is the highest id seen. Discord returns members sorted by id
-      // ascending and offers no other end-of-list signal.
+      // The cursor is the highest id seen; Discord sorts members by id ascending and
+      // offers no other end-of-list signal.
       //
-      // **Compared as a number, and it has to be.** Snowflakes are 17 to 19
-      // digits, so a string comparison ranks a 17-digit id beginning `9` above
-      // an 18-digit one beginning `7` — which sends the cursor *backwards*,
-      // re-fetches a page already seen, and walks the guild until it runs out
-      // of pages and reports itself unavailable. This club's guild is 2,600
-      // members and three pages; with the string compare it never finished one
-      // walk. `BigInt` rather than `Number` because a snowflake is past
-      // `MAX_SAFE_INTEGER` and the loss lands in the low bits, which is the
-      // half that distinguishes two accounts made the same second.
+      // Compared as a number, and it has to be. Snowflakes are 17 to 19 digits, so a
+      // string comparison ranks a 17-digit id beginning `9` above an 18-digit one
+      // beginning `7` — which sends the cursor backwards, re-fetches a page already
+      // seen, and walks until it reports itself unavailable. This guild is 2,600
+      // members and three pages; with the string compare it never finished a walk.
+      // `BigInt` rather than `Number` because a snowflake is past `MAX_SAFE_INTEGER`
+      // and the loss lands in the low bits, which is what distinguishes two accounts
+      // made the same second.
       if (id && BigInt(id) > BigInt(after)) after = id
       if (!id) continue
       byId.set(id, member.roles ?? [])
@@ -602,8 +564,8 @@ export async function guildRoster(): Promise<GuildRosterResult> {
       return { status: 'ok', roster: { byId, idByHandle } }
     }
 
-    // Discord's per-route budget is generous, and a burst of full-guild reads
-    // is the shape it throttles.
+    // Discord's per-route budget is generous, and a burst of full-guild reads is the
+    // shape it throttles.
     await new Promise((resolve) => setTimeout(resolve, 300))
   }
 
@@ -633,14 +595,13 @@ export async function membersWithRole(roleId: string): Promise<RoleRoster> {
 /**
  * One member's roles, without walking the guild.
  *
- * `guildRoster` is three pages and two seconds against a guild this size, which
- * is the right cost once every ten minutes and the wrong one when a single
- * person has just paid their dues — and deleting a project would pay it once
- * per member on the roster. This is the one-call version.
+ * `guildRoster` is three pages and two seconds, which is the right cost every ten
+ * minutes and the wrong one when a single person has just paid their dues — and
+ * deleting a project would pay it once per member. This is the one-call version.
  *
- * `not_found` is its own answer rather than an empty role list: somebody who
- * has left the guild carries no roles and neither does somebody who simply has
- * none, and only one of those is a reason to stop.
+ * `not_found` is its own answer rather than an empty role list: somebody who has
+ * left the guild carries no roles and neither does somebody who has none, and only
+ * one of those is a reason to stop.
  */
 export type MemberRoles =
   | { status: 'ok'; roles: string[] }
@@ -673,14 +634,13 @@ export async function guildMemberRoles(userId: string): Promise<MemberRoles> {
 }
 
 /**
- * Every role in the guild, id → name.
+ * Every role in the guild, id -> name.
  *
- * One cheap call, and the only thing on this server that can catch a mistyped
- * role snowflake. A wrong id is not an error at Discord's API — it appears in
- * nobody's `roles` array and matches no one, for ever — so a typo, a deleted
- * role and a genuinely empty role are byte-identical everywhere else. The
- * project form checks a pasted id against this before saving it, and the sweep
- * warns about any configured id that is not in here.
+ * One cheap call, and the only thing here that can catch a mistyped role snowflake.
+ * A wrong id is not an error at Discord's API — it appears in nobody's `roles` array
+ * for ever — so a typo, a deleted role and a genuinely empty role are identical
+ * everywhere else. The project form checks a pasted id against this, and the sweep
+ * warns about any configured id missing from it.
  */
 export async function guildRoles(): Promise<
   { status: 'ok'; roles: Map<string, string> } | { status: 'unchecked' } | { status: 'unavailable'; reason: string }
@@ -719,13 +679,11 @@ export async function guildRoles(): Promise<
 /**
  * What became of a role the bot tried to add or take away.
  *
- * `refused` and `unavailable` split the same way `DiscordDelivery` splits them,
- * and here the distinction decides whether anything retries. A member who has
- * left the guild is a 404 and will be one for ever; the bot's role sitting
- * below the target is a 403 and no amount of waiting fixes it. Both are
- * `refused`, and the reconciler will try them again on the next sweep anyway —
- * what `refused` buys is a log line that says which of the two it was, because
- * the second is a configuration problem somebody has to go and correct.
+ * `refused` and `unavailable` split the way `DiscordDelivery` splits them, and here
+ * the distinction decides whether anything retries. A member who has left is a 404
+ * for ever; the bot's role sitting below the target is a 403 no waiting fixes. Both
+ * are `refused`, and the reconciler retries either on the next sweep anyway — what
+ * `refused` buys is a log line saying which, because the second needs a person.
  */
 export type RoleWrite =
   | { status: 'done' }
@@ -734,10 +692,10 @@ export type RoleWrite =
   | { status: 'unchecked' }
 
 /**
- * Discord throttles role writes per guild, and this is the first thing here
- * that makes a burst of them. One retry rather than a loop: the reconciler
- * runs again in ten minutes, so giving up costs nothing but a delay, while a
- * loop turns one bad minute into a stuck sweep.
+ * Discord throttles role writes per guild, and this is the first thing here that
+ * makes a burst of them. One retry rather than a loop: the reconciler runs again in
+ * ten minutes, so giving up costs a delay, while a loop turns one bad minute into a
+ * stuck sweep.
  */
 async function roleWrite(
   method: 'PUT' | 'DELETE',
@@ -753,9 +711,9 @@ async function roleWrite(
 
   if (!response) return { status: 'unavailable', reason: 'network' }
 
-  // 204 is the documented success. Discord answers 204 for a role somebody
-  // already has and for one they never had, so both directions are idempotent
-  // and the sync can be safely wrong about what is held.
+  // 204 is the documented success. Discord answers 204 for a role somebody already
+  // has and for one they never had, so both directions are idempotent and the sync
+  // can be safely wrong about what is held.
   if (response.status === 204) return { status: 'done' }
 
   if (response.status === 429 && !retried) {
@@ -776,9 +734,9 @@ async function roleWrite(
 
   const detail = `${method} role ${roleId}: ${response.status} ${response.statusText}`
 
-  // 404 is a member who is not in the guild — ordinary, and permanent until
-  // they rejoin. 403 is the bot's own role sitting at or below the target, or
-  // Manage Roles missing, and it needs a person.
+  // 404 is a member not in the guild — ordinary, and permanent until they rejoin.
+  // 403 is the bot's own role sitting at or below the target, or Manage Roles
+  // missing, and it needs a person.
   if (response.status === 403) {
     console.error(
       `discord roles: refused ${detail} — check the bot has Manage Roles and its role sits above this one`,
@@ -810,13 +768,11 @@ export function removeGuildRole(
 /**
  * What became of a message the bot tried to send.
  *
- * `refused` and `unavailable` are split for the same reason `not_found` and
- * `unavailable` are split above: one is Discord answering, the other is Discord
- * not answering. A member whose privacy settings decline messages from server
- * members refuses for ever and there is nothing to retry; a 500 or a timeout
- * says nothing at all. Neither sweep retries either way — both claim before
- * they send — but the log has to be able to tell an officer which of the two
- * happened.
+ * `refused` and `unavailable` split for the reason `not_found` and `unavailable` do
+ * above: one is Discord answering, the other is Discord not answering. A member
+ * whose privacy settings decline messages refuses for ever; a 500 or a timeout says
+ * nothing. Neither sweep retries either — both claim before they send — but the log
+ * has to tell an officer which happened.
  */
 export type DiscordDelivery =
   | { status: 'sent' }
@@ -827,15 +783,13 @@ export type DiscordDelivery =
 /**
  * Send somebody a direct message.
  *
- * Two calls, because a bot has no standing channel with anyone: the first opens
- * (or re-opens) the DM channel, the second posts into it. Opening one is
- * idempotent — Discord hands back the existing channel — so this is safe to
- * call for someone who has been messaged before.
+ * Two calls, because a bot has no standing channel with anyone: the first opens (or
+ * re-opens) the DM channel, the second posts into it. Opening is idempotent, so this
+ * is safe for somebody messaged before.
  *
- * It can only work at all for a member of a guild the bot is in, which is
- * exactly who this is ever used for. A member who has switched off direct
- * messages from server members is a 403 and stays one; that is their setting,
- * not a fault to work around.
+ * It can only work for a member of a guild the bot is in, which is exactly who this
+ * is used for. Someone who has switched off DMs from server members is a 403 and
+ * stays one; that's their setting, not a fault to work around.
  */
 export async function sendDirectMessage(
   discordUserId: string,
@@ -852,8 +806,8 @@ export async function sendDirectMessage(
 
   if (!channel.ok) {
     const reason = `open DM channel: ${channel.status} ${channel.statusText}`
-    // 403 here is the recipient's privacy settings; 404 is an account that no
-    // longer exists. Neither will ever start working.
+    // 403 here is the recipient's privacy settings; 404 is an account that no longer
+    // exists. Neither will ever start working.
     return channel.status === 403 || channel.status === 404
       ? { status: 'refused', reason }
       : { status: 'unavailable', reason }
@@ -889,43 +843,37 @@ export async function sendDirectMessage(
 }
 
 /**
- * Posting into a channel, reading it back, editing what was posted, and
- * renaming the channel — the calls the lab sign is made of. See
- * `src/lab/labStatus.ts` for what drives them.
+ * Posting into a channel, reading it back, editing what was posted, and renaming the
+ * channel — the calls the lab sign is made of. See `src/lab/labStatus.ts`.
  *
- * These are the first things here that write into a channel rather than to a
- * person, and the permissions differ: posting and editing need **Send
- * Messages** in that channel, looking the channel over needs **Read Message
- * History**, and the name needs **Manage Channels**. Half-granted is the state
- * worth being able to read in a log, because it puts an OPEN message under a
- * name that still says closed — so each refusal below says which permission it
- * was.
+ * These write into a channel rather than to a person, and the permissions differ:
+ * posting and editing need Send Messages, looking the channel over needs Read
+ * Message History, the name needs Manage Channels. Half-granted is the state worth
+ * reading in a log, because it puts an OPEN message under a name that still says
+ * closed — so each refusal says which permission it was.
  */
 
 /**
  * A row of components under a message — the lab sign's one button.
  *
- * Typed as loosely as this on purpose. Discord's component tree is a tagged
- * union eleven variants deep and this file uses exactly one shape of it; a
- * faithful type would be forty lines of definitions that nothing here reads
- * back. What builds them is `labButtons` in `src/lab/labStatus.ts`, which is the
- * one place that knows what a lab button is.
+ * Typed this loosely on purpose. Discord's component tree is a tagged union eleven
+ * variants deep and this file uses one shape of it; a faithful type would be forty
+ * lines nothing here reads back. `labButtons` is the one place that knows what a lab
+ * button is.
  */
 export type MessageComponents = readonly Record<string, unknown>[]
 
 /**
- * Which mentions in the body are allowed to *be* mentions.
+ * Which mentions in the body are allowed to be mentions.
  *
- * Always sent, and always as a closed list. Left off entirely, Discord parses
- * whatever it finds in the content — so a bot that posts anything containing
- * `@everyone`, from any source, eventually pings a guild of two and a half
- * thousand people. `parse: []` refuses the lot; `roles` re-admits exactly the
- * ones the caller named, and nothing else.
+ * Always sent, always a closed list. Left off, Discord parses whatever it finds — so
+ * a bot posting anything containing `@everyone`, from any source, eventually pings a
+ * guild of two and a half thousand. `parse: []` refuses the lot; `roles` re-admits
+ * exactly the ones the caller named.
  *
- * **Mentioning a role the guild has not marked "allow anyone to @mention this
- * role" needs the bot to hold Mention Everyone.** Without it the mention still
- * renders — as plain grey text, not a ping — which is the failure worth knowing
- * about in advance, because it looks like it worked.
+ * Mentioning a role the guild hasn't marked mentionable needs the bot to hold Mention
+ * Everyone. Without it the mention still renders — as plain grey text, not a ping —
+ * which is worth knowing in advance, because it looks like it worked.
  */
 const allowedMentions = (roleIds: string[]) => ({
   parse: [] as string[],
@@ -933,8 +881,8 @@ const allowedMentions = (roleIds: string[]) => ({
 })
 
 export type ChannelPost =
-  /** `messageId` so the next flip can edit this message instead of posting a
-      second one. */
+  /** `messageId` so the next flip can edit this message instead of posting a second
+      one. */
   | { status: 'sent'; messageId: string }
   | { status: 'refused'; reason: string }
   | { status: 'unavailable'; reason: string }
@@ -944,8 +892,8 @@ export async function postChannelMessage(
   channelId: string,
   content: string,
   options: {
-    /** Roles this message may ping. Empty by default, which is the only safe
-        default for a bot posting into a channel the whole club can see. */
+    /** Roles this message may ping. Empty by default, the only safe default for a bot
+        posting into a channel the whole club can see. */
     mentionRoles?: string[]
     /** Buttons to hang under it. See `MessageComponents`. */
     components?: MessageComponents
@@ -967,9 +915,8 @@ export async function postChannelMessage(
   if (!response.ok) {
     const reason = `post to channel: ${response.status} ${response.statusText}`
 
-    // 403 is Send Messages missing in that channel and 404 is a channel id
-    // that names nothing the bot can see. Both need a person, and neither
-    // starts working on its own.
+    // 403 is Send Messages missing in that channel, 404 a channel id naming nothing
+    // the bot can see. Both need a person and neither starts working on its own.
     if (response.status === 403 || response.status === 404) {
       console.error(
         `discord lab: refused ${reason} — check the bot can see channel ${channelId} and has Send Messages in it`,
@@ -992,31 +939,29 @@ export async function postChannelMessage(
 
 export type ChannelEdit =
   | { status: 'sent' }
-  /** The message is not there any more — deleted, or left behind in a channel
-      this is no longer pointed at. Its own answer rather than a `refused`,
-      because it is the one failure with an obvious remedy: post a new one. */
+  /** The message isn't there any more — deleted, or left in a channel this is no
+      longer pointed at. Its own answer rather than a `refused`, because it's the one
+      failure with an obvious remedy: post a new one. */
   | { status: 'gone' }
   | { status: 'refused'; reason: string }
   | { status: 'unavailable'; reason: string }
   | { status: 'unchecked' }
 
 /**
- * **An edit never notifies anybody.** Discord sends no push, no unread badge
- * and no ping for a message that changes, however the content changes — which
- * is the property the lab sign is built around rather than one it works around,
- * and the reason `mentionRoles` is not a parameter here. A role mention edited
- * *into* a message renders as a mention and reaches nobody, so offering the
- * option would only be a way to believe a ping had gone out. Anything that has
- * to notify is a new message.
+ * An edit never notifies anybody. Discord sends no push, no unread badge and no ping
+ * for a message that changes, however it changes — which is the property the lab sign
+ * is built around, and the reason `mentionRoles` isn't a parameter here. A role
+ * mention edited into a message renders as a mention and reaches nobody, so offering
+ * the option would only be a way to believe a ping had gone out.
  */
 export async function editChannelMessage(
   channelId: string,
   messageId: string,
   content: string,
   options: {
-    /** Buttons to hang under it. **Sent every time, empty included** — an edit
-        that omits `components` leaves whatever was there, so a sign that has
-        stopped offering buttons would keep the last pair it had. */
+    /** Buttons to hang under it. Sent every time, empty included — an edit that omits
+        `components` leaves whatever was there, so a sign that has stopped offering
+        buttons would keep the last pair it had. */
     components?: MessageComponents
   } = {},
 ): Promise<ChannelEdit> {
@@ -1026,9 +971,9 @@ export async function editChannelMessage(
     method: 'PATCH',
     body: JSON.stringify({
       content,
-      // Suppressed, not omitted. Nothing the sign says is meant to ping — an
-      // edit reaches nobody however it reads — so anything that looks like a
-      // mention on its way out renders as flat text rather than as a live one.
+      // Suppressed, not omitted. Nothing the sign says is meant to ping — an edit
+      // reaches nobody however it reads — so anything that looks like a mention
+      // renders as flat text.
       allowed_mentions: allowedMentions([]),
       components: options.components ?? [],
     }),
@@ -1040,11 +985,11 @@ export async function editChannelMessage(
 
   const reason = `edit message: ${response.status} ${response.statusText}`
 
-  // 403 on an edit is not the same 403 as the post above: a bot may only edit
-  // its *own* messages, so this is usually a message id belonging to somebody
-  // else rather than a missing permission. Posting a new one is the way out,
-  // and that is what `gone` means — but say so first, because a stored id
-  // pointing at another account's message will do this on every attempt.
+  // 403 on an edit isn't the same 403 as the post above: a bot may only edit its own
+  // messages, so this is usually a message id belonging to somebody else rather than
+  // a missing permission. Posting a new one is the way out, which is what `gone`
+  // means — but say so first, because a stored id pointing at another account's
+  // message does this on every attempt.
   if (response.status === 403) {
     console.error(
       `discord lab: refused ${reason} — a bot can only edit its own messages, so ${messageId} is not one of ours`,
@@ -1058,16 +1003,14 @@ export async function editChannelMessage(
 export type ChannelRename =
   | { status: 'done' }
   /**
-   * Discord said no, come back later — and for a channel *name* that is
-   * minutes, not seconds.
+   * Discord said no, come back later — and for a channel name that's minutes, not
+   * seconds.
    *
-   * **Two renames per ten minutes, per channel.** It is the tightest limit
-   * anything on this server touches and it is not documented in the response;
-   * you learn it from the `retry_after`. Nothing retries inline on it — five
-   * minutes is not a wait to hold a request open for, and it is not a wait to
-   * hold the process on either. The caller records that the push did not land
-   * and the ten-minute sweep tries again, which is the same window the limit
-   * is measured over.
+   * Two renames per ten minutes, per channel. The tightest limit anything here
+   * touches, and it isn't documented in the response; you learn it from the
+   * `retry_after`. Nothing retries inline — five minutes isn't a wait to hold a
+   * request open for. The caller records that the push didn't land and the
+   * ten-minute sweep tries again, which is the window the limit is measured over.
    */
   | { status: 'throttled'; retryAfterMs: number }
   | { status: 'refused'; reason: string }
@@ -1099,8 +1042,8 @@ export async function renameChannel(
         retryAfterMs = body.retry_after * 1_000
       }
     } catch {
-      // A 429 whose body we cannot read is still a 429, and the default above
-      // is only used for the log line.
+      // A 429 whose body we can't read is still a 429, and the default above is only
+      // used for the log line.
     }
 
     return { status: 'throttled', retryAfterMs }
@@ -1108,8 +1051,8 @@ export async function renameChannel(
 
   const detail = `rename channel: ${response.status} ${response.statusText}`
 
-  // 403 is Manage Channels missing — the common half-setup, since the bot can
-  // already post. 404 is an id naming nothing it can see.
+  // 403 is Manage Channels missing — the common half-setup, since the bot can already
+  // post. 404 is an id naming nothing it can see.
   if (response.status === 403 || response.status === 404) {
     console.error(
       `discord lab: refused ${detail} — check the bot has Manage Channels on channel ${channelId}`,
@@ -1121,18 +1064,16 @@ export async function renameChannel(
 }
 
 /**
- * Who this bot *is*, as a snowflake.
+ * Who this bot is, as a snowflake.
  *
- * Needed for one question and it is the question the whole "only one message"
- * rule rests on: **is the message already in that channel one of ours?** A bot
- * can only edit its own messages, so a sign put there by a person is a 403 on
- * every attempt for ever, and posting a second one beside it is exactly the
- * channel-full-of-open-and-close-messages this is meant to prevent.
+ * Needed for the question the whole "only one message" rule rests on: is the message
+ * already in that channel one of ours? A bot can only edit its own, so a sign put
+ * there by a person is a 403 for ever, and posting a second beside it is exactly the
+ * channel-full-of-signs this prevents.
  *
- * Cached as the promise rather than as the value, so a hundred concurrent
- * pushes make one call rather than a hundred — and dropped on failure, because
- * a cached `null` would mean a single flap at startup left the sign unable to
- * recognise itself until the process restarted.
+ * Cached as the promise rather than the value, so a hundred concurrent pushes make
+ * one call — and dropped on failure, because a cached `null` would mean one flap at
+ * startup left the sign unable to recognise itself until a restart.
  */
 let botUser: Promise<string | null> | null = null
 
@@ -1164,8 +1105,8 @@ export function botUserId(): Promise<string | null> {
   return botUser
 }
 
-/** For the suites, which stub the network at the module boundary and would
-    otherwise inherit whichever answer the previous file got. */
+/** For the suites, which stub the network at the module boundary and would otherwise
+    inherit whichever answer the previous file got. */
 export function forgetBotUser(): void {
   botUser = null
 }
@@ -1173,14 +1114,12 @@ export function forgetBotUser(): void {
 /**
  * One message this bot posted.
  *
- * `content` is what the sign is read back out of — see `reconcileLabStatus`,
- * which decides what the lab is by reading it.
+ * `content` is what the sign is read back out of — see `reconcileLabStatus`.
  *
- * `hasComponents` is there for one specific gap: a club that fills in
- * `DISCORD_PUBLIC_KEY` and restarts has a sign whose *content* is already
- * correct, so nothing would push and no buttons would appear until somebody
- * happened to flip the lab. That reads as the key not working. Carried on the
- * read because it arrives in the same response and costs nothing.
+ * `hasComponents` is for one gap: a club that fills in `DISCORD_PUBLIC_KEY` and
+ * restarts has a sign whose content is already correct, so nothing would push and no
+ * buttons would appear until somebody flipped the lab, which reads as the key not
+ * working. It arrives in the same response and costs nothing.
  */
 export interface BotMessage {
   messageId: string
@@ -1189,9 +1128,9 @@ export interface BotMessage {
 }
 
 export type ChannelMessages =
-  /** Newest first, and never empty — an empty channel is `none`, because the
-      difference between "nothing of ours here" and "I could not look" is the
-      one thing a caller must not have to infer. */
+  /** Newest first, and never empty — an empty channel is `none`, because "nothing of
+      ours here" and "I couldn't look" is the one difference a caller must not have to
+      infer. */
   | { status: 'found'; messages: BotMessage[] }
   | { status: 'none' }
   | { status: 'refused'; reason: string }
@@ -1199,28 +1138,19 @@ export type ChannelMessages =
   | { status: 'unchecked' }
 
 /**
- * Every message in a channel that **this bot** posted, newest first.
+ * Every message in a channel that this bot posted, newest first.
  *
- * Two jobs, and they are both about the same invariant — the lab channel holds
- * exactly one sign:
+ * Two jobs, both about the same invariant — the lab channel holds exactly one sign.
+ * Finding the sign, because a stored id going missing is ordinary: a database
+ * restored from a dump, a row reset by hand, a message somebody deleted. And finding
+ * the strays, because opening the lab posts a new message, so the old one has to go
+ * and so does anything left by a failed delete. `tidyChannel` acts on the rest.
  *
- *   - **Finding the sign.** A stored id going missing is the ordinary case, not
- *     an exotic one: a database restored from a dump, a row reset by hand, a
- *     message somebody deleted. Without this the next push would post a fresh
- *     one and the channel would collect a message per incident.
- *   - **Finding the strays.** Opening the lab posts a *new* message, because a
- *     post is the only thing Discord will notify anybody about — so the old one
- *     has to go, and anything left behind by a failed delete or by an earlier
- *     design has to go with it. `tidyChannel` in `src/lab/labStatus.ts` is what acts
- *     on the rest of this list.
+ * Messages by anyone else are filtered out: a bot can only edit or delete its own, so
+ * for every purpose here they aren't there.
  *
- * Messages by anyone else are filtered out and are not this feature's business:
- * a bot can only edit or delete its *own* messages, so for every purpose here
- * they are not there.
- *
- * Fifty is Discord's own page size. A channel that holds one message never
- * needs a second page, and a channel that does has a bigger problem than this
- * function.
+ * Fifty is Discord's own page size. A channel that holds one message never needs a
+ * second page, and one that does has a bigger problem than this function.
  */
 export async function findBotMessages(
   channelId: string,
@@ -1245,9 +1175,9 @@ export async function findBotMessages(
   }
 
   const self = await botUserId()
-  // Unknowable rather than empty when `/users/@me` did not answer. An empty
-  // answer here reads as "nothing of ours in the channel", which is the one
-  // thing that gives a caller permission to post.
+  // Unknowable rather than empty when `/users/@me` didn't answer. An empty answer
+  // reads as "nothing of ours in the channel", which is what gives a caller
+  // permission to post.
   if (!self) return { status: 'unavailable', reason: 'bot identity unknown' }
 
   try {
@@ -1258,9 +1188,8 @@ export async function findBotMessages(
       components?: unknown[]
     }[]
 
-    // Discord answers newest first and that order is kept: if a channel somehow
-    // holds two of ours, the sign is the one posted most recently and the rest
-    // are strays.
+    // Discord answers newest first and that order is kept: if a channel somehow holds
+    // two of ours, the sign is the most recent and the rest are strays.
     const messages = listing
       .filter((message) => message.author?.id === self && message.id)
       .map((message) => ({
@@ -1277,12 +1206,12 @@ export async function findBotMessages(
 
 export type ChannelDelete =
   | { status: 'done' }
-  /** Already not there, which is the outcome this was asking for. Its own
-      answer rather than an error, because a delete that races another delete
-      must not mark the push as failed. */
+  /** Already not there, which is the outcome this was asking for. Its own answer
+      rather than an error, because a delete that races another must not mark the push
+      as failed. */
   | { status: 'gone' }
-  /** Deleting is rate limited per channel, far more gently than a rename but
-      not infinitely. Nothing retries inline; the sweep tidies again. */
+  /** Deleting is rate limited per channel, far more gently than a rename but not
+      infinitely. Nothing retries inline; the sweep tidies again. */
   | { status: 'throttled' }
   | { status: 'refused'; reason: string }
   | { status: 'unavailable'; reason: string }
@@ -1291,17 +1220,14 @@ export type ChannelDelete =
 /**
  * Remove one message.
  *
- * **This is the half of "post new, delete old" that keeps the channel from
- * filling up**, and it is the only destructive call in this file. Two things
- * bound it, and both live at the call site in `src/lab/labStatus.ts` rather than
- * here: it is only ever aimed at a message `findBotMessages` said this bot
- * posted, and only ever at one in the lab channel.
+ * The half of "post new, delete old" that keeps the channel from filling up, and the
+ * only destructive call in this file. Two things bound it, both at the call site in
+ * `src/lab/labStatus.ts`: it's only ever aimed at a message `findBotMessages` said
+ * this bot posted, and only ever at one in the lab channel.
  *
- * Deleting somebody else's message needs Manage Messages; deleting the bot's
- * own needs nothing beyond seeing the channel. Since only our own are ever
- * passed in, a 403 here means the bot has lost sight of the channel rather than
- * a missing permission — so it is logged as itself rather than as advice about
- * a permission that was never the problem.
+ * Deleting somebody else's message needs Manage Messages; deleting the bot's own
+ * needs nothing beyond seeing the channel. Since only our own are passed in, a 403
+ * means the bot has lost sight of the channel rather than a missing permission.
  */
 export async function deleteChannelMessage(
   channelId: string,
@@ -1336,10 +1262,10 @@ export type ChannelName =
 /**
  * Reading the channel's own name back.
  *
- * The name is half the sign — `lab-status-🟢` is what somebody sees in the
- * sidebar without opening anything — and it is the half that quietly drifts,
- * because a rename is the call Discord throttles hardest. Asked on the sweep so
- * a name left behind by a throttled push is noticed rather than waited on.
+ * The name is half the sign — what somebody sees in the sidebar without opening
+ * anything — and the half that quietly drifts, because a rename is what Discord
+ * throttles hardest. Asked on the sweep so a name left behind by a throttled push is
+ * noticed rather than waited on.
  */
 export async function readChannelName(channelId: string): Promise<ChannelName> {
   if (!bot) return { status: 'unchecked' }
@@ -1359,18 +1285,15 @@ export async function readChannelName(channelId: string): Promise<ChannelName> {
  * Whether a delivery to `/api/discord/interactions` really came from Discord.
  *
  * The endpoint is unauthenticated — Discord has no session to present — so this
- * signature is the *only* thing between the internet and a POST that opens a
- * real room. Same shape as the Stripe webhook next door, and for the same
- * reason.
+ * signature is the only thing between the internet and a POST that opens a real
+ * room. Same shape as the Stripe webhook next door.
  *
- * Ed25519 over the ASCII concatenation of the timestamp header and the **raw**
- * body, so the body must reach here as the exact bytes Discord sent: parsing
- * and re-serialising the JSON reorders a key or changes an escape, and the
- * signature stops matching.
+ * Ed25519 over the ASCII concatenation of the timestamp header and the raw body, so
+ * the body must reach here as the exact bytes Discord sent: parsing and
+ * re-serialising reorders a key or changes an escape and the signature stops matching.
  *
- * A bad signature and a missing key are the same answer on purpose. The caller
- * refuses either way, and telling them apart in the response would be telling
- * whoever is probing which of the two they have found.
+ * A bad signature and a missing key are the same answer on purpose — telling them
+ * apart would tell whoever is probing which of the two they'd found.
  */
 export function verifyInteraction(
   rawBody: string,
@@ -1379,10 +1302,9 @@ export function verifyInteraction(
 ): boolean {
   if (!interactionKey || !signature || !timestamp) return false
 
-  // Discord sends hex. `Buffer.from(…, 'hex')` truncates at the first character
-  // it cannot read rather than throwing, so a signature that is not 128 hex
-  // characters is refused on its shape instead of being quietly shortened into
-  // one that fails verification for the wrong reason.
+  // Discord sends hex. `Buffer.from(…, 'hex')` truncates at the first character it
+  // can't read rather than throwing, so a signature that isn't 128 hex characters is
+  // refused on its shape instead of being quietly shortened.
   if (!/^[0-9a-fA-F]{128}$/.test(signature)) return false
 
   try {
@@ -1401,20 +1323,17 @@ export function verifyInteraction(
 /**
  * A private note to whoever pressed a button, after the fact.
  *
- * Discord gives an interaction three seconds to answer and then stops
- * listening, which is nowhere near long enough to rename a channel and edit a
- * message behind it. So a press is acknowledged immediately, and anything worth
- * saying afterwards — a cooldown, a refusal, Discord being unreachable — comes
- * back through here.
+ * Discord gives an interaction three seconds to answer, nowhere near long enough to
+ * rename a channel and edit a message behind it. So a press is acknowledged
+ * immediately and anything worth saying — a cooldown, a refusal, Discord being
+ * unreachable — comes back through here.
  *
- * `flags: 64` is ephemeral: only the person who pressed it sees the message,
- * and it goes when they dismiss it. That is what makes a warning safe to send
- * in a channel the whole club is in — "you are not an officer" posted for
- * everybody to read would be a worse thing than the button being unguarded.
+ * `flags: 64` is ephemeral: only the presser sees it, and it goes when they dismiss
+ * it. That's what makes a warning safe to send in a channel the whole club is in.
  *
- * **No Authorization header, deliberately.** An interaction token is its own
- * credential and stands for fifteen minutes; sending the bot token alongside it
- * is what makes Discord answer 401.
+ * No Authorization header, deliberately: an interaction token is its own credential
+ * and stands for fifteen minutes; sending the bot token alongside makes Discord
+ * answer 401.
  */
 export async function followUpInteraction(
   applicationId: string,

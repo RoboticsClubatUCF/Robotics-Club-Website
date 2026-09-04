@@ -7,11 +7,10 @@ import { stubFetch, stubFetchPending, stubFetchStatus } from '../../test/stubFet
 /**
  * Which of the four screens a visitor gets, and why.
  *
- * The token in the URL is what decides it, and that is the part worth testing:
- * the link is opened from an email, frequently on a different device from the
- * one the form was started on, so nothing may depend on state left in a tab.
- * A page that showed the finish form to somebody whose link had expired would
- * take a full set of details and then throw them away.
+ * The token in the URL is what decides it, and that is the part worth testing: the link is opened
+ * from an email, frequently on a different device from the one the form was started on, so nothing
+ * may depend on state left in a tab. A page that showed the finish form to somebody whose link had
+ * expired would take a full set of details and then throw them away.
  */
 
 const renderAt = (path: string) =>

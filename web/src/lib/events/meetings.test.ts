@@ -12,10 +12,9 @@ import type { ApiManagedProject } from '../api/api'
 /**
  * The sentence a project's schedule prints, everywhere it prints.
  *
- * All string maths and no `Date`, which is the rule this module exists to hold:
- * a wall-clock time is not a moment, and the moment it becomes one is the
- * moment a meeting starts moving with the reader's timezone instead of staying
- * put on campus.
+ * All string maths and no `Date`, which is the rule this module exists to hold: a wall-clock time
+ * is not a moment, and the moment it becomes one is the moment a meeting starts moving with the
+ * reader's timezone instead of staying put on campus.
  */
 
 const project = (
@@ -94,10 +93,9 @@ describe('meetingLine', () => {
   /**
    * Half a schedule prints nothing at all.
    *
-   * The server refuses to store one — days and times stand or fall together —
-   * but rows written before that rule existed can still be half-filled, and
-   * "Meets Tuesdays · undefined" is exactly the invented content the site's
-   * copy rules forbid. The caller says nothing instead.
+   * The server refuses to store one — days and times stand or fall together — but rows written
+   * before that rule existed can still be half-filled, and "Meets Tuesdays · undefined" is exactly
+   * the invented content the site's copy rules forbid. The caller says nothing instead.
    */
   it('says nothing when the schedule is incomplete', () => {
     expect(meetingLine(project({ meetingWeekdays: [] }))).toBeNull()

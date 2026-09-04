@@ -7,20 +7,20 @@ import { fieldClass, labelClass } from './formChrome'
 /**
  * The officer people-picker, answering as it is typed.
  *
- * It matches on name, email **and Discord handle** — see `GET /officer/members`
- * in `server/src/routes/officer/officer.ts`, where the search itself lives.
+ * It matches on name, email and Discord handle — see `GET /officer/members` in
+ * `server/src/routes/officer/officer.ts`, where the search itself lives.
  *
- * Two details keep search-as-you-type honest. The debounce, so a name is one
- * request rather than one per keystroke; and the `AbortController`, without
- * which "ro" can land after "rowan" and put the wrong list on screen — a race
- * that shows up exactly when the network is slow and nowhere else.
+ * Two details keep search-as-you-type honest. The debounce, so a name is one request rather than
+ * one per keystroke; and the `AbortController`, without which "ro" can land after "rowan" and put
+ * the wrong list on screen — a race that shows up exactly when the network is slow and nowhere
+ * else.
  *
- * Under two characters nothing is asked at all, because the route's own
- * validator refuses that and a 400 per keystroke is not a search.
+ * Under two characters nothing is asked at all, because the route's own validator refuses that and
+ * a 400 per keystroke is not a search.
  *
- * It lived in `OfficerProjectsPage` until the roles desk needed it too. Both
- * things it feeds — appointing a lead, granting somebody a term — are the same
- * question ("which person?") and it would have been copied otherwise.
+ * It lived in `OfficerProjectsPage` until the roles desk needed it too. Both things it feeds —
+ * appointing a lead, granting somebody a term — are the same question, and it would have been
+ * copied otherwise.
  */
 const DEBOUNCE_MS = 300
 
@@ -123,11 +123,10 @@ export function MemberSearch({
 
   return (
     <div>
-      {/* Deliberately not a `<form>`: this picker has sat *inside* one, and a
-          form inside a form is invalid HTML — the parser drops the inner one.
-          React builds the DOM through the API rather than the parser, so a
-          nested one happened to work; that is not a thing to rely on. Enter is
-          swallowed below for the same reason. */}
+      {/* Deliberately not a `<form>`: this picker has sat inside one, and a form inside a form is
+          invalid HTML — the parser drops the inner one. React builds the DOM through the API rather
+          than the parser, so a nested one happened to work; that is not a thing to rely on. Enter
+          is swallowed below for the same reason. */}
       <label htmlFor={id} className={labelClass}>
         {label}
       </label>

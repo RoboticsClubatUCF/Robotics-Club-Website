@@ -7,15 +7,13 @@ import {
 /**
  * The member acknowledgement, read without leaving the form.
  *
- * A dialog rather than a route on purpose. The only place this is linked from
- * is the middle of signup, where somebody has already typed a name, a password
- * twice and a Discord handle — navigating away to read the rules and coming
- * back to an empty form is how you get people agreeing to something they never
- * opened. Nothing here unmounts the form behind it.
+ * A dialog rather than a route on purpose. The only place this is linked from is the middle of
+ * signup, where somebody has already typed a name, a password twice and a Discord handle —
+ * navigating away to read the rules and coming back to an empty form is how you get people agreeing
+ * to something they never opened. Nothing here unmounts the form behind it.
  *
- * Native `<dialog>` and `showModal()`, so Escape, the backdrop, focus trapping
- * and inertness of the page behind all come from the browser rather than from
- * code that has to be kept right.
+ * Native `<dialog>` and `showModal()`, so Escape, the backdrop, focus trapping and inertness of the
+ * page behind all come from the browser rather than from code that has to be kept right.
  */
 export function AcknowledgementDialog({
   open,

@@ -1,17 +1,14 @@
 /**
  * Thin client for the content API.
  *
- * The API is a separate origin — it runs on :4000 and allows this one through
- * the server's `SITE_URL` — so every request needs an absolute base URL. There
- * is deliberately no `/api` proxy in `vite.config.ts`; if that ever changes,
+ * The API is a separate origin, so every request needs an absolute base URL.
+ * There's deliberately no `/api` proxy in `vite.config.ts`; if that changes,
  * this is the only file that has to know.
  */
 
 /**
- * Where the API lives. Exported because `fetch` is not the only thing that has
- * to reach it: an `<img src>` or a download link pointing at `/api/files/<id>`
- * needs the same origin in front of it, and that address is root-relative — see
- * `storedFiles.ts`, which is where those are resolved.
+ * Where the API lives. Exported because `<img src>` and download links pointing
+ * at `/api/files/<id>` need the same origin in front of them — see `storedFiles.ts`.
  */
 export const apiBaseUrl = (
   import.meta.env.VITE_API_URL ?? 'http://localhost:4000'
@@ -20,16 +17,10 @@ export const apiBaseUrl = (
 const baseUrl = apiBaseUrl
 
 /**
- * An https page cannot call an http API, and the failure looks like nothing.
- *
- * The browser blocks the request as mixed content before it is sent: no CORS
- * error, no status, no server log — every `fetch` here rejects the same way it
- * would if the API were down, so the whole site renders its "couldn't reach the
- * server" states and the API looks broken from the outside.
- *
- * `VITE_API_URL` is baked in at build time, so this is a build that shipped
- * with the wrong value rather than anything to recover from at runtime. Say
- * which value, once, and let the states below do the rest.
+ * An https page can't call an http API, and the failure looks like nothing: the
+ * browser blocks it as mixed content before it is sent, so every fetch here
+ * rejects exactly as it would if the API were down. `VITE_API_URL` is baked in
+ * at build time, so say which value once and let the error states do the rest.
  */
 if (
   typeof location !== 'undefined' &&
@@ -43,26 +34,19 @@ if (
 
 /**
  * A failed request, carrying the status so a caller can tell the cases apart.
- *
- * `status` is `0` when the request never reached the server at all — there is no
- * HTTP status for "the API isn't running", and a form has to say something
- * different about that than about a 429.
+ * `status` is 0 when the request never reached the server — a form has to say
+ * something different about that than about a 429.
  */
 export class ApiError extends Error {
   readonly status: number
 
   /**
-   * The sentence the server sent, when it sent one.
+   * The sentence the server sent, when it sent one. Signup has refusals only the
+   * server can phrase — which unique field was taken, whether a link expired — so
+   * the form shows these rather than paraphrasing.
    *
-   * Most failures are better explained by the caller — it knows what the person
-   * was doing and the status is enough to say so. But signup has refusals only
-   * the server can phrase: which of two unique fields was taken, whether a link
-   * expired or was already spent. Those arrive as `{ error }` and are written to
-   * be read, so the form shows them rather than inventing a paraphrase.
-   *
-   * Null when the body was not JSON, carried no `error` string, or was a
-   * validation failure — those come back as a zod report, which is a debugging
-   * aid and not something to put in front of anyone.
+   * Null when the body wasn't JSON or was a zod report; that's a debugging aid,
+   * not something to put in front of anyone.
    */
   readonly detail: string | null
 
@@ -80,10 +64,7 @@ export class ApiError extends Error {
 
 /**
  * Turn a failed response into an `ApiError`, reading the server's own sentence
- * out of it if there is one.
- *
- * The body can only be read once and this consumes it, which is fine — a failed
- * response has no payload any caller wants.
+ * out of it if there is one. This consumes the body, which is fine.
  */
 async function failure(method: string, path: string, response: Response) {
   let detail: string | null = null
@@ -92,8 +73,7 @@ async function failure(method: string, path: string, response: Response) {
     const body = (await response.json()) as { error?: unknown }
     if (typeof body.error === 'string') detail = body.error
   } catch {
-    // Not JSON — a proxy's HTML error page, or an empty body. The status still
-    // says everything the caller needs.
+    // Not JSON — a proxy's error page, or an empty body. The status is enough.
   }
 
   return new ApiError(
@@ -103,11 +83,10 @@ async function failure(method: string, path: string, response: Response) {
   )
 }
 
-// `fetch` only rejects on a network-level failure, and in development that is
-// nearly always the same thing: the API isn't running. Say so, because the
-// alternative is a bare "Failed to fetch" in the console and a page of em
-// dashes with no explanation. Starting the frontend alone is not enough — the
-// API is a separate package and needs Postgres up before it.
+// `fetch` only rejects on a network failure, and in development that's nearly
+// always the API not running. Say so; the alternative is a bare "Failed to
+// fetch". Starting the frontend alone isn't enough — the API is a separate
+// package and needs Postgres up first.
 const unreachable = (cause: unknown) =>
   new ApiError(
     0,
@@ -116,42 +95,25 @@ const unreachable = (cause: unknown) =>
   )
 
 /**
- * The session cookie will not cross an origin without this.
+ * The session cookie won't cross an origin without this. Left off, the failure
+ * is silent both ways: signing in appears to work and every page after it says
+ * nobody is signed in. On the reads too — `/auth/me` and `/dues/status` are GETs.
  *
- * The API is on a different port, so every call here is cross-origin, and
- * `fetch` sends no cookies on one of those unless it is told to. Left off, the
- * failure is silent in both directions: the browser reports nothing, the server
- * sees an anonymous request, and signing in appears to work while every page
- * after it says nobody is signed in. It is set on the reads as well as the
- * writes because `/auth/me` and `/dues/status` are GETs.
- *
- * The server side of the same bargain is `credentials: true` on its CORS
- * middleware — both halves are required, and neither is any use alone.
+ * The server half is `credentials: true` on its CORS middleware. Neither is any
+ * use alone.
  */
 const withCredentials = { credentials: 'include' } as const
 
 /**
- * @param fresh Bypass the browser's own HTTP cache for this one read.
+ * @param fresh Bypass the browser's HTTP cache for this one read.
  *
- * Needed in exactly one place, and it is not arbitrary. The public content
- * routes answer with `Cache-Control: public, max-age=…` — that is the point of
- * them — which means a read taken straight after a write can be served from the
- * browser's cache and show the *pre-write* copy for up to a minute. Everywhere
- * else that is correct and free; on the project page's editor it looks exactly
- * like the save silently failed.
+ * The public content routes answer with `Cache-Control: max-age=…`, so a read
+ * taken straight after a write can be served the pre-write copy for up to a
+ * minute. On the project editor that looks exactly like the save failed.
  *
- * The alternative fixes are both worse: lowering the cache window makes the
- * whole public site pay for one page's editor, and `?t=${Date.now()}` defeats
- * caching for good rather than for one request — including the `immutable`
- * headers on `/api/files/:id`, which the gallery depends on.
- *
- * **`reload` rather than `no-store`, and the difference is the whole point.**
- * Both skip the cache on the way out; only `reload` writes what comes back into
- * it. With `no-store` the *stale* entry survives the refetch, so the page in
- * front of somebody is right and the cache behind it is still wrong — leave a
- * project, navigate away, come back inside the minute, and the roster lists the
- * person who just left. That looked like leaving having silently failed, which
- * is the same complaint this flag was added to answer for the editor.
+ * `reload` rather than `no-store`: both skip the cache on the way out, but only
+ * `reload` writes what comes back into it. With `no-store` the stale entry
+ * survives, so the page is right and the cache behind it is still wrong.
  */
 export async function getJson<T>(
   path: string,
@@ -179,11 +141,9 @@ export async function getJson<T>(
 }
 
 /**
- * The shared shape of every write. All of them are rate limited, so the status
- * matters to the caller: a 429 is "you did this too often" and wants a
- * different sentence from a 400, which is "the server disagreed with the form".
- * Where the server has something specific to say it comes back on
- * `ApiError.detail`.
+ * The shared shape of every write. All are rate limited, so the status matters
+ * to the caller: a 429 wants a different sentence from a 400. Anything specific
+ * the server has to say comes back on `ApiError.detail`.
  */
 async function sendJson<T>(
   method: 'POST' | 'PUT' | 'PATCH' | 'DELETE',
@@ -197,8 +157,7 @@ async function sendJson<T>(
     response = await fetch(`${baseUrl}/api${path}`, {
       ...withCredentials,
       method,
-      // A DELETE carries no body, and an empty JSON header on one confuses
-      // nothing but is a lie about what was sent.
+      // A DELETE carries no body, so don't claim it sends JSON.
       ...(body === undefined
         ? {}
         : {
@@ -229,11 +188,8 @@ export function patchJson<T>(path: string, body: unknown, signal?: AbortSignal) 
 
 /**
  * For a write that sets a thing to a value rather than nudging one that exists.
- *
- * The one caller is the term override, which is an upsert keyed on the term: a
- * second press with the same dates has to leave the club in the same place as
- * the first, and `PUT` is the verb that says so. Hono's CORS defaults already
- * allow it.
+ * The one caller is the term override, an upsert keyed on the term: a second
+ * press with the same dates has to land in the same place as the first.
  */
 export function putJson<T>(path: string, body: unknown, signal?: AbortSignal) {
   return sendJson<T>('PUT', path, body, signal)
@@ -243,10 +199,9 @@ export function putJson<T>(path: string, body: unknown, signal?: AbortSignal) {
  * `body` is optional and almost always left off — a DELETE names what it is
  * removing in its path.
  *
- * The one caller that passes one is deleting an *account*, which asks for the
- * password first. That cannot go in the path, where it would land in browser
- * history and in every access log between here and the server, and a query
- * string is the same mistake spelled differently.
+ * The exception is deleting an account, which asks for the password first. That
+ * can't go in the path, where it would land in browser history and in every
+ * access log on the way.
  */
 export function deleteJson<T>(
   path: string,
@@ -259,10 +214,9 @@ export function deleteJson<T>(
 /**
  * Send a form with a file in it.
  *
- * Deliberately no `Content-Type` header: a multipart body needs the boundary
- * string the browser generates, and setting the header by hand replaces the
- * whole value — boundary included — so the server would receive a body it
- * cannot split. Leaving it off lets `fetch` write the correct one.
+ * No `Content-Type` header on purpose: a multipart body needs the boundary the
+ * browser generates, and setting the header by hand replaces the whole value,
+ * so the server gets a body it can't split.
  */
 export async function postForm<T>(
   path: string,
@@ -293,10 +247,10 @@ export async function postForm<T>(
 /**
  * Response shapes.
  *
- * The server is a separate package and Prisma's generated types can't be
- * imported into browser code, so these are written by hand to mirror the
- * `select` blocks in `server/src/routes/public/content.ts`. Keep them in step with
- * those — nothing enforces it. Dates arrive as ISO strings, not `Date`.
+ * The server is a separate package and Prisma's types can't be imported into
+ * browser code, so these are written by hand to mirror the `select` blocks in
+ * `server/src/routes/public/content.ts`. Nothing enforces it. Dates arrive as
+ * ISO strings.
  */
 
 export type ApiStats = {
@@ -308,16 +262,11 @@ export type ApiStats = {
 /**
  * One photograph in the landing page's slideshow, from `GET /api/hero-slides`.
  *
- * The same six fields as `ApiProjectImage`, and the same rules — `url` is either
- * an external address or `/api/files/<id>`, `caption` doubles as the `alt`, and
- * the three numbers are framing applied as CSS rather than baked into the file.
- * Two types rather than one alias because they are answered by different tables
- * and written from different desks; the day a field is added to one of them is
- * the day an alias would have been the wrong shape.
+ * Same six fields as `ApiProjectImage` but a separate type: different tables,
+ * different desks, and the day a field is added to one is the day an alias would
+ * have been the wrong shape.
  *
- * **An empty list is a supported answer**, not an empty state to apologise for:
- * the hero draws its rings and the wireframe trace when nothing is here, which
- * is what the right half of it was before officers could put photographs there.
+ * An empty list is a supported answer — the hero draws its rings instead.
  */
 export type ApiHeroSlide = {
   id: string
@@ -329,11 +278,9 @@ export type ApiHeroSlide = {
 }
 
 /**
- * One question on the front page's FAQ.
- *
- * `steps` is the one answer shape that is not a paragraph — becoming a member is
- * a procedure, and the section numbers it. Empty is the ordinary case; seven of
- * the club's eight answers are prose.
+ * One question on the front page's FAQ. `steps` is the one answer shape that
+ * isn't a paragraph — becoming a member is a procedure and the section numbers
+ * it. Empty is the ordinary case.
  */
 export type ApiFaq = {
   id: string
@@ -343,12 +290,9 @@ export type ApiFaq = {
 }
 
 /**
- * One partner program, for somebody who cannot join the club itself.
- *
- * `imageUrl` is an external address or `/api/files/<id>`, the same
- * two-things-in-one-string every image field here holds — so it goes through
- * `imageSrc` like all the rest. Null draws the hatch well, which is where both
- * of the club's start.
+ * One partner program, for somebody who can't join the club itself. `imageUrl`
+ * is an external address or `/api/files/<id>`, so it goes through `imageSrc`.
+ * Null draws the hatch well.
  */
 export type ApiPartnerProgram = {
   id: string
@@ -361,25 +305,20 @@ export type ApiPartnerProgram = {
 }
 
 /**
- * Everything the landing page *says*, from `GET /api/front-page`.
+ * Everything the landing page says, from `GET /api/front-page`.
  *
- * **One read for the whole page's copy**, made once by `HomePage` and handed
- * down: the hero's lede and the FAQ are the top and the bottom of one document
- * somebody wrote in one sitting, and three routes would be three round trips
- * and three loading states for it. The sections still fetch their own *data* —
- * the slideshow, the events, the board, the sponsors — because those are lists
- * that change on their own.
+ * One read for the whole page's copy, made by `HomePage` and handed down: the
+ * hero's lede and the FAQ are one document, and three routes would be three
+ * round trips and three loading states. Sections still fetch their own data.
  *
- * The copy fields are never empty: a landing page with no headline is not a
- * state this site is built for, so the route answers with the wording the site
- * shipped with until an officer writes their own. Both **lists** may be empty
- * and both sections are built for it.
+ * The copy fields are never empty — the route falls back to the wording the site
+ * shipped with. Both lists may be empty and both sections are built for it.
  */
 export type ApiFrontPage = {
   /** The first line of the hero, in the page's own ink. */
   headline: string
-  /** The second line, set in gold. Two fields because the break between them is
-      a `<br>` the type scale is tuned around. */
+  /** The second line, in gold. Split in two because the break between them is a
+      `<br>` the type scale is tuned around. */
   headlineAccent: string
   lede: string
   /** The line above the partner cards, saying who those programs are for. */
@@ -399,13 +338,12 @@ export type ApiMilestone = {
 /**
  * The whole of `/about`, from `GET /api/about`.
  *
- * **`storyNotice` is the club's own admission that the history below it is
- * placeholder text**, and null is what finishing it looks like. It was a
- * hardcoded panel in the component until officers could edit this page, which
- * meant the only way to retire the admission was a deploy.
+ * `storyNotice` is the club's admission that the history below it is placeholder
+ * text, and null is what finishing it looks like. It was hardcoded until officers
+ * could edit this page, so retiring it used to need a deploy.
  *
- * The lab's four fields are null as a set: a club between homes prints no
- * address rather than half of one, and the panel is built to be absent.
+ * The lab's four fields are null as a set: a club between homes prints no address
+ * rather than half of one.
  */
 export type ApiAboutPage = {
   heading: string
@@ -423,34 +361,28 @@ export type ApiAboutPage = {
 /**
  * Whether the lab is open, from `GET /api/lab`.
  *
- * `changedAt` is null when nobody has ever set it — a fresh database, or a club
- * that has not started using the button. That is **not** the same as "closed a
- * long time ago", and both pages that draw this say so differently: one has a
- * time to print and the other has nothing to say beyond the state.
+ * `changedAt` is null when nobody has ever set it, which is not the same as
+ * "closed a long time ago" — the two pages drawing this say so differently.
  *
- * Deliberately no name on it. The club's Discord channel says who opened the
- * lab, because that is the room where somebody asks; an endpoint anybody can
- * read is a different thing, and the pages only need the state and the time.
+ * No name on it, on purpose. Discord says who opened the lab; an endpoint anybody
+ * can read only needs the state and the time.
  */
 export type ApiLabStatus = {
   /**
-   * **Already masked by the building's hours**, so this is the answer to act
-   * on rather than the row. An officer who forgets to close up at midnight
-   * does not leave a green sign on the front page all night.
+   * Already masked by the building's hours, so act on this rather than the row.
+   * An officer who forgets to close up doesn't leave a green sign up all night.
    */
   open: boolean
   changedAt: string | null
   /**
    * Whether the building is open at all — 8am to 10pm, Orlando time.
    *
-   * Sent rather than mirrored in `lib/`, which is the exception to how this
-   * codebase usually handles a server rule. A mirror exists so a form does not
-   * offer what the route will reject; this one is a question about a wall clock
-   * in a specific timezone, the server answers it on every read, and a second
-   * implementation in the browser would be a second timezone to get wrong.
+   * Sent rather than mirrored in `lib/`, unlike most server rules: this is a
+   * question about a wall clock in a specific timezone, and a second
+   * implementation here would be a second timezone to get wrong.
    *
-   * What it buys the pages is the difference between "nobody has opened it" and
-   * "nobody can" — a switch that is off, and one that is disabled.
+   * It buys the pages the difference between a switch that is off and one that
+   * is disabled.
    */
   buildingOpen: boolean
 }
@@ -466,26 +398,22 @@ export type ApiProject = {
       and it compares to nothing — the pair below is what decides. */
   season: string | null
   /**
-   * The term this project is built for.
-   *
-   * A build that runs for years is one row per term, so this is what tells last
-   * semester's rover from this semester's. `Season` is declared in calendar
-   * order on the server, so `(termYear, termSeason)` sorts chronologically.
+   * The term this project is built for — what tells last semester's rover from
+   * this semester's. `Season` is declared in calendar order, so
+   * `(termYear, termSeason)` sorts chronologically.
    */
   termYear: number
   termSeason: Season
   competition: string | null
   status: ProjectStatus
   /**
-   * The one picture that stands for this project in a list, and what `/projects`
-   * draws. Either an external address or `/api/files/<id>`, so it goes through
-   * `imageSrc` like every other image column.
+   * The one picture that stands for this project in a list. External address or
+   * `/api/files/<id>`, so it goes through `imageSrc`.
    */
   coverUrl: string | null
   /**
    * Whether the cover is simply the gallery's first picture. Neither side falls
-   * back to the other — see `coverOf` in `lib/projects/projectCover.ts`, which is
-   * the one place these four fields are read together.
+   * back to the other — see `coverOf` in `lib/projects/projectCover.ts`.
    */
   coverFromGallery: boolean
   /** How the cover sits in the card's 16:10 frame. `frameStyle`'s three numbers,
@@ -508,17 +436,12 @@ export type ApiProject = {
 /**
  * One person on a project, as `GET /api/projects/:slug` lists them.
  *
- * **`rank` is the one label here that means anything** — it is the column every
- * permission on this project is decided by, and the roster prints it. `title` is
- * free text somebody typed against this project ("Software Lead") and grants
- * nothing; it is what the row falls back to for a plain member.
- *
- * The club-wide `User.title` used to ride along beside them and is deliberately
- * gone: it is written by nothing in the product, and an officer's club seat
- * ("Lab Manager") says nothing about what they do on somebody's rover.
+ * `rank` is the only label here that means anything — every permission on this
+ * project is decided by it. `title` is free text somebody typed ("Software
+ * Lead") and grants nothing; it's what a plain member's row falls back to.
  *
  * No user ids, on purpose — this is an anonymous payload. Anything that needs
- * one reads `GET /projects/:id/team`, which is what `useProjectRoster` is for.
+ * one reads `GET /projects/:id/team`.
  */
 export type ApiProjectMember = {
   title: string | null
@@ -534,10 +457,9 @@ export type ApiProjectMember = {
 }
 
 /**
- * One picture in a project's gallery. `url` is either an external address
- * somebody typed or `/api/files/<id>` for an upload — the browser does not care
- * which, and the prefix is only ever read on the server, where deleting the
- * bytes is decided. `caption` doubles as the image's `alt` when set.
+ * One picture in a project's gallery. `url` is an external address or
+ * `/api/files/<id>`; the prefix is only ever read on the server, where deleting
+ * the bytes is decided. `caption` doubles as the `alt` when set.
  */
 export type ApiProjectImage = {
   id: string
@@ -545,9 +467,8 @@ export type ApiProjectImage = {
   caption: string | null
   /**
    * How the picture sits in the gallery's fixed frame — `object-position`
-   * percentages plus a zoom multiplier, applied as CSS at display time and
-   * never baked into the file. 50/50/1 is a plain centred crop. See
-   * `lib/media/imageFraming.ts`.
+   * percentages plus a zoom, applied as CSS and never baked into the file.
+   * 50/50/1 is a plain centred crop. See `lib/media/imageFraming.ts`.
    */
   focalX: number
   focalY: number
@@ -565,11 +486,8 @@ export type ApiProjectLink = {
  * One document on a project's documentation page, mirroring `wireDocument` in
  * `server/src/routes/projects/projectManage.ts`.
  *
- * `fileId` rather than a URL, and that is the difference between this and every
- * image on the site. An image column holds either an upload of ours or an
- * address somebody typed, which is what `imageSrc` exists to sort out; a
- * document is always ours, so what comes back is an id and `storedFileUrl`
- * turns it into an address.
+ * `fileId` rather than a URL, unlike every image column: a document is always
+ * ours, so `storedFileUrl` turns the id into an address.
  */
 export type ApiProjectDocument = {
   id: string
@@ -586,18 +504,17 @@ export type ApiProjectDocument = {
   /** When it was first published. Never moves. */
   uploadedAt: string
   /**
-   * When its **file** was last replaced, which is not the same as when the row
-   * was last touched — renaming a document deliberately leaves this alone. It
-   * equals `uploadedAt` until the first revision, and that is how the page
-   * knows whether there are two dates worth printing or one.
+   * When its file was last replaced — renaming a document deliberately leaves
+   * this alone. Equals `uploadedAt` until the first revision, which is how the
+   * page knows whether there are two dates worth printing or one.
    */
   updatedAt: string
 }
 
 /**
  * The single-project answer: the list row plus the long form, the people, the
- * gallery, the resource links and the documentation. All of the lists come back
- * already in display order, which is why none of them carries a sort key.
+ * gallery, the links and the documentation. Every list comes back in display
+ * order, which is why none of them carries a sort key.
  */
 export type ApiProjectDetail = ApiProject & {
   description: string | null
@@ -610,34 +527,29 @@ export type ApiProjectDetail = ApiProject & {
 /**
  * A listing row that asked for the write-up — `GET /api/projects?description=true`.
  *
- * The heavy columns are opt-in on that route because it answers up to a hundred
- * rows. **`/projects` no longer asks for this one**: the list prints `summary`
- * and only `summary`, which is the field the schema means for a card. The type
- * stays because the flag does.
+ * The heavy columns are opt-in because that route answers up to a hundred rows.
+ * `/projects` no longer asks for this one; the list prints `summary` only. The
+ * type stays because the flag does.
  */
 export type ApiListedProject = ApiProject & { description: string | null }
 
 /**
- * A card's row — `GET /api/projects?cover=true`, which is the gallery capped at
- * one picture.
+ * A card's row — `GET /api/projects?cover=true`, the gallery capped at one.
  *
  * It answers on `images` rather than a `cover` key of its own, so `coverOf` reads
- * the same field here as it does on a project's own detail payload and there is
- * one shape to know. At most one element; a project whose cover is `coverUrl`
- * rather than the gallery may still have one, and `coverOf` is what decides
- * between them.
+ * the same field here as on the detail payload. At most one element; a project
+ * whose cover is `coverUrl` may still have one, and `coverOf` decides.
  */
 export type ApiCardProject = ApiProject & { images: ApiProjectImage[] }
 
 /**
  * Somebody's project role, mirroring `ProjectMemberRank` in `schema.prisma`.
  *
- * This is the *only* thing that decides who can manage a project, and it means
- * nothing outside the membership row it sits on: the lead of one project is a
- * plain member on the next. `UserRole` says nothing about any project — it used
- * to carry `PROJECT_LEAD` and `TEAM_LEAD` as roster labels, spelled the same as
- * these and granting nothing, which is why the two are worth telling apart on
- * sight.
+ * The only thing that decides who can manage a project, and it means nothing
+ * outside the membership row it sits on — the lead of one project is a plain
+ * member on the next. `UserRole` says nothing about any project; it used to carry
+ * lookalike values that granted nothing, which is why the two are worth telling
+ * apart on sight.
  */
 export type ProjectMemberRank = 'PROJECT_LEAD' | 'TEAM_LEAD' | 'MEMBER'
 
@@ -645,9 +557,9 @@ export type ProjectMemberRank = 'PROJECT_LEAD' | 'TEAM_LEAD' | 'MEMBER'
     schedule, mirroring `managedProjectSelect` in `server/src/routes/officer/officer.ts`. */
 export type ApiManagedProject = ApiProject & {
   /**
-   * The days it meets — 0 = Sunday … 6 = Saturday, matching `Date.getDay()`.
-   * Sorted and free of duplicates by the time it leaves the server. Empty means
-   * no schedule, which is the only legal way for the two times below to be null.
+   * The days it meets — 0 = Sunday, matching `Date.getDay()`. Sorted and
+   * deduplicated by the time it leaves the server. Empty means no schedule, which
+   * is the only legal way for the two times below to be null.
    */
   meetingWeekdays: number[]
   /** Wall-clock "18:00" and "22:00", campus-local. Not moments — see
@@ -656,22 +568,21 @@ export type ApiManagedProject = ApiProject & {
   meetingEndTime: string | null
   meetingLocation: string | null
   /**
-   * The lead's own note about the meeting, or null. The four fields above are
-   * when and where and print themselves; this is the part they cannot hold —
-   * bring a laptop, we skip home game days. Null prints nothing: it is also
-   * the description every occurrence of the meeting carries into a member's
-   * calendar, and the site does not write one on their behalf.
+   * The lead's own note about the meeting, or null. The fields above are when and
+   * where; this is the part they can't hold — bring a laptop, we skip home game
+   * days. It's also the description each occurrence carries into a member's
+   * calendar, and the site won't write one on their behalf.
    */
   meetingDescription: string | null
   /**
    * Whether the meetings reach the public calendar. An officer's switch, not a
-   * lead's: the server refuses this field from anyone else.
+   * lead's — the server refuses this field from anyone else.
    */
   meetingsPublic: boolean
   /**
    * The Discord role this project's crew carries, or null. Setting it hands the
    * role to everybody on the project and clearing it takes it back, so the form
-   * that edits this is editing people's Discord access rather than a label.
+   * editing this is editing people's Discord access rather than a label.
    */
   discordRoleId: string | null
 }
@@ -683,12 +594,11 @@ export type ApiMyProject = {
   title: string | null
   team: { id: string; name: string } | null
   /**
-   * Whether this project's term is the one we are in, decided by the server
+   * Whether this project's term is the one we're in, decided by the server
    * against UCF's calendar rather than by comparing dates here.
    *
-   * It sits beside `rank` rather than inside `project` because everything in
-   * there is a stored column and this is a fact about the clock. The dashboard
-   * shows only the current ones; `/dashboard/projects/past` shows the rest.
+   * Beside `rank` rather than inside `project` because everything in there is a
+   * stored column and this is a fact about the clock.
    */
   current: boolean
   project: ApiManagedProject
@@ -721,16 +631,15 @@ export type ApiProjectTeamView = {
  * A hit from the officer people-picker, `GET /api/officer/members`.
  *
  * Both contact fields are nullable and an account may carry either one alone —
- * the search matches on the name and on both of them, so a member with a
- * Discord handle and no email is findable and identifiable.
+ * the search matches on the name and on both, so a member with a Discord handle
+ * and no email is still findable.
  */
 /**
- * A seat on the board as the officer desk sees it, which is more than the
- * public one gets: who the term belongs to, and who opened it.
+ * A seat on the board as the officer desk sees it: who the term belongs to, and
+ * who opened it.
  *
- * `source` is the difference between a seat the Discord sync handed out and one
- * an officer gave by hand, and it matters to the desk because only the second
- * kind survives losing the Discord role.
+ * `source` tells a seat the Discord sync handed out from one an officer gave by
+ * hand, and only the second survives losing the Discord role.
  */
 /** The roles desk's view: every seat there is, and who is in one. */
 export type ApiOfficerDesk = {
@@ -756,14 +665,13 @@ export type ApiBoardSeat = {
 }
 
 /**
- * One term's dates and where they came from, as
- * `GET /api/officer/semesters/:year` returns it.
+ * One term's dates and where they came from, from
+ * `GET /api/officer/semesters/:year`.
  *
- * `source` is the whole reason the desk is worth having: `fallback` means the
- * site is guessing from fixed dates in `semester.ts` because UCF's feed could
- * not be read, `calendar` means the feed answered, and `override` means the
- * club has said otherwise. Only the first is a problem, and until now there was
- * no way to see it and no way to fix it without a deploy.
+ * `source` is why the desk is worth having: `fallback` means the site is guessing
+ * from fixed dates in `semester.ts` because UCF's feed couldn't be read,
+ * `calendar` means the feed answered, `override` means the club has said
+ * otherwise. Only the first is a problem, and it used to be invisible.
  */
 export type ApiSemesterTerm = {
   year: number
@@ -774,11 +682,10 @@ export type ApiSemesterTerm = {
   /**
    * When the club puts every project on halt, and where that answer came from.
    *
-   * **Null is "nobody has said", not "there is no finals week."** Nothing is
-   * paused while it is null, and the desk prints that in words — a blank pair of
-   * dates otherwise reads as a finals week of zero days rather than as a
-   * question still outstanding. The server refuses to guess these; see
-   * `Term.finalsStartAt` in `server/src/membership/semester.ts` for why.
+   * Null is "nobody has said", not "there is no finals week" — nothing is paused
+   * while it's null, and the desk says so in words, because a blank pair of dates
+   * otherwise reads as a finals week of zero days. The server refuses to guess;
+   * see `Term.finalsStartAt` in `server/src/membership/semester.ts`.
    *
    * All three are null together.
    */
@@ -800,10 +707,9 @@ export type ApiOfficerMember = {
 }
 
 /**
- * Where a 3D print request has got to. `DONE` and `REJECTED` are terminal,
- * and terminal means the uploaded model has been deleted — the club does not
- * store files it no longer needs. What survives is this row: the name, the
- * size, and how it ended.
+ * Where a 3D print request has got to. `DONE` and `REJECTED` are terminal, and
+ * terminal means the uploaded model has been deleted. What survives is this row:
+ * the name, the size, and how it ended.
  */
 export type PrintRequestStatus = 'PENDING' | 'PRINTING' | 'DONE' | 'REJECTED'
 
@@ -811,8 +717,8 @@ export type PrintRequestStatus = 'PENDING' | 'PRINTING' | 'DONE' | 'REJECTED'
 export type PrintProcess = 'FDM' | 'SLA'
 
 /**
- * What the club stocks. The pairing is the rule and the server enforces it:
- * FDM takes `PLA` or `PETG`, SLA takes `ABS_LIKE_RESIN` and nothing else.
+ * What the club stocks. The pairing is the rule and the server enforces it: FDM
+ * takes `PLA` or `PETG`, SLA takes `ABS_LIKE_RESIN` and nothing else.
  */
 export type PrintMaterial = 'PLA' | 'PETG' | 'ABS_LIKE_RESIN'
 
@@ -827,16 +733,14 @@ export type ApiPrintRequest = {
   /** How many of it to print. Its own field rather than a line in `notes`,
       because it is the one thing in there that changes the arithmetic. */
   quantity: number
-  /** The special requests — colour, brims, "no supports on the face". What is
-      left once the fields have taken everything they can say. */
+  /** The special requests — colour, brims, "no supports on the face". What's left
+      once the fields have taken everything they can say. */
   notes: string | null
   status: PrintRequestStatus
   /**
-   * When an officer put it on a printer, or null if nobody ever did.
-   *
-   * The only thing that tells a **cancelled** print from a **declined**
-   * request: both land on `REJECTED`, and they are different events. See
-   * `actionPhrase` in `lib/printing.ts`.
+   * When an officer put it on a printer, or null if nobody ever did. The only
+   * thing that tells a cancelled print from a declined request — both land on
+   * `REJECTED`. See `actionPhrase` in `lib/printing.ts`.
    */
   startedAt: string | null
   officerNote: string | null
@@ -850,10 +754,9 @@ export type ApiPrintRequest = {
   infillPattern: InfillPattern | null
   infillDensity: number | null
   /**
-   * What actually came off the machine, when an officer said it differed —
-   * they print in whatever is on the shelf. **Null means "as asked"**, so
-   * every read is `printedX ?? askedX`; `actualSettings` in `lib/printing.ts`
-   * is that in one place.
+   * What actually came off the machine, when an officer said it differed — they
+   * print in whatever is on the shelf. Null means "as asked", so every read is
+   * `printedX ?? askedX`; `actualSettings` in `lib/printing.ts` does that once.
    */
   printedProcess: PrintProcess | null
   printedMaterial: PrintMaterial | null
@@ -870,13 +773,11 @@ export type ApiPrintRequest = {
 }
 
 /**
- * What a member has left to print with this term, from
- * `GET /api/me/print-allowance`.
+ * What a member has left to print this term, from `GET /api/me/print-allowance`.
  *
- * Never stored anywhere — the server counts it from finished personal prints
- * each time it is asked. `remainingGrams` **can be negative**: an officer may
- * knowingly print past somebody's allowance, and clamping it at zero would
- * hide exactly that.
+ * Never stored — counted from finished personal prints on each read.
+ * `remainingGrams` can be negative: an officer may knowingly print past somebody's
+ * allowance, and clamping at zero would hide exactly that.
  */
 export type ApiPrintAllowance = {
   limitGrams: number
@@ -896,16 +797,16 @@ export type ApiPrintQueueItem = ApiPrintRequest & {
   /** The officer who last moved it — including whoever put it on the printer,
       not only whoever settled it. */
   decidedBy: { fullName: string } | null
-  /** The requester's balance for this request's term, or null on a project
-      print: those are uncapped, and a balance beside one would invite the
-      officer to weigh it against a budget it does not come out of. */
+  /** The requester's balance for this request's term, or null on a project print:
+      those are uncapped, and a balance beside one would invite weighing it against
+      a budget it doesn't come out of. */
   allowance: ApiPrintAllowance | null
 }
 
 /**
- * A loan's life. `APPROVED` and `CHECKED_OUT` both hold a unit — a thing set
- * aside for somebody who hasn't collected it is not available to anyone else,
- * which is the rule the availability count turns on.
+ * A loan's life. `APPROVED` and `CHECKED_OUT` both hold a unit — a thing set aside
+ * for somebody who hasn't collected it is not available to anyone else, which is
+ * the rule the availability count turns on.
  */
 export type LoanStatus =
   'REQUESTED' | 'APPROVED' | 'CHECKED_OUT' | 'RETURNED' | 'DENIED' | 'CANCELED'
@@ -967,9 +868,9 @@ export type ApiOfficerLoan = ApiLoan & {
 }
 
 /**
- * Mirrors the `TaskStatus` enum in `schema.prisma`, **and the order here is the
- * order rows come back in** — Postgres sorts an enum by declaration order and
- * the server orders on it, so this list is not alphabetised and must not be.
+ * Mirrors `TaskStatus` in `schema.prisma`, and the order here is the order rows
+ * come back in — Postgres sorts an enum by declaration order and the server orders
+ * on it. Not alphabetised, and must not be.
  */
 export type TaskStatus = 'OPEN' | 'IN_PROGRESS' | 'DELAYED' | 'DONE' | 'CANCELED'
 
@@ -981,9 +882,9 @@ export const SETTLED_TASK: readonly TaskStatus[] = ['DONE', 'CANCELED']
  * A task, mirroring `taskSelect` + `wire()` in
  * `server/src/routes/projects/tasks.ts`.
  *
- * One type for both readers — the project board and `GET /api/me/tasks` —
- * because the server sends one shape. `project` is null for a task that belongs
- * to a person rather than to a build; only officers can write one of those.
+ * One type for both readers — the project board and `GET /api/me/tasks` — because
+ * the server sends one shape. `project` is null for a task that belongs to a
+ * person rather than a build; only officers can write one of those.
  */
 export type ApiTask = {
   id: string
@@ -1004,18 +905,15 @@ export type ApiTask = {
 }
 
 /**
- * `GET /api/me/tasks` answers the same shape the board does.
- *
- * Kept as a name rather than deleted, because the overview card and the tasks
- * page both read it and "my tasks" is what they are asking for.
+ * `GET /api/me/tasks` answers the same shape the board does. Kept as a name
+ * because the overview card and the tasks page both read it.
  */
 export type ApiMyTask = ApiTask
 
 /**
- * An event as `GET /api/me/events` returns it: the public shape plus the
- * ownership fields — which project and team it belongs to, and whether the
- * public site shows it. `published: false` here is normal, not a draft: it is
- * what every lead-created project event looks like.
+ * An event as `GET /api/me/events` returns it: the public shape plus which project
+ * and team it belongs to and whether the public site shows it. `published: false`
+ * here is normal, not a draft — it's what every lead-created event looks like.
  */
 export type ApiMeEvent = ApiEvent & {
   published: boolean
@@ -1030,13 +928,13 @@ export type EventType =
   'MEETING' | 'COMPETITION' | 'OUTREACH' | 'WORKSHOP' | 'FUNDRAISER' | 'SOCIAL'
 
 /**
- * A project's whole meeting series, carried on each of its occurrences.
+ * A project's whole meeting series, carried on each of its occurrences. Mirrors
+ * `MeetingSeries` in `server/src/projects/meetings.ts`.
  *
- * Mirrors `MeetingSeries` in `server/src/projects/meetings.ts`. It is here so the
- * add-to-calendar button can hand somebody the entire term in one press rather
- * than next Tuesday alone — a calendar app wants a rule and its exceptions, and
- * reconstructing those in the browser from a list of occurrences would be
- * guessing at what the server already worked out.
+ * Here so the add-to-calendar button can hand somebody the whole term in one press
+ * rather than next Tuesday alone: a calendar app wants a rule and its exceptions,
+ * and rebuilding those in the browser would be guessing at what the server already
+ * worked out.
  */
 export type ApiMeetingSeries = {
   projectSlug: string
@@ -1053,8 +951,7 @@ export type ApiMeetingSeries = {
   skip: { from: string; to: string } | null
   /**
    * The exact occurrences finals week eats, as ISO instants — one `EXDATE` line
-   * each in the .ics. Worked out by the server so the halt has one
-   * implementation; see `MeetingSeries` in `server/src/projects/meetings.ts`.
+   * each in the .ics. Worked out server-side so the halt has one implementation.
    */
   skipDates: string[]
 }
@@ -1065,11 +962,10 @@ export type ApiEvent = {
   title: string
   description: string | null
   /**
-   * `'TASK'` is **not** a value of the `EventType` enum in Postgres and must
-   * not become one. No stored row can carry it: it is only ever set on a task
-   * deadline projected onto the member's own calendar by `/api/me/events`, and
-   * the public route validates `?type=` against the real enum, so asking for it
-   * there is a 400 rather than an empty list.
+   * `'TASK'` is not a value of the `EventType` enum in Postgres and must not become
+   * one. It's only ever set on a task deadline projected onto a member's own
+   * calendar by `/api/me/events`; the public route validates `?type=` against the
+   * real enum, so asking for it there is a 400 rather than an empty list.
    */
   type: EventType | 'TASK'
   location: string | null
@@ -1080,23 +976,21 @@ export type ApiEvent = {
   allDay: boolean
   registrationUrl: string | null
   /**
-   * Set only on a project meeting, which is a *generated* row rather than one
-   * the server stores — its `id` is `meeting:…` and nothing may edit or delete
-   * it. Absent on every stored `Event`.
+   * Set only on a project meeting, which is generated rather than stored — its `id`
+   * is `meeting:…` and nothing may edit or delete it.
    */
   meeting?: ApiMeetingSeries | null
   /**
-   * Set only on a task deadline, the calendar's other generated entry — its
-   * `id` is `task:…`, there is no row behind it to edit, and it reaches only
-   * the calendar of the assignee who asked for it. Absent on everything else.
+   * Set only on a task deadline, the calendar's other generated entry — its `id` is
+   * `task:…`, there's no row behind it, and it reaches only the assignee who asked.
    */
   task?: { id: string; status: TaskStatus } | null
 }
 
 /**
  * The sponsorship levels, highest first. Mirrors the `SponsorTier` enum in
- * `schema.prisma`, and — like that enum — the order here is the ranking.
- * The wire format is the enum name; the underscores come out for display.
+ * `schema.prisma`, where the declaration order is the ranking. The wire format is
+ * the enum name; the underscores come out for display.
  */
 export type SponsorTier =
   'PROCESSOR_PATRON' | 'CIRCUIT_SUPPORTER' | 'BOLT_BACKER' | 'ALUMINUM_ALLY'
@@ -1112,10 +1006,9 @@ export type ApiSponsor = {
 
 /**
  * The same sponsor as the officer desk sees it — `active` and nothing else new.
- *
- * That one column is the whole difference between the two lists: the public read
- * filters on it and the desk's does not, because a hidden sponsor that vanished
- * from the desk as well would be a row nobody could ever bring back.
+ * That one column is the whole difference: the public read filters on it and the
+ * desk's doesn't, because a hidden sponsor missing from the desk as well would be
+ * a row nobody could bring back.
  */
 export type ApiManagedSponsor = ApiSponsor & {
   active: boolean
@@ -1125,21 +1018,20 @@ export type ApiManagedSponsor = ApiSponsor & {
 }
 
 /**
- * What a tier costs and what the club gives back, as
- * `GET /api/sponsorship` answers it.
+ * What a tier costs and what the club gives back, from `GET /api/sponsorship`.
  *
- * **A tier with no offer is absent from that response**, not present and empty.
- * This copy was four hardcoded objects marked PLACEHOLDER until officers got a
- * desk for it, and an unwritten tier being missing rather than defaulted is the
- * point of the move — nothing on that page is a figure the club did not agree to.
+ * A tier with no offer is absent from the response, not present and empty. This
+ * was four hardcoded PLACEHOLDER objects until officers got a desk for it, and an
+ * unwritten tier being missing rather than defaulted is the point of the move —
+ * nothing on that page is a figure the club didn't agree to.
  */
 export type ApiTierOffer = {
   tier: SponsorTier
   /** Free text, not cents: "$5,000+", "UP TO $3,000", "In kind, by arrangement". */
   amount: string
   /**
-   * Null on most of them, and that is the club's own sheet rather than an
-   * omission: an amount over a list of what you get, with no sentence between.
+   * Null on most of them, and that's the club's own sheet rather than an omission:
+   * an amount over a list of what you get, with no sentence between.
    */
   blurb: string | null
   /** In print order. May be empty — an amount alone is a real offer. */
@@ -1159,9 +1051,8 @@ export type ApiSponsorship = {
   inKind: ApiInKindOffer[]
   /**
    * The fine print under the tier grid — what a `*` on a benefit means, and the
-   * club's note about the sponsorship being tax-deductible. One block of text
-   * with its newlines meaningful; null when nobody has written any, which is
-   * what the grid drew before it existed.
+   * tax-deductible note. One block of text with its newlines meaningful; null when
+   * nobody has written any, which is what the grid drew before it existed.
    */
   footnotes: string | null
 }
@@ -1169,12 +1060,10 @@ export type ApiSponsorship = {
 /**
  * Everything the sponsor desk draws, in one read.
  *
- * `tiers` carries **one entry per level whether or not anybody has written it**,
- * because an unpublished tier is exactly the row an officer needs to see in
- * order to publish it. How many levels there are comes from the server for the
- * reason `ApiOfficerBoard.seats` does: it is the enum's answer, not the
- * frontend's, so a fifth tier added to the schema draws a fifth row here with
- * nothing edited in `web/`.
+ * `tiers` carries one entry per level whether or not anybody has written it — an
+ * unpublished tier is exactly the row an officer needs in order to publish it. How
+ * many levels there are comes from the server, so a fifth tier in the schema draws
+ * a fifth row with nothing edited here.
  */
 export type ApiSponsorDesk = {
   sponsors: ApiManagedSponsor[]
@@ -1185,7 +1074,7 @@ export type ApiSponsorDesk = {
 
 /**
  * The eight seats on the officer board. Mirrors the `OfficerPosition` enum in
- * `schema.prisma`, and — like that enum — the order here is the display order.
+ * `schema.prisma`, where the declaration order is the display order.
  */
 export type OfficerPosition =
   | 'PRESIDENT'
@@ -1198,8 +1087,8 @@ export type OfficerPosition =
   | 'FACULTY_ADVISOR'
 
 /**
- * A roster entry, as `rosterSelect` in `server/src/routes/public/content.ts` returns
- * it. It says nothing about the officer board any more: who sits on it is an
+ * A roster entry, as `rosterSelect` in `server/src/routes/public/content.ts`
+ * returns it. It says nothing about the officer board — who sits on it is an
  * `ApiOfficerTerm` below, a different table entirely.
  */
 export type ApiMember = {
@@ -1212,59 +1101,50 @@ export type ApiMember = {
   bio: string | null
   photoUrl: string | null
   /**
-   * Where this person's photograph points — their LinkedIn, GitHub or the like
-   * — or null for the great majority who have not given one.
+   * Where this person's photograph points — their LinkedIn, GitHub or the like —
+   * or null for the great majority who haven't given one.
    *
-   * **The member writes it themselves and the server decides what it may be**:
-   * an allowlist of known platforms, in `server/src/core/validate.ts`. That is
-   * why a card can put it straight in an `href`; nothing else on this page is a
-   * public address typed by an ordinary member.
+   * The member writes it and the server decides what it may be: an allowlist of
+   * known platforms in `server/src/core/validate.ts`. That's why a card can put it
+   * straight in an `href`; nothing else here is a public address typed by an
+   * ordinary member.
    *
-   * Not `slug`, which is the field above and a different thing. A slug buys a
-   * profile page *on this site* and is an officer's to set; this is the
-   * member's own answer to "where can people find me".
+   * Not `slug`, which is above and a different thing — a slug buys a profile page
+   * on this site and is an officer's to set.
    */
   profileUrl: string | null
   active: boolean
   /**
-   * Whether this person used to run the club. What `?status=alumni` selects on
-   * and what the card's badge is drawn from.
+   * Whether this person used to run the club, and what `?status=alumni` selects on.
    *
-   * **Two facts collapsed into one, server-side**: the club's Discord *Officer
-   * Alumni* role, and a term in the club's own archive that has ended. Either
-   * is enough. The desk at `/dashboard/officer/officers` writes the second, so
-   * a board typed in from 2011 files those people under ALUMNI without anybody
-   * touching Discord. Collapsed rather than sent as two fields because every
-   * reader wants the same OR, and two fields is two places to get it wrong.
+   * Two facts collapsed server-side: the club's Discord *Officer Alumni* role, and
+   * a term in the club's own archive that has ended. Either is enough, so a board
+   * typed in from 2011 files those people under ALUMNI without anybody touching
+   * Discord. Collapsed because every reader wants the same OR.
    *
-   * **Not `active`, which is the field above and a different fact.** `active`
-   * is "still around" and is set back to true by every dues payment, so it can
-   * never be made to mean this; somebody can be both. The server's
-   * `rosterStatus` in `routes/public/content.ts` has the full argument.
+   * Not `active`, which is above and a different fact: that means "still around"
+   * and every dues payment sets it back to true, so somebody can be both.
+   * `rosterStatus` in `routes/public/content.ts` has the argument.
    */
   officerAlumnus: boolean
 }
 
 /**
- * A tenure on the officer board, as both `GET /api/officers` and
- * `GET /api/officers/past` return it — they are one table split on `endedAt`,
- * so they answer with one shape and the page decides what to do with it.
+ * A tenure on the officer board, as `GET /api/officers` and `GET /api/officers/past`
+ * both return it — one table split on `endedAt`, so one shape and the page decides.
  *
- * **`endedAt` null is what "currently on the board" means.** Deliberately not
- * `role`: `UserRole` has one slot per person with `ADMIN` above `OFFICER`, so
- * it cannot say "an admin who is also an officer" — and a club always has one.
+ * `endedAt` null is what "currently on the board" means. Deliberately not `role`:
+ * `UserRole` has one slot per person with `ADMIN` above `OFFICER`, so it can't say
+ * "an admin who is also an officer", and a club always has one.
  *
- * `position` is null for somebody who holds no named seat, which is a real
- * state: Discord decides *that* somebody is an officer and the roles desk
- * decides *which chair*, so there is a gap between the two.
+ * `position` is null for somebody holding no named seat, which is a real state:
+ * Discord decides that somebody is an officer, the roles desk decides which chair.
  *
- * `photoUrl` has already been resolved server-side against the linked roster
- * entry, so the page has one field to draw rather than a fallback to work out —
- * and the **account's** photograph is the one that wins, so an officer who
- * changes their picture changes it on the board. `profileUrl` comes off the
- * same account and is null for every term with nobody behind it, which is most
- * of the archive. Dates are ISO strings; `academicYear` in
- * `lib/officerTerms.ts` turns them into the heading the archive groups by.
+ * `photoUrl` is already resolved server-side against the linked roster entry, and
+ * the account's photograph wins — so an officer who changes their picture changes
+ * it on the board. `profileUrl` comes off the same account and is null for every
+ * term with nobody behind it, which is most of the archive. Dates are ISO strings;
+ * `academicYear` in `lib/officerTerms.ts` makes the heading the archive groups by.
  */
 export type ApiOfficerTerm = {
   id: string
@@ -1277,13 +1157,12 @@ export type ApiOfficerTerm = {
 }
 
 /**
- * Today's board, as `GET /api/officers` answers it.
+ * Today's board, from `GET /api/officers`.
  *
- * **`officers` is one entry per sitting officer, not one per seat**, so the
- * page draws as many cards as the club has officers. `seats` is every seat
- * there is, in board order, from the `OfficerPosition` enum — sent so the page
- * can also show the chairs nobody is in without holding a list of its own.
- * Neither number is decided in the frontend any more.
+ * `officers` is one entry per sitting officer, not one per seat, so the page draws
+ * as many cards as the club has officers. `seats` is every seat there is, in board
+ * order, from the `OfficerPosition` enum — sent so the page can also show the
+ * chairs nobody is in without keeping a list of its own.
  */
 export type ApiOfficerBoard = {
   seats: OfficerPosition[]
@@ -1291,12 +1170,12 @@ export type ApiOfficerBoard = {
 }
 
 /**
- * The archive, as `GET /api/officers/past` answers it.
+ * The archive, from `GET /api/officers/past`.
  *
- * A window rather than the whole thing: two academic years by default, because
- * a fifty-year club is a few hundred rows and every one carries a headshot the
- * page then asks for. `older` is how many terms fall outside it — a count
- * rather than the rows, because the answer it feeds is a button.
+ * A window rather than the whole thing: two academic years by default, because a
+ * fifty-year club is a few hundred rows and every one carries a headshot the page
+ * then asks for. `older` is how many terms fall outside it — a count rather than
+ * the rows, because the answer it feeds is a button.
  */
 export type ApiOfficerArchive = {
   terms: ApiOfficerTerm[]
@@ -1307,25 +1186,18 @@ export type ApiOfficerArchive = {
 }
 
 /**
- * One term as the officers desk sees it, from `GET /api/officer/archive`.
+ * One term as the officers desk sees it, from `GET /api/officer/archive`:
+ * `ApiOfficerTerm` plus the three things a public page has no use for.
  *
- * `ApiOfficerTerm` plus the three things a public page has no use for and an
- * officer cannot work without.
- *
- * **`endedReason` and `source` are the two that change what somebody does.**
  * A term whose `source` is `DISCORD` was opened by the role sync and will be
- * *reopened by it* if it is closed or deleted while the person still carries
- * the role — so the desk warns rather than letting an officer press the same
- * button twice and conclude the site is broken. `endedReason` is the archive's
- * own memory of why a tenure finished: "Succeeded by Priya Raman" and "lost the
- * Discord officer role" are different pieces of history.
+ * reopened by it if it's closed or deleted while the person still carries the
+ * role, so the desk warns rather than letting an officer press the same button
+ * twice and conclude the site is broken. `endedReason` is the archive's own memory
+ * of why a tenure finished.
  *
- * **`photoUrl` here is the term's own and is not coalesced against the
- * account**, unlike the same field on `ApiOfficerTerm`. This is the page that
- * sets and clears that column, so it has to be able to see whether there is
- * anything in it — a fallback would make an empty column look filled and the
- * remove button look broken. `user` is the linked account, and its photo is
- * what the public page will actually draw when there is one.
+ * `photoUrl` here is the term's own and is not coalesced against the account,
+ * unlike on `ApiOfficerTerm`: this is the page that sets and clears that column, so
+ * a fallback would make an empty one look filled and REMOVE look broken.
  */
 export type ApiArchivedTerm = {
   id: string
@@ -1340,14 +1212,12 @@ export type ApiArchivedTerm = {
 }
 
 /**
- * The whole table, as `GET /api/officer/archive` answers it: every tenure the
- * club has recorded, open ones included.
+ * The whole table, from `GET /api/officer/archive`: every tenure the club has
+ * recorded, open ones included.
  *
- * Unpaginated, and the desk searches and filters it in the browser with
- * `lib/officerTerms.ts` — the same functions and the same reasoning as the
- * public archive at `/officers`, which is the page this desk writes. `seats` is
- * every seat there is, in board order, so the picker's options come from the
- * database rather than from a list here.
+ * Unpaginated, and searched and filtered in the browser with `lib/officerTerms.ts`
+ * — the same functions as the public archive this desk writes. `seats` comes from
+ * the database rather than from a list here.
  */
 export type ApiOfficerArchiveDesk = {
   seats: OfficerPosition[]
@@ -1357,14 +1227,12 @@ export type ApiOfficerArchiveDesk = {
 /**
  * Whether this visitor may still write to the club, from `GET /api/contact`.
  *
- * Mirrors `server/src/routes/public/forms.ts`, and it is the one read on the site whose
- * answer is about the caller rather than the club — so it is never cached, and
- * a stale one would be wrong in the direction that costs somebody the message
- * they typed.
+ * Mirrors `server/src/routes/public/forms.ts`. The one read on the site whose
+ * answer is about the caller rather than the club, so it is never cached — a stale
+ * one would be wrong in the direction that costs somebody the message they typed.
  *
- * `message` is the server's own sentence for a refusal and null when there is
- * nothing to refuse. Carried rather than written here for the same reason the
- * dues refusals are: the number is the route's to change.
+ * `message` is the server's own sentence for a refusal, null when there's nothing
+ * to refuse. The number is the route's to change.
  */
 export type ApiContactSent = {
   id: string
@@ -1385,10 +1253,9 @@ export type ApiContactAvailability = {
 /**
  * Signup, mirroring `server/src/routes/account/signup.ts`.
  *
- * Nothing about the account comes back from any of these. There is no session
- * to establish yet, and the two fields worth protecting — the address and the
- * password hash — are exactly the ones every other route is careful never to
- * return.
+ * Nothing about the account comes back from any of these: there's no session yet,
+ * and the address and the password hash are exactly the two fields every other
+ * route is careful never to return.
  */
 
 export type ApiSignupStarted = {
@@ -1408,11 +1275,10 @@ export type ApiSignupCreated = { id: string; status: 'created' }
 /**
  * The answer about a Discord handle.
  *
- * Five states rather than a boolean, because they call for five different
- * things from the person filling the form. `not_found` sends them to the QR
- * code, `taken` does not; `unchecked` means the club has no bot configured and
- * nothing was asked; `unavailable` means Discord itself did not answer, which
- * is not evidence about the handle either way.
+ * Five states rather than a boolean, because they call for five different things
+ * from the person filling the form. `not_found` sends them to the QR code, `taken`
+ * doesn't; `unchecked` means no bot is configured and nothing was asked;
+ * `unavailable` means Discord didn't answer, which is no evidence either way.
  */
 export type ApiDiscordCheck =
   | { status: 'connected'; username: string; id: string }
@@ -1421,17 +1287,16 @@ export type ApiDiscordCheck =
 /**
  * Signing in, mirroring `server/src/routes/account/auth.ts`.
  *
- * `GET /api/auth/me` answers `{ user: null }` with a 200 rather than a 401 when
- * nobody is signed in — that is the ordinary state of the front page, not a
- * failure, and treating it as one puts a red line in the console on every load.
+ * `GET /api/auth/me` answers `{ user: null }` with a 200 rather than a 401 —
+ * nobody being signed in is the ordinary state of the front page, and treating it
+ * as a failure puts a red line in the console on every load.
  */
 /**
- * Somebody's standing in the *club*, mirroring `UserRole` in `schema.prisma`.
+ * Somebody's standing in the club, mirroring `UserRole` in `schema.prisma`.
  *
- * Four values, and what this is for on the client is showing and hiding officer
- * navigation. It is never what grants access — every officer route re-checks it
- * server-side — and it says **nothing about any project**. Who runs which
- * project or team is `ProjectMemberRank`, above, on the membership rows.
+ * On the client this only shows and hides officer navigation. It never grants
+ * access — every officer route re-checks server-side — and it says nothing about
+ * any project. Who runs which project is `ProjectMemberRank`, above.
  */
 export type UserRole = 'ADMIN' | 'OFFICER' | 'MEMBER' | 'GUEST'
 
@@ -1443,23 +1308,22 @@ export type ApiUser = {
   role: UserRole
   discordUsername: string | null
   /**
-   * Their profile photo, or null. On the session rather than only on the
-   * account read because the nav bar and the dashboard rail both draw an
-   * `Avatar` from `session.user` and have nothing else to go on.
+   * Their profile photo, or null. On the session because the nav bar and the
+   * dashboard rail both draw an `Avatar` from `session.user` and have nothing else
+   * to go on.
    *
-   * Either an upload's `/api/files/<id>` or an external address, so it goes
-   * through `imageSrc` like every other image column — see `storedFiles.ts`.
+   * An upload's `/api/files/<id>` or an external address, so it goes through
+   * `imageSrc` — see `storedFiles.ts`.
    */
   photoUrl: string | null
   /**
-   * How that photo sits inside the avatar's square, mirroring the three columns
-   * on `User`. The same meaning as `ApiProjectImage`'s, but chosen against a
-   * **square** frame rather than the gallery's 16:10 — the two are not
-   * interchangeable, and a photo framed for one is framed wrongly in the other.
+   * How that photo sits inside the avatar's square, mirroring the three columns on
+   * `User`. Chosen against a square frame rather than the gallery's 16:10 — the two
+   * aren't interchangeable, and a photo framed for one is framed wrongly in the
+   * other.
    *
-   * On the session because the avatar is drawn wherever the session reaches,
-   * and one drawn without these is a plain centred crop — which is the first
-   * thing somebody who has just framed their photo would notice.
+   * On the session because the avatar is drawn wherever the session reaches, and
+   * one drawn without these is a plain centred crop.
    */
   photoFocalX: number
   photoFocalY: number
@@ -1472,28 +1336,26 @@ export type ApiSession = { user: ApiUser | null }
  * The account as its owner manages it, from `GET /api/account` — mirroring
  * `profileSelect` in `server/src/routes/account/account.ts`.
  *
- * A superset of `ApiUser` with the two fields nothing else on the site needs.
- * `bio` and `gradYear` are deliberately *not* on the session: they are the
- * profile page's business, and putting them there would mean every page load
- * carrying a paragraph the nav has no use for.
+ * A superset of `ApiUser`. `bio` and `gradYear` are deliberately not on the
+ * session: they're this page's business, and putting them there would mean every
+ * page load carrying a paragraph the nav has no use for.
  */
 export type ApiAccount = ApiUser & {
   bio: string | null
   gradYear: number | null
   /**
-   * Where their photograph points on the public pages, or null. Here and not on
-   * the session for the reason `bio` is not: the nav bar's avatar goes to the
-   * dashboard and always will, so nothing outside this page and the two public
-   * rosters has any use for it.
+   * Where their photograph points on the public pages, or null. Here rather than on
+   * the session for the reason `bio` is: the nav bar's avatar goes to the dashboard
+   * and always will.
    */
   profileUrl: string | null
   /** When the member agreement was accepted, or null for every roster entry
       that predates the signup form. */
   acknowledgementAcceptedAt: string | null
   /**
-   * Whether there is a password to change, rather than the hash. False for a
-   * roster entry an officer created by hand — the page then offers to *set*
-   * one rather than asking for a current one that does not exist.
+   * Whether there is a password to change, rather than the hash. False for a roster
+   * entry an officer created by hand — the page then offers to set one rather than
+   * asking for a current one that doesn't exist.
    */
   passwordSet: boolean
   /** An address waiting on its confirmation link, or null. Without it the page
@@ -1508,11 +1370,10 @@ export type ApiAccountUser = { user: ApiUser }
 /**
  * `PATCH /api/account/profile-link` — the stored address, or null once cleared.
  *
- * The one account write that does not answer with a user, and deliberately: it
- * touches nothing the session draws, so there is nothing to adopt. What comes
- * back is the address **as the server normalised it** — a scheme added, `http`
- * upgraded — which is why the panel takes this rather than keeping what was
- * typed.
+ * The one account write that doesn't answer with a user: it touches nothing the
+ * session draws. What comes back is the address as the server normalised it, a
+ * scheme added or `http` upgraded, which is why the panel takes this rather than
+ * keeping what was typed.
  */
 export type ApiProfileLink = { profileUrl: string | null }
 
@@ -1526,18 +1387,18 @@ export type ApiEmailChangeStarted = {
 /**
  * `POST /api/auth/password/forgot` — 202 whatever it found.
  *
- * The message is the server's, and it is phrased about what *would* happen
- * rather than what did: an answer that differed for an unknown address would
- * turn the form into a way to ask whether somebody is a member.
+ * The message is phrased about what would happen rather than what did: an answer
+ * that differed for an unknown address would turn the form into a way to ask
+ * whether somebody is a member.
  */
 export type ApiPasswordResetSent = { status: 'sent'; message: string }
 
 /**
  * Dues, mirroring `server/src/routes/member/dues.ts`.
  *
- * Every date here is an ISO string and every amount is in cents, because that
- * is the unit Stripe charges in and converting anywhere but the point of
- * display is where rounding bugs live.
+ * Every date is an ISO string and every amount is in cents — the unit Stripe
+ * charges in, and converting anywhere but the point of display is where rounding
+ * bugs live.
  */
 
 export type Season = 'SPRING' | 'SUMMER' | 'FALL'
@@ -1545,9 +1406,9 @@ export type Season = 'SPRING' | 'SUMMER' | 'FALL'
 export type DuesPlan = 'SEMESTER' | 'YEAR'
 
 /**
- * A UCF term. `fromCalendar` is false when calendar.ucf.edu could not be read
- * and the server fell back to fixed dates — the page says so rather than
- * printing an approximate date as though it were the real one.
+ * A UCF term. `fromCalendar` is false when calendar.ucf.edu couldn't be read and
+ * the server fell back to fixed dates — the page says so rather than printing an
+ * approximate date as though it were the real one.
  */
 export type ApiTerm = {
   year: number
@@ -1555,15 +1416,13 @@ export type ApiTerm = {
   startsAt: string
   endsAt: string
   /**
-   * False only when the dates are the server's fixed fallbacks. **True for a
-   * term the club has set by hand on the semesters desk**, deliberately: the
-   * sweeps stand down on fallback dates because a guess must not cost anybody
-   * their membership, and a date an officer typed is the opposite of a guess.
+   * False only when the dates are the server's fixed fallbacks. True for a term the
+   * club has set by hand on the semesters desk: the sweeps stand down on fallback
+   * dates because a guess mustn't cost anybody their membership, and a date an
+   * officer typed is the opposite of a guess.
    *
-   * The server also sends `overridden` and `overrideNote` beside this, saying
-   * which of the three sources answered. Nothing on the dues pages reads them —
-   * `ApiSemesterTerm` is where that distinction is typed, for the one desk that
-   * shows it — so they are deliberately not mirrored here.
+   * The server also sends `overridden` and `overrideNote`. Nothing on the dues pages
+   * reads them, so they're deliberately not mirrored here.
    */
   fromCalendar: boolean
 }
@@ -1571,16 +1430,15 @@ export type ApiTerm = {
 /**
  * Where a member stands today.
  *
- * Four statuses rather than a boolean, because they call for four different
- * things on the page. `ACTIVE` is paid. `TRIAL` is inside the free weeks at
- * the start of a term and about to not be — the one that needs a deadline in
- * front of it. `FREE` is summer or the gap between terms, where nobody owes
- * anything. `EXPIRED` is the only one that is a problem.
+ * Four statuses rather than a boolean, because they call for four different things
+ * on the page. `ACTIVE` is paid. `TRIAL` is inside the free weeks at the start of a
+ * term and about to not be — the one that needs a deadline in front of it. `FREE`
+ * is summer or the gap between terms. `EXPIRED` is the only one that's a problem.
  */
 /**
- * Mirrors `MembershipStatus` in `server/src/membership/semester.ts`. Only `ACTIVE` is
- * access: `FREE` means the club is charging nobody *and this person has not
- * claimed it*, which is one press away from cover rather than cover itself.
+ * Mirrors `MembershipStatus` in `server/src/membership/semester.ts`. Only `ACTIVE`
+ * is access: `FREE` means the club is charging nobody and this person hasn't
+ * claimed it, which is one press away from cover rather than cover itself.
  */
 export type MembershipStatus = 'ACTIVE' | 'FREE' | 'EXPIRED'
 
@@ -1595,38 +1453,35 @@ export type ApiMembership = {
   /** The term a payment made now would buy — differs from `term` only in summer. */
   billable: ApiTerm
   /**
-   * `ACTIVE` because a free window was claimed rather than because dues were
-   * paid — so the panel can avoid telling somebody their dues are paid when
-   * they have not paid anything.
+   * `ACTIVE` because a free window was claimed rather than because dues were paid —
+   * so the panel doesn't tell somebody their dues are paid when they haven't paid
+   * anything.
    */
   freeActive: boolean
   /** A free window is running and this person has not claimed it yet. */
   canActivate: boolean
   /**
-   * The one-time member survey has not been answered.
+   * The one-time member survey hasn't been answered.
    *
-   * **It locks nothing**, and the name says so on purpose: it was
-   * `surveyRequired` while the server had a `requireSurvey` gate behind it, and
-   * five pages read it to draw a padlock. The survey is an invitation now, so
-   * this is only what the dashboard reads to decide whether it still has
-   * something to offer — the prompt, the rail's row and the overview's panel.
+   * It locks nothing, and the name says so: it was `surveyRequired` while a
+   * `requireSurvey` gate stood behind it and five pages drew a padlock from it. The
+   * survey is an invitation now, so this is only what the dashboard reads to decide
+   * whether it still has something to offer.
    *
-   * **Not a fact about dues**, and it rides on this object anyway, because
-   * `/dues/status` is the one call the dashboard rail already makes on every
-   * page. A prompt that needed its own fetch would arrive a beat after the page
-   * and pop up under somebody's pointer.
+   * Not a fact about dues, and it rides on this object anyway because `/dues/status`
+   * is the one call the rail already makes on every page — a prompt with its own
+   * fetch would arrive a beat late, under somebody's pointer.
    *
-   * No `ADMIN` exemption, unlike everything else on this object — there is no
-   * lock left to be exempt from, and an admin's shirt size is as useful as
-   * anybody's.
+   * No `ADMIN` exemption, unlike everything else here: there's no lock left to be
+   * exempt from.
    */
   surveyPending: boolean
   /**
    * They ticked *don't ask me again*, so the prompt stays down.
    *
-   * Separate from the flag above rather than folded into it: the prompt reads
-   * both, and the two panels that offer the form read only the first. A
-   * dismissal silences the nag, it does not hide the survey.
+   * Separate from the flag above: the prompt reads both, and the two panels that
+   * offer the form read only the first. A dismissal silences the nag, it doesn't
+   * hide the survey.
    */
   surveyPromptDismissed: boolean
 }
@@ -1649,20 +1504,17 @@ export type ApiDuesPayment = {
   coversThrough: string
   paidAt: string | null
   /**
-   * Stripe's hosted receipt page, or null if there is none to link to.
+   * Stripe's hosted receipt page, or null if there's none to link to.
    *
-   * This is the receipt, not a copy of one that was emailed. Stripe sends an
-   * automatic email only in live mode and only when the account has
-   * "Successful payments" switched on — never for a test payment — so the page
-   * links to this rather than telling anybody to check their inbox. Stripe
-   * expires these links after 30 days and offers to mail a fresh one.
+   * This is the receipt, not a copy of one that was emailed — Stripe only mails one
+   * in live mode with "Successful payments" switched on, never for a test payment.
+   * It expires these after 30 days and offers to send a fresh one.
    */
   receiptUrl: string | null
   /**
-   * The officer who comped this term, and null for everything Stripe collected.
-   *
-   * A zero-amount row with nothing beside it reads as a bug in the price
-   * column, so the name is what makes it a record instead.
+   * The officer who comped this term, null for everything Stripe collected. A
+   * zero-amount row with nothing beside it reads as a bug in the price column, so
+   * the name is what makes it a record instead.
    */
   grantedBy: string | null
 }
@@ -1694,10 +1546,10 @@ export type ApiDuesSync = {
  * The member survey, mirroring `routes/member/survey.ts` and the tables in
  * `schema.prisma`.
  *
- * **What the survey asks is data, not types.** It used to be five string unions
- * here and five Postgres enums there, and the club could not add a question
- * without a migration and a deploy. Officers write the questions now, so the
- * only fixed thing left is the *shape* of one — which is what `kind` names.
+ * What the survey asks is data, not types. It used to be five string unions here
+ * and five Postgres enums there, so the club couldn't add a question without a
+ * migration and a deploy. The only fixed thing left is the shape of one, which is
+ * what `kind` names.
  */
 export type SurveyQuestionKind =
   'SHORT_TEXT' | 'LONG_TEXT' | 'SINGLE_CHOICE' | 'MULTI_CHOICE'
@@ -1708,10 +1560,9 @@ export type ApiSurveyOption = {
   /** "Other": picking it asks for a line in the question's text box. */
   wantsText: boolean
   /**
-   * An option the club has stopped offering that this member picked before it
-   * went. It is on the form for them and for nobody else — a write replaces
-   * every answer, so an option the form could not draw would be dropped on the
-   * way past. See `questionsFor` in `server/src/routes/member/survey.ts`.
+   * An option the club has stopped offering that this member already picked. On the
+   * form for them and for nobody else — a write replaces every answer, so an option
+   * the form couldn't draw would be dropped on the way past.
    */
   retired: boolean
 }
@@ -1725,10 +1576,9 @@ export type ApiSurveyQuestion = {
   kind: SurveyQuestionKind
   required: boolean
   /**
-   * `MULTI_CHOICE` only: the form offers a NONE box, and an empty set of ticks
-   * is what pressing it stores. **There is no NONE option** — the reasoning is
-   * on `SurveyQuestion.allowNone` in `schema.prisma`, and `answered()` in
-   * `lib/survey.ts` is the half of it this side owns.
+   * `MULTI_CHOICE` only: the form offers a NONE box, and an empty set of ticks is
+   * what pressing it stores. There is no NONE option — see `SurveyQuestion.allowNone`
+   * in `schema.prisma` and `answered()` in `lib/survey.ts`.
    */
   allowNone: boolean
   /** Already resolved to a number by the server, so the input's cap and the
@@ -1738,12 +1588,12 @@ export type ApiSurveyQuestion = {
 }
 
 /**
- * One answer. Uniform across all four kinds — a set of ticks and a line of text
- * — because which of the two a question uses is the question's business.
+ * One answer. Uniform across all four kinds — a set of ticks and a line of text —
+ * because which of the two a question uses is the question's business.
  *
- * **The answer existing is what "answered" means.** A tick-any question with a
- * NONE box is answered by an *empty* `optionIds`, so there is nothing in the
- * answer itself that could tell it from a question somebody scrolled past.
+ * The answer existing is what "answered" means: a tick-any question with a NONE box
+ * is answered by an empty `optionIds`, so nothing in the answer itself could tell it
+ * from a question somebody scrolled past.
  */
 export type ApiSurveyAnswer = {
   questionId: string
@@ -1761,10 +1611,10 @@ export type ApiSurvey = {
 /**
  * `GET /api/survey`, and — minus the questions — what both writes answer with.
  *
- * `gradYear` sits beside the answers rather than among them because it is
- * `User.gradYear` — the same column the profile page edits and the public
- * roster prints. The survey asks for it and writes it there rather than keeping
- * a second copy, so the form pre-fills from this.
+ * `gradYear` sits beside the answers rather than among them because it's
+ * `User.gradYear`, the same column the profile page edits and the public roster
+ * prints. The survey writes there rather than keeping a second copy, so the form
+ * pre-fills from this.
  */
 export type ApiSurveyState = {
   questions: ApiSurveyQuestion[]
@@ -1796,9 +1646,9 @@ export type ApiSurveyQuestionTally = {
 }
 
 /**
- * `GET /api/officer/survey/questions` — the same questions, as their editor
- * sees them: the removed ones included, and with the counts that decide what
- * REMOVE is going to do.
+ * `GET /api/officer/survey/questions` — the same questions as their editor sees
+ * them: the removed ones included, and with the counts that decide what REMOVE is
+ * going to do.
  */
 export type ApiSurveyEditorOption = {
   id: string
