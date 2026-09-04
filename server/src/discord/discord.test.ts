@@ -73,6 +73,7 @@ function stubDiscord(body: unknown, status = 200) {
  */
 const ROLE_KEYS = [
   'DISCORD_OFFICER_ROLE_ID',
+  'DISCORD_OFFICER_ALUMNI_ROLE_ID',
   'DISCORD_MEMBER_ROLE_ID',
   'DISCORD_PROJECT_LEAD_ROLE_ID',
   'DISCORD_TEAM_LEAD_ROLE_ID',
