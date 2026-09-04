@@ -11,14 +11,18 @@ import { gradYearField } from '../account/account.js'
 /**
  * The one-time member survey.
  *
- *   GET  /api/survey  -> the questions, this member's answers, or null
- *   POST /api/survey  -> answer it, once
- *   PUT  /api/survey  -> correct the answers afterwards
+ *   GET  /api/survey          -> the questions, this member's answers, or null
+ *   POST /api/survey          -> answer it, once
+ *   PUT  /api/survey          -> correct the answers afterwards
+ *   POST /api/survey/dismiss  -> stop asking
  *
- * **This is the first gate on the site.** `requireSurvey` in `src/auth/authz.ts`
- * refuses everything until it has been answered — the tools, the officer desks
- * and the dues page alike — so that the club can actually find out its members'
- * shirt sizes, majors and, at a meeting with food at it, their allergies.
+ * **It used to be the first gate on the site.** `requireSurvey` refused
+ * everything until it had been answered — the tools, the officer desks and the
+ * dues page alike — because the club needs its members' shirt sizes, majors
+ * and, at a meeting with food at it, their allergies, and had no other way to
+ * make anybody sit down and say. It is an invitation now: the dashboard asks
+ * once with a *don't ask me again* beside it, and `dismiss` at the bottom of
+ * this file is that checkbox. Nothing anywhere refuses an unanswered survey.
  *
  * **The questions are rows now, not columns.** What is asked lives in
  * `SurveyQuestion` and `SurveyOption`, which officers write from
@@ -28,10 +32,10 @@ import { gradYearField } from '../account/account.js'
  * answers. Every rule below is one of those, and none of them can be a database
  * constraint, which is why they are all in one function.
  *
- * **Nothing in this file is gated**, and that is not an oversight. `GET` is what
- * the survey page reads to render the form at all, and the two writes are the
- * way *out* of the gate: putting `requireSurvey` on them would lock somebody out
- * of the only thing that unlocks them.
+ * **Nothing in this file is gated**, and that is not an oversight. It reads and
+ * writes one person's own answers, so there is nothing here a lapsed member
+ * should be refused — and the club would rather have a shirt size from
+ * somebody who has stopped paying than not.
  *
  * **Expected graduation year is not a question.** It is `User.gradYear`, which
  * already existed, is already editable on the profile page and already prints on
@@ -44,9 +48,9 @@ import { gradYearField } from '../account/account.js'
  * promise: `User.surveyCompletedAt` is stamped by `POST`, never moved by `PUT`
  * and never cleared, so nobody is ever prompted twice — **including when an
  * officer adds a question**. A new question appears on this form the next time
- * its owner opens it; it does not put the club back behind the gate. A shirt
- * size that could not be corrected afterwards would just mean the club orders
- * the wrong shirt, which is the thing this whole feature exists to stop.
+ * its owner opens it; it does not put the club back to asking. A shirt size
+ * that could not be corrected afterwards would just mean the club orders the
+ * wrong shirt, which is the thing this whole feature exists to stop.
  */
 export const survey = new Hono<AuthEnv>()
 
@@ -503,7 +507,15 @@ survey.post(
        */
       const claimed = await tx.user.updateMany({
         where: { id: user.id, surveyCompletedAt: null },
-        data: { surveyCompletedAt: new Date(), gradYear },
+        // The dismissal goes with it. Somebody who ticked *don't ask me again*
+        // in September and filled it in anyway in March has not declined a
+        // survey, and a row that says both is one a future reader has to guess
+        // at. There is nothing left to silence once this lands.
+        data: {
+          surveyCompletedAt: new Date(),
+          surveyPromptDismissedAt: null,
+          gradYear,
+        },
       })
 
       if (claimed.count === 0) {
@@ -606,3 +618,40 @@ survey.put(
     return c.json({ survey: wireSurvey(updated), gradYear: onFile })
   },
 )
+
+// ----------------------------------------------------------------- dismiss
+
+/**
+ * "Don't ask me again", from the checkbox on the dashboard's survey prompt.
+ *
+ * **It silences the prompt and nothing else.** The survey stays on the rail's
+ * MEMBER SURVEY row's old ground — the overview's panel and the account
+ * page's — because a promise not to nag is not a promise to hide the form
+ * from somebody who changes their mind, and the whole reason this exists is
+ * that the club would still like the answers.
+ *
+ * Idempotent, and deliberately not a toggle. Pressing it twice is the same
+ * press, and there is no route back: un-dismissing is answering the survey,
+ * which clears the column in `POST` above. A member who wants to be reminded
+ * again is a member who was about to fill it in.
+ *
+ * It answers with nothing worth reading. The caller already knows what it asked
+ * for, and the one thing it might want back — the membership object the rail
+ * reads — comes from `/dues/status`, which it refetches anyway. A body rather
+ * than a 204 all the same: the browser's `sendJson` parses every response, and
+ * an empty one throws on the way back through it. Same note as the deletes in
+ * `routes/officer/officer.ts`.
+ */
+survey.post('/dismiss', originGuard, requireAuth, writes, async (c) => {
+  const user = c.get('user')
+
+  // Filtered on the null rather than written flat, so a second press is not a
+  // second timestamp. When it happened is the only thing this column says, and
+  // it should say the first time.
+  await prisma.user.updateMany({
+    where: { id: user.id, surveyPromptDismissedAt: null },
+    data: { surveyPromptDismissedAt: new Date() },
+  })
+
+  return c.json({ dismissed: true })
+})

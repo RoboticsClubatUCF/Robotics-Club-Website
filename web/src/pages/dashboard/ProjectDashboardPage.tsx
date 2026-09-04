@@ -10,7 +10,7 @@ import {
 import { LeaveProjectButton } from '../../components/shared/LeaveProjectButton'
 import { getJson, postJson } from '../../lib/api/api'
 import type { ApiMyProject, ApiProjectTeamView, ApiTask } from '../../lib/api/api'
-import { meetingLine } from '../../lib/events/meetings'
+import { meetingLine, meetingNote } from '../../lib/events/meetings'
 import { TASK_LABEL, isSettled } from '../../lib/tasks'
 import { useApi } from '../../lib/api/useApi'
 
@@ -85,6 +85,7 @@ function ProjectHome({ membership }: { membership: ApiMyProject }) {
     .join(' · ')
 
   const meets = meetingLine(project)
+  const note = meetingNote(project)
 
   return (
     <>
@@ -92,8 +93,21 @@ function ProjectHome({ membership }: { membership: ApiMyProject }) {
       <FormHeading>{project.title}</FormHeading>
 
       {(standing || meets) && (
-        <p className="text-faint mb-6 font-mono text-[11px] font-medium tracking-[0.14em]">
+        <p
+          className={`text-faint font-mono text-[11px] font-medium tracking-[0.14em] ${
+            note ? 'mb-1.5' : 'mb-6'
+          }`}
+        >
           {[standing, meets].filter(Boolean).join('  ·  ').toUpperCase()}
+        </p>
+      )}
+
+      {/* Kept out of the mono line above rather than joined onto it: that line
+          is labels and it is uppercased, and this is a sentence the lead
+          wrote. */}
+      {note && (
+        <p className="text-dim mb-6 text-[13px] leading-[1.6] text-pretty">
+          {note}
         </p>
       )}
 

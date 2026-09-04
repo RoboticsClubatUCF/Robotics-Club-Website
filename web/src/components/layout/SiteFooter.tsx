@@ -1,4 +1,5 @@
 import { BrandMark } from './BrandMark'
+import { socialMarks } from './socialMarks'
 import { ThemeToggle } from './ThemeToggle'
 import { socialLinks } from '../../content/home'
 
@@ -44,32 +45,73 @@ export function SiteFooter() {
           what puts the links at the left margin and the switch at the right one
           on the same line, instead of stacking it under them at the left. */}
       <div className="flex w-full items-center justify-between gap-5 wide:w-auto wide:justify-end wide:gap-6">
-        <ul className="flex flex-wrap gap-x-5.5 gap-y-1">
-          {socialLinks.map((link) => (
-            <li key={link.label}>
-              <a
-                href={link.href}
-                /* These leave the site, so they leave the tab too — someone part
-                   way down the page keeps their place. `noopener` is the one that
-                   matters: without it the opened page gets a handle on this one
-                   through `window.opener` and can navigate it. */
-                target="_blank"
-                rel="noreferrer noopener"
-                /* Padded to a thumb's worth of height on a phone. The negative
-                   margin keeps the row's visual rhythm — the target grows, the
-                   layout doesn't. */
-                className="text-faint hover:text-primary -my-2 flex min-h-9 items-center py-2 font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200"
-              >
-                {link.label}
-              </a>
-            </li>
-          ))}
+        {/* The four accounts as their own marks rather than as four words.
+            `socialMarks` is keyed by the same label the list already carries,
+            and a label it does not know falls back to that word — an account
+            added to `content/home.ts` without a glyph is then merely plain in a
+            row of logos, rather than an invisible link in a footer that is on
+            every route. `socialMarks` has the rest of the argument. */}
+        <ul className="flex items-center gap-x-1">
+          {socialLinks.map((link) => {
+            const mark = socialMarks[link.label]
+
+            return (
+              <li key={link.label}>
+                <a
+                  href={link.href}
+                  /* These leave the site, so they leave the tab too — someone part
+                     way down the page keeps their place. `noopener` is the one that
+                     matters: without it the opened page gets a handle on this one
+                     through `window.opener` and can navigate it. */
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  /* The name in words, because the link no longer has any. Set
+                     in ordinary case rather than as the list's `INSTAGRAM`:
+                     nothing on screen is uppercase any more, and a screen
+                     reader handed all-caps may spell it out. The `title` is the
+                     same string — what a pointer gets for a glyph it doesn't
+                     recognise. */
+                  aria-label={mark?.name ?? link.label}
+                  title={mark?.name ?? link.label}
+                  className={
+                    mark
+                      ? /* 44px on a phone, 36 above the breakpoint — the
+                           toggle's rule, which these could not follow while they
+                           were words of four different widths. A fixed box is
+                           what makes them able to now, and it is why the row and
+                           the switch line up exactly. */
+                        'text-faint hover:text-primary flex size-11 items-center justify-center transition-colors duration-200 wide:size-9'
+                      : 'text-faint hover:text-primary -my-2 flex min-h-9 items-center px-1 py-2 font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200'
+                  }
+                >
+                  {mark ? (
+                    /* `currentColor`, so the mark takes the anchor's `text-faint`
+                       and its hover with it — `socialMarks` deliberately holds no
+                       colour of its own. `aria-hidden` because the anchor above
+                       is what carries the name. */
+                    <svg
+                      aria-hidden
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      className="size-4.5"
+                    >
+                      <path d={mark.path} />
+                    </svg>
+                  ) : (
+                    link.label
+                  )}
+                </a>
+              </li>
+            )
+          })}
         </ul>
 
         {/* 44px on a phone and back to 36 above the breakpoint, the same rule
-            the calendar's month arrows follow. It cannot use the social links'
-            negative-margin trick — that grows a text target without moving the
-            row, and this one has a visible border, so the border is the size. */}
+            the calendar's month arrows follow — and, now that the social links
+            are fixed boxes rather than words, the same size as them. The two
+            used to be sized by different rules because a text target can only
+            be grown with padding and a negative margin, which is not available
+            to something with a visible border. */}
         <ThemeToggle className="size-11 wide:size-9" />
       </div>
     </footer>

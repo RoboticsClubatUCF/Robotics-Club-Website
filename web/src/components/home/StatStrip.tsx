@@ -14,12 +14,13 @@ import { useApi } from '../../lib/api/useApi'
  * applies the same filters the listing routes apply, so the number you read
  * here is the number you find when you land. Change one and change the other.
  *
- * **ACTIVE MEMBERS is the one cell that breaks that**, and its label is how.
- * `/members` lists every account, guests included; the count is the club's
- * active membership. The rule above still holds for the other two, so a cell
- * that does not match its page has to say so in its label — which is why the
- * wording lives in `content/home.ts` beside the count it belongs to rather
- * than being derived here.
+ * **ACTIVE MEMBERS used to be the one cell that broke that**, and its label was
+ * how: `/members` listed every account, guests included, while the count was
+ * the club's membership. That page defaults to the same membership now and the
+ * two agree. The label stays — it is what the number is — and it stays in
+ * `content/home.ts` beside the count it belongs to rather than being derived
+ * here, because the roster's chip carries the same two words and the two are
+ * meant to be read as one claim.
  *
  * Hand-rolled rather than DaisyUI's `stats`: that component is an `inline-grid`
  * with its own radius, dashed dividers and horizontal scroll, so using it here

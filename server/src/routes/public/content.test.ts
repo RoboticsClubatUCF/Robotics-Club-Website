@@ -9,7 +9,7 @@ import {
 } from 'vitest'
 import { app } from '../../app.js'
 import { prisma } from '../../core/db.js'
-import { Season } from '../../generated/prisma/enums.js'
+import { Season, UserRole } from '../../generated/prisma/enums.js'
 import { clearCalendarCache } from '../../membership/semester.js'
 
 /**
@@ -124,28 +124,25 @@ describe('GET /api/stats', () => {
    * `limit` is pushed past the defaults so a large table can't make a genuine
    * disagreement look like pagination.
    *
-   * **`members` is deliberately not held to it**, which is why the cell is
-   * labelled ACTIVE MEMBERS rather than MEMBERS. The listing is every account;
-   * the count is the club's active membership. All that is asserted here is the
-   * direction — the listing can only ever be the larger of the two — and the
-   * exact figure is pinned by "counts the active membership in /stats" below.
+   * **`members` is held to it again.** It was the documented exception for as
+   * long as the listing defaulted to every account; the default is the club's
+   * active membership now — the same clause `/stats` counts — so the cell and
+   * the page it opens are one claim and this asserts it as one.
    */
   it('counts exactly what the matching listing lists', async () => {
     const stats = await get<Stats>('/api/stats')
 
     const [projects, members, events] = await Promise.all([
       get<Project[]>('/api/projects?limit=100'),
-      // `status=all`, not the default. CURRENT excludes officer alumni now, and
-      // an officer alumnus who still pays dues counts towards the stat — so the
-      // default listing is not guaranteed to be the larger of the two and this
-      // assertion would be measuring the wrong pair.
-      get<Member[]>('/api/members?status=all&limit=1000'),
+      // The default `status`, deliberately not spelled out: the point is that
+      // whatever the listing opens on is what the cell counted.
+      get<Member[]>('/api/members?limit=1000'),
       get<unknown[]>('/api/events?limit=100'),
     ])
 
     expect(projects).toHaveLength(stats.projects)
     expect(events).toHaveLength(stats.events)
-    expect(members.length).toBeGreaterThanOrEqual(stats.members)
+    expect(members).toHaveLength(stats.members)
   })
 })
 
@@ -813,8 +810,11 @@ describe('public routes and private columns', () => {
    * a slug stayed out. That filter is gone — it was the reason the page showed
    * sixty of six hundred and eighty-eight — and it is exactly the sort of thing
    * somebody tidying reinstates. Counting against the table is what catches it.
+   *
+   * `status=all` on purpose: the default narrowed to the club's membership and
+   * this is about the chip that does not narrow at all.
    */
-  it('lists every account, guests and people with no slug included', async () => {
+  it('lists every account under EVERYONE, guests and people with no slug included', async () => {
     const members = await get<Member[]>('/api/members?status=all&limit=1000')
     const total = await prisma.user.count()
 
@@ -823,17 +823,23 @@ describe('public routes and private columns', () => {
   })
 
   /**
-   * The landing page's cell is the club's membership and the page it links to
-   * is every account, so these two numbers are *supposed* to differ. Pinned
-   * because the obvious "fix" for that gap is to make one match the other.
+   * What "active member" means, spelled out here rather than shared with the
+   * route so a change to the clause has to be made twice on purpose. It is dues
+   * standing and the alumni flag — never `role === 'MEMBER'`, which would drop
+   * every officer off the front page.
    */
-  it('counts the active membership in /stats, not the whole listing', async () => {
+  it('counts the active membership in /stats, and lists the same people', async () => {
     const { members } = await get<Stats>('/api/stats')
     const expected = await prisma.user.count({
       where: { active: true, role: { not: 'GUEST' } },
     })
 
     expect(members).toBe(expected)
+
+    // And the roster opens on it. The pair above is the definition; this is
+    // that the ACTIVE MEMBERS chip is reading the same one.
+    const listed = await get<Member[]>('/api/members?limit=1000')
+    expect(listed).toHaveLength(expected)
   })
 
   it('hides unpublished events', async () => {
@@ -977,10 +983,10 @@ describe('GET /api/events with project meetings', () => {
 })
 
 /**
- * The roster's three chips, and what ALUMNI means since it stopped meaning
- * `active: false`.
+ * The roster's three chips: what ACTIVE MEMBERS narrows to, what ALUMNI means
+ * since it stopped meaning `active: false`, and that the two overlap.
  *
- * It is the club's Discord **Officer Alumni** role, mirrored into
+ * ALUMNI is the club's Discord **Officer Alumni** role, mirrored into
  * `User.officerAlumnus` by `discord/discordAlumni.ts`. The fixtures make the
  * two facts different people on purpose, because reading `active` for this is
  * the mistake the column exists to prevent — `membershipUpdateFor` sets
@@ -990,13 +996,18 @@ describe('GET /api/events with project meetings', () => {
  * No Discord anywhere near this: the sweep writes the column and these tests
  * write it directly, which is the boundary worth testing on this side.
  */
-describe('GET /api/members and the alumni chip', () => {
+describe('GET /api/members and its three chips', () => {
   const PREFIX = 'test-content-roster-'
   const email = (name: string) => `${PREFIX}${name}@ucf.edu`
 
+  /**
+   * `role` defaults to GUEST in the schema, so a fixture that wants to be on
+   * the ACTIVE MEMBERS list has to say so — which is the filter, stated by the
+   * fixtures rather than assumed by them.
+   */
   const make = (
     name: string,
-    extra: { active?: boolean; officerAlumnus?: boolean } = {},
+    extra: { active?: boolean; officerAlumnus?: boolean; role?: UserRole } = {},
   ) =>
     prisma.user.create({
       data: { fullName: `Roster ${name}`, email: email(name), ...extra },
@@ -1027,29 +1038,51 @@ describe('GET /api/members and the alumni chip', () => {
     expect(alumni.every((row) => row.officerAlumnus)).toBe(true)
   })
 
-  it('keeps officer alumni out of the current list', async () => {
-    await make('past', { officerAlumnus: true })
-    await make('current')
+  /**
+   * ACTIVE MEMBERS is the club's paid-up membership and nothing else: `active`
+   * and not a GUEST, the clause `/stats` counts. Somebody who signed up and
+   * went no further is not in the club, and a lapsed account is not either —
+   * both are under EVERYONE, which is where the honest answer for them lives.
+   */
+  it('lists the paid-up membership under active and nobody else', async () => {
+    await make('paid', { role: UserRole.MEMBER })
+    await make('guest')
+    await make('lapsed', { role: UserRole.MEMBER, active: false })
 
     const current = await get<Member[]>('/api/members?status=active&limit=1000')
 
-    expect(named(current, 'current')).toBe(true)
-    expect(named(current, 'past')).toBe(false)
+    expect(named(current, 'paid')).toBe(true)
+    expect(named(current, 'guest')).toBe(false)
+    expect(named(current, 'lapsed')).toBe(false)
   })
 
   /**
    * Somebody can hold the Discord role *and* be a paid-up member — one of the
    * twenty-seven people carrying it in the club's guild is also a sitting
-   * officer — so the chip has to sort them somewhere and it sorts them here.
+   * officer — and both chips list them. ACTIVE MEMBERS used to negate the flag
+   * to keep the two disjoint, which meant paying dues could not put somebody on
+   * the list of people who pay dues.
    */
-  it('files a current member who is also an officer alumnus under alumni', async () => {
-    await make('both', { officerAlumnus: true, active: true })
+  it('lists a paid-up officer alumnus under both chips', async () => {
+    await make('both', { officerAlumnus: true, role: UserRole.MEMBER })
 
     const alumni = await get<Member[]>('/api/members?status=alumni&limit=1000')
     const current = await get<Member[]>('/api/members?status=active&limit=1000')
 
     expect(named(alumni, 'both')).toBe(true)
-    expect(named(current, 'both')).toBe(false)
+    expect(named(current, 'both')).toBe(true)
+  })
+
+  /** The other half of the overlap: an officer alumnus who stopped paying is
+      still an officer alumnus, and is not in the membership. */
+  it('keeps a lapsed officer alumnus under alumni alone', async () => {
+    await make('gone', { officerAlumnus: true })
+
+    const alumni = await get<Member[]>('/api/members?status=alumni&limit=1000')
+    const current = await get<Member[]>('/api/members?status=active&limit=1000')
+
+    expect(named(alumni, 'gone')).toBe(true)
+    expect(named(current, 'gone')).toBe(false)
   })
 
   it('shows all three under everyone', async () => {

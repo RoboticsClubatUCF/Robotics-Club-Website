@@ -7,14 +7,6 @@ import { currentTerm } from '../src/membership/semester.js'
  * Everything here is upserted on a unique key, so re-running is safe.
  */
 
-const subteams = [
-  { slug: 'software', name: 'Software', color: '#4f8cff', sortOrder: 1 },
-  { slug: 'mechanical', name: 'Mechanical', color: '#ff8a4f', sortOrder: 2 },
-  { slug: 'electrical', name: 'Electrical', color: '#ffd24f', sortOrder: 3 },
-  { slug: 'outreach', name: 'Outreach', color: '#5fd08a', sortOrder: 4 },
-  { slug: 'business', name: 'Business', color: '#b47fff', sortOrder: 5 },
-]
-
 /**
  * The public roster: users with a slug.
  *
@@ -31,7 +23,6 @@ const members = [
     title: 'Team Captain',
     gradYear: 2027,
     active: true,
-    subteam: 'software',
   },
   {
     slug: 'priya-raman',
@@ -40,7 +31,6 @@ const members = [
     title: 'Software Lead',
     gradYear: 2027,
     active: true,
-    subteam: 'software',
   },
   {
     slug: 'sam-okafor',
@@ -49,7 +39,6 @@ const members = [
     title: 'Mechanical Lead',
     gradYear: 2026,
     active: true,
-    subteam: 'mechanical',
   },
   {
     slug: 'mateo-ruiz',
@@ -58,7 +47,6 @@ const members = [
     title: 'Vision Stack Lead',
     gradYear: 2026,
     active: true,
-    subteam: 'software',
   },
   {
     slug: 'jordan-lee',
@@ -67,7 +55,6 @@ const members = [
     title: null,
     gradYear: 2028,
     active: true,
-    subteam: 'electrical',
   },
   {
     slug: 'dana-whitfield',
@@ -76,7 +63,6 @@ const members = [
     title: 'Faculty Mentor',
     gradYear: null,
     active: true,
-    subteam: null,
   },
   {
     slug: 'rae-lindqvist',
@@ -97,7 +83,6 @@ const members = [
     // every payment — see `discord/discordAlumni.ts`.
     active: false,
     officerAlumnus: true,
-    subteam: null,
   },
   {
     slug: 'devon-marsh',
@@ -110,7 +95,6 @@ const members = [
     // the club's real guild is in exactly this state.
     active: true,
     officerAlumnus: true,
-    subteam: null,
   },
 ]
 
@@ -138,7 +122,6 @@ const officers = [
     role: 'OFFICER' as const,
     bio: 'Placeholder officer. Replace before this is public.',
     gradYear: 2027,
-    subteam: 'mechanical',
   },
   {
     slug: 'placeholder-vice-president',
@@ -148,7 +131,6 @@ const officers = [
     role: 'OFFICER' as const,
     bio: 'Placeholder officer. Replace before this is public.',
     gradYear: 2027,
-    subteam: 'electrical',
   },
   {
     slug: 'placeholder-treasurer',
@@ -158,7 +140,6 @@ const officers = [
     role: 'OFFICER' as const,
     bio: 'Placeholder officer. Replace before this is public.',
     gradYear: 2026,
-    subteam: 'business',
   },
   {
     slug: 'placeholder-secretary',
@@ -168,7 +149,6 @@ const officers = [
     role: 'OFFICER' as const,
     bio: 'Placeholder officer. Replace before this is public.',
     gradYear: 2028,
-    subteam: 'business',
   },
   {
     slug: 'placeholder-marketing',
@@ -178,7 +158,6 @@ const officers = [
     role: 'OFFICER' as const,
     bio: 'Placeholder officer. Replace before this is public.',
     gradYear: 2027,
-    subteam: 'business',
   },
   {
     slug: 'placeholder-outreach',
@@ -188,7 +167,6 @@ const officers = [
     role: 'OFFICER' as const,
     bio: 'Placeholder officer. Replace before this is public.',
     gradYear: 2026,
-    subteam: 'outreach',
   },
   {
     slug: 'placeholder-lab-manager',
@@ -198,7 +176,6 @@ const officers = [
     role: 'OFFICER' as const,
     bio: 'Placeholder officer. Replace before this is public.',
     gradYear: 2026,
-    subteam: 'mechanical',
   },
   {
     slug: 'placeholder-faculty-advisor',
@@ -208,7 +185,6 @@ const officers = [
     role: 'MEMBER' as const,
     bio: 'Placeholder advisor. Replace before this is public.',
     gradYear: null,
-    subteam: null,
   },
 ]
 
@@ -887,35 +863,19 @@ async function main() {
     }
   }
 
-  for (const subteam of subteams) {
-    await prisma.subteam.upsert({
-      where: { slug: subteam.slug },
-      update: subteam,
-      create: subteam,
-    })
-  }
-
-  for (const { subteam, ...member } of members) {
-    const data = {
-      ...member,
-      subteam: subteam ? { connect: { slug: subteam } } : undefined,
-    }
+  for (const member of members) {
     await prisma.user.upsert({
       where: { slug: member.slug },
-      update: data,
-      create: data,
+      update: member,
+      create: member,
     })
   }
 
-  for (const { subteam, position, ...officer } of officers) {
-    const data = {
-      ...officer,
-      subteam: subteam ? { connect: { slug: subteam } } : undefined,
-    }
+  for (const { position, ...officer } of officers) {
     const seeded = await prisma.user.upsert({
       where: { slug: officer.slug },
-      update: data,
-      create: data,
+      update: officer,
+      create: officer,
       select: { id: true },
     })
 
@@ -1171,7 +1131,6 @@ async function main() {
     roster: await prisma.user.count({ where: { slug: { not: null } } }),
     officers: await prisma.officerTerm.count({ where: { endedAt: null } }),
     officerTerms: await prisma.officerTerm.count({ where: { endedAt: { not: null } } }),
-    subteams: await prisma.subteam.count(),
     projects: await prisma.project.count(),
     events: await prisma.event.count(),
     teams: await prisma.team.count(),

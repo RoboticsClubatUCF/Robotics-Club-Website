@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { LOCK_COPY, accessLock, coverGap, duesLocked } from './dues'
+import {
+  LOCK_COPY,
+  accessLock,
+  coverGap,
+  duesLocked,
+  surveyPrompt,
+} from './dues'
 import type { ApiMembership, ApiTerm } from '../api/api'
 
 /**
@@ -34,7 +40,8 @@ const membership = (over: Partial<ApiMembership> = {}): ApiMembership => ({
   billable: term,
   freeActive: false,
   canActivate: false,
-  surveyRequired: false,
+  surveyPending: false,
+  surveyPromptDismissed: false,
   ...over,
 })
 
@@ -60,7 +67,6 @@ describe('coverGap', () => {
           status: 'FREE',
           duesRequired: false,
           canActivate: true,
-          surveyRequired: false,
           freeThrough: '2026-09-07T04:00:00.000Z',
         }),
       ),
@@ -87,7 +93,6 @@ describe('coverGap', () => {
           status: 'FREE',
           duesRequired: false,
           canActivate: true,
-          surveyRequired: false,
           paidThrough: '2025-12-14T00:00:00.000Z',
           freeThrough: '2027-01-25T05:00:00.000Z',
         }),
@@ -163,79 +168,98 @@ describe('LOCK_COPY', () => {
 })
 
 /**
- * The fourth reason, and the one that outranks the other three.
+ * The survey, which is not a reason at all.
  *
- * The member survey is the gate ahead of dues on the server — `requireSurvey`
- * runs as the first statement of `requireCurrentDues` — so it has to be the
- * first branch here too. Getting that order wrong is not cosmetic: it would
- * send somebody to the dues page, which the survey gate refuses, and leave
- * them going in a circle with every click 403ing behind a sentence the page
- * never showed them.
+ * It used to be the fourth and the one that outranked the other three: the
+ * server ran `requireSurvey` as the first statement of `requireCurrentDues`, so
+ * `coverGap` had to branch on it before `hasAccess` or the browser would offer
+ * a page the server then refused. The gate is gone. What is left is
+ * `surveyPrompt`, which lives in the same file and deliberately is not an
+ * `AccessLock` — every reason above shuts a page, and this one only asks a
+ * question.
+ *
+ * The tests below are the ones that would have failed while it was a gate.
  */
-describe('the survey reason', () => {
-  it('comes before every other reason', () => {
-    expect(coverGap(membership({ surveyRequired: true }))).toBe('survey')
-  })
-
-  /**
-   * Including `hasAccess`. An officer who granted somebody a term has given
-   * them cover and not an answer, so this is a real state rather than a
-   * theoretical one — and it is the case that would slip past a check written
-   * after the `hasAccess` early return.
-   */
-  it('outranks cover somebody already has', () => {
+describe('the survey', () => {
+  it('is not a lock reason', () => {
+    // Paid up, and the survey not answered. `coverGap` used to return `survey`
+    // here — ahead of `hasAccess`, deliberately, because the server refused
+    // this person everything.
     expect(
       coverGap(
         membership({
           status: 'ACTIVE',
           hasAccess: true,
           duesRequired: false,
-          surveyRequired: true,
+          surveyPending: true,
         }),
       ),
-    ).toBe('survey')
+    ).toBeNull()
   })
 
-  it('outranks a free window', () => {
+  /**
+   * The case that mattered most, and the reason the gate went. Somebody whose
+   * dues have lapsed and who never answered used to be told about the survey;
+   * the sentence they get now is the one about the thing they actually owe.
+   */
+  it('leaves an unanswered survey out of the sentence a lapsed member gets', () => {
     expect(
       coverGap(
         membership({
-          status: 'FREE',
-          duesRequired: false,
-          canActivate: true,
-          surveyRequired: true,
+          status: 'EXPIRED',
+          hasAccess: false,
+          paidThrough: '2025-12-14T00:00:00.000Z',
+          surveyPending: true,
         }),
       ),
-    ).toBe('survey')
+    ).toBe('dues')
   })
 
-  it('locks the rail for a member who owes only this', () => {
-    const owed = ready(
+  it('locks nothing for a paid-up member who has not answered', () => {
+    const pending = ready(
       membership({
         status: 'ACTIVE',
         hasAccess: true,
         duesRequired: false,
-        surveyRequired: true,
+        surveyPending: true,
       }),
     )
 
-    expect(duesLocked(owed, 'MEMBER')).toBe(true)
-    expect(accessLock(owed, 'MEMBER')).toBe('survey')
+    expect(duesLocked(pending, 'MEMBER')).toBe(false)
+    expect(accessLock(pending, 'MEMBER')).toBeNull()
   })
 
-  /** The same exemption as everything else here, and for the same reason. */
-  it('does not apply to an admin', () => {
-    expect(accessLock(ready(membership({ surveyRequired: true })), 'ADMIN')).toBeNull()
+  it('is asked of somebody who has not answered', () => {
+    expect(surveyPrompt(ready(membership({ surveyPending: true })))).toBe(true)
   })
 
-  /** And nothing flashes while the standing is still on the wire. */
-  it('draws nothing until the membership has arrived', () => {
+  /** The checkbox. One press and the dashboard never raises it again. */
+  it('is not asked of somebody who said stop', () => {
+    expect(
+      surveyPrompt(
+        ready(membership({ surveyPending: true, surveyPromptDismissed: true })),
+      ),
+    ).toBe(false)
+  })
+
+  it('is not asked of somebody who answered', () => {
+    expect(surveyPrompt(ready(membership({ surveyPending: false })))).toBe(false)
+  })
+
+  /**
+   * **No `ADMIN` exemption**, unlike every lock reason above it. That exemption
+   * exists so whoever fixes memberships cannot be locked out by one, and there
+   * is nothing here to be let past — an admin's shirt size is as useful to the
+   * club as anybody's.
+   */
+  it('is asked of an admin like anybody else', () => {
+    expect(surveyPrompt(ready(membership({ surveyPending: true })))).toBe(true)
+    expect(accessLock(ready(membership({ surveyPending: true })), 'ADMIN')).toBeNull()
+  })
+
+  /** And nothing is asked while the standing is still on the wire. */
+  it('asks nothing until the membership has arrived', () => {
+    expect(surveyPrompt({ status: 'loading' })).toBe(false)
     expect(accessLock({ status: 'loading' }, 'MEMBER')).toBeNull()
-  })
-
-  it('has words of its own', () => {
-    expect(LOCK_COPY.survey.cta).toMatch(/survey/i)
-    // Never a price. Nothing is owed — the club wants two minutes, not $25.
-    expect(LOCK_COPY.survey.cta).not.toMatch(/dues|pay/i)
   })
 })

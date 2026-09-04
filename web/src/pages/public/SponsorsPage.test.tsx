@@ -80,6 +80,39 @@ describe('SponsorsPage', () => {
   })
 
   /**
+   * The price belongs to the level, not to the company, so it comes off the
+   * pitch read — which is the page's *other* request. Both halves of the answer
+   * are asserted here: the tier that has a sheet says what it costs, and the
+   * one that has none is a bare heading rather than an empty separator.
+   */
+  it('prints what a tier costs beside its name over the roll', async () => {
+    vi.stubGlobal(
+      'fetch',
+      page({
+        '/sponsorship': pitch({ tiers: [bare({ amount: '$2,500 a season' })] }),
+        '/sponsors': [sponsor(), halden],
+      }),
+    )
+
+    render(<SponsorsPage />)
+    // `findAll`: with a tier sheet published the sponsor's name is on the page
+    // twice — its card up here, and that tier's roll of supporters below.
+    await screen.findAllByText('Northgate Manufacturing')
+
+    // Read off `textContent` rather than matched as an accessible name: the
+    // amount is a `<span>` for its own size and weight, and the name algorithm
+    // trims each node it assembles, which eats the space before the middot.
+    const headings = screen
+      .getAllByRole('heading', { level: 2 })
+      .map((heading) => heading.textContent)
+
+    expect(headings).toContain('PROCESSOR PATRON · $2,500 a season')
+    // Halden's tier has sponsors in it and no sheet — a real state, since the
+    // two are different tables. Nothing invented, and no dangling middot.
+    expect(headings).toContain('CIRCUIT SUPPORTER')
+  })
+
+  /**
    * The club's own ranking is the enum's order and the server sends the rows in
    * it. Sorting again here would be a second copy of the ranking, and the two
    * would eventually disagree.

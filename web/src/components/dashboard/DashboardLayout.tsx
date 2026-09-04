@@ -1,17 +1,17 @@
 import { Suspense, type ReactNode, useCallback, useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
-import { ApiError, getJson } from '../../lib/api/api'
+import { ApiError, getJson, postJson } from '../../lib/api/api'
 import type {
   ApiDuesStatus,
   ApiMembership,
   ApiMyProject,
   ApiUser,
 } from '../../lib/api/api'
-import { accessLock, duesLocked } from '../../lib/dues/dues'
+import { accessLock, duesLocked, surveyPrompt } from '../../lib/dues/dues'
 import { isOfficer, useSession } from '../../lib/auth/session'
 import type { ApiState } from '../../lib/api/useApi'
 import { Avatar } from '../shared/Avatar'
-import { SurveyRequiredDialog } from './SurveyRequiredDialog'
+import { SurveyPromptDialog } from './SurveyPromptDialog'
 import {
   FormEyebrow,
   FormHeading,
@@ -141,15 +141,18 @@ export function DashboardLayout() {
 function DashboardShell({ user }: { user: ApiUser }) {
   const location = useLocation()
   /**
-   * Dismissed for the rest of this page session, and deliberately not
-   * persisted. Nothing is bypassed by it — the rail stays locked and every
-   * route still refuses — so the worst a reload can do is ask again, which is
-   * the right side to err on for a prompt somebody has to act on eventually.
+   * Put away for the rest of this page session.
+   *
+   * The *permanent* answer is a column on the user — the checkbox on the
+   * dialog writes `surveyPromptDismissedAt` and `surveyPrompt` reads it back
+   * off the membership — and this is only what keeps the dialog down between
+   * that write and the refetch that confirms it. It also stands alone for
+   * somebody who closed the prompt without ticking the box, where asking again
+   * on the next reload is the right side to err on: nothing is locked either
+   * way, so the cost of asking twice is a press and the cost of never asking is
+   * the answers.
    */
-  const [surveyPrompted, setSurveyPrompted] = useState(false)
-  const dismissSurveyPrompt = useCallback(() => {
-    setSurveyPrompted(true)
-  }, [])
+  const [promptClosed, setPromptClosed] = useState(false)
 
   const [projects, setProjects] = useState<ApiState<ApiMyProject[]>>({
     status: 'loading',
@@ -190,16 +193,43 @@ function DashboardShell({ user }: { user: ApiUser }) {
   }, [reloadProjects, reloadMembership])
 
   /**
+   * Closing the prompt, and the checkbox on it.
+   *
+   * The write is fired and not waited on, and the refetch behind it is what
+   * makes it stick rather than what makes it work: the dialog is already down
+   * by then. A failed dismissal therefore costs the member one more prompt on
+   * their next visit, which is the cheapest possible way for this to go wrong
+   * and the reason nothing here reports an error at them.
+   */
+  const closeSurveyPrompt = useCallback(
+    (dontAsk: boolean) => {
+      setPromptClosed(true)
+
+      if (!dontAsk) return
+
+      void postJson('/survey/dismiss', {})
+        .then(reloadMembership)
+        .catch((error: unknown) => {
+          console.error(error)
+        })
+    },
+    [reloadMembership],
+  )
+
+  /**
    * The survey prompt, and the two pages it stays off.
    *
    * `/dashboard/survey` for the obvious reason, and `/dashboard/profile`
    * because that is where signing out lives — a prompt covering the way out of
    * an account is the one version of this that could genuinely strand somebody.
-   * Reading the reason from `accessLock` rather than from the membership
-   * directly is what keeps the `ADMIN` exemption and the "nothing until it is
-   * `ready`" rule in one place instead of two.
+   *
+   * **It is the whole of what asks now**, which is why it is only ever mounted
+   * in here. The survey used to be a gate, so a member met it as a wall of
+   * padlocks down the rail and a refusal on every page; it is a question asked
+   * once on the dashboard, and nowhere on the public site, because a club that
+   * cannot make anybody answer had better not annoy the people who would.
    */
-  const owesSurvey = accessLock(membership, user.role) === 'survey'
+  const asking = surveyPrompt(membership)
   const promptable =
     !location.pathname.startsWith('/dashboard/survey') &&
     !location.pathname.startsWith('/dashboard/profile')
@@ -208,8 +238,8 @@ function DashboardShell({ user }: { user: ApiUser }) {
     <div className="wide:grid wide:grid-cols-[15rem_1fr]">
       <DashboardNav user={user} projects={projects} membership={membership} />
 
-      {owesSurvey && promptable && !surveyPrompted && (
-        <SurveyRequiredDialog onLater={dismissSurveyPrompt} />
+      {asking && promptable && !promptClosed && (
+        <SurveyPromptDialog onClose={closeSurveyPrompt} />
       )}
 
       <div className="px-page min-w-0 py-9 wide:py-12">
@@ -321,6 +351,10 @@ function DashboardNav({
   // dues date now, so every locked row in this rail is locked by the same
   // condition. `locked` is that condition; this is only which sentence.
   const why = accessLock(membership, user.role)
+  // Not a lock reason, and it does not come from `accessLock` for that reason —
+  // an unanswered survey shuts nothing. It only decides whether the rail still
+  // carries a row offering the form.
+  const asking = surveyPrompt(membership)
 
   // Following a link on a phone has to put the menu away, or the page you asked
   // for opens underneath the list you asked for it from.
@@ -371,26 +405,25 @@ function DashboardNav({
             <NavLink to="/dashboard/tasks" className={linkClass}>
               TASKS
             </NavLink>
-            {/* Only while it is owed. A permanent row for something you do once
-                is dead weight in a list somebody opens every day — the way back
-                to the answers afterwards is the overview's panel. */}
-            {why === 'survey' && (
+            {/* Only while the survey is still being asked for, and it goes the
+                moment somebody says stop — the same predicate the prompt reads,
+                so the dashboard asks in two places and one checkbox turns both
+                off. A permanent row for something you do once is dead weight in
+                a list somebody opens every day; the standing way back to the
+                answers is the overview's panel and the account page's. */}
+            {asking && (
               <NavLink to="/dashboard/survey" className={linkClass}>
                 MEMBER SURVEY
               </NavLink>
             )}
-            {/* **Dues is lockable now**, and it is the one row here that used
-                not to be. It was the page every other lock linked to, so it had
-                to stay open whatever somebody's standing; the survey sits in
-                front of it — on the server too — so while that is owed this is
-                shut like everything else, and the row above is the way out. */}
-            {why === 'survey' ? (
-              <LockedRow>DUES &amp; PAYMENTS</LockedRow>
-            ) : (
-              <NavLink to="/dashboard/dues" className={linkClass}>
-                DUES &amp; PAYMENTS
-              </NavLink>
-            )}
+            {/* Never locked, and it is back to being the one row here that
+                cannot be. It is the page every other lock links to, so shutting
+                it strands the person it is telling to pay — which is what the
+                survey gate did to it for a while, and the reason the gate is
+                gone. */}
+            <NavLink to="/dashboard/dues" className={linkClass}>
+              DUES &amp; PAYMENTS
+            </NavLink>
             {/* Locked by the same condition as everything else below: the
                 club's line is that an uncovered account gets this page and its
                 own projects, and both of these are the club spending money on
@@ -472,6 +505,7 @@ function DashboardNav({
                   {officer && (
                     <>
                       <LockedRow>ROLES</LockedRow>
+                      <LockedRow>OFFICERS</LockedRow>
                       <LockedRow>SEMESTERS</LockedRow>
                       <LockedRow>SURVEY</LockedRow>
                       <LockedRow>FRONT PAGE</LockedRow>
@@ -496,19 +530,31 @@ function DashboardNav({
                       <NavLink to="/dashboard/officer/roles" className={linkClass}>
                         ROLES
                       </NavLink>
-                      {/* Second, and next to ROLES rather than beside the queues,
-                          because both are the club setting its own rules rather
-                          than working through a list of things. */}
+                      {/* Second, directly under ROLES, because it is the same
+                          subject over a longer span: that desk hands out today's
+                          chairs, this one is the club's whole record of who has
+                          held them. Splitting them would put "who is president"
+                          and "who has been president" at opposite ends of the
+                          group. */}
+                      <NavLink
+                        to="/dashboard/officer/officers"
+                        className={linkClass}
+                      >
+                        OFFICERS
+                      </NavLink>
+                      {/* Next to ROLES rather than beside the queues, because
+                          both are the club setting its own rules rather than
+                          working through a list of things. */}
                       <NavLink to="/dashboard/officer/semesters" className={linkClass}>
                         SEMESTERS
                       </NavLink>
-                      {/* Third, still on the club-rules side of the group: it is
-                          what the members answered, not a queue anybody works. */}
+                      {/* Still on the club-rules side of the group: it is what
+                          the members answered, not a queue anybody works. */}
                       <NavLink to="/dashboard/officer/survey" className={linkClass}>
                         SURVEY
                       </NavLink>
-                      {/* Fourth, and still on the club-rules side rather than
-                          beside PROJECTS, which is the row it is most easily
+                      {/* Still on the club-rules side rather than beside
+                          PROJECTS, which is the row it is most easily
                           confused with: this is what the club says about itself
                           on the front page, not a list of things anybody works
                           through. It also keeps PROJECTS and EVENTS next to each
@@ -519,8 +565,8 @@ function DashboardNav({
                       >
                         FRONT PAGE
                       </NavLink>
-                      {/* Fifth, and directly under FRONT PAGE because it is the
-                          same job on a different page: what the club says about
+                      {/* Directly under FRONT PAGE because it is the same job
+                          on a different page: what the club says about
                           itself in public. It is one row rather than three even
                           though it writes three tables — an officer does not
                           think "sponsors, then tiers, then in-kind", they think
@@ -563,7 +609,7 @@ function DashboardNav({
             </div>
           )}
 
-          {/* Three of the four lock reasons get a note here and one does not.
+          {/* Two of the three lock reasons get a note here and one does not.
               A *lapsed* member is told nothing: the padlocks say the state, the
               overview carries the prompt to pay, and every page behind a lock
               explains itself when opened — a paragraph in the rail as well made
@@ -573,24 +619,13 @@ function DashboardNav({
               The others have nothing else telling them why half the rail is
               shut. `claim` is the one that would otherwise read as a bug: the
               club is charging them nothing and the rail is still closed, so it
-              has to say that the fix is free and one press. `survey` is the
-              one where even the dues page is shut, so the note is the only
-              thing on screen naming the way through — the dialog over the top
-              of it can be dismissed, this cannot. */}
-          {why === 'survey' && (
-            <div className="border-rule mt-5 border-t px-5 pt-5">
-              <p className="text-faint text-[12px] leading-[1.5] text-pretty">
-                Two minutes of questions, asked once, and all of this opens.
-              </p>
-              <Link
-                to="/dashboard/survey"
-                className="text-primary mt-2 inline-block font-mono text-[11px] font-medium tracking-[0.1em] underline underline-offset-2"
-              >
-                FILL IN THE SURVEY
-              </Link>
-            </div>
-          )}
+              has to say that the fix is free and one press.
 
+              There was a `survey` note here too, and it was the only thing on
+              screen naming the way past a gate that shut even the dues page.
+              The gate is gone and so is it — an unanswered survey locks nothing
+              now, so a paragraph in the rail about it would be nagging rather
+              than explaining. */}
           {why === 'claim' && (
             <div className="border-rule mt-5 border-t px-5 pt-5">
               <p className="text-faint text-[12px] leading-[1.5] text-pretty">

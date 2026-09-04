@@ -194,7 +194,8 @@ describe('ProjectPage', () => {
           membership: {
             hasAccess: false,
             canActivate: false,
-            surveyRequired: false,
+            surveyPending: false,
+            surveyPromptDismissed: false,
             paidThrough: '2025-12-14T00:00:00.000Z',
           },
         },
@@ -232,7 +233,8 @@ describe('ProjectPage', () => {
           membership: {
             hasAccess: false,
             canActivate: true,
-            surveyRequired: false,
+            surveyPending: false,
+            surveyPromptDismissed: false,
             paidThrough: null,
           },
         },
@@ -540,7 +542,7 @@ describe('ProjectPage', () => {
 
       if (url.includes('/auth/me')) return json({ user: user('MEMBER') })
       if (url.includes('/dues/status'))
-        return json({ membership: { hasAccess: true, surveyRequired: false } })
+        return json({ membership: { hasAccess: true, surveyPending: false, surveyPromptDismissed: false } })
       if (url.includes('/me/projects')) return json([])
       if (url.includes('/join')) {
         joined = true
@@ -584,7 +586,7 @@ describe('ProjectPage', () => {
 
       if (url.includes('/auth/me')) return json({ user: user('MEMBER') })
       if (url.includes('/dues/status'))
-        return json({ membership: { hasAccess: true, surveyRequired: false } })
+        return json({ membership: { hasAccess: true, surveyPending: false, surveyPromptDismissed: false } })
       // Empty, and it stays empty: the panel must not be waiting on this.
       if (url.includes('/me/projects')) return json([])
       if (url.includes('/join')) return json({ projectId: 'p1', rank: 'MEMBER' })
@@ -613,7 +615,7 @@ describe('ProjectPage', () => {
 
       if (url.includes('/auth/me')) return json({ user: user('MEMBER') })
       if (url.includes('/dues/status'))
-        return json({ membership: { hasAccess: true, surveyRequired: false } })
+        return json({ membership: { hasAccess: true, surveyPending: false, surveyPromptDismissed: false } })
       if (url.includes('/me/projects'))
         return json([{ rank: 'MEMBER', role: null, team: null, project: { id: 'p1' } }])
       if (url.includes('/members/me')) {

@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -21,9 +21,16 @@ import { stubFetch } from '../../test/stubFetch'
  */
 
 /**
- * Seven requests land on this page. None of them matter here — every section
- * draws its own chrome, id included, before its data arrives — but an
- * unstubbed `fetch` rejects with "no stub for …" and fills the run with noise.
+ * Eight requests land on this page. Most of them do not matter here — a section
+ * draws its own chrome, id included, before its data arrives — but an unstubbed
+ * `fetch` rejects with "no stub for …" and fills the run with noise.
+ *
+ * **`/front-page` is the exception and has to carry a partner program.** That
+ * section is the one that is not on the page until there is something to put on
+ * it, so an empty answer would take `#partners` with it and this suite would be
+ * asserting the nav against a page the club is not in. Officers emptying that
+ * list is a real state and a nav link with nothing behind it is its one cost;
+ * see the note on `sectionLinks` in `content/home.ts`.
  */
 const renderPage = () => {
   vi.stubGlobal(
@@ -45,6 +52,26 @@ const renderPage = () => {
       // has any messages left today before it draws its fields. The `id` this
       // suite is checking for is on the wrapper and is there either way.
       '/contact': { allowed: true, remaining: 2, retryAfter: 0, message: null },
+      // The page's own words: the hero's headline and lede, the line above the
+      // partner cards, and the FAQ. One request for all three sections.
+      '/front-page': {
+        headline: 'Building Our Future,',
+        headlineAccent: 'One Robot at a Time.',
+        lede: 'A lede.',
+        partnersIntro: 'An intro.',
+        faqs: [],
+        partners: [
+          {
+            id: 'vex',
+            name: 'VEX Robotics',
+            audience: 'ANYBODY',
+            blurb: 'A program.',
+            href: 'https://www.vexrobotics.com/',
+            linkLabel: 'Visit VEX Robotics',
+            imageUrl: null,
+          },
+        ],
+      },
     }),
   )
 
@@ -64,8 +91,12 @@ afterEach(() => {
 const anchorOf = (href: string) => href.replace('/#', '')
 
 describe('HomePage', () => {
-  it('has a section behind every anchor the nav offers', () => {
+  it('has a section behind every anchor the nav offers', async () => {
     const { container } = renderPage()
+
+    // `#partners` arrives with its answer rather than with the page — it is the
+    // one section that is not drawn until there is something in it.
+    await screen.findByRole('heading', { name: 'VEX Robotics' })
 
     for (const link of sectionLinks) {
       expect(
@@ -81,8 +112,10 @@ describe('HomePage', () => {
    * link — every anchor still resolves — which is exactly why it needs pinning
    * rather than noticing.
    */
-  it('runs those sections in the order the nav lists them', () => {
+  it('runs those sections in the order the nav lists them', async () => {
     const { container } = renderPage()
+
+    await screen.findByRole('heading', { name: 'VEX Robotics' })
 
     const listed = sectionLinks.map((link) => anchorOf(link.href))
     const onPage = [...container.querySelectorAll('section[id]')]

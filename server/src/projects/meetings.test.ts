@@ -112,6 +112,7 @@ const rover = (over: Partial<MeetingProject> = {}): MeetingProject => ({
   meetingStartTime: '18:00',
   meetingEndTime: '22:00',
   meetingLocation: 'ENG2 Lab',
+  meetingDescription: null,
   ...over,
 })
 
@@ -189,6 +190,31 @@ describe('expanding a weekly meeting', () => {
       out.map((o) => new Date(o.startsAt).getUTCHours()),
     )
     expect(utcHours.size).toBe(2)
+  })
+
+  /**
+   * The description is the lead's, or it is nothing.
+   *
+   * This module used to write a sentence of its own onto every occurrence —
+   * the project's name, the room, and the fact that it runs to the end of the
+   * semester, all of which the reader already had. A lead who has nothing to
+   * add now gets a blank description rather than that, which is the same call
+   * `meetingLine` makes when there is no schedule to print.
+   */
+  it('carries the lead note as the description, and nothing when there is none', async () => {
+    const [from, to] = window('2035-09-01T00:00:00Z', '2035-10-01T00:00:00Z')
+
+    const [plain] = await expandMeetings([rover()], from, to)
+    expect(plain).toBeDefined()
+    expect(plain!.description).toBeNull()
+
+    const note = 'Bring a laptop. First hour is CAD, the rest is the bench.'
+    const [written] = await expandMeetings(
+      [rover({ meetingDescription: note })],
+      from,
+      to,
+    )
+    expect(written!.description).toBe(note)
   })
 })
 

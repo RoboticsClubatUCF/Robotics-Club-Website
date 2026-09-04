@@ -5,6 +5,7 @@ import {
   formatWeekdays,
   hasSchedule,
   meetingLine,
+  meetingNote,
 } from './meetings'
 import type { ApiManagedProject } from '../api/api'
 
@@ -25,11 +26,13 @@ const project = (
   | 'meetingStartTime'
   | 'meetingEndTime'
   | 'meetingLocation'
+  | 'meetingDescription'
 > => ({
   meetingWeekdays: [2, 4],
   meetingStartTime: '18:00',
   meetingEndTime: '22:00',
   meetingLocation: 'ENG2 Lab',
+  meetingDescription: null,
   ...over,
 })
 
@@ -100,6 +103,30 @@ describe('meetingLine', () => {
     expect(meetingLine(project({ meetingWeekdays: [] }))).toBeNull()
     expect(meetingLine(project({ meetingStartTime: null }))).toBeNull()
     expect(meetingLine(project({ meetingEndTime: null }))).toBeNull()
+  })
+})
+
+describe('meetingNote', () => {
+  it('is the lead note, and nothing when there is none', () => {
+    const note = 'Bring a laptop.'
+    expect(meetingNote(project({ meetingDescription: note }))).toBe(note)
+    expect(meetingNote(project())).toBeNull()
+    // A textarea that has been typed into and emptied is the same as one that
+    // was never touched, whatever whitespace it left behind.
+    expect(meetingNote(project({ meetingDescription: '   ' }))).toBeNull()
+  })
+
+  /**
+   * A note under a project that does not meet is a sentence about a Tuesday
+   * that no longer happens. The editor clears the two together; this is what
+   * covers a row cleared straight in the database.
+   */
+  it('says nothing when there is no schedule to say it about', () => {
+    expect(
+      meetingNote(
+        project({ meetingWeekdays: [], meetingDescription: 'Bring a laptop.' }),
+      ),
+    ).toBeNull()
   })
 })
 

@@ -88,6 +88,18 @@ export function SponsorsPage() {
 
   const groups = [...byTier.entries()]
 
+  /**
+   * What each level costs, for the headings over the roll.
+   *
+   * Off the pitch read rather than off the sponsor rows, because the price is
+   * not a property of a company — and the two are different tables on purpose,
+   * so a tier with sponsors in it and no sheet yet is a real state. It draws
+   * its heading exactly as it did before, and so does every heading while the
+   * second request is still in flight: the amount is an addition to the name,
+   * never a thing the name waits for.
+   */
+  const amounts = new Map(tiers.map((offer) => [offer.tier, offer.amount]))
+
   return (
     <>
       <section className="px-page py-12 wide:py-18">
@@ -123,21 +135,38 @@ export function SponsorsPage() {
             </p>
           ) : (
             <div className="space-y-9">
-              {groups.map(([tier, inTier]) => (
-                <div key={tier}>
-                  <h2 className="text-faint mb-4 font-mono text-[13px] font-bold tracking-[0.2em]">
-                    {tierLabel(tier)}
-                  </h2>
+              {groups.map(([tier, inTier]) => {
+                const amount = amounts.get(tier)
 
-                  <ul className={gridClass}>
-                    {inTier.map((sponsor) => (
-                      <li key={sponsor.id} className="flex">
-                        <SponsorCard sponsor={sponsor} />
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
+                return (
+                  <div key={tier}>
+                    <h2 className="text-faint mb-4 font-mono text-[13px] font-bold tracking-[0.2em]">
+                      {tierLabel(tier)}
+                      {/* Beside the name rather than against the right margin:
+                          this heading is the width of the page, and an amount
+                          out at the far edge stops reading as the price of the
+                          thing on the left. Smaller and unbolded for the reason
+                          it is quieter on the tier cards too — the level is the
+                          heading and the amount is its footnote. The separator
+                          is a real space and a real middot rather than a
+                          margin, so the heading reads correctly aloud. */}
+                      {amount && (
+                        <span className="text-[11px] font-medium tracking-[0.14em]">
+                          {` · ${amount}`}
+                        </span>
+                      )}
+                    </h2>
+
+                    <ul className={gridClass}>
+                      {inTier.map((sponsor) => (
+                        <li key={sponsor.id} className="flex">
+                          <SponsorCard sponsor={sponsor} />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )
+              })}
             </div>
           ))}
       </section>
@@ -295,24 +324,35 @@ export function SponsorsPage() {
  */
 function TierSupporters({ supporters }: { supporters: ApiSponsor[] }) {
   return (
-    <div className="border-rule mt-auto border-t pt-4">
-      <p className="text-faint font-mono text-[10px] font-medium tracking-[0.16em]">
-        CURRENT SUPPORTERS
-      </p>
-
-      {supporters.length === 0 ? (
-        <p className="text-faint mt-2 text-[13px] leading-[1.5]">
-          No sponsors at this tier yet.
+    /* Two boxes, and the reason is the rule. `mt-auto` is what puts the roll at
+       the foot of the card, and on a card whose benefits already fill the row it
+       resolves to nothing — which left the hairline tight under the last benefit
+       and a clear 1rem above the heading, off-centre on exactly the cards with
+       the most in them. The outer box owns the push and the space above the
+       rule, the inner one owns the rule and the same space below it. */
+    <div className="mt-auto pt-4">
+      <div className="border-rule border-t pt-4">
+        <p className="text-faint font-mono text-[10px] font-medium tracking-[0.16em]">
+          CURRENT SUPPORTERS
         </p>
-      ) : (
-        <ul className="mt-2 space-y-1">
-          {supporters.map((sponsor) => (
-            <li key={sponsor.id} className="text-sm leading-[1.5] font-semibold">
-              {sponsor.name}
-            </li>
-          ))}
-        </ul>
-      )}
+
+        {supporters.length === 0 ? (
+          <p className="text-faint mt-2 text-[13px] leading-[1.5]">
+            No sponsors at this tier yet.
+          </p>
+        ) : (
+          <ul className="mt-2 space-y-1">
+            {supporters.map((sponsor) => (
+              <li
+                key={sponsor.id}
+                className="text-sm leading-[1.5] font-semibold"
+              >
+                {sponsor.name}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   )
 }

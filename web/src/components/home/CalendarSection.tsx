@@ -28,6 +28,19 @@ export function CalendarSection() {
     `/events?when=all&limit=100&from=${from}&to=${to}`,
   )
 
+  /**
+   * The list under the grid, which is not the month — see `MonthCalendar`. No
+   * window at all, so it runs past the end of whatever the grid is showing;
+   * the path is constant, so the month arrows move the grid and leave this
+   * request alone.
+   *
+   * Meetings do not come with it and that is the endpoint's rule rather than an
+   * omission: the server only expands a recurrence against a named window, and
+   * this asks for none. The grid has them, and the merge in `MonthCalendar` is
+   * what puts this month's back on the list.
+   */
+  const upcoming = useApi<ApiEvent[]>('/events?when=upcoming&limit=100')
+
   return (
     <section
       id="events"
@@ -47,7 +60,12 @@ export function CalendarSection() {
         </Link>
       </div>
 
-      <MonthCalendar month={month} onMonthChange={setMonth} events={events} />
+      <MonthCalendar
+        month={month}
+        onMonthChange={setMonth}
+        events={events}
+        upcoming={upcoming}
+      />
     </section>
   )
 }

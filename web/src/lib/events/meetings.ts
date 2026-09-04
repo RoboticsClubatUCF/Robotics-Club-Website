@@ -109,3 +109,19 @@ export function meetingLine(
 
   return project.meetingLocation ? `${line} · ${project.meetingLocation}` : line
 }
+
+/**
+ * The lead's note about the meeting, or null.
+ *
+ * Gated on there being a schedule for the same reason `meetingLine` is: a note
+ * about when a project meets makes no sense under a project that does not. The
+ * editor clears the two together, so this only speaks to a row cleared straight
+ * in the database — and it says nothing rather than leaving a stale sentence
+ * about Tuesdays on a project that stopped meeting.
+ */
+export function meetingNote(
+  project: Scheduled & Pick<ApiManagedProject, 'meetingDescription'>,
+): string | null {
+  if (!hasSchedule(project)) return null
+  return project.meetingDescription?.trim() || null
+}

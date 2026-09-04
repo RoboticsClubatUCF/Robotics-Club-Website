@@ -2,6 +2,21 @@ import { hits } from './equipment/catalogue'
 import type { ApiOfficerTerm, OfficerPosition } from './api/api'
 
 /**
+ * The four fields everything below actually reads.
+ *
+ * Structural rather than `ApiOfficerTerm`, because the officers desk sends a
+ * richer row — `endedReason`, `source`, the linked account — and reuses every
+ * function here to search, filter and group it. Narrowing to what is used means
+ * the desk's rows pass through unchanged instead of being copied into a second
+ * shape first, and it says out loud what a term has to have for any of this to
+ * mean anything.
+ */
+export type TermLike = Pick<
+  ApiOfficerTerm,
+  'position' | 'startedAt' | 'endedAt' | 'fullName'
+>
+
+/**
  * Reading the officer archive: how a term's year is written, and what the
  * search box and the two chip rows on `/officers` actually do.
  *
@@ -66,7 +81,7 @@ export function academicYear(startedAt: string, endedAt: string | null): string 
 
 /** The same, off a term. This string is the group heading *and* the filter's
     value, so the two can never disagree about which cards belong together. */
-export const yearOf = (term: ApiOfficerTerm): string =>
+export const yearOf = (term: TermLike): string =>
   academicYear(term.startedAt, term.endedAt)
 
 /**
@@ -101,7 +116,7 @@ export const servedRange = (startedAt: string, endedAt: string | null): string =
  * re-sorting in the browser would only be a second opinion about it — and the
  * one that drifts, since it cannot see how the enum is declared.
  */
-export function yearsIn(terms: ApiOfficerTerm[]): string[] {
+export function yearsIn(terms: TermLike[]): string[] {
   const seen: string[] = []
 
   for (const term of terms) {
@@ -123,7 +138,7 @@ export function yearsIn(terms: ApiOfficerTerm[]): string[] {
  * `hits` is the site's one search rule, so this matches every word anywhere:
  * "raman priya" finds Priya Raman, which "priya raman" already did.
  */
-export const matchesTerm = (term: ApiOfficerTerm, query: string): boolean =>
+export const matchesTerm = (term: TermLike, query: string): boolean =>
   hits([term.fullName], query)
 
 /**
@@ -164,10 +179,10 @@ export type OfficerFilters = {
 }
 
 /** The archive, narrowed by all three controls at once. */
-export function filterTerms(
-  terms: ApiOfficerTerm[],
+export function filterTerms<T extends TermLike>(
+  terms: T[],
   { query, position, year }: OfficerFilters,
-): ApiOfficerTerm[] {
+): T[] {
   return terms.filter(
     (term) =>
       (position === ANY || term.position === position) &&
@@ -183,10 +198,10 @@ export function filterTerms(
  * where its first card would have — the same reasoning as `yearsIn`, and the
  * reason a filtered archive never leaves an empty heading behind.
  */
-export function groupByYear(
-  terms: ApiOfficerTerm[],
-): { year: string; terms: ApiOfficerTerm[] }[] {
-  const groups: { year: string; terms: ApiOfficerTerm[] }[] = []
+export function groupByYear<T extends TermLike>(
+  terms: T[],
+): { year: string; terms: T[] }[] {
+  const groups: { year: string; terms: T[] }[] = []
 
   for (const term of terms) {
     const year = yearOf(term)

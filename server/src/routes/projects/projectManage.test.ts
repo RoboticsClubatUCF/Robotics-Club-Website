@@ -1769,6 +1769,31 @@ describe('the meeting schedule', () => {
   })
 
   /**
+   * The note is the one part of a schedule that is optional everywhere,
+   * creation included, and it is what a meeting carries as its description on
+   * to a member's calendar — so an empty one has to mean an empty description
+   * rather than a stored blank line. A textarea typed into and cleared sends
+   * `''`, which is why absent and empty land in the same place.
+   */
+  it('stores the lead note and treats an emptied one as cleared', async () => {
+    const written = await patch({
+      meetingWeekdays: [2, 4],
+      meetingStartTime: '18:00',
+      meetingEndTime: '22:00',
+      meetingDescription: '  Bring a laptop. First hour is CAD.  ',
+    })
+
+    expect(written.status).toBe(200)
+    expect(await written.json()).toMatchObject({
+      meetingDescription: 'Bring a laptop. First hour is CAD.',
+    })
+
+    const cleared = await patch({ meetingDescription: '' })
+    expect(cleared.status).toBe(200)
+    expect(await cleared.json()).toMatchObject({ meetingDescription: null })
+  })
+
+  /**
    * The public calendar is the officers', the same way `published` on an event
    * is. A lead decides when the project meets; whether the front page carries
    * that is not theirs.

@@ -60,6 +60,7 @@ const project = (id: string, title: string): ApiMyProject['project'] => ({
   meetingStartTime: '18:00',
   meetingEndTime: '22:00',
   meetingLocation: 'ENG2 Lab',
+  meetingDescription: null,
   meetingsPublic: true,
   discordRoleId: null,
 })
@@ -106,7 +107,8 @@ const context = (
       billable: term,
       freeActive: false,
       canActivate: false,
-      surveyRequired: false,
+      surveyPending: false,
+      surveyPromptDismissed: false,
     },
   },
   reloadMembership: () => Promise.resolve(),

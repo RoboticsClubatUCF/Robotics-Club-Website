@@ -182,10 +182,10 @@ async function rescuePayments(tx: typeof prisma): Promise<RescuedPayment[]> {
  * options are created by a hand-written migration rather than by the seed, and
  * they are what this import writes *into* — deleting them would leave a survey
  * with no questions on it, which is a gate the whole club is stuck behind.
- * `subteams` and `equipment` stay because the old database's equivalents are
- * empty, so removing them deletes a working feature and replaces it with
- * nothing. `hero_slides` and the four uploads behind them are the officer's own
- * photographs of the lab, not seed data.
+ * `equipment` stays because the old database's equivalent is empty, so removing
+ * it deletes a working feature and replaces it with nothing. `hero_slides` and
+ * the four uploads behind them are the officer's own photographs of the lab,
+ * not seed data.
  */
 async function clearSeedData(tx: typeof prisma): Promise<Record<string, number>> {
   const counts: Record<string, number> = {}

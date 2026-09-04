@@ -1,12 +1,20 @@
 import type { ApiStats } from '../lib/api/api'
 
 /**
- * Landing page copy — the words, not the data.
+ * Landing page configuration — and, at this point, almost no copy.
  *
- * The project list and the three counts in the stat strip come from the API
- * now; what's left here is the writing and the presentation config around it.
- * The rule of thumb: if an officer would want to change it without a deploy, it
- * belongs in the database, not in this file.
+ * The rule of thumb has been applied down to the bone: if an officer would want
+ * to change it without a deploy, it belongs in the database. The project list
+ * went first, then the officer board, then the sponsors, then the hero's
+ * photographs — and now the headline, the lede, the FAQ and the partner
+ * programs, which is everything on the page somebody wrote in sentences.
+ *
+ * **What is left is not copy, and each piece says why it stays.** The nav's two
+ * lists are the page's own table of contents and have to match the order of the
+ * sections in `HomePage`. The stat strip's cells are a label bound to a count
+ * the server computes, so editing one without the other would be a number that
+ * lies about what it counts. The social links are the club's own accounts,
+ * printed by a footer that renders before any request comes back.
  */
 
 export type NavLink = {
@@ -38,6 +46,14 @@ export type NavLink = {
  *
  * The hero and the stat strip are deliberately absent: the first is what you
  * are already looking at, and the second is a row of links itself.
+ *
+ * **`/#partners` is the one entry that can point at nothing.** The partner
+ * section takes itself off the page when the club lists no programs, which is a
+ * state officers can now reach from the front-page desk — and a nav that fetched
+ * the page's copy on every route to find that out would be a request on the
+ * login screen to decide whether to grey out a word. The link is left, the cost
+ * is a jump that does not move, and the section's own note carries the other
+ * half of this.
  */
 export const sectionLinks: NavLink[] = [
   { href: '/#sponsors', label: 'Sponsors' },
@@ -82,16 +98,16 @@ export type Stat = {
 
 export const stats: Stat[] = [
   { countOf: 'projects', label: 'PROJECTS', href: '/projects' },
-  // **The label is doing real work here.** `/members` lists every account the
-  // club has, guests included; this counts the active membership, which is a
-  // fraction of it. Labelling the cell MEMBERS while sending a reader to a page
-  // three times longer would read as a broken number, so the cell says what it
-  // actually counts. `GET /stats` in `routes/public/content.ts` carries the
-  // matching note.
+  // **The label is doing real work here**, and `/members` now repeats it on the
+  // chip it opens with. The count is the active membership and so is that
+  // default list; the whole table is a chip further on. Labelling the cell
+  // MEMBERS would promise the table and deliver the club. `GET /stats` in
+  // `routes/public/content.ts` carries the matching note.
   { countOf: 'members', label: 'ACTIVE MEMBERS', href: '/members' },
-  // The events page is where opportunities live; the label is the club's word
-  // for them, the endpoint is the schema's.
-  { countOf: 'events', label: 'OPPORTUNITIES', href: '/events' },
+  // Says what it counts, like the members cell beside it: `GET /stats` counts
+  // `when=upcoming` and `/events` opens on the same, so the cell, the number
+  // and the page a reader lands on all mean the one thing.
+  { countOf: 'events', label: 'UPCOMING EVENTS', href: '/events' },
   // "Est. 1972" split across the strip's number/label rhythm rather than set as
   // one string, so it lines up with the three cells beside it. Keeps the gold.
   { value: '1972', label: 'ESTABLISHED', href: '/about', accent: true },
@@ -115,136 +131,19 @@ export const stats: Stat[] = [
  * gets added back.
  */
 
-export type PartnerProgram = {
-  /** A stable key for the list. Never drawn. */
-  id: string
-  name: string
-  /** The mono line above the name: who the program is actually open to. */
-  audience: string
-  blurb: string
-  /** Where somebody goes to take part — the program's own site, not ours. */
-  href: string
-  /**
-   * The link's words, and they name the program on purpose. A section of
-   * identical "Learn more" links is a section a screen reader cannot tell
-   * apart.
-   */
-  linkLabel: string
-  /**
-   * A logo or a photo. Null draws the hatch well, the same "nothing here yet"
-   * language the sponsor logos and the empty officer seats use.
-   *
-   * Typed as a URL rather than an imported asset so a value pasted out of the
-   * database — an upload's `/api/files/…` address — works here without the
-   * component changing. `imageSrc` is what makes both resolve; see
-   * `src/lib/media/storedFiles.ts`.
-   */
-  imageUrl: string | null
-}
-
 /**
- * The programs somebody can take part in when they cannot join the club.
+ * The partner programs and the FAQ used to be here, and they are
+ * `partner_programs` and `faqs` now.
  *
- * Membership needs a working `@ucf.edu` address and there is no way past that
- * step, which leaves everybody else — school teams, mentors, volunteers,
- * students at other schools — with nowhere on this site to go. These are the
- * programs the club is involved with that will have them.
- *
- * **The blurbs and the artwork are placeholders**, and only those: the names
- * and the two official sites are real. It is the shape that is being fixed
- * here, so the club can drop the real words and images in without touching the
- * component.
- *
- * Copy for the same reason the FAQ is copy — and the same candidate to move to
- * the database first, on the rule of thumb at the top of this file.
+ * They were the two clearest cases against the rule at the top of this file. The
+ * FAQ carried the price of membership, the lab's address and a person's name —
+ * three things that change without the site being deployed — and its own note
+ * said it should be the first thing to move. The partner cards were placeholder
+ * blurbs waiting on words from somebody who is not a developer. Both are written
+ * at `/dashboard/officer/front-page` now and read through
+ * `GET /api/front-page`; `ApiFaq` and `ApiPartnerProgram` in `src/lib/api/api.ts`
+ * are the shapes.
  */
-export const partnerPrograms: PartnerProgram[] = [
-  {
-    id: 'vex',
-    name: 'VEX Robotics',
-    audience: 'PLACEHOLDER — WHO IT IS FOR',
-    blurb:
-      'Placeholder. What RCCF does with VEX, who the program takes, and what somebody outside UCF actually turns up to. Two or three sentences is the size this card is built around.',
-    href: 'https://www.vexrobotics.com/',
-    linkLabel: 'Visit VEX Robotics',
-    imageUrl: null,
-  },
-  {
-    id: 'first',
-    name: 'FIRST Robotics',
-    audience: 'PLACEHOLDER — WHO IT IS FOR',
-    blurb:
-      "Placeholder. The same again for FIRST — the club's involvement, the teams it reaches, and how to get in touch with the people running it locally.",
-    href: 'https://www.firstinspires.org/',
-    linkLabel: 'Visit FIRST',
-    imageUrl: null,
-  },
-]
-
-export type Faq = {
-  question: string
-  answer: string
-  /** The one answer that is a procedure rather than a paragraph. */
-  steps?: string[]
-}
-
-/**
- * Club copy, not data — which is why it sits here rather than in Postgres. It
- * is the first thing that should move to the database once officers can edit
- * content, since these answers change with dues, lab hours and staff.
- */
-export const faqs: Faq[] = [
-  {
-    question: 'Do I need experience to join?',
-    answer:
-      'No, all projects are drop-in certified, so no skills or experience are required for you to join a project! It is, however, required that you become a member before participating in any projects.',
-  },
-  {
-    question: 'How much is membership?',
-    answer:
-      'Membership is $25 a semester and $50 a year. There will be times in which the lab is open during the summer and during those times membership is completely free!',
-  },
-  {
-    question: 'How do I become a member?',
-    answer: 'Becoming a member is as easy as:',
-    steps: [
-      // These were written before there was anywhere to sign up, and the first
-      // described a route that did not exist. The survey step is back — not the
-      // one the club dropped years ago, but the one-time member survey the site
-      // now asks for before anything opens, dues included. It goes second
-      // because that is the order the gate enforces.
-      'Create an RCCF web account with the "Join the club" button up top',
-      'Fill in the member survey — two minutes, and you are only asked once',
-      'Pay your dues',
-      'Join a general body meeting (times posted on Discord)',
-    ],
-  },
-  {
-    question: 'Can I create my own project?',
-    answer:
-      'It depends, the approval or denial of a project depends on the number of people interested, the allowed budget, and general approval from administration. If you truly want to start your own project within RCCF start by talking to Crystal or the president.',
-  },
-  {
-    question: 'Can I pay for something to be 3D printed?',
-    answer:
-      'Yes! Price will vary depending on the size and in-fill of the print. Other than that just make sure you ask early on as we have a lot of projects that require 3D printing and those come first.',
-  },
-  {
-    question: 'Where is the lab located?',
-    answer:
-      "We are located in UCF's Institute For Simulation & Training at 3100 Technology Pkwy, Orlando, FL 32826.",
-  },
-  {
-    question: 'How do I join a project?',
-    answer:
-      "Joining a project is easy. Once you've become a member and paid your dues head over to the discord and in bot-cmds type in /teams to pull up all the projects and then all you have to do is pick the ones you want to join. Of course, show up to the meetings as well.",
-  },
-  {
-    question: 'How do sponsorships work?',
-    answer:
-      "If you would like to sponsor us check out what we offer in our sponsors' page, otherwise it's basically a way to financially support RCCF and its mission.",
-  },
-]
 
 /**
  * The club's own accounts. **These are real and are no longer placeholders** —
@@ -263,6 +162,8 @@ export const socialLinks: NavLink[] = [
   { href: 'https://www.youtube.com/@roboticsclubatucf', label: 'YOUTUBE' },
 ]
 
-export const hero = {
-  lede: "Ready to dive into hands-on engineering? Whether you are a master at CAD, an experienced coder, or just eager to learn how to build complex systems from the ground up, there's a place for you on our team. Get involved and start building with us today.",
-} as const
+/**
+ * The hero's headline and lede used to be here too, and are `front_page` now —
+ * one row, written from the same desk. What the club leads with was the last
+ * thing on this page that took a pull request to change.
+ */

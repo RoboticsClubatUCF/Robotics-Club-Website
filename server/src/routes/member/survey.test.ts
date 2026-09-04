@@ -662,3 +662,67 @@ describe('correcting it', () => {
     )
   })
 })
+
+// ----------------------------------------------------------------- dismiss
+
+/**
+ * "Don't ask me again."
+ *
+ * The survey stopped being a gate, so the only thing left asking is the prompt
+ * over the dashboard, and this is its checkbox. Two properties are worth
+ * pinning, and both are about the column staying honest: a second press must
+ * not move the timestamp, and answering the survey afterwards must clear it —
+ * a row saying both "declined" and "answered" is one a future reader has to
+ * guess at, and it is the officer desk's count that guesses wrong.
+ */
+describe('dismissing the prompt', () => {
+  const dismiss = (cookie: string) =>
+    app.request('/api/survey/dismiss', {
+      method: 'POST',
+      headers: { cookie, origin: env.SITE_URL },
+    })
+
+  const dismissedAt = async (id: string) =>
+    (
+      await prisma.user.findUniqueOrThrow({
+        where: { id },
+        select: { surveyPromptDismissedAt: true },
+      })
+    ).surveyPromptDismissedAt
+
+  it('records it', async () => {
+    expect((await dismiss(newcomerCookie)).status).toBe(200)
+
+    expect(await dismissedAt(newcomer)).not.toBeNull()
+  })
+
+  /** Idempotent, and the first press is the one the column keeps. */
+  it('leaves the first timestamp alone on a second press', async () => {
+    await dismiss(newcomerCookie)
+    const first = await dismissedAt(newcomer)
+
+    await dismiss(newcomerCookie)
+
+    expect(await dismissedAt(newcomer)).toEqual(first)
+  })
+
+  /** Nothing is refused for it — the survey is still there to be filled in. */
+  it('is cleared by answering the survey anyway', async () => {
+    await dismiss(newcomerCookie)
+
+    const state = await read(newcomerCookie)
+
+    expect((await post(newcomerCookie, buildAnswers(state))).status).toBe(201)
+    expect(await dismissedAt(newcomer)).toBeNull()
+  })
+
+  /** Same origin rule as every other write on this router. */
+  it('refuses a cross-origin press', async () => {
+    const response = await app.request('/api/survey/dismiss', {
+      method: 'POST',
+      headers: { cookie: newcomerCookie, origin: 'https://elsewhere.example' },
+    })
+
+    expect(response.status).toBe(403)
+  })
+})

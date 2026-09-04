@@ -47,6 +47,7 @@ export const meetingProjectSelect = {
   meetingStartTime: true,
   meetingEndTime: true,
   meetingLocation: true,
+  meetingDescription: true,
 } as const
 
 export interface MeetingProject {
@@ -59,6 +60,7 @@ export interface MeetingProject {
   meetingStartTime: string | null
   meetingEndTime: string | null
   meetingLocation: string | null
+  meetingDescription: string | null
 }
 
 /**
@@ -234,17 +236,6 @@ const weekdayOf = (date: CivilDate): number =>
 const beforeOrEqual = (a: CivilDate, b: CivilDate) =>
   Date.UTC(a.year, a.month - 1, a.day) <= Date.UTC(b.year, b.month - 1, b.day)
 
-/** The sentence a meeting carries into somebody's calendar app. */
-function describe(project: MeetingProject, term: Term): string {
-  const where = project.meetingLocation ? ` in ${project.meetingLocation}` : ''
-  const halt =
-    term.finalsStartAt === null
-      ? ''
-      : ' The club pauses every project for finals week.'
-
-  return `The regular ${project.title} meeting${where}. Set by the project lead, and running to the end of the semester.${halt}`
-}
-
 /**
  * Every occurrence of every project's meeting inside `[from, to)`.
  *
@@ -348,7 +339,16 @@ export async function expandMeetings(
       skipDates,
     }
 
-    const description = describe(project, term)
+    // The lead's own note, or nothing. This used to be a sentence built here —
+    // "The regular X meeting in Y. Set by the project lead, and running to the
+    // end of the semester." — which told a reader the two things already
+    // printed on the chip they were reading it from, and did it on every
+    // occurrence of every project. What is worth saying about a meeting is
+    // whatever the lead knows and the columns cannot hold, so the column holds
+    // it and an empty one prints empty. The bounds that sentence also mentioned
+    // are still said, by `seriesSummary` in the browser, off `meeting` below —
+    // which is where they belong, because they are a property of the series.
+    const description = project.meetingDescription
 
     // Walk the campus calendar, not the UTC one. A day is a thing on a wall,
     // and which Tuesday a meeting falls on is decided in Orlando.

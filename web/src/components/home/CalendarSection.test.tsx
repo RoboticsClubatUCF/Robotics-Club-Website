@@ -48,6 +48,19 @@ const event = (over: Partial<ApiEvent> = {}): ApiEvent => ({
   ...over,
 })
 
+/** `count` events on consecutive days, one each, named after the day they fall
+    on so an assertion can name the ones that should have survived a slice. */
+const run = (first: number, count: number): ApiEvent[] =>
+  Array.from({ length: count }, (_, index) => {
+    const day = first + index
+    return event({
+      id: `e${String(day)}`,
+      title: `Event ${String(day)}`,
+      startsAt: local(day),
+      endsAt: local(day, 21),
+    })
+  })
+
 /** The square for a given day of the displayed month. */
 const cellFor = (day: number) =>
   screen.getByText(String(day), { selector: 'td span' }).closest('td')!
@@ -137,6 +150,23 @@ describe('CalendarSection', () => {
     expect(url).toContain('when=all')
   })
 
+  /**
+   * The second request, and the whole of why there are two: a window that ends
+   * with the month cannot answer "what is coming up" on the 28th.
+   */
+  it('asks separately for everything ahead, with no window on it', async () => {
+    const fetchStub = stubFetch({ '/events': [event()] })
+    vi.stubGlobal('fetch', fetchStub)
+
+    render(<CalendarSection />)
+    await agendaEntry('General Body Meeting')
+
+    const url = urlOf(fetchStub.mock.calls[1]![0])
+    expect(url).toContain('when=upcoming')
+    expect(url).not.toContain('from=')
+    expect(url).not.toContain('to=')
+  })
+
   it('puts an event on its own square', async () => {
     vi.stubGlobal('fetch', stubFetch({ '/events': [event()] }))
 
@@ -194,7 +224,7 @@ describe('CalendarSection', () => {
     expect(screen.queryByText(/12:00 AM/i)).not.toBeInTheDocument()
   })
 
-  it('lists the month below the grid with its time, type and location', async () => {
+  it('lists what is coming up below the grid, with time, type and location', async () => {
     vi.stubGlobal('fetch', stubFetch({ '/events': [event()] }))
 
     render(<CalendarSection />)
@@ -204,6 +234,140 @@ describe('CalendarSection', () => {
     expect(within(row).getByText(/MEETING/)).toHaveTextContent(
       'Institute for Simulation and Training',
     )
+  })
+
+  /**
+   * The reason the list stopped being the month. On the 28th the grid's own
+   * window has nothing left in it and the club's next three things are a week
+   * away — behind an arrow nobody presses.
+   */
+  it('lists an event from a later month while the grid shows this one', async () => {
+    vi.stubGlobal(
+      'fetch',
+      stubFetch({
+        'when=all': [event()],
+        'when=upcoming': [
+          event(),
+          event({
+            id: 'e2',
+            title: 'Fall Kickoff',
+            startsAt: new Date(2026, 8, 2, 18, 0).toISOString(),
+            endsAt: new Date(2026, 8, 2, 21, 0).toISOString(),
+          }),
+        ],
+      }),
+    )
+
+    render(<CalendarSection />)
+    await agendaEntry('Fall Kickoff')
+
+    expect(scheduled()).toEqual(['General Body Meeting', 'Fall Kickoff'])
+    // Still August on the grid: the list ran past the month, the grid did not.
+    expect(await monthHeading('August 2026')).toBeInTheDocument()
+    expect(cellHas(19, 'General Body Meeting')).toBe(true)
+  })
+
+  /**
+   * Nothing already over goes on the list. The server's `when=upcoming` is what
+   * decides that for stored rows; this is the other half — what the month
+   * window drags in, which is a month and not a moment.
+   */
+  it('keeps a finished event off the list and still opens it from its square', async () => {
+    const over = event({
+      id: 'past',
+      title: 'Summer Social',
+      startsAt: local(5),
+      endsAt: local(5, 21),
+    })
+    vi.stubGlobal(
+      'fetch',
+      stubFetch({ 'when=all': [over, event()], 'when=upcoming': [event()] }),
+    )
+
+    render(<CalendarSection />)
+    await agendaEntry('General Body Meeting')
+
+    expect(scheduled()).toEqual(['General Body Meeting'])
+    // It is still on its square — a grid is a record of the month, not a plan.
+    expect(cellHas(5, 'Summer Social')).toBe(true)
+
+    fireEvent.click(dayButton(5))
+    expect(scheduled()).toEqual(['Summer Social'])
+  })
+
+  /**
+   * A meeting is a recurrence, so the endpoint only expands one against a named
+   * window — which the upcoming request has not got. The month's are merged in
+   * rather than lost, or the front page would list everything except the thing
+   * the club does every week.
+   */
+  it('threads the month’s project meetings into the list, in order', async () => {
+    const meeting = event({
+      id: 'meeting:p1:2026-08-18',
+      title: 'Rover build night',
+      startsAt: local(18),
+      endsAt: local(18, 22),
+    })
+    vi.stubGlobal(
+      'fetch',
+      stubFetch({ 'when=all': [meeting, event()], 'when=upcoming': [event()] }),
+    )
+
+    render(<CalendarSection />)
+    await agendaEntry('Rover build night')
+
+    expect(scheduled()).toEqual(['Rover build night', 'General Body Meeting'])
+  })
+
+  /**
+   * The other half of an unbounded list: right answer, wrong length for a
+   * landing page. Five is what is happening soon and the button is the rest.
+   */
+  it('draws five rows and puts the rest behind a button', async () => {
+    vi.stubGlobal('fetch', stubFetch({ '/events': run(13, 7) }))
+
+    render(<CalendarSection />)
+    await agendaEntry('Event 13')
+
+    expect(scheduled()).toEqual([13, 14, 15, 16, 17].map((day) => `Event ${day}`))
+
+    const more = screen.getByRole('button', { name: 'SHOW ALL 7' })
+    expect(more).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.click(more)
+    expect(scheduled()).toHaveLength(7)
+
+    fireEvent.click(screen.getByRole('button', { name: 'SHOW FEWER' }))
+    expect(scheduled()).toHaveLength(5)
+  })
+
+  it('leaves the button off a list that already fits', async () => {
+    vi.stubGlobal('fetch', stubFetch({ '/events': run(13, 5) }))
+
+    render(<CalendarSection />)
+    await agendaEntry('Event 13')
+
+    expect(scheduled()).toHaveLength(5)
+    expect(screen.queryByRole('button', { name: /show all/i })).not.toBeInTheDocument()
+  })
+
+  /**
+   * The count on the button is a promise about what is under it, and a list
+   * left expanded from the last one breaks it.
+   */
+  it('collapses again when a day is opened', async () => {
+    vi.stubGlobal('fetch', stubFetch({ '/events': run(13, 7) }))
+
+    render(<CalendarSection />)
+    await agendaEntry('Event 13')
+
+    fireEvent.click(screen.getByRole('button', { name: 'SHOW ALL 7' }))
+    fireEvent.click(dayButton(13))
+    expect(scheduled()).toEqual(['Event 13'])
+
+    fireEvent.click(screen.getByRole('button', { name: /coming up/i }))
+    expect(scheduled()).toHaveLength(5)
+    expect(screen.getByRole('button', { name: 'SHOW ALL 7' })).toBeInTheDocument()
   })
 
   /**
@@ -267,7 +431,7 @@ describe('CalendarSection', () => {
       card.getByRole('menuitem', { name: /google calendar/i }).getAttribute('href'),
     ).toContain('calendar.google.com')
     // The menu belongs to the card, not to the day: pressing it is not a press
-    // on the square behind it, so the schedule still shows the whole month.
+    // on the square behind it, so the schedule still shows everything ahead.
     expect(scheduled()).toHaveLength(1)
     expect(dayButton(19)).toHaveAttribute('aria-pressed', 'false')
   })
@@ -364,7 +528,7 @@ describe('CalendarSection', () => {
     expect(scheduled()).toEqual(['University Rover Challenge'])
   })
 
-  it('gives the month back, from the square or from the button', async () => {
+  it('gives the full list back, from the square or from the button', async () => {
     vi.stubGlobal(
       'fetch',
       stubFetch({
@@ -385,7 +549,7 @@ describe('CalendarSection', () => {
     expect(scheduled()).toHaveLength(2)
 
     fireEvent.click(dayButton(19))
-    fireEvent.click(screen.getByRole('button', { name: /whole month/i }))
+    fireEvent.click(screen.getByRole('button', { name: /coming up/i }))
     expect(scheduled()).toHaveLength(2)
   })
 
@@ -404,7 +568,7 @@ describe('CalendarSection', () => {
 
     await monthHeading('September 2026')
     expect(
-      screen.queryByRole('button', { name: /whole month/i }),
+      screen.queryByRole('button', { name: /coming up/i }),
     ).not.toBeInTheDocument()
   })
 
@@ -446,14 +610,12 @@ describe('CalendarSection', () => {
     expect(await monthHeading('August 2026')).toBeInTheDocument()
   })
 
-  it('says so when the month is empty rather than rendering nothing', async () => {
+  it('says so when there is nothing ahead rather than rendering nothing', async () => {
     vi.stubGlobal('fetch', stubFetch({ '/events': [] }))
 
     render(<CalendarSection />)
 
-    expect(
-      await screen.findByText(/nothing on the calendar this month/i),
-    ).toBeInTheDocument()
+    expect(await screen.findByText(/nothing coming up/i)).toBeInTheDocument()
     // The grid is still there to navigate away from.
     expect(screen.getByText('31', { selector: 'td span' })).toBeInTheDocument()
   })

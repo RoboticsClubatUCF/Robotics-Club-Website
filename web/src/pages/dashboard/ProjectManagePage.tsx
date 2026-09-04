@@ -36,7 +36,7 @@ import {
   toDateInput,
   toTimeInput,
 } from '../../lib/events/events'
-import { WEEKDAY_SHORT, meetingLine } from '../../lib/events/meetings'
+import { WEEKDAY_SHORT, meetingLine, meetingNote } from '../../lib/events/meetings'
 import { TASK_LABEL, isSettled } from '../../lib/tasks'
 import type { ApiState } from '../../lib/api/useApi'
 import { useApi } from '../../lib/api/useApi'
@@ -1335,6 +1335,7 @@ function MeetingSection({
     const from = text('from')
     const to = text('to')
     const location = text('location')
+    const noteText = text('note')
     const clearing = days.length === 0
 
     // Checked here as well as on the server, because these are the two mistakes
@@ -1361,6 +1362,10 @@ function MeetingSection({
         meetingStartTime: clearing ? null : from,
         meetingEndTime: clearing ? null : to,
         meetingLocation: clearing || !location ? null : location,
+        // Goes with the schedule too. A note is about the meeting, and keeping
+        // one on a project that has stopped meeting is a stale sentence
+        // nobody would think to come back and delete.
+        meetingDescription: clearing || !noteText ? null : noteText,
       })
       await reload()
       setSaved(true)
@@ -1368,6 +1373,7 @@ function MeetingSection({
   }
 
   const line = meetingLine(project)
+  const note = meetingNote(project)
 
   return (
     <FormPanel>
@@ -1459,6 +1465,31 @@ function MeetingSection({
           </div>
         </div>
 
+        {/* The one part of a schedule the columns above cannot hold, and the
+            one that is genuinely optional — the days and the times are not.
+            Left empty, the meeting reaches a member's calendar with no
+            description at all, which is deliberate: the site used to write one
+            here and it only ever repeated the title and the room. */}
+        <div>
+          <label htmlFor={`${id}-note`} className={labelClass}>
+            NOTE (OPTIONAL)
+          </label>
+          <textarea
+            id={`${id}-note`}
+            name="note"
+            maxLength={400}
+            rows={2}
+            defaultValue={project.meetingDescription ?? ''}
+            placeholder="Anything the time and place don't say — bring a laptop, we skip home game days"
+            className="textarea border-rule bg-base-200 w-full text-sm"
+            disabled={busy}
+          />
+          <p className="text-faint mt-1 text-[12px] leading-[1.5] text-pretty">
+            This is what members see on the meeting in their calendar. Leave it
+            empty and nothing is said.
+          </p>
+        </div>
+
         {fault && <p className="text-error text-[13px]">{fault}</p>}
 
         <button
@@ -1511,10 +1542,20 @@ function MeetingSection({
           see "6:00 – 10:00 PM" agree with them, and the bound is the part
           nobody expects: the meetings stop at the end of the term. */}
       {line && (
-        <p className="text-faint border-rule mt-4 border-t pt-3 text-[12px] leading-[1.5] text-pretty">
-          {line}. It repeats to the end of this project&rsquo;s semester, and
-          finals week is left out — the club puts every project on halt for it.
-        </p>
+        <div className="border-rule mt-4 border-t pt-3">
+          <p className="text-faint text-[12px] leading-[1.5] text-pretty">
+            {line}. It repeats to the end of this project&rsquo;s semester, and
+            finals week is left out — the club puts every project on halt for it.
+          </p>
+          {/* Quoted rather than restated, so a lead can see the note as a
+              member will read it. Absent when there is none, which is the
+              state this whole field is optional for. */}
+          {note && (
+            <p className="text-dim mt-1.5 text-[12px] leading-[1.5] text-pretty">
+              {note}
+            </p>
+          )}
+        </div>
       )}
 
       <p role="status" className="mt-2 min-h-4 text-[12px]">

@@ -39,11 +39,13 @@ describe('StatStrip', () => {
       screen.getByText(label).closest('a')?.getAttribute('href')
 
     expect(hrefFor('PROJECTS')).toBe('/projects')
-    // ACTIVE MEMBERS rather than MEMBERS: `/members` lists every account and
-    // this counts the paid-up membership, so the label carries the difference.
-    // Asserted on the exact wording because that is the whole mechanism.
+    // ACTIVE MEMBERS rather than MEMBERS, and the roster's default chip says
+    // the same two words: the cell and the page it opens are one claim now.
+    // Asserted on the exact wording because that is what carries it.
     expect(hrefFor('ACTIVE MEMBERS')).toBe('/members')
-    expect(hrefFor('OPPORTUNITIES')).toBe('/events')
+    // Counted and listed on the same rule — `when=upcoming` at both ends — so
+    // unlike the members cell this label is the whole claim and not a caveat.
+    expect(hrefFor('UPCOMING EVENTS')).toBe('/events')
     expect(hrefFor('ESTABLISHED')).toBe('/about')
   })
 

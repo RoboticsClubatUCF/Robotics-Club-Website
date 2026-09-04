@@ -290,6 +290,7 @@ projectManage.get('/projects/:id/team', requireAuth, async (c) => {
     meetingStartTime,
     meetingEndTime,
     meetingLocation,
+    meetingDescription,
     meetingsPublic,
     discordRoleId,
   } = project
@@ -320,6 +321,7 @@ projectManage.get('/projects/:id/team', requireAuth, async (c) => {
       meetingStartTime,
       meetingEndTime,
       meetingLocation,
+      meetingDescription,
       meetingsPublic,
       discordRoleId,
     },

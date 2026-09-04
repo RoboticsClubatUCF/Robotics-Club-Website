@@ -58,6 +58,7 @@ const project: ApiManagedProject = {
   meetingStartTime: null,
   meetingEndTime: null,
   meetingLocation: null,
+  meetingDescription: null,
   meetingsPublic: true,
   discordRoleId: null,
 }
@@ -97,7 +98,8 @@ const context = (role: UserRole = 'MEMBER'): DashboardContext => ({
       billable: term,
       freeActive: false,
       canActivate: false,
-      surveyRequired: false,
+      surveyPending: false,
+      surveyPromptDismissed: false,
     },
   },
   reloadMembership: () => Promise.resolve(),

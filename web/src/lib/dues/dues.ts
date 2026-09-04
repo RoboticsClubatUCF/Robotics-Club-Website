@@ -134,8 +134,7 @@ export function countdown(iso: string, now: number = Date.now()): string {
  * at a paid-up member while their standing is still on the wire.
  *
  * `ADMIN` is exempt, here and there. Whoever can fix a membership must not be
- * lockable out by one — and the same exemption covers the survey, so an admin
- * is never sent to it either.
+ * lockable out by one.
  */
 export function duesLocked(
   membership: ApiState<ApiMembership>,
@@ -162,18 +161,22 @@ export function duesLocked(
  * date. Two locks that always agree are one lock and a place for them to stop
  * agreeing.
  *
+ * There was briefly a fourth reason, `survey`, and it is worth saying where it
+ * went: the one-time member survey used to sit in front of dues on the server,
+ * so every page in here drew a padlock for it and the dues page was shut behind
+ * it too. The survey is an invitation now — `surveyPending` on the membership
+ * is what the dashboard prompts on, and it locks nothing.
+ *
  * The three reasons are not decoration. They are the difference between telling
  * somebody the club wants money, telling them it does not want any right now,
  * and telling somebody two years in that they were never a member:
  *
- *   - `survey` — the one-time member survey has not been answered. Ahead of
- *     all three below, because it is the gate ahead of dues on the server too.
  *   - `claim` — a free window is running. Quoting a price would be false; they
  *     are one press from being let in, and it costs nothing.
  *   - `dues` — a date that has run out. A member, on hold, nothing taken away.
  *   - `newcomer` — no date, ever, and nothing free on offer.
  */
-export type AccessLock = 'survey' | 'claim' | 'dues' | 'newcomer' | null
+export type AccessLock = 'claim' | 'dues' | 'newcomer' | null
 
 /**
  * Why this membership is not cover, ignoring who is looking.
@@ -184,21 +187,6 @@ export type AccessLock = 'survey' | 'claim' | 'dues' | 'newcomer' | null
  * project page, which has a membership and no dashboard context.
  */
 export function coverGap(membership: ApiMembership): AccessLock {
-  /**
-   * **Before `hasAccess`, and that order is the feature.**
-   *
-   * Somebody an officer granted a term to still owes the survey, and their
-   * `hasAccess` is true — so asking about cover first would let them straight
-   * past a gate the server is still enforcing, and every click would 403 with
-   * a sentence the page never showed them.
-   *
-   * It also inverts one long-standing rule here: `/dashboard/dues` used to be
-   * the one page nothing could lock, because it was where every other lock
-   * sent people. The survey is now the page that cannot be locked, and dues is
-   * behind it like everything else.
-   */
-  if (membership.surveyRequired) return 'survey'
-
   if (membership.hasAccess) return null
   if (membership.canActivate) return 'claim'
 
@@ -242,10 +230,25 @@ export const LOCK_COPY: Record<
     cta: 'PAY MY DUES',
     short: 'MEMBERS ONLY — DUES TAKE A MINUTE',
   },
-  survey: {
-    cta: 'FILL IN THE SURVEY',
-    short: 'ONE-TIME MEMBER SURVEY — ABOUT TWO MINUTES',
-  },
+}
+
+/**
+ * Whether to put the survey prompt up over the dashboard.
+ *
+ * **Deliberately not an `AccessLock`.** It sits in this file because it reads
+ * the same membership object and follows the same "nothing until it is `ready`"
+ * rule, and nowhere near `coverGap` because it decides something else entirely:
+ * every reason above shuts a page, and this one only asks a question. Somebody
+ * this returns true for can do everything on the site.
+ *
+ * No `ADMIN` exemption either, which is the other half of that: the exemption
+ * exists so whoever fixes memberships cannot be locked out by one, and there is
+ * no lock here to be let past.
+ */
+export function surveyPrompt(membership: ApiState<ApiMembership>): boolean {
+  if (membership.status !== 'ready') return false
+
+  return membership.data.surveyPending && !membership.data.surveyPromptDismissed
 }
 
 export const STATUS_CHIP: Record<

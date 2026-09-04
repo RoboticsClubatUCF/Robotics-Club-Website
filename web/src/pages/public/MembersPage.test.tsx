@@ -6,8 +6,8 @@ import { MembersPage } from './MembersPage'
 import type { ApiMember } from '../../lib/api/api'
 import { stubFetch, stubFetchNetworkError, urlOf } from '../../test/stubFetch'
 
-/** The page reads `?subteam=` and writes it back, so every render needs a real
-    location as well as a router. */
+/** Nothing on this page is in the address bar any more, but the lede links to
+    the front page, so a router is still what makes it renderable. */
 const render = (at = '/members', ui: ReactNode = <MembersPage />) =>
   renderBare(<MemoryRouter initialEntries={[at]}>{ui}</MemoryRouter>)
 
@@ -23,7 +23,6 @@ const member = (over: Partial<ApiMember> = {}): ApiMember => ({
   profileUrl: null,
   active: true,
   officerAlumnus: false,
-  subteam: { slug: 'software', name: 'Software', color: '#4f8cff' },
   ...over,
 })
 
@@ -33,7 +32,6 @@ const sam = member({
   fullName: 'Sam Okafor',
   title: 'Mechanical Lead',
   gradYear: 2026,
-  subteam: { slug: 'mechanical', name: 'Mechanical', color: '#ff8a4f' },
 })
 
 afterEach(() => {
@@ -96,19 +94,33 @@ describe('MembersPage', () => {
   })
 
   /**
-   * The distinction the whole page rests on, and it now points the other way:
-   * this lists every account, so nobody reading it should take the length of it
-   * for the club's paid-up membership. That number is the landing page's
-   * ACTIVE MEMBERS cell and is a fraction of this.
+   * The distinction the whole page rests on, and it has pointed both ways. The
+   * default list is the club's paid-up membership — the landing page's ACTIVE
+   * MEMBERS cell, which is the same number — and the lede has to say that
+   * rather than describe the table, because everybody else is behind a chip.
    */
-  it('says the list is every account rather than the membership', async () => {
+  it('says the default list is the membership, not the whole table', async () => {
     vi.stubGlobal('fetch', stubFetch({ '/members': [member()] }))
 
     render()
     await screen.findByText('Alex Chen')
 
-    expect(screen.getByText(/everyone with an account/i)).toBeInTheDocument()
-    expect(screen.getByText(/just signed up/i)).toBeInTheDocument()
+    expect(screen.getByText(/paid-up membership/i)).toBeInTheDocument()
+    expect(screen.getByText(/are a chip away/i)).toBeInTheDocument()
+  })
+
+  /** And it opens on that chip. The cell on the front page counts this list, so
+      a different default would make that number wrong on arrival. */
+  it('opens on the active membership', async () => {
+    const fetchStub = stubFetch({ '/members': [member()] })
+    vi.stubGlobal('fetch', fetchStub)
+
+    render()
+    await screen.findByText('Alex Chen')
+
+    expect(
+      fetchStub.mock.calls.some(([input]) => urlOf(input).includes('status=active')),
+    ).toBe(true)
   })
 
   it('asks the server for officer alumni rather than filtering them out here', async () => {
@@ -119,9 +131,9 @@ describe('MembersPage', () => {
     await screen.findByText('Alex Chen')
     fireEvent.click(screen.getByRole('button', { name: 'OFFICER ALUMNI' }))
 
-    // CURRENT and OFFICER ALUMNI are disjoint sets of rows — `officerAlumnus`
-    // false and true — so the split has to be a request. Filtering what CURRENT
-    // already returned would always be an empty list.
+    // The two chips overlap but neither contains the other: a past president
+    // who stopped paying dues is on the alumni list and not on the default one,
+    // so filtering what ACTIVE MEMBERS returned would silently lose them.
     await vi.waitFor(() => {
       expect(
         fetchStub.mock.calls.some(([input]) =>
@@ -157,25 +169,41 @@ describe('MembersPage', () => {
     expect(cardFor('Alex Chen')?.textContent).not.toContain('OFFICER ALUMNI')
   })
 
-  /** `/about` links a subteam's member count straight here, and the number a
-      reader just saw has to be the list they land on. */
-  it('arrives narrowed when the URL names a subteam', async () => {
-    vi.stubGlobal('fetch', stubFetch({ '/members': [member(), sam] }))
+  /**
+   * And on the default list too, which is new. A past president who still pays
+   * dues is on it, and the badge is the only thing that says so — the chip
+   * above used to imply it by excluding them, which is what `markAlumni` leant
+   * on.
+   */
+  it('badges an officer alumnus on the active list as well', async () => {
+    vi.stubGlobal(
+      'fetch',
+      stubFetch({ '/members': [member({ officerAlumnus: true }), sam] }),
+    )
 
-    render('/members?subteam=mechanical')
+    render()
+    await screen.findByText('Alex Chen')
 
-    expect(await screen.findByText('Sam Okafor')).toBeInTheDocument()
-    expect(screen.queryByText('Alex Chen')).not.toBeInTheDocument()
+    // Scoped to the card: the chip row above carries the same two words.
+    expect(screen.getByText('Alex Chen').closest('figure')?.textContent).toContain(
+      'OFFICER ALUMNI',
+    )
+    expect(screen.getByText('Sam Okafor').closest('figure')?.textContent).not.toContain(
+      'OFFICER ALUMNI',
+    )
   })
 
   /**
-   * A link that went out of date must not produce a page that looks broken —
-   * an unknown slug falls back to the whole roster rather than to nothing.
+   * A `?subteam=` used to narrow this page and is gone with the club divisions
+   * it named. A stale link must land on the roster rather than on nothing —
+   * which it does by the parameter being read by nobody, and that is worth a
+   * test because the failure it prevents is a bookmark that opens an empty
+   * page.
    */
-  it('ignores a subteam nobody is in', async () => {
+  it('ignores a stale filter left in the URL', async () => {
     vi.stubGlobal('fetch', stubFetch({ '/members': [member(), sam] }))
 
-    render('/members?subteam=underwater-basket-weaving')
+    render('/members?subteam=mechanical')
 
     expect(await screen.findByText('Alex Chen')).toBeInTheDocument()
     expect(screen.getByText('Sam Okafor')).toBeInTheDocument()
@@ -196,10 +224,20 @@ describe('MembersPage', () => {
     expect(fetchStub.mock.calls).toHaveLength(before)
   })
 
-  it('says so when there are no accounts yet', async () => {
+  /**
+   * Per chip, because the default one is a filter. "Nobody has an account yet"
+   * in answer to an empty membership would be a claim about the whole table
+   * made by a query that never looked at it — and a club with three hundred
+   * signups and nobody paid up is a real state, at the start of a term.
+   */
+  it('says which list is empty, not that the club is', async () => {
     vi.stubGlobal('fetch', stubFetch({ '/members': [] }))
 
     render()
+
+    expect(await screen.findByText(/no active members yet/i)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'EVERYONE' }))
 
     expect(
       await screen.findByText(/nobody has an account yet/i),

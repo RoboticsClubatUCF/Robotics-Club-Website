@@ -1,0 +1,15 @@
+-- "Don't ask me again", from the dashboard's survey prompt.
+--
+-- The survey stopped being a gate in the same change: `requireSurvey` is gone,
+-- nothing on the site is refused for an unanswered survey, and the prompt over
+-- the dashboard is the only thing left that asks. This column is the answer to
+-- the checkbox on it.
+--
+-- Deliberately not folded into `survey_completed_at`. That column means "we
+-- have their shirt size"; this one means "stop asking". Writing a completion
+-- date for somebody who declined would put them in the officer desk's answered
+-- count, which is the one number this whole feature exists to produce.
+--
+-- Safe to apply to a populated table: nullable, no default, no backfill, so
+-- every existing row keeps being asked exactly as it is today.
+ALTER TABLE "users" ADD COLUMN "survey_prompt_dismissed_at" TIMESTAMP(3);

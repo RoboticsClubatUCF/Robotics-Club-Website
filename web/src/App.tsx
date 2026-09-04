@@ -66,6 +66,9 @@ const OfficerProjectsPage = lazy(async () => ({
 const OfficerRolesPage = lazy(async () => ({
   default: (await import('./pages/officer/OfficerRolesPage')).OfficerRolesPage,
 }))
+const OfficerArchivePage = lazy(async () => ({
+  default: (await import('./pages/officer/OfficerArchivePage')).OfficerArchivePage,
+}))
 const OfficerSemestersPage = lazy(async () => ({
   default: (await import('./pages/officer/OfficerSemestersPage')).OfficerSemestersPage,
 }))
@@ -172,6 +175,12 @@ function App() {
               <Route path="projects/:slug" element={<ProjectDashboardPage />} />
               <Route path="projects/:slug/manage" element={<ProjectManagePage />} />
               <Route path="officer/roles" element={<OfficerRolesPage />} />
+              {/* Beside ROLES because it is the other half of the same subject
+                  — that desk decides who sits where today, this one is the
+                  club's whole record of who ever did. `officers` rather than
+                  `archive` in the address: it is what the page it writes is
+                  called, and an officer looking for it looks for that word. */}
+              <Route path="officer/officers" element={<OfficerArchivePage />} />
               <Route
                 path="officer/semesters"
                 element={<OfficerSemestersPage />}

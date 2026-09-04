@@ -13,12 +13,20 @@ import {
  * it rather than asking anybody to maintain the same names twice. Carry the
  * role and `/members` files you under ALUMNI; lose it and it does not.
  *
- * **Why not `OfficerTerm`, which already knows who left the board.** It knows
- * about the people who have rotated off *since the officer sync started*, which
- * is a few months of a fifty-year club. The Discord role is the club's own
- * record and goes back as far as the server does. `/officers` is still the
- * tenure archive and is unaffected by any of this; the two answer different
- * questions and neither is derived from the other.
+ * **`OfficerTerm` answers the same question now, and this is still not derived
+ * from it.** It used to be unusable for this: it only knew about the people who
+ * had rotated off *since the officer sync started*, a few months of a fifty-year
+ * club, while the Discord role goes back as far as the server does. The officers
+ * desk closed that gap — `/dashboard/officer/officers` writes closed terms by
+ * hand, so the archive reaches as far back as somebody types — and `/members`
+ * reads the two together: the ALUMNI chip is this flag **or** a term that has
+ * ended, in `rosterStatus` in `routes/public/content.ts`.
+ *
+ * What has not changed is who writes the column. That is still this sweep and
+ * only this sweep. The desk adds a *second source* to the read and not a second
+ * writer, because a column with two owners is the failure the next section is
+ * about, and an officer typing in the 2011 board must not make the next sweep
+ * think the guild disagrees with it.
  *
  * ## One column, and it is not `active`
  *

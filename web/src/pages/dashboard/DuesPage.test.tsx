@@ -65,7 +65,8 @@ function duesStatus(over: Partial<ApiDuesStatus> = {}): ApiDuesStatus {
       billable: fall,
       freeActive: false,
       canActivate: false,
-      surveyRequired: false,
+      surveyPending: false,
+      surveyPromptDismissed: false,
     },
     plans: [
       {
@@ -206,7 +207,8 @@ describe('DuesPage', () => {
           billable: fall,
           freeActive: false,
           canActivate: true,
-          surveyRequired: false,
+          surveyPending: false,
+          surveyPromptDismissed: false,
         },
       }),
     )
@@ -248,7 +250,8 @@ describe('DuesPage', () => {
           billable: fall,
           freeActive: false,
           canActivate: false,
-          surveyRequired: false,
+          surveyPending: false,
+          surveyPromptDismissed: false,
         },
         // What the server actually returns to somebody covered through spring:
         // the plans start at the term *after* what they already hold.
@@ -314,7 +317,8 @@ describe('DuesPage', () => {
           billable: fall,
           freeActive: false,
           canActivate: true,
-          surveyRequired: false,
+          surveyPending: false,
+          surveyPromptDismissed: false,
           ...over,
         },
       })
@@ -422,7 +426,8 @@ describe('DuesPage', () => {
           status: 'ACTIVE',
           freeActive: true,
           canActivate: false,
-          surveyRequired: false,
+          surveyPending: false,
+          surveyPromptDismissed: false,
           // Paid for last fall, lapsed, and now active on the claim instead.
           paidThrough: '2025-12-10T04:59:59.999Z',
         }),
@@ -453,7 +458,8 @@ describe('DuesPage', () => {
             billable: fall,
             freeActive: false,
             canActivate: false,
-            surveyRequired: false,
+            surveyPending: false,
+            surveyPromptDismissed: false,
           },
         }),
       )
@@ -512,7 +518,8 @@ describe('DuesPage', () => {
           billable: fall,
           freeActive: false,
           canActivate: false,
-          surveyRequired: false,
+          surveyPending: false,
+          surveyPromptDismissed: false,
         },
       }),
     )

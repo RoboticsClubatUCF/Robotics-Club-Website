@@ -36,6 +36,7 @@ export interface SessionUser {
   photoZoom: number
   duesPaidThrough: Date | null
   surveyCompletedAt: Date | null
+  surveyPromptDismissedAt: Date | null
 }
 
 /** The Hono variables `requireAuth` and `optionalAuth` set. */
@@ -65,10 +66,16 @@ const userSelect = {
   photoFocalY: true,
   photoZoom: true,
   duesPaidThrough: true,
-  // The two gates, both read straight off this row. `requireSurvey` is
-  // synchronous precisely because this is here — asking `member_surveys`
-  // instead would be a second query on every authenticated request.
+  // The gate, read straight off this row.
+  //
+  // The two survey columns are here for a weaker reason and it is worth saying
+  // which: neither refuses anything. They decide whether the dashboard still
+  // has a survey to ask for and whether this person has said stop, and they
+  // ride on the session because `GET /dues/status` is the one call the rail
+  // already makes — asking `member_surveys` instead would be a query per
+  // request to learn something that changes twice in a member's life.
   surveyCompletedAt: true,
+  surveyPromptDismissedAt: true,
 } as const
 
 const DAY_MS = 24 * 60 * 60 * 1000

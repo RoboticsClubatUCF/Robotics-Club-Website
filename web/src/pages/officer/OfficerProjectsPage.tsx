@@ -241,6 +241,7 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
       meetingStartTime: from,
       meetingEndTime: to,
       meetingLocation: value('meetingLocation'),
+      meetingDescription: value('meetingDescription'),
       // No lead. Appointing one is the roles desk's job now, and the term is
       // left off so the server stamps the one we are in — which is what an
       // officer creating a project today means every time.
@@ -465,6 +466,25 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
                 disabled={sending}
               />
             </div>
+          </div>
+
+          {/* Optional where the three above are required, and the lead can
+              write it later on their own manage page. It is the description
+              the meeting carries into somebody's calendar; empty means empty,
+              so nothing has to be invented at creation to fill it. */}
+          <div className="mt-3">
+            <label htmlFor={`${id}-meeting-note`} className={labelClass}>
+              NOTE (OPTIONAL)
+            </label>
+            <textarea
+              id={`${id}-meeting-note`}
+              name="meetingDescription"
+              maxLength={400}
+              rows={2}
+              placeholder="Anything the time and place don't say"
+              className="textarea border-rule bg-base-200 w-full text-sm"
+              disabled={sending}
+            />
           </div>
 
           <p className="text-faint mt-1.5 text-[11px] leading-[1.5] text-pretty">

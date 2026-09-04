@@ -51,7 +51,8 @@ const membershipWith = (
     billable: term,
     freeActive: false,
     canActivate: false,
-    surveyRequired: false,
+    surveyPending: false,
+    surveyPromptDismissed: false,
     ...fields,
   },
 })

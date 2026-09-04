@@ -3,12 +3,24 @@ import { MemoryRouter, Outlet, Route, Routes } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { OfficerFrontPagePage } from './OfficerFrontPagePage'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
-import type { ApiHeroSlide, ApiTerm, UserRole } from '../../lib/api/api'
+import type {
+  ApiFaq,
+  ApiFrontPage,
+  ApiHeroSlide,
+  ApiPartnerProgram,
+  ApiTerm,
+  UserRole,
+} from '../../lib/api/api'
 import { MAX_HERO_SLIDES } from '../../lib/heroSlides'
 import { bodyOf, urlOf } from '../../test/stubFetch'
 
 /**
- * The desk behind the front page's slideshow.
+ * The desk behind the front page.
+ *
+ * **Two halves and two reads**: the slideshow, and the words beside it — the
+ * headline, the FAQ and the partner programs. They fetch separately so neither
+ * waits on the other, which is why the stub below answers two paths and why the
+ * unreachable case expects *both* halves to say so.
  *
  * What is worth pinning here is not the form plumbing:
  *
@@ -29,6 +41,17 @@ import { bodyOf, urlOf } from '../../test/stubFetch'
  * **That an empty slideshow is described as a fine thing to leave**, because an
  * officer who thinks removing the last photograph leaves a hole in the front
  * page will not remove a bad photograph.
+ *
+ * And on the words half:
+ *
+ * **That the headline is a form and the lists are not.** The two lines of the
+ * headline read as one sentence, so they are written together by one SAVE; a
+ * question and its answer are independent facts and save as they are left. Both
+ * are deliberate and neither is visible in a screenshot.
+ *
+ * **That emptying the partner list is described as taking the section off the
+ * page**, for the same reason the empty slideshow is: an officer who thinks it
+ * leaves a hole will not remove a card that should go.
  */
 
 const term: ApiTerm = {
@@ -69,7 +92,8 @@ const context = (
       billable: term,
       freeActive: false,
       canActivate: false,
-      surveyRequired: false,
+      surveyPending: false,
+      surveyPromptDismissed: false,
     },
     ...over,
   } as DashboardContext['membership'],
@@ -93,25 +117,66 @@ const json = (body: unknown, status = 200) =>
     }),
   )
 
+const FAQ: ApiFaq = {
+  id: 'q1',
+  question: 'Do I need experience to join?',
+  answer: 'No.',
+  steps: [],
+}
+
+const PROGRAM: ApiPartnerProgram = {
+  id: 'p1',
+  name: 'VEX Robotics',
+  audience: 'SCHOOL TEAMS',
+  blurb: 'What RCCF does with VEX.',
+  href: 'https://www.vexrobotics.com/',
+  linkLabel: 'Visit VEX Robotics',
+  imageUrl: null,
+}
+
+const PAGE: ApiFrontPage = {
+  headline: 'Building Our Future,',
+  headlineAccent: 'One Robot at a Time.',
+  lede: 'A paragraph under the headline.',
+  partnersIntro: 'Club membership is UCF students only.',
+  faqs: [FAQ],
+  partners: [PROGRAM],
+}
+
 /**
- * One list, read from the public path and written to the officer one — so the
- * stub branches on the method rather than the path, and a write is answered with
- * the row the server would have sent back.
+ * Both lists, each read from its public path and written to its officer one — so
+ * the stub branches on the method as well as the path, and a write is answered
+ * with the row the server would have sent back.
  */
 const stubApi = (
   slides: ApiHeroSlide[] = [LINKED, UPLOADED],
   written: unknown = slide('new', null, 'https://photos.invalid/new.jpg'),
+  page: ApiFrontPage = PAGE,
+  wrote?: unknown,
 ) =>
   vi.fn((input: string | URL | Request, init?: RequestInit) => {
     const url = urlOf(input)
+    const writing = init?.method !== undefined && init.method !== 'GET'
 
-    if (!url.includes('/hero-slides')) {
-      return Promise.reject(new Error(`no stub for ${url}`))
+    if (url.includes('/hero-slides')) return json(writing ? written : slides)
+
+    if (url.includes('/front-page')) {
+      if (!writing) return json(page)
+      if (wrote !== undefined) return json(wrote)
+
+      // **A write is answered with the whole row, not with what was sent.**
+      // These routes answer with the full shape, and a stub that echoed the
+      // patch would hand the desk a question with no `steps` on it — which
+      // throws where the real thing does not, and would be this suite inventing
+      // a bug.
+      const sent = bodyOf(init) as Record<string, unknown>
+      if (url.includes('/order')) return json(url.includes('/faqs') ? page.faqs : page.partners)
+      if (url.includes('/faqs')) return json({ ...FAQ, ...sent })
+      if (url.includes('/partners')) return json({ ...PROGRAM, ...sent })
+      return json({ ...page, ...sent })
     }
 
-    if (init?.method !== undefined && init.method !== 'GET') return json(written)
-
-    return json(slides)
+    return Promise.reject(new Error(`no stub for ${url}`))
   })
 
 const renderPage = (dashboard = context()) =>
@@ -255,9 +320,124 @@ describe('OfficerFrontPagePage', () => {
 
     renderPage()
 
+    // Both halves, because both read and both failed — one message with the
+    // other half of the desk silently blank would be worse than two.
     expect(
-      await screen.findByText("We couldn't reach the server."),
+      await screen.findAllByText("We couldn't reach the server."),
+    ).toHaveLength(2)
+  })
+
+  it('writes the headline as one sentence, on a SAVE', async () => {
+    const stub = stubApi()
+    vi.stubGlobal('fetch', stub)
+
+    renderPage()
+
+    const first = await screen.findByLabelText('FIRST LINE')
+    fireEvent.change(first, { target: { value: 'Building Something,' } })
+
+    // Nothing goes out until SAVE: the second line is still the old one, and a
+    // headline written half way is a headline on the front page.
+    expect(callsOf(stub, 'PUT')).toHaveLength(0)
+
+    fireEvent.click(screen.getByRole('button', { name: 'SAVE THE WORDS' }))
+
+    await waitFor(() => {
+      expect(callsOf(stub, 'PUT')).toHaveLength(1)
+    })
+
+    const [, init] = callsOf(stub, 'PUT')[0]!
+    expect(bodyOf(init)).toMatchObject({
+      headline: 'Building Something,',
+      headlineAccent: 'One Robot at a Time.',
+      lede: 'A paragraph under the headline.',
+    })
+  })
+
+  /** The preview is the one thing the two boxes cannot show on their own. */
+  it('shows where the headline breaks and which half is gold', async () => {
+    vi.stubGlobal('fetch', stubApi())
+
+    renderPage()
+
+    const accent = await screen.findByText('One Robot at a Time.')
+    expect(accent.tagName).toBe('EM')
+    expect(accent.className).toContain('text-primary')
+  })
+
+  it('saves a question when the box is left, not as it is typed', async () => {
+    const stub = stubApi()
+    vi.stubGlobal('fetch', stub)
+
+    renderPage()
+
+    const question = await screen.findByLabelText('Question 1')
+    fireEvent.change(question, { target: { value: 'Do I need any experience?' } })
+    expect(callsOf(stub, 'PATCH')).toHaveLength(0)
+
+    fireEvent.blur(question)
+
+    await waitFor(() => {
+      expect(callsOf(stub, 'PATCH')).toHaveLength(1)
+    })
+    expect(bodyOf(callsOf(stub, 'PATCH')[0]![1])).toEqual({
+      question: 'Do I need any experience?',
+    })
+  })
+
+  /** A blank box is a mistake rather than an edit, and the row is put back
+      instead of a question being wiped off the front page. */
+  it('will not save an emptied question', async () => {
+    const stub = stubApi()
+    vi.stubGlobal('fetch', stub)
+
+    renderPage()
+
+    const question = await screen.findByLabelText('Question 1')
+    fireEvent.change(question, { target: { value: '   ' } })
+    fireEvent.blur(question)
+
+    expect(callsOf(stub, 'PATCH')).toHaveLength(0)
+    expect(question).toHaveValue(FAQ.question)
+  })
+
+  it('asks before deleting a question, because the answer goes with it', async () => {
+    const stub = stubApi()
+    vi.stubGlobal('fetch', stub)
+
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove question 1' }))
+
+    expect(screen.getByText('Delete this question?')).toBeInTheDocument()
+    expect(callsOf(stub, 'DELETE')).toHaveLength(0)
+
+    fireEvent.click(screen.getByRole('button', { name: 'DELETE IT' }))
+
+    await waitFor(() => {
+      expect(callsOf(stub, 'DELETE')).toHaveLength(1)
+    })
+  })
+
+  it('says that emptying the partner list takes the section off the page', async () => {
+    vi.stubGlobal('fetch', stubApi())
+
+    renderPage()
+
+    expect(
+      await screen.findByText(/comes off the front page altogether/i),
     ).toBeInTheDocument()
+  })
+
+  it('holds the artwork well open for a program that has none', async () => {
+    vi.stubGlobal('fetch', stubApi())
+
+    renderPage()
+
+    expect(await screen.findByText('[ IMAGE ]')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'TAKE THE ARTWORK OFF' }),
+    ).not.toBeInTheDocument()
   })
 
   it('is closed to anybody who is not an officer', () => {
@@ -285,7 +465,8 @@ describe('OfficerFrontPagePage', () => {
           billable: term,
           freeActive: false,
           canActivate: false,
-          surveyRequired: false,
+          surveyPending: false,
+          surveyPromptDismissed: false,
         },
       } as Partial<DashboardContext['membership']>),
     )

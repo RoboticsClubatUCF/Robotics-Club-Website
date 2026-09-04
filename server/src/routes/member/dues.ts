@@ -9,7 +9,6 @@ import {
   DuesPlan,
   UserRole,
 } from '../../generated/prisma/enums.js'
-import { requireSurveyForRoute } from '../../auth/authz.js'
 import { rateLimit } from '../../core/rateLimit.js'
 import {
   type Coverage,
@@ -56,20 +55,13 @@ import { stripe, stripeConfigured } from '../../payments/stripe.js'
  * them on `/members`, which lists every account, guest or not. A profile page
  * of their own still needs a `slug`, and that stays an officer's decision.
  *
- * **The member survey comes before any of this**, and the split across these
- * four routes is deliberate rather than uniform:
- *
- *   - `checkout` and `activate` carry `requireSurveyForRoute`. They are the two
- *     ways to acquire a `duesPaidThrough`, so gating them is what makes "the
- *     survey before dues" true. `activate` matters as much as `checkout`:
- *     claiming a free window grants access exactly as paying does, so leaving
- *     it open would be a one-press way round the survey.
- *   - `status` is **not** gated. The dues page and the dashboard rail both need
- *     it to render the survey lock at all, and refusing it leaves the page with
- *     nothing to say.
- *   - `sync` is **not** gated, and neither is the webhook behind it. The money
- *     has already moved by the time either runs; refusing to credit it would
- *     strand somebody who has paid. Same argument as the rate-limit note below.
+ * **The member survey used to come before any of this.** `checkout` and
+ * `activate` both carried `requireSurveyForRoute`, which is what made "the
+ * survey before dues" true — and what stopped the club taking money from
+ * anybody who had not given it a shirt size. The survey is an invitation now,
+ * so both routes are plain dues routes, and the only survey left in this file
+ * is the pair of flags `wireMembership` sends so the dashboard knows whether it
+ * still has something to ask.
  */
 export const dues = new Hono<AuthEnv>()
 
@@ -124,15 +116,17 @@ const wireCoverage = (coverage: Coverage) => ({
 /**
  * Two routes answer with this, and they must not describe it differently.
  *
- * It takes the user as well as the standing because of `surveyRequired`, which
- * is not a fact about dues at all. It rides here because `accessLock` in
- * `web/src/lib/dues/dues.ts` is the single place the browser decides what is locked,
- * and this object is what that function already reads — putting the flag
- * anywhere else would mean a second fetch and a second signature for thirteen
- * call sites. `membershipStanding` stays pure and date-only.
+ * It takes the user as well as the standing because of the two survey flags,
+ * which are not facts about dues at all. They ride here because `/dues/status`
+ * is the one call the dashboard rail already makes on every page — a prompt
+ * that needed its own fetch would arrive a beat after the page and pop up
+ * under somebody's pointer. `membershipStanding` stays pure and date-only.
  */
 const wireMembership = (
-  user: Pick<SessionUser, 'role' | 'surveyCompletedAt'>,
+  user: Pick<
+    SessionUser,
+    'role' | 'surveyCompletedAt' | 'surveyPromptDismissedAt'
+  >,
   standing: MembershipStanding,
 ) => ({
   status: standing.status,
@@ -147,13 +141,28 @@ const wireMembership = (
   /** A free window is running and has not been claimed yet. */
   canActivate: standing.canActivate,
   /**
-   * The one-time member survey has not been answered, so nothing is open yet —
-   * this page included. Mirrors `requireSurvey` in `src/auth/authz.ts` exactly,
-   * `ADMIN` exemption and all, because the browser drawing a padlock the server
-   * would not enforce is the bug this whole file's comments keep warning about.
+   * The one-time member survey has not been answered.
+   *
+   * **It locks nothing**, and the name is chosen to stop it drifting back into
+   * meaning that: it was `surveyRequired` while `requireSurvey` existed, and
+   * five pages read it to draw a padlock. Nothing on the server refuses an
+   * unanswered survey any more, so this is only what the dashboard reads to
+   * decide whether it still has something to offer.
+   *
+   * No `ADMIN` exemption, unlike everything else on this object. That existed
+   * so whoever fixes memberships could not be locked out by one; with no lock
+   * left there is nothing to be exempt from, and an admin's shirt size is as
+   * useful to the club as anybody's.
    */
-  surveyRequired:
-    user.role !== UserRole.ADMIN && user.surveyCompletedAt === null,
+  surveyPending: user.surveyCompletedAt === null,
+  /**
+   * They ticked *don't ask me again*, so the prompt stays down.
+   *
+   * Separate from the flag above rather than folded into it, because the two
+   * drive different things: the prompt reads both, and the panels that offer
+   * the form read only the first. A dismissal hides the nag, not the survey.
+   */
+  surveyPromptDismissed: user.surveyPromptDismissedAt !== null,
 })
 
 // ------------------------------------------------------------------ status
@@ -232,7 +241,6 @@ dues.post(
   '/checkout',
   originGuard,
   requireAuth,
-  requireSurveyForRoute,
   writes,
   validate('json', planSchema),
   async (c) => {
@@ -377,7 +385,6 @@ dues.post(
   '/activate',
   originGuard,
   requireAuth,
-  requireSurveyForRoute,
   writes,
   async (c) => {
     const user = c.get('user')

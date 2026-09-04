@@ -20,6 +20,12 @@ import {
  * where somebody already goes to change facts about themselves, so this is
  * where the answers live afterwards.
  *
+ * It is also one of the two places that still offer the survey to somebody who
+ * never answered it — the overview's panel is the other. That matters more than
+ * it used to: the survey is optional now and the prompt carries a *don't ask me
+ * again*, so for anybody who ticks it these two panels are the whole of what is
+ * left.
+ *
  * **It reads them; it does not edit them.** This panel used to carry the whole
  * form, and on a page of one- and two-field panels a survey was several times
  * the height of anything around it — a column that scrolled for most of a
@@ -118,7 +124,8 @@ export function ProfileSurveyPanel({
   // Never answered, so there is nothing to print back. A different situation
   // from an answer this panel could not read, and it gets different words: the
   // account page is one of the two the survey prompt deliberately stays off, so
-  // somebody who still owes it does land here.
+  // somebody who has not answered does land here — and so does somebody who
+  // told the prompt to stop, which is the reason this offer stays.
   //
   // Falsy rather than `=== null`, which is all the type allows for: everything
   // below reads fields off this object, and a payload that arrived without one
@@ -128,9 +135,9 @@ export function ProfileSurveyPanel({
     return (
       <ProfilePanel label="MEMBER SURVEY">
         <p className={noteClass}>
-          You haven&rsquo;t filled it in yet. It takes about two minutes, it is
-          only ever asked once, and the rest of the dashboard opens as soon as
-          it is in.
+          You haven&rsquo;t filled it in yet. Nothing on the site waits on it
+          &mdash; it takes about two minutes, and it is how the club knows what
+          size shirts to order and what it can safely feed people.
         </p>
         <Link to="/dashboard/survey" className={`${panelQuietClass} mt-4`}>
           FILL IT IN

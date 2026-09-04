@@ -107,6 +107,23 @@ describe('DashboardCalendar', () => {
     expect(asked).toContain('to=')
   })
 
+  /**
+   * The second request is the list under the grid, which is not the month — see
+   * `MonthCalendar`. No `to`, so it runs on past the end of it; the meetings and
+   * the member's own deadlines still come from the windowed one above.
+   */
+  it('asks a second time for everything ahead, with no far end', async () => {
+    const fetchStub = stubFetch({ '/me/events': [] })
+    vi.stubGlobal('fetch', fetchStub)
+
+    render(<DashboardCalendar />)
+    await screen.findByRole('heading', { name: 'August 2026' })
+
+    const asked = urlOf(fetchStub.mock.calls[1]![0])
+    expect(asked).toContain(`from=${encodeURIComponent(NOW.toISOString())}`)
+    expect(asked).not.toContain('to=')
+  })
+
   it('draws generated meetings and stored events alike', async () => {
     vi.stubGlobal(
       'fetch',

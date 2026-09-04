@@ -916,20 +916,16 @@ describe('what a refusal says', () => {
 })
 
 /**
- * The gate in front of the gate.
+ * The survey, which is no longer a gate.
  *
- * The member survey is asked once and refuses everything until it is answered —
- * the dues page included, which is the part worth pinning. Three properties
- * matter and each has cost something somewhere else in this file:
- *
- *   - it outranks dues, so somebody who owes both is told about the survey and
- *     not about money they cannot yet spend;
- *   - it runs *after* the rank check, like dues, so a stranger still collects
- *     the ordinary 403 rather than learning that answering a form would hand
- *     them a lead's tools;
- *   - `ADMIN` is exempt, for the reason `ADMIN` is exempt from everything here.
+ * It used to refuse everything until it was answered — the tools, the desks
+ * and the dues page — so the club could not take somebody's money before it
+ * had their shirt size. That is gone, and these tests are the ones that would
+ * have failed then: an unanswered survey now refuses nothing at all, and the
+ * only thing left of it on the wire is a pair of flags the dashboard reads to
+ * decide whether it still has something to ask for.
  */
-describe('the member survey gate', () => {
+describe('an unanswered member survey', () => {
   const asking = (person: Person) =>
     request('POST', '/api/print', person, {
       fileId: '00000000-0000-0000-0000-000000000000',
@@ -948,51 +944,8 @@ describe('the member survey gate', () => {
   const errorOf = async (response: Response) =>
     ((await response.json()) as { error: string }).error
 
-  it('refuses a paid-up member who has not answered it', async () => {
+  it('does not stop a paid-up member', async () => {
     await unanswered('memberA')
-
-    const response = await asking('memberA')
-
-    expect(response.status).toBe(403)
-    expect(await errorOf(response)).toMatch(/member survey/i)
-  })
-
-  /**
-   * The ordering, and the reason it is worth a test rather than a comment.
-   *
-   * Somebody who owes the survey *and* has never paid is behind two gates, and
-   * the sentence they get has to be the survey's — "pay your dues" sends them
-   * to a page the survey gate will refuse, which is a loop with no way out.
-   */
-  it('outranks dues when both are owed', async () => {
-    await unanswered('memberA', { duesPaidThrough: null })
-
-    const error = await errorOf(await asking('memberA'))
-
-    expect(error).toMatch(/member survey/i)
-    // None of the three dues sentences. The survey's own wording does mention
-    // the dues page — to say it is behind this too — so the check has to be
-    // against what each refusal actually says rather than against the word.
-    expect(error).not.toMatch(/paid-up members/i)
-    expect(error).not.toMatch(/dues have lapsed/i)
-    expect(error).not.toMatch(/free right now/i)
-  })
-
-  /** And once it is answered, the dues sentence comes back through unchanged. */
-  it('steps out of the way once it is answered', async () => {
-    await prisma.user.update({
-      where: { id: memberIds.memberA },
-      data: { surveyCompletedAt: SURVEYED, duesPaidThrough: LAPSED },
-    })
-
-    expect(await errorOf(await asking('memberA'))).toMatch(/dues have lapsed/i)
-  })
-
-  it('does not apply to an admin', async () => {
-    await unanswered('memberA', {
-      role: UserRole.ADMIN,
-      duesPaidThrough: null,
-    })
 
     // 400 rather than 403: the request gets past every gate and falls over on
     // the fixture's deliberately nonexistent file id, which is the cheapest
@@ -1001,29 +954,23 @@ describe('the member survey gate', () => {
   })
 
   /**
-   * The rank check still runs first. A stranger with no survey asking to edit a
-   * project they are not on gets the plain refusal, because the alternative
-   * announces that the form is what stands between them and somebody else's
-   * build.
+   * The one that pins the change. Somebody who owes dues *and* has not answered
+   * used to be told about the survey, because it outranked the money; now the
+   * only thing standing in their way is what they actually owe.
    */
-  it('does not tell a stranger about it', async () => {
-    await unanswered('stranger')
+  it('leaves the dues sentence to dues', async () => {
+    await unanswered('memberA', { duesPaidThrough: LAPSED })
 
-    const response = await request('PATCH', `/api/projects/${projectA}`, 'stranger', {
-      title: 'Nope',
-    })
-
-    expect(response.status).toBe(403)
-    expect(await errorOf(response)).not.toMatch(/survey/i)
+    expect(await errorOf(await asking('memberA'))).toMatch(/dues have lapsed/i)
   })
 
   /**
-   * The dues page is behind it too, and that is the whole point of the feature:
-   * the club wanted the answers before it took anybody's money. `checkout` is
-   * the route that creates the payment intent, so refusing here is what makes
-   * "survey before dues" true rather than decorative.
+   * The two dues writes, which is where this mattered most. `checkout` creates
+   * the payment intent and `activate` claims a free window; both were shut
+   * behind the survey, so a member with a card in their hand could be refused
+   * for not having said what size shirt they wear.
    */
-  it('shuts the two dues writes', async () => {
+  it('does not shut the two dues writes', async () => {
     await unanswered('memberA')
 
     const checkout = await request('POST', '/api/dues/checkout', 'memberA', {
@@ -1031,25 +978,38 @@ describe('the member survey gate', () => {
     })
     const activate = await request('POST', '/api/dues/activate', 'memberA')
 
-    expect(checkout.status).toBe(403)
-    expect(activate.status).toBe(403)
-    expect(await errorOf(checkout)).toMatch(/member survey/i)
+    expect(checkout.status).not.toBe(403)
+    expect(activate.status).not.toBe(403)
   })
 
   /**
-   * And `GET /dues/status` is deliberately *not* shut. The dashboard reads it
-   * to find out that the survey is owed at all; refusing it leaves the rail
-   * with nothing to draw and the page with nothing to say.
+   * And what the dashboard reads instead. `surveyPending` is what puts the
+   * prompt up; `surveyPromptDismissed` is the checkbox on it, and the two are
+   * separate because answering and declining to be asked are different facts —
+   * see the column comments in `schema.prisma`.
    */
-  it('leaves the dues status readable', async () => {
+  it('is reported on the dues status for the dashboard to ask about', async () => {
     await unanswered('memberA')
 
     const response = await request('GET', '/api/dues/status', 'memberA')
+    const { membership } = (await response.json()) as {
+      membership: { surveyPending: boolean; surveyPromptDismissed: boolean }
+    }
 
     expect(response.status).toBe(200)
+    expect(membership.surveyPending).toBe(true)
+    expect(membership.surveyPromptDismissed).toBe(false)
+  })
+
+  /** No `ADMIN` exemption left, because there is nothing to be exempt from. */
+  it('is asked of an admin like anybody else', async () => {
+    await unanswered('memberA', { role: UserRole.ADMIN })
+
+    const response = await request('GET', '/api/dues/status', 'memberA')
+
     expect(
-      ((await response.json()) as { membership: { surveyRequired: boolean } })
-        .membership.surveyRequired,
+      ((await response.json()) as { membership: { surveyPending: boolean } })
+        .membership.surveyPending,
     ).toBe(true)
   })
 })

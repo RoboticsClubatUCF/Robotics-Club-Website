@@ -10,10 +10,10 @@ import {
   FormPanel,
 } from '../../components/shared/formChrome'
 import { getJson, postJson } from '../../lib/api/api'
-import { LOCK_COPY, accessLock, coverGap } from '../../lib/dues/dues'
+import { LOCK_COPY, coverGap, surveyPrompt } from '../../lib/dues/dues'
 import type { ApiMyTask, ApiProject } from '../../lib/api/api'
 import { duesLocked } from '../../lib/dues/dues'
-import { meetingLine } from '../../lib/events/meetings'
+import { meetingLine, meetingNote } from '../../lib/events/meetings'
 import { whereLabel } from '../../lib/tasks'
 import { useApi } from '../../lib/api/useApi'
 
@@ -33,10 +33,13 @@ import { useApi } from '../../lib/api/useApi'
 
 export function DashboardPage() {
   const { user, projects, membership } = useOutletContext<DashboardContext>()
-  // `accessLock` rather than `coverGap`, so the ADMIN exemption and the
-  // "nothing until it is ready" rule are read from the same place the rail
-  // reads them and cannot drift from it.
-  const owed = accessLock(membership, user.role)
+  // The survey locks nothing, so it is not one of `accessLock`'s reasons and
+  // is read straight off the membership. Two facts rather than one, because
+  // the panel below has three states: answered, still being asked for, and
+  // unanswered by somebody who said stop.
+  const surveyPending =
+    membership.status === 'ready' && membership.data.surveyPending
+  const askingForSurvey = surveyPrompt(membership)
 
   const firstName = user.fullName.trim().split(/\s+/)[0]
 
@@ -59,39 +62,22 @@ export function DashboardPage() {
       <div className="grid-fluid mt-8 gap-5">
         <Membership state={membership} />
 
-        {/* The survey outranks the dues prompt, and this is the one place the
-            two could contradict each other. Telling somebody to pay while the
-            survey is what is shut sends them to a page the gate refuses — so
-            while it is owed, this panel is the survey's. */}
-        {owed === 'survey' ? (
+        {/* One prompt here, and it is about money. The survey used to take this
+            slot whenever it was owed, because it outranked dues on the server
+            and telling somebody to pay would have sent them to a page the gate
+            then refused. It shuts nothing now, so it is back to being one panel
+            among the rest further down rather than the first thing anybody
+            reads. */}
+        {duesLocked(membership, user.role) && (
           <FormPanel tone="accent">
             <p className="mb-1.5 text-sm font-semibold">
-              Fill in the member survey to unlock the rest of this.
+              Pay your dues to unlock the rest of this.
             </p>
             <p className="text-dim text-sm leading-[1.7] text-pretty">
-              Two minutes, asked once. It is how the club knows what size shirts
-              to order and what it can safely feed people.{' '}
-              <Link
-                to="/dashboard/survey"
-                className="text-primary underline underline-offset-2"
-              >
-                Fill it in
-              </Link>
-              .
+              3D printing, equipment and anything you run are locked until then.
+              Your projects and rank are untouched.
             </p>
           </FormPanel>
-        ) : (
-          duesLocked(membership, user.role) && (
-            <FormPanel tone="accent">
-              <p className="mb-1.5 text-sm font-semibold">
-                Pay your dues to unlock the rest of this.
-              </p>
-              <p className="text-dim text-sm leading-[1.7] text-pretty">
-                3D printing, equipment and anything you run are locked until
-                then. Your projects and rank are untouched.
-              </p>
-            </FormPanel>
-          )
         )}
 
         {/* Ahead of the rest, because it is the only panel here that is
@@ -102,7 +88,7 @@ export function DashboardPage() {
         <MyProjects projects={projects} />
         <OpenProjects />
         <MyTasks />
-        <SurveyPanel owed={owed === 'survey'} />
+        <SurveyPanel pending={surveyPending} asking={askingForSurvey} />
       </div>
 
       {/* The page ends on the calendar. It used to end on a link to the Discord
@@ -224,6 +210,7 @@ function MyProjects({ projects }: { projects: DashboardContext['projects'] }) {
           <ul className="space-y-4">
             {thisTerm.map(({ project, rank, title, team }) => {
               const meets = meetingLine(project)
+              const note = meetingNote(project)
               const standing = [
                 rank === 'PROJECT_LEAD'
                   ? 'Project lead'
@@ -252,6 +239,13 @@ function MyProjects({ projects }: { projects: DashboardContext['projects'] }) {
                   {meets && (
                     <p className="text-dim mt-1 text-[13px] leading-[1.5]">
                       {meets}
+                    </p>
+                  )}
+                  {/* The lead's own words under the times, in the tier below
+                      them: the schedule is the fact, this is the aside. */}
+                  {note && (
+                    <p className="text-faint mt-0.5 text-[13px] leading-[1.5] text-pretty">
+                      {note}
                     </p>
                   )}
                 </li>
@@ -442,44 +436,50 @@ function OpenProjects() {
 /**
  * The survey's own panel on the overview.
  *
- * It replaced an honest `Not built yet.` placeholder, and it keeps that panel's
- * job of being the one place on the dashboard that says where the survey lives
- * — which matters more now the rail row disappears once it is answered. Somebody
- * correcting a shirt size a year later has this and nothing else to follow.
+ * **This is the standing offer, and it is what lets the prompt carry a
+ * *don't ask me again*.** Nothing makes anybody fill the survey in and the
+ * dialog can be switched off for good, so the club's last chance at a shirt
+ * size is a panel that is always here, on the page everybody lands on, in all
+ * three states. It is also the way back for somebody correcting an answer a
+ * year later, which the rail's row cannot be — that row goes the moment the
+ * survey stops being asked for.
+ *
+ * Three states, two props. `asking` is a strictly narrower `pending`: somebody
+ * who ticked the box is pending and not asked, and they are owed a different
+ * sentence from the one a newcomer gets. Telling a person who has just said
+ * *stop* that they have not filled it in yet, in accent, is the exact nag they
+ * turned off.
  */
-function SurveyPanel({ owed }: { owed: boolean }) {
+function SurveyPanel({
+  pending,
+  asking,
+}: {
+  pending: boolean
+  asking: boolean
+}) {
   return (
-    <FormPanel tone={owed ? 'accent' : 'plain'}>
+    // Accent only while the club is still asking. A dismissal takes the colour
+    // off it as well as taking the prompt down — the offer stays, the pull does
+    // not.
+    <FormPanel tone={asking ? 'accent' : 'plain'}>
       <p className="text-faint mb-3 font-mono text-[10px] font-medium tracking-[0.16em]">
         MEMBER SURVEY
       </p>
 
-      {owed ? (
-        <>
-          <p className="text-dim text-[13px] leading-[1.6] text-pretty">
-            Not filled in yet. It is two minutes and it is asked once.
-          </p>
-          <Link
-            to="/dashboard/survey"
-            className="text-primary mt-3 inline-block font-mono text-[11px] font-medium tracking-[0.1em] underline underline-offset-2"
-          >
-            FILL IT IN
-          </Link>
-        </>
-      ) : (
-        <>
-          <p className="text-dim text-[13px] leading-[1.6] text-pretty">
-            Answered, and you will not be asked again. Shirt sizes and
-            graduation years move, so change yours whenever they do.
-          </p>
-          <Link
-            to="/dashboard/survey"
-            className="text-primary mt-3 inline-block font-mono text-[11px] font-medium tracking-[0.1em] underline underline-offset-2"
-          >
-            UPDATE MY ANSWERS
-          </Link>
-        </>
-      )}
+      <p className="text-dim text-[13px] leading-[1.6] text-pretty">
+        {!pending
+          ? 'Answered, and you will not be asked again. Shirt sizes and graduation years move, so change yours whenever they do.'
+          : asking
+            ? 'Not filled in yet. It is two minutes, it is asked once, and nothing on the site waits on it.'
+            : 'Not filled in yet, and we will not ask again. It is still here whenever you want it — two minutes, and it is how the club knows what size shirts to order.'}
+      </p>
+
+      <Link
+        to="/dashboard/survey"
+        className="text-primary mt-3 inline-block font-mono text-[11px] font-medium tracking-[0.1em] underline underline-offset-2"
+      >
+        {pending ? 'FILL IT IN' : 'UPDATE MY ANSWERS'}
+      </Link>
     </FormPanel>
   )
 }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ApiEvent } from '../../lib/api/api'
 import { AddToCalendar } from './AddToCalendar'
-import { isTaskEntry } from '../../lib/events/events'
+import { isGeneratedMeeting, isTaskEntry } from '../../lib/events/events'
 import { addMonths, startOfMonth } from '../../lib/events/months'
 import type { ApiState } from '../../lib/api/useApi'
 
@@ -17,11 +17,28 @@ import type { ApiState } from '../../lib/api/useApi'
  * fetch is keyed on it; the selected day lives here because nothing outside
  * cares which square is open.
  *
- * Both halves show one month because the grid is what you scan and the list is
- * what you read — a cell four columns wide has no room for a time and a room
- * number, and an agenda on its own loses the shape of the week. The grid is
- * pure date arithmetic, so it renders before the fetch lands and never reflows
- * when it does; only the chips and the list below wait on data.
+ * The grid is what you scan and the list is what you read — a cell four columns
+ * wide has no room for a time and a room number, and an agenda on its own loses
+ * the shape of the week.
+ *
+ * **Only the grid is a month.** The list under it is everything still ahead,
+ * whichever month is on screen. Cut at the month's edge it was empty for the
+ * last week of every month while the club had three things in the first week of
+ * the next — and "what is on soon" is the one question a calendar on a front
+ * page exists to answer. Opening a day still narrows the list to that day, past
+ * days included: that is the grid's own window, and on a phone it is the only
+ * way to read an event at all.
+ *
+ * So there are two fetches and `upcoming` is the second — the grid's window is
+ * a month, the list's has no end. What a window *generates* rather than stores
+ * (project meetings, task deadlines) can only come from the first, because a
+ * recurrence has no answer for "the next fifty"; `publicMeetings` in
+ * `server/src/routes/public/content.ts` is where that rule is written down. The
+ * list therefore merges the month's generated entries into the forward stored
+ * ones.
+ *
+ * The grid is pure date arithmetic, so it renders before the fetch lands and
+ * never reflows when it does; only the chips and the list below wait on data.
  *
  * Everything is computed in the visitor's local zone. The API sends UTC ISO
  * strings and `new Date(...)` plus the local `get*` accessors do the
@@ -40,6 +57,16 @@ const weekdays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 
 /** How many chips fit in a cell before the rest become a count. */
 const CHIPS_PER_CELL = 2
+
+/**
+ * How many rows the schedule draws before it needs asking.
+ *
+ * The list stopped being a month and became "everything ahead", which is the
+ * right answer to the question and the wrong length for a landing page — a term
+ * with thirty things on it would push the rest of the page below two screens of
+ * agenda. Five is what is happening soon; the button is for the rest of it.
+ */
+const AGENDA_ROWS = 5
 
 const startOfDay = (date: Date) =>
   new Date(date.getFullYear(), date.getMonth(), date.getDate())
@@ -69,6 +96,25 @@ function monthGrid(month: Date): (Date | null)[][] {
     cells.slice(week * 7, week * 7 + 7),
   )
 }
+
+/**
+ * A generated entry — a project meeting or a task deadline — rather than a
+ * stored row. These exist only inside the window they were expanded for, which
+ * is why the schedule takes them off the month rather than off the endless
+ * upcoming list.
+ */
+const isGenerated = (event: ApiEvent) =>
+  isGeneratedMeeting(event) || isTaskEntry(event)
+
+/**
+ * Hasn't finished yet — `unfinishedBy` in `routes/public/content.ts` to the
+ * letter, so the list and the server agree on what "upcoming" means. An event
+ * with no end is over the moment it starts; one with an end keeps its place at
+ * the top of the list while it runs, rather than dropping off on its middle
+ * day.
+ */
+const unfinished = (event: ApiEvent, now: Date) =>
+  new Date(event.endsAt ?? event.startsAt).getTime() >= now.getTime()
 
 /**
  * Every event touching `day`, not just the ones starting on it — a four-day
@@ -130,20 +176,36 @@ export function MonthCalendar({
   month,
   onMonthChange,
   events,
+  upcoming,
 }: {
   month: Date
   onMonthChange: (next: Date) => void
+  /** The month on screen: the grid, the chips, and whatever a day opens. */
   events: ApiState<ApiEvent[]>
+  /** Everything still ahead, month boundaries ignored: the schedule below. */
+  upcoming: ApiState<ApiEvent[]>
 }) {
   const [selected, setSelected] = useState<Date | null>(null)
+  const [expanded, setExpanded] = useState(false)
   const schedule = useRef<HTMLDivElement>(null)
   const today = new Date()
+
+  /**
+   * Open a day, or go back to the whole list. Never `setSelected` on its own:
+   * a new list starts collapsed, because the count on the button is a promise
+   * about what is below it and an expansion carried over from the last one
+   * breaks it.
+   */
+  const showDay = (day: Date | null) => {
+    setSelected(day)
+    setExpanded(false)
+  }
 
   const goToMonth = (next: Date) => {
     onMonthChange(next)
     // The selected day is not in the month being moved to, and a filter you
     // can no longer see the cell for is a filter you can't undo.
-    setSelected(null)
+    showDay(null)
   }
 
   useEffect(() => {
@@ -158,10 +220,47 @@ export function MonthCalendar({
 
   const rows = monthGrid(month)
   const showing = events.status === 'ready' ? events.data : []
+  const ahead = upcoming.status === 'ready' ? upcoming.data : []
   const onThisMonth = sameDay(startOfMonth(today), month)
-  // `eventsOn` rather than a start-date match, so a competition that runs Friday
-  // to Sunday opens on all three days and not only the one it began.
-  const listed = selected ? eventsOn(showing, selected) : showing
+
+  /**
+   * What the schedule lists: one day, or everything still to come.
+   *
+   * `eventsOn` rather than a start-date match, so a competition that runs Friday
+   * to Sunday opens on all three days and not only the one it began.
+   *
+   * The forward list is the stored rows the second request went and got, plus
+   * the generated ones only the month window carries — see the header. Both go
+   * through `unfinished`, the generated half because it was fetched for a month
+   * rather than for a moment and half of that month has already been.
+   */
+  const listed = selected
+    ? eventsOn(showing, selected)
+    : [...ahead, ...showing.filter(isGenerated)]
+        .filter((event) => unfinished(event, today))
+        .sort(
+          (a, b) =>
+            new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
+        )
+
+  /** Five rows, or the lot once somebody has asked for it. */
+  const shown = expanded ? listed : listed.slice(0, AGENDA_ROWS)
+
+  /**
+   * The schedule waits on both requests while it is showing what is coming up,
+   * and on the month alone once a day is open — everything on a day comes from
+   * the grid's own window. Loading until both have landed rather than drawing
+   * the stored rows and threading the meetings in between them a moment later:
+   * a list that reorders itself under the reader is worse than a beat of
+   * skeleton.
+   */
+  const listState: ApiState<unknown>['status'] = selected
+    ? events.status
+    : events.status === 'error' || upcoming.status === 'error'
+      ? 'error'
+      : events.status === 'ready' && upcoming.status === 'ready'
+        ? 'ready'
+        : 'loading'
 
   return (
     <>
@@ -255,9 +354,9 @@ export function MonthCalendar({
                     isSelected={selected !== null && sameDay(day, selected)}
                     onSelect={() => {
                       // Toggling, so the cell that opened the day also closes
-                      // it — otherwise the only way back to the month is the
-                      // button below the grid, which may be off screen.
-                      setSelected(
+                      // it — otherwise the only way back to the full list is
+                      // the button below the grid, which may be off screen.
+                      showDay(
                         selected !== null && sameDay(day, selected) ? null : day,
                       )
                     }}
@@ -282,43 +381,61 @@ export function MonthCalendar({
             aria-live="polite"
             className="text-faint font-mono text-[10px] font-medium tracking-[0.16em]"
           >
-            {(selected ? dayName(selected) : monthName(month)).toUpperCase()} · SCHEDULE
+            {/* Not the month, because the list is not the month — naming it
+                after the grid was what made an empty last week read as "the
+                club has nothing on" rather than "look at September". */}
+            {selected ? dayName(selected).toUpperCase() : 'UPCOMING'} · SCHEDULE
           </h3>
 
           {selected && (
             <button
               type="button"
               onClick={() => {
-                setSelected(null)
+                showDay(null)
               }}
               className="text-primary border-primary/40 hover:border-primary focus-visible:outline-primary cursor-pointer border-b pb-0.5 font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2"
             >
-              SHOW THE WHOLE MONTH
+              SHOW EVERYTHING COMING UP
             </button>
           )}
         </div>
 
-        {events.status === 'loading' && <AgendaSkeleton />}
+        {listState === 'loading' && <AgendaSkeleton />}
 
-        {events.status === 'error' && (
+        {listState === 'error' && (
           <p className="border-rule text-faint border-t py-6.5 text-sm">
             Couldn't load the calendar just now. Please try again later.
           </p>
         )}
 
-        {events.status === 'ready' &&
+        {listState === 'ready' &&
           (listed.length === 0 ? (
             <p className="border-rule text-faint border-t py-6.5 text-sm">
-              {selected
-                ? 'Nothing on this day.'
-                : 'Nothing on the calendar this month.'}
+              {selected ? 'Nothing on this day.' : 'Nothing coming up.'}
             </p>
           ) : (
-            listed.map((event) => <AgendaRow key={event.id} event={event} />)
+            shown.map((event) => <AgendaRow key={event.id} event={event} />)
           ))}
 
         {/* Every row draws its own top rule, so the list needs a closing edge. */}
         <div className="border-rule border-t" />
+
+        {/* Under the rule rather than above it, so the five rows still read as
+            a finished list and this reads as more of it. The count is on the
+            button because "SHOW ALL" alone gives no reason to press it — the
+            number is the reason. */}
+        {listState === 'ready' && listed.length > AGENDA_ROWS && (
+          <button
+            type="button"
+            onClick={() => {
+              setExpanded(!expanded)
+            }}
+            aria-expanded={expanded}
+            className="text-primary border-primary/40 hover:border-primary focus-visible:outline-primary mt-5 cursor-pointer border-b pb-0.5 font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            {expanded ? 'SHOW FEWER' : `SHOW ALL ${listed.length}`}
+          </button>
+        )}
       </div>
     </>
   )

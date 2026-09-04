@@ -23,9 +23,9 @@ import { imageSrc } from '../../lib/media/storedFiles'
  *   - **The frame takes the card's full width**, so it scales with the card at
  *     every screen size. Capping it and centring it inside a wide card were
  *     both tried and both looked worse than the thing they fixed.
- *   - **The caption is the seat and the name and nothing else.** A title, a
- *     subteam or a grad year printed on whichever cards happen to have one
- *     turns a board into a table of exceptions.
+ *   - **The caption is the seat and the name and nothing else.** A title or a
+ *     grad year printed on whichever cards happen to have one turns a board
+ *     into a table of exceptions.
  *   - **The photograph is the link.** Where the officer has given a profile
  *     address the frame is an anchor to it, drawn by `ProfileFrame` so the
  *     roster's cards behave identically. The caption is not a second link: one

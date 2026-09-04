@@ -16,6 +16,7 @@ import type {
   PostSelect,
   ProjectSelect,
   UserSelect,
+  UserWhereInput,
 } from '../../generated/prisma/models.js'
 import {
   asPublicEvent,
@@ -39,6 +40,20 @@ import {
   tierOfferSelect,
   TIERS,
 } from '../officer/sponsorsAdmin.js'
+// And again, twice over. The front page's copy and the about page's are written
+// from two more officer routers, and this file answers both reads — so the
+// shapes come from the files that own them rather than being restated here.
+import {
+  aboutCopySelect,
+  ABOUT_ROW,
+  milestoneSelect,
+} from '../officer/aboutPage.js'
+import {
+  faqSelect,
+  frontPageCopySelect,
+  FRONT_PAGE_ROW,
+  partnerSelect,
+} from '../officer/frontPage.js'
 // The documentation shape, from the router that writes it. Imported rather
 // than restated so the public read and the lead's editor cannot answer with
 // two different objects — the same reason `projectManage.ts` imports
@@ -58,54 +73,83 @@ const listQuery = z.object({
 })
 
 /**
- * What the club means by "an active member", and the landing page's headline
- * count is now the only thing that asks.
+ * What the club means by "an active member" — the landing page's headline count
+ * and the roster's default chip, which are the same question asked twice.
  *
  * `role` is the club's ladder rather than a permission label — `membershipSweep`
  * puts a lapsed MEMBER back down to GUEST and `routes/member/dues.ts` promotes
  * them again — so "not a GUEST" is dues standing. `active` is the alumni flag.
  * See `.claude/docs/membership.md`; nothing here is a permission check.
  *
- * **This deliberately no longer matches `GET /members`.** The roster used to be
- * `{ slug: { not: null }, role: { not: 'GUEST' } }`, shared by the listing, the
- * stat and the subteam counts. A person reached the public page only by being
- * given a `slug` by hand — and **no route on this site has ever written that
- * column**. The result was a page headed "who is in the club" listing sixty of
- * six hundred and eighty-eight accounts, with no way in the product to add the
- * sixty-first. The listing is everybody now; this count is still the club.
+ * **`GET /members` defaults to exactly this**, and it has been wrong in both
+ * directions to get here. The roster was once
+ * `{ slug: { not: null }, role: { not: 'GUEST' } }` — a person reached the
+ * public page only by being given a `slug` by hand, and **no route on this site
+ * has ever written that column**, so a page headed "who is in the club" listed
+ * sixty of six hundred and eighty-eight accounts with no way in the product to
+ * add the sixty-first. Dropping the slug was right; defaulting to *everybody,
+ * guests included* was the overcorrection, because the club's own answer to who
+ * is in it is who has paid. EVERYONE is still one chip away for anybody who
+ * wants the whole table.
  *
- * The strip's cell is labelled ACTIVE MEMBERS for exactly that reason: it is a
- * count of the club, not a count of the page it links to. That is the one place
- * the "each stat matches its listing" rule is broken, and it is broken on
- * purpose — see `web/src/components/home/StatStrip.tsx`.
+ * So the strip's cell and the page it links to agree again, and the exception
+ * the strip used to document is gone — see
+ * `web/src/components/home/StatStrip.tsx`.
  */
 const activeMembers = { active: true, role: { not: 'GUEST' } } as const
 
 /**
+ * Having sat on the board and left it, in the club's own archive.
+ *
+ * **The officers desk is why this is here.** Officer alumni used to be the
+ * Discord role and nothing else, and the argument for that was reach:
+ * `OfficerTerm` only knew about the people who had rotated off since the sync
+ * started, which was a few months of a fifty-year club, while the guild's
+ * `Officer Alumni` role goes back as far as the server does. That argument is
+ * spent — `/dashboard/officer/officers` writes closed terms by hand now, so the
+ * archive goes back as far as somebody is willing to type, and a club with no
+ * Discord at all can still say who used to run it.
+ *
+ * It is a *second source*, not a replacement, and deliberately not a second
+ * writer. Nothing here writes `User.officerAlumnus`; `discordAlumni.ts` still
+ * owns that column outright and this is read beside it. A column with two
+ * owners is the bug this codebase keeps paying for — see the note on `active`
+ * in that file.
+ */
+const servedOnTheBoard: UserWhereInput = {
+  officerTerms: { some: { endedAt: { not: null } } },
+}
+
+/**
  * What the roster's three chips mean.
  *
- * **ALUMNI is the club's Discord *Officer Alumni* role**, mirrored into
- * `User.officerAlumnus` by `discord/discordAlumni.ts`. It is not `active`,
- * which the chip used to read and which is a different fact with a different
- * owner — `membershipUpdateFor` sets `active` back to `true` on every payment,
- * so it can never be made to mean "used to run the club".
+ * **ACTIVE MEMBERS is `activeMembers` itself**, shared rather than copied. The
+ * landing page's cell counts that clause and links here, so the number somebody
+ * presses has to be the list they land on; two spellings of one rule is how
+ * that stops being true without anybody noticing.
  *
- * **The three are not a strict partition, and cannot be.** `active: false` is a
- * third state: nothing in the product writes it and the legacy import set it on
- * a handful of rows, so those people appear under EVERYONE alone. That is the
- * honest answer — they are neither current nor officer alumni — and it is why
- * this is a lookup rather than the `active: status === 'active'` one-liner it
- * replaced, which quietly assumed two states.
+ * **ALUMNI is two facts, either of which is enough**: the club's Discord
+ * *Officer Alumni* role, mirrored into `User.officerAlumnus` by
+ * `discord/discordAlumni.ts`, or a term in the club's own archive that has
+ * ended — see `servedOnTheBoard` above. It is not `active`, which the chip used
+ * to read and which is a different fact with a different owner —
+ * `membershipUpdateFor` sets `active` back to `true` on every payment, so it
+ * can never be made to mean "used to run the club".
  *
- * An officer alumnus who still pays dues appears under ALUMNI and not CURRENT,
- * and still counts towards `activeMembers` above. One of the twenty-seven
- * people carrying the role in the club's guild is also a sitting officer.
+ * **The three are not a partition and are not trying to be.** The first two
+ * overlap on purpose: a past president who still pays dues is under both, and
+ * one of the twenty-seven people carrying the role in the club's guild is a
+ * sitting officer. ACTIVE MEMBERS used to negate both halves of ALUMNI to keep
+ * them disjoint, which had the effect that paying dues could not put somebody
+ * on the list of people who pay dues. A guest who signed up and went no further
+ * is in neither and appears under EVERYONE alone, which is the honest answer
+ * for them.
  */
 const rosterStatus = {
-  active: { active: true, officerAlumnus: false },
-  alumni: { officerAlumnus: true },
+  active: activeMembers,
+  alumni: { OR: [{ officerAlumnus: true }, servedOnTheBoard] },
   all: {},
-} as const
+} satisfies Record<'active' | 'alumni' | 'all', UserWhereInput>
 
 /**
  * Contact details stay private — no `email` or `passwordHash` here.
@@ -135,8 +179,33 @@ const rosterSelect = {
   // rather than inferred from `active`, which is a different fact — see
   // `rosterStatus`.
   officerAlumnus: true,
-  subteam: { select: { slug: true, name: true, color: true } },
+  // The archive's half of the same answer, as one row or none. `take: 1`
+  // because the question is "did they ever", and somebody who held five terms
+  // is no more an alumnus than somebody who held one — `asRosterEntry` below
+  // only asks whether the array is empty. A relation probe rather than a
+  // `_count`: Prisma cannot filter a `_count` and select a scalar from the same
+  // relation in one go, and this shape reads as what it is.
+  officerTerms: { where: { endedAt: { not: null } }, select: { id: true }, take: 1 },
 } satisfies UserSelect
+
+/**
+ * `officerAlumnus` as the browser sees it: the Discord flag **or** a term that
+ * has ended.
+ *
+ * Collapsed here rather than sent as two fields, because every reader of it —
+ * the card's badge, the ALUMNI chip's own filter — wants the same OR, and two
+ * fields is two places for that OR to be written differently. The probe relation
+ * does not go out at all; it is scaffolding for this line.
+ */
+const asRosterEntry = <
+  T extends { officerAlumnus: boolean; officerTerms: unknown[] },
+>({
+  officerTerms,
+  ...member
+}: T) => ({
+  ...member,
+  officerAlumnus: member.officerAlumnus || officerTerms.length > 0,
+})
 
 const projectSelect = {
   id: true,
@@ -251,15 +320,15 @@ const past = (now: Date) => ({
 /**
  * Counts for the landing page's headline strip.
  *
- * Each cell up there links to a listing page, and two of the three count
- * exactly what that listing shows by default — the number you read is the
- * number of rows you find when you land. Change one and change the other.
+ * Each cell up there links to a listing page and counts exactly what that
+ * listing shows by default — the number you read is the number of rows you find
+ * when you land. Change one and change the other.
  *
- * **`members` is the deliberate exception.** `GET /members` lists every account
- * including guests; this counts the club's active membership, which is a much
- * smaller and much more meaningful number for a front page. The cell is
- * labelled ACTIVE MEMBERS so the two are not read as the same claim. See
- * `activeMembers` above for why the roster stopped filtering.
+ * **`members` was the exception until the roster made this its default.**
+ * `GET /members` used to list every account including guests, so the cell had to
+ * carry the difference in its label. It defaults to `rosterStatus.active`, which
+ * *is* `activeMembers`, and the two are one rule again. The label stays ACTIVE
+ * MEMBERS because that is what the number is, not because it is a caveat.
  *
  * They run in a transaction so the three numbers describe a single snapshot
  * rather than three separate moments, and `count` never loads the rows.
@@ -270,7 +339,7 @@ content.get('/stats', async (c) => {
   const [projects, members, events] = await prisma.$transaction([
     // Matches GET /projects, which does not filter by status by default.
     prisma.project.count(),
-    // Does *not* match GET /members, on purpose — see above.
+    // The clause GET /members defaults to, shared rather than restated.
     prisma.user.count({ where: activeMembers }),
     // Matches GET /events, which defaults to when=upcoming.
     prisma.event.count({ where: { published: true, ...upcoming(now) } }),
@@ -279,50 +348,23 @@ content.get('/stats', async (c) => {
   return c.json({ projects, members, events })
 })
 
-// ----------------------------------------------------------------- subteams
-
-content.get('/subteams', async (c) => {
-  const subteams = await prisma.subteam.findMany({
-    orderBy: { sortOrder: 'asc' },
-    select: {
-      id: true,
-      slug: true,
-      name: true,
-      description: true,
-      color: true,
-      // Matches `GET /members?subteam=…` at its default `status=active`, which
-      // is where `/about` sends a reader who presses this number — hence
-      // `rosterStatus.active` itself rather than a copy of its two conditions.
-      // The two moved together when the roster stopped filtering on `slug`: a
-      // count that still said "has a slug" would now under-report every subteam
-      // on the page, against a list that shows everybody.
-      _count: { select: { members: { where: rosterStatus.active } } },
-    },
-  })
-
-  return c.json(
-    subteams.map(({ _count, ...subteam }) => ({
-      ...subteam,
-      memberCount: _count.members,
-    })),
-  )
-})
-
 // ------------------------------------------------------------------ members
 
 /**
- * Everybody with an account, guests included.
+ * The club's active membership by default, and every account behind a chip.
  *
- * **The only filter left is the alumni one**, and that is a `status=` the page
- * offers rather than something applied behind the reader's back. There is no
- * roster to be on any more — see `activeMembers` for what this used to be and
- * why sixty of six hundred and eighty-eight was not a roster anybody could
- * maintain.
+ * **The default is `rosterStatus.active`, which is `activeMembers`** — the same
+ * clause the landing page's cell counts. The other two states are a `status=`
+ * the page offers rather than something applied behind the reader's back.
+ *
+ * **There is no `slug` filter and there must never be one again.** It was how
+ * this page came to show sixty of six hundred and eighty-eight accounts, and no
+ * route on this site has ever written that column; see `activeMembers`.
  *
  * `limit` is its own ceiling here rather than `listQuery`'s hundred. The page
- * filters by subteam and by name in the browser on purpose — a club roster is a
- * list too long to *scan*, not one too long to send — and that only works if
- * one request carries the whole thing. A thousand rows of these columns is a
+ * searches by name in the browser on purpose — a club roster is a list too long
+ * to *scan*, not one too long to send — and that only works if one request
+ * carries the whole thing. A thousand rows of these columns is a
  * few hundred kilobytes before compression, cached at the edge for five
  * minutes, and read once by anybody who visits `/members`. If the club ever
  * passes a thousand this becomes real pagination *and* server-side search,
@@ -333,20 +375,18 @@ content.get(
   validate(
     'query',
     listQuery.extend({
-      subteam: z.string().optional(),
       role: z.enum(UserRole).optional(),
-      /** Current people by default; `alumni` and `all` opt out of that. */
+      /** The club's membership by default; `alumni` and `all` opt out of that. */
       status: z.enum(['active', 'alumni', 'all']).default('active'),
       limit: z.coerce.number().int().min(1).max(1000).default(1000),
     }),
   ),
   async (c) => {
-    const { subteam, role, status, limit, offset } = c.req.valid('query')
+    const { role, status, limit, offset } = c.req.valid('query')
 
     const members = await prisma.user.findMany({
       where: {
         ...rosterStatus[status],
-        ...(subteam ? { subteam: { slug: subteam } } : {}),
         ...(role ? { role } : {}),
       },
       // Leadership first, then alphabetical — the order the team page wants.
@@ -358,7 +398,7 @@ content.get(
       skip: offset,
     })
 
-    return c.json(members)
+    return c.json(members.map(asRosterEntry))
   },
 )
 
@@ -576,7 +616,7 @@ content.get('/members/:slug', async (c) => {
     },
   })
 
-  return member ? c.json(member) : notFound('member')
+  return member ? c.json(asRosterEntry(member)) : notFound('member')
 })
 
 // ----------------------------------------------------------------- projects
@@ -1007,4 +1047,98 @@ content.get('/hero-slides', async (c) => {
   })
 
   return c.json(slides)
+})
+
+/**
+ * What the landing page says, as opposed to what it lists.
+ *
+ * **One read for the whole of the page's copy**, and the browser makes it once:
+ * `HomePage` fetches this and hands the pieces to the hero, the partner section
+ * and the FAQ. Three routes would be three round trips for one document that is
+ * meaningless in pieces — the hero's lede and the FAQ are not two subjects, they
+ * are the top and the bottom of one page somebody wrote in one sitting. The
+ * sections still fetch their own *data* (the slideshow, the events, the board,
+ * the sponsors); this is the writing around it.
+ *
+ * `FRONT_PAGE_COPY` below is why the row may be absent. Every other singleton on
+ * this API can be empty because empty is a state its page is built for — no fine
+ * print under the tier grid, no lab status ever set. A landing page with no
+ * headline is not one of those, and a database that has only just been migrated
+ * is exactly where that would show up. So the shipped wording is the floor, and
+ * an officer's first save replaces it.
+ */
+const FRONT_PAGE_COPY = {
+  headline: 'Building Our Future,',
+  headlineAccent: 'One Robot at a Time.',
+  lede: "Ready to dive into hands-on engineering? Whether you are a master at CAD, an experienced coder, or just eager to learn how to build complex systems from the ground up, there's a place for you on our team. Get involved and start building with us today.",
+  partnersIntro:
+    'Club membership is UCF students only. These programs we work with are open to everybody else.',
+} as const
+
+content.get('/front-page', async (c) => {
+  const [copy, faqs, partners] = await Promise.all([
+    prisma.frontPage.findUnique({
+      where: { id: FRONT_PAGE_ROW },
+      select: frontPageCopySelect,
+    }),
+    prisma.faq.findMany({
+      // `sortOrder` is dense but not unique — the reorder route rewrites the
+      // whole block in one transaction — so `createdAt` is what makes a
+      // half-applied write a deterministic order rather than a random one.
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+      select: faqSelect,
+    }),
+    prisma.partnerProgram.findMany({
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+      select: partnerSelect,
+    }),
+  ])
+
+  // Both lists may be empty and both sections are built for it: the FAQ prints
+  // its heading and the contact form beside it, and the partner section takes
+  // itself off the page entirely. Neither is a failure the browser has to tell
+  // apart from a request that did not land.
+  return c.json({ ...(copy ?? FRONT_PAGE_COPY), faqs, partners })
+})
+
+// ------------------------------------------------------------- the about page
+
+/**
+ * What `/about` says about the club.
+ *
+ * The same shape and the same reasoning as the front page above: one read for a
+ * page that is one document, and a floor under the singleton so a freshly
+ * migrated database serves the page rather than a heading-shaped hole.
+ *
+ * **`storyNotice` being null is the club having written its own history.** The
+ * page carried that admission as a hardcoded panel, which meant the only way to
+ * retire it was a deploy — so an unwritten history and a written one looked the
+ * same to everybody except the person who could tell the difference.
+ */
+const ABOUT_COPY = {
+  heading: 'Building robots at UCF since 1972.',
+  lede: 'The Robotics Club of Central Florida is a student organisation at UCF. Members design, build and compete with robots — and, more of the time than anybody admits, take apart the ones that stopped working. No experience is needed to join a project, and none of the people running it started with any.',
+  storyNotice: null,
+  story: [],
+  labBuilding: null,
+  labStreet: null,
+  labCity: null,
+  labMapUrl: null,
+  onlineBlurb:
+    'Discord is where the club actually talks — meeting times, build threads and the lab sign all land there first.',
+} as const
+
+content.get('/about', async (c) => {
+  const [copy, milestones] = await Promise.all([
+    prisma.aboutPage.findUnique({
+      where: { id: ABOUT_ROW },
+      select: aboutCopySelect,
+    }),
+    prisma.aboutMilestone.findMany({
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+      select: milestoneSelect,
+    }),
+  ])
+
+  return c.json({ ...(copy ?? ABOUT_COPY), milestones })
 })

@@ -32,19 +32,9 @@ export const MAX_IN_KIND = 6
 export const MAX_BENEFITS = 8
 
 /**
- * The benefits list, as one box of text and back.
- *
- * A benefit is a short line and a tier has a handful of them, so the desk edits
- * the lot as a textarea rather than as a stack of inputs with their own add and
- * remove buttons — which is four times the chrome for something an officer
- * writes in one sitting and rarely touches again. Blank lines are dropped rather
- * than refused: pressing enter twice while typing a list is not a mistake worth
- * a error message.
+ * The benefits list used to be turned into a textarea and back here. It is
+ * `linesToText`/`linesFromText` in `lib/textLines.ts` now — the front page's FAQ
+ * steps and the about page's paragraphs are the same box doing the same job, and
+ * a second copy of four lines is a second copy that can drift on what counts as
+ * a blank line.
  */
-export const benefitsToText = (benefits: string[]): string => benefits.join('\n')
-
-export const benefitsFromText = (text: string): string[] =>
-  text
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line !== '')

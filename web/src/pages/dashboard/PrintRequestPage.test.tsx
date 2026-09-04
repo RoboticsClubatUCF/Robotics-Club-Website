@@ -478,8 +478,6 @@ const context = (
     paidThrough?: string | null
     /** A free window is running and unclaimed — the third lock reason. */
     canActivate?: boolean
-    /** The survey is unanswered — the reason that outranks all three. */
-    surveyRequired?: boolean
   } = {},
 ): DashboardContext => ({
   user: {
@@ -511,9 +509,11 @@ const context = (
       billable: term,
       freeActive: false,
       canActivate: over.canActivate ?? false,
-      // Answered unless a case says otherwise, so every lock asserted below is
-      // the dues lock rather than the survey one in front of it.
-      surveyRequired: over.surveyRequired ?? false,
+      // Not overridable, and there is nothing to override: the survey used to
+      // be a fourth lock reason in front of these three, and it locks nothing
+      // now. Every lock asserted below is the dues lock.
+      surveyPending: false,
+      surveyPromptDismissed: false,
     },
   },
   reloadMembership: () => Promise.resolve(),

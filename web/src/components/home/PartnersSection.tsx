@@ -1,4 +1,5 @@
-import { partnerPrograms } from '../../content/home'
+import type { ApiFrontPage } from '../../lib/api/api'
+import type { ApiState } from '../../lib/api/useApi'
 import { imageSrc } from '../../lib/media/storedFiles'
 
 /**
@@ -15,10 +16,15 @@ import { imageSrc } from '../../lib/media/storedFiles'
  * that far is looking for a way in, and the FAQ's first question is about
  * joining — this is the answer for the readers that question does not fit.
  *
- * **The blurbs and the artwork are placeholders**, in `content/home.ts` beside
- * the FAQ. The names and the two official sites are real; everything else is
- * shaped to be replaced, which is why a card with no image draws a held-open
- * well rather than collapsing to fit.
+ * **The blurbs and the artwork shipped as placeholders and are rows now.** The
+ * names and the two official sites are real; everything else was written to be
+ * replaced, which is why a card with no image draws a held-open well rather than
+ * collapsing to fit — and replacing it is a form at
+ * `/dashboard/officer/front-page` rather than a pull request, which was the
+ * whole problem with copy nobody on the club's side could edit.
+ *
+ * `HomePage` fetches these with the rest of the page's words; see the note there
+ * for why one request rather than three.
  */
 
 /**
@@ -39,11 +45,24 @@ const gridClass = 'bg-rule border-rule grid gap-px border wide:grid-cols-2'
 const wellClass =
   'border-rule flex h-40 shrink-0 items-center justify-center border-b p-6'
 
-export function PartnersSection() {
-  // Static copy, so an empty list means somebody took the section down rather
-  // than that a request came back short. Drawing the grid anyway would leave a
-  // bordered empty box on the page.
-  if (partnerPrograms.length === 0) return null
+export function PartnersSection({ copy }: { copy: ApiState<ApiFrontPage> }) {
+  const programs = copy.status === 'ready' ? copy.data.partners : []
+
+  /**
+   * **No skeleton and no error message: the section is simply not there yet.**
+   *
+   * Every other section on this page holds its shape while it waits, because
+   * every other section is one a visitor came looking for. This one exists to
+   * catch the reader the club cannot sign up — it has no heading anybody is
+   * scrolling to and no fixed height — so reserving space for it would mean
+   * reserving space for something that may turn out not to exist, and a
+   * bordered empty box is worse than a section that arrives a moment late.
+   *
+   * An empty list is the same answer as a failed request here, and that is the
+   * one place on this page where it should be: taking the section down is a
+   * thing officers do, and a visitor cannot act on the difference.
+   */
+  if (programs.length === 0) return null
 
   return (
     <section
@@ -55,13 +74,12 @@ export function PartnersSection() {
           / PARTNER PROGRAMS
         </h2>
         <p className="text-dim max-w-[46rem] text-sm leading-[1.7] text-pretty">
-          Club membership is UCF students only. These programs we work with
-          are open to everybody else.
+          {copy.status === 'ready' ? copy.data.partnersIntro : ''}
         </p>
       </div>
 
       <ul className={gridClass}>
-        {partnerPrograms.map((program) => (
+        {programs.map((program) => (
           <li key={program.id} className="flex">
             <article className="bg-base-100 flex h-full w-full flex-col">
               <div

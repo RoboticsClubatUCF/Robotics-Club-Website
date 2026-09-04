@@ -10,10 +10,10 @@ import { z } from 'zod'
  * what its lead typed.
  *
  * Three shapes exist and only two are legal. A schedule is **days plus a range
- * plus optionally a place**, or it is **nothing at all**. What it may not be is
- * half of one: days with no times is a project that meets on Tuesdays at no
- * o'clock, and `expandMeetings` would skip it silently — a project that reads
- * as scheduled everywhere and appears on no calendar.
+ * plus optionally a place and a note**, or it is **nothing at all**. What it
+ * may not be half of one: days with no times is a project that meets on
+ * Tuesdays at no o'clock, and `expandMeetings` would skip it silently — a
+ * project that reads as scheduled everywhere and appears on no calendar.
  *
  * **Creating a project requires one; editing one may clear it.** Those are
  * different rules on purpose. Nobody starts a build without knowing when it
@@ -42,12 +42,39 @@ const weekdays = z
   .max(7)
   .transform((days) => [...new Set(days)].sort((a, b) => a - b))
 
+/**
+ * The lead's own words about the meeting, and the one part of a schedule that
+ * stays optional at creation.
+ *
+ * Longer than the location because it is a sentence or three rather than a room
+ * number, and short enough that it stays a note: this is what somebody reads on
+ * a calendar chip beside the time, not a second write-up. `description` is the
+ * column for a write-up and it holds 20,000 characters.
+ *
+ * Empty is the same as absent — a textarea that has been typed into and cleared
+ * sends `''`, and storing that would be a project whose calendar carries a blank
+ * line. `.transform` rather than a `.refine` refusing it, because clearing the
+ * note is a thing a lead means to do.
+ */
+const note = z
+  .string()
+  .trim()
+  .max(400)
+  .nullable()
+  .optional()
+  .transform((text) => (text === '' ? null : text))
+
 /** The fields, required. What `POST /officer/projects` spreads. */
 export const meetingFields = {
   meetingWeekdays: weekdays,
   meetingStartTime: clock,
   meetingEndTime: clock,
   meetingLocation: z.string().trim().max(160).nullable().optional(),
+  // Optional even here, where the days and the times are not. A project cannot
+  // exist without a time it meets; it can perfectly well exist with nothing
+  // extra to say about it, and the site prints nothing rather than inventing a
+  // sentence — see `Project.meetingDescription`.
+  meetingDescription: note,
 }
 
 /**
@@ -64,6 +91,7 @@ export const meetingPatchFields = {
   meetingStartTime: clock.nullable().optional(),
   meetingEndTime: clock.nullable().optional(),
   meetingLocation: z.string().trim().max(160).nullable().optional(),
+  meetingDescription: note,
 }
 
 export interface MeetingShape {

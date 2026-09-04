@@ -73,10 +73,9 @@ export function EventsPage() {
    *
    * `EventType` has six values and a club rarely uses all six in one direction
    * — a chip for FUNDRAISER on a page with no fundraisers on it can only ever
-   * show an empty list, which reads as broken. The same rule the roster's
-   * subteam chips and the officer archive's year chips follow. It also means
-   * the row follows the window: press PAST and the types that year actually
-   * used arrive with it.
+   * show an empty list, which reads as broken. The same rule the officer
+   * archive's year chips follow. It also means the row follows the window:
+   * press PAST and the types that year actually used arrive with it.
    */
   const typeOptions = [
     { value: ANY, label: 'ALL TYPES' },

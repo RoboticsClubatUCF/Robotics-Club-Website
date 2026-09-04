@@ -32,12 +32,30 @@ export function DashboardCalendar() {
   const to = encodeURIComponent(addMonths(month, 1).toISOString())
   const events = useApi<ApiMeEvent[]>(`/me/events?from=${from}&to=${to}`)
 
+  /**
+   * The list under the grid, which runs past the month on screen — see
+   * `MonthCalendar`. `from` and no `to`, so the endpoint answers with stored
+   * rows alone: meetings and the member's own deadlines need a window at both
+   * ends, and the grid's is where those come from.
+   *
+   * Pinned at mount rather than read on each render. `useApi` keys its effect
+   * on the path, and a fresh `new Date()` in the string would be a new path
+   * every render — which is a fetch every render.
+   */
+  const [now] = useState(() => encodeURIComponent(new Date().toISOString()))
+  const upcoming = useApi<ApiMeEvent[]>(`/me/events?from=${now}&limit=200`)
+
   return (
     <div>
       <p className="text-faint mb-1 font-mono text-[10px] font-medium tracking-[0.16em]">
         CALENDAR
       </p>
-      <MonthCalendar month={month} onMonthChange={setMonth} events={events} />
+      <MonthCalendar
+        month={month}
+        onMonthChange={setMonth}
+        events={events}
+        upcoming={upcoming}
+      />
     </div>
   )
 }

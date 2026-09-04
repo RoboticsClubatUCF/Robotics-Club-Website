@@ -1,10 +1,31 @@
 import { Link } from 'react-router'
-import { hero } from '../../content/home'
 import outlineUrl from '../../assets/rccf-logo-outline.png'
-import type { ApiHeroSlide } from '../../lib/api/api'
+import type { ApiFrontPage, ApiHeroSlide } from '../../lib/api/api'
+import type { ApiState } from '../../lib/api/useApi'
 import { useApi } from '../../lib/api/useApi'
 import { HeroSlideshow } from './HeroSlideshow'
 import { LabStatus } from './LabStatus'
+
+/**
+ * What the hero says when the request for it did not land.
+ *
+ * **Only when it failed, never while it is still out.** The two states are
+ * genuinely different: an answer that has not come back yet is a headline nobody
+ * has been told is wrong, so the hero holds its shape and fills in; an answer
+ * that will never come back would otherwise leave a permanent pulse where the
+ * largest words on the site go.
+ *
+ * It is a copy of what the club currently leads with, and it is allowed to go
+ * stale — the day it does is a day the API is unreachable, and a slightly old
+ * headline beats a blank one on the page a first-time visitor lands on. Kept
+ * here rather than in `content/home.ts` because it is not the copy: the copy is
+ * a row that officers write, and this is what to draw when nothing answered.
+ */
+const UNREACHABLE = {
+  headline: 'Building Our Future,',
+  headlineAccent: 'One Robot at a Time.',
+  lede: "Ready to dive into hands-on engineering? Whether you are a master at CAD, an experienced coder, or just eager to learn how to build complex systems from the ground up, there's a place for you on our team. Get involved and start building with us today.",
+}
 
 /**
  * The headline, and the club's photographs beside it.
@@ -17,8 +38,14 @@ import { LabStatus } from './LabStatus'
  *
  * The artwork is still what shows when there are no photographs — see below for
  * why that is a state worth keeping rather than a fallback nobody meets.
+ *
+ * **The headline moved the same way the photographs did.** It was two lines and
+ * a paragraph in `content/home.ts`, which made changing what the club leads with
+ * a pull request; it is a row now, and `HomePage` hands it down. The copy is not
+ * fetched here because two other sections want the same answer — see the note on
+ * that component.
  */
-export function HeroSection() {
+export function HeroSection({ copy }: { copy: ApiState<ApiFrontPage> }) {
   const slides = useApi<ApiHeroSlide[]>('/hero-slides')
   const showing = slides.status === 'ready' ? slides.data : []
 
@@ -38,6 +65,17 @@ export function HeroSection() {
    * rather than an apology beside the headline.
    */
   const decorated = slides.status !== 'loading' && showing.length === 0
+
+  /**
+   * Three states and two answers. A request still out is drawn rather than
+   * written — `Waiting` below is sized in `em` of the type it stands in for, so
+   * the hero is exactly as tall before the copy lands as after, which matters
+   * more here than anywhere else on the site: this is the top of the page, and
+   * anything that grows here pushes everything under it down while somebody is
+   * reaching for a button.
+   */
+  const words = copy.status === 'ready' ? copy.data : UNREACHABLE
+  const waiting = copy.status === 'loading'
 
   return (
     <section
@@ -133,13 +171,28 @@ export function HeroSection() {
               the bigger picture, and it is paid at widths nobody is reading a
               hero on. */}
           <h1 className="mb-6.5 text-[clamp(1.75rem,7.5vw,2.75rem)] leading-[0.94] font-bold tracking-[-0.03em] text-pretty wide:text-[clamp(2.5rem,4.5vw,5.25rem)]">
-            Building Our Future,
-            <br />
-            <em className="text-primary not-italic">One Robot at a Time.</em>
+            {/* One skeleton for both lines rather than one each: the `<br>`
+                between them would otherwise add a line box of its own and make
+                the placeholder taller than the headline it stands in for. */}
+            {waiting ? (
+              <Waiting width="14ch" lines={2} />
+            ) : (
+              <>
+                {words.headline}
+                <br />
+                <em className="text-primary not-italic">
+                  {words.headlineAccent}
+                </em>
+              </>
+            )}
           </h1>
 
           <p className="text-dim mb-10 max-w-[35rem] text-base leading-[1.6] text-pretty wide:text-lg">
-            {hero.lede}
+            {waiting ? (
+              <Waiting width="100%" lines={3} tone="body" />
+            ) : (
+              words.lede
+            )}
           </p>
 
           {/* The primary one is the signup route now. It pointed at the FAQ for
@@ -168,5 +221,43 @@ export function HeroSection() {
         {showing.length > 0 && <HeroSlideshow slides={showing} />}
       </div>
     </section>
+  )
+}
+
+/**
+ * A bar the size of the words it is standing in for.
+ *
+ * In `em` rather than in `rem` or pixels, which is what makes one component
+ * work for a headline that clamps between 1.75rem and 5.25rem and for a
+ * paragraph that does not: it inherits the font size of whatever it is inside.
+ * `aria-hidden` because there is nothing here to read out — the section is
+ * marked busy by the page around it, and a screen reader announcing three grey
+ * rectangles is worse than silence.
+ */
+function Waiting({
+  width,
+  lines = 1,
+  tone = 'heading',
+}: {
+  width: string
+  lines?: number
+  /** Headings sit on their own line box; body text has room between lines. */
+  tone?: 'heading' | 'body'
+}) {
+  return (
+    <span aria-hidden className="block">
+      {Array.from({ length: lines }, (_, index) => (
+        <span
+          key={index}
+          style={{
+            width: index === lines - 1 && lines > 1 ? '70%' : width,
+            maxWidth: '100%',
+          }}
+          className={`bg-base-300 block animate-pulse rounded-[2px] ${
+            tone === 'heading' ? 'my-[0.1em] h-[0.7em]' : 'my-[0.35em] h-[0.6em]'
+          }`}
+        />
+      ))}
+    </span>
   )
 }

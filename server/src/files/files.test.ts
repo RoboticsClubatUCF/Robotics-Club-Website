@@ -388,9 +388,9 @@ describe('cache boundaries', () => {
   })
 
   it('still marks genuinely public content cacheable', async () => {
-    const subteams = await app.request('/api/subteams')
-    expect(subteams.status).toBe(200)
-    expect(subteams.headers.get('Cache-Control')).toContain('s-maxage')
+    const stats = await app.request('/api/stats')
+    expect(stats.status).toBe(200)
+    expect(stats.headers.get('Cache-Control')).toContain('s-maxage')
   })
 })
 

@@ -190,25 +190,42 @@ model User {
   /// this is one of its inputs.
   duesPaidThrough           DateTime? @map("dues_paid_through")
   /// When this person finished the one-time member survey, or null if they
-  /// have not. **This is the gate the site checks**, and it ranks above dues:
-  /// `requireSurvey` in `src/auth/authz.ts` refuses everything until it is set, the
-  /// dues page included.
+  /// have not. **It gates nothing.** The survey used to sit in front of every
+  /// route on the site, the dues page included; it is an invitation now, and
+  /// this column only decides whether the dashboard still has something to ask
+  /// for. Nothing on the site is refused for a null here.
   ///
   /// Denormalised from `MemberSurvey`, deliberately. Session resolution reads
   /// this row and nothing else, so asking through the relation would put a
   /// query on every authenticated request to learn something that changes once
   /// in a member's life. `MemberSurvey.userId @unique` is what makes the survey
-  /// one-time in the database; this column is what makes the check free. One
-  /// transaction writes both, and correcting an answer later moves neither.
+  /// one-time in the database; this column is what makes the question free to
+  /// ask. One transaction writes both, and correcting an answer later moves
+  /// neither.
   ///
   /// Null on every row that predates the survey, which is the point rather than
   /// an oversight — the whole club is asked, not just next year's intake.
   surveyCompletedAt         DateTime? @map("survey_completed_at")
+  /// When they ticked *don't ask me again* on the dashboard's survey prompt.
+  ///
+  /// Separate from `surveyCompletedAt` because they answer different questions:
+  /// that one is *have we got their shirt size*, this one is *may we keep
+  /// asking*. Somebody who never fills the survey in but has said no is a
+  /// permanent state the club has to be able to hold — collapsing the two
+  /// would mean stamping a completion nobody made, and the officer desk's
+  /// "who has not answered" count would quietly lose them.
+  ///
+  /// A timestamp rather than a boolean, like every other decision on this row,
+  /// so the club can tell a fresh account from one that said no in March.
+  ///
+  /// **It silences the prompt and nothing else.** The overview's MEMBER SURVEY
+  /// panel and the account page's both stay, because a promise not to nag is
+  /// not a promise to hide the form from somebody who changes their mind. It is
+  /// cleared by answering, so the row never claims somebody declined a survey
+  /// they went on to fill in.
+  surveyPromptDismissedAt   DateTime? @map("survey_prompt_dismissed_at")
   createdAt                 DateTime  @default(now()) @map("created_at")
   updatedAt                 DateTime  @updatedAt @map("updated_at")
-
-  subteamId String?  @map("subteam_id")
-  subteam   Subteam? @relation(fields: [subteamId], references: [id], onDelete: SetNull)
 
   posts             Post[]
   projects          ProjectMember[]
@@ -233,7 +250,6 @@ model User {
   labChanges        LabStatus[]       @relation("labChanges")
   documentsAuthored ProjectDocument[] @relation("documentAuthors")
 
-  @@index([subteamId])
   @@index([active])
   // The alumni chip on `/members` selects on this alone, and it is a couple of
   // dozen rows out of hundreds — the shape an index is actually for.
@@ -333,22 +349,6 @@ model OfficerTerm {
   /// The archive: newest first.
   @@index([startedAt])
   @@map("officer_terms")
-}
-
-// ------------------------------------------------------------ club structure
-
-/// A division of the club: software, mechanical, electrical, outreach, ...
-model Subteam {
-  id          String  @id @default(uuid(7))
-  slug        String  @unique
-  name        String
-  description String?
-  color       String? // hex accent used on the site
-  sortOrder   Int     @default(0) @map("sort_order")
-
-  members User[]
-
-  @@map("subteams")
 }
 
 // ------------------------------------------------------------------ projects
@@ -478,6 +478,28 @@ model Project {
   meetingEndTime   String? @map("meeting_end_time")
   meetingLocation  String? @map("meeting_location")
 
+  /// What the lead wants said about the meeting, in their own words, or null.
+  ///
+  /// The four columns above are *when and where*, and they print themselves —
+  /// "Meets Tuesdays and Thursdays · 6:00 – 10:00 PM · ENG2 Lab". This is the
+  /// part no schema can hold: bring a laptop, we skip home game days, first
+  /// half is CAD. It is the description every occurrence carries onto a
+  /// member's calendar, and it prints under the schedule line on the dashboard.
+  ///
+  /// **Null means an empty description, not a generated one.** `meetings.ts`
+  /// used to write "The regular X meeting in Y. Set by the project lead, and
+  /// running to the end of the semester." onto every occurrence, which is the
+  /// site telling somebody what they already read off the chip. The bounds it
+  /// also mentioned are not lost — `seriesSummary` in
+  /// `web/src/lib/events/calendarLinks.ts` says them on the way into a calendar
+  /// app, where they matter, and says them from the series rather than from a
+  /// sentence. So a lead who types nothing gets nothing, per the rule about
+  /// invented content that the rest of this schema keeps.
+  ///
+  /// Cleared with the schedule, the same as the location: a project that has
+  /// stopped meeting should not keep a note about how it used to.
+  meetingDescription String? @map("meeting_description")
+
   /// Whether this project's meetings reach the *public* calendar.
   ///
   /// The club's line is that the front page is officer-curated — `Event` rows
@@ -555,9 +577,13 @@ enum ProjectMemberRank {
 
 /// A working group inside one project — "chassis", "software", "outreach".
 ///
-/// Not a `Subteam`: that model is the club-wide org chart a person belongs to
-/// at most once, while these are made and unmade by each project's lead and
-/// mean nothing outside their project.
+/// **A team belongs to a project and means nothing outside it.** Its lead makes
+/// and unmakes it as the build needs, two projects may both have a "software"
+/// with no relation between them, and somebody is on one for as long as they
+/// are on that project. There was once a club-wide `Subteam` beside this — a
+/// standing division a person belonged to all year — and the pair were confused
+/// constantly for the obvious reason. Nothing standing replaced it; a team is
+/// the only grouping the club has, and `ProjectMember.rank` is who leads one.
 model Team {
   id        String  @id @default(uuid(7))
   projectId String  @map("project_id")
@@ -1535,6 +1561,217 @@ model HeroSlide {
 
   @@index([sortOrder])
   @@map("hero_slides")
+}
+
+/// The landing page's words — **one row, always `current`**.
+///
+/// Everything on the front page that is a sentence rather than a record. The
+/// headline, the paragraph under it, and the line introducing the partner
+/// programs were four strings in `web/src/content/home.ts`, which made changing
+/// what the club leads with a pull request — the same trap `HeroSlide` above was
+/// dug out of, and for the same reason: an officer would want to change these
+/// without a deploy, so CLAUDE.md's rule sends them here.
+///
+/// A singleton keyed by a column default, the shape `SponsorshipSheet` and
+/// `LabStatus` use: there is one landing page, so an id to look up would be a
+/// lookup with one possible answer. **The row may be absent**, and the route
+/// answers with the copy the site shipped with rather than an empty hero — see
+/// `FRONT_PAGE_COPY` in `routes/public/content.ts`. That is what keeps a
+/// database that has only just been migrated from serving a blank headline.
+///
+/// Not one `Json` blob, though it is tempting at four fields: every one of these
+/// is printed somewhere specific and lengths matter — `headline` sets the hero's
+/// type size and `lede` its column — so they are columns a query can see and a
+/// migration can widen.
+model FrontPage {
+  /// Always `current`. See above.
+  id String @id @default("current")
+
+  /// The first line of the hero, in the page's own ink.
+  headline String
+
+  /// The second line, set in gold. Two columns rather than one string with a
+  /// marker in it, because the break between them is a `<br>` the layout depends
+  /// on — the type scale is tuned to the longer of the two lines, and a headline
+  /// that wraps to four lines is a different design rather than a smaller one.
+  headlineAccent String @map("headline_accent")
+
+  /// The paragraph under the headline.
+  lede String
+
+  /// The line under / PARTNER PROGRAMS, above the cards. It says who those
+  /// programs are for, which is the whole reason that section exists — club
+  /// membership is UCF students only, and this is the sentence that says so.
+  partnersIntro String @map("partners_intro")
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("front_page")
+}
+
+/// One question and its answer, on the front page's FAQ.
+///
+/// These were an array in `web/src/content/home.ts` under a note calling them
+/// "the first thing that should move to the database once officers can edit
+/// content, since these answers change with dues, lab hours and staff". This is
+/// that. Two of the eight name a price and one names a person, so the old
+/// arrangement meant a deploy to correct a figure a visitor is reading.
+///
+/// `steps` is the one answer shape that is not a paragraph — "how do I become a
+/// member" is a procedure, and the page numbers it. A scalar list for the reason
+/// `SponsorTierOffer.benefits` is one: lines on a card, never queried, never
+/// joined on, and reordering them is rewriting the array in one write. Empty is
+/// the ordinary case.
+model Faq {
+  id String @id @default(uuid(7))
+
+  question String
+  answer   String
+  steps    String[]
+
+  /// Position in the list, dense from 0 and rewritten as a whole block on
+  /// reorder — the same shape as `HeroSlide.sortOrder`, and not unique for the
+  /// same reason: the reorder route writes every row in one transaction. Reads
+  /// tie-break on `createdAt`.
+  sortOrder Int @default(0) @map("sort_order")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([sortOrder])
+  @@map("faqs")
+}
+
+/// A program somebody can take part in when they cannot join the club.
+///
+/// Membership needs a working `@ucf.edu` address and the signup will not bend on
+/// it, which leaves school teams, mentors, volunteers and students at other
+/// schools with nowhere on this site to go. These are the programs the club is
+/// involved with that will have them.
+///
+/// **The blurbs shipped as placeholders and say so in the row itself** —
+/// `audience` reads PLACEHOLDER on the two the site started with. That is the
+/// arrangement the sponsor tiers were rescued from: copy nobody wrote, admitted
+/// on the page. Here the admission is a string an officer overwrites rather than
+/// a panel somebody has to remember to delete.
+model PartnerProgram {
+  id String @id @default(uuid(7))
+
+  name String
+
+  /// The mono line above the name: who the program is actually open to.
+  audience String
+
+  blurb String
+
+  /// Where somebody goes to take part — the program's own site, not ours.
+  href String
+
+  /// The link's words, and they name the program on purpose. A section of
+  /// identical "Learn more" links is a section a screen reader cannot tell
+  /// apart.
+  linkLabel String @map("link_label")
+
+  /// A logo or a photo, external or `/api/files/<id>` — the same
+  /// two-things-in-one-string every image column here holds. Null draws the
+  /// hatch well, which is the state both of these are in.
+  imageUrl String? @map("image_url")
+
+  /// Position on the page. Same shape and same reasoning as `Faq.sortOrder`.
+  sortOrder Int @default(0) @map("sort_order")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([sortOrder])
+  @@map("partner_programs")
+}
+
+// ------------------------------------------------------------- the about page
+
+/// What `/about` says about the club — **one row, always `current`**.
+///
+/// The whole page, minus the timeline below. It was a copy file in the bundle
+/// whose own header admitted the arrangement was temporary, and most of it was
+/// placeholder prose waiting on somebody who was there in 1972 — which is
+/// exactly the content that must not need a developer, because the person who
+/// can write it is not one.
+///
+/// `storyNotice` is the reason this is worth a column rather than a constant.
+/// The page carried a panel saying the history below it was invented, and that
+/// panel was in the component — so the club could not retire it by writing the
+/// history. Null takes it off the page, which is what finishing the story looks
+/// like.
+///
+/// The lab's four fields are nullable as a set: a club between homes prints no
+/// address rather than half of one, and the panel is built to be absent.
+model AboutPage {
+  /// Always `current`. See above.
+  id String @id @default("current")
+
+  /// The page's own headline, the founding year included. A sentence rather than
+  /// a year column with a template around it — "since 1972" is the only thing
+  /// the number was ever used for here, and the stat strip keeps its own.
+  heading String
+
+  /// The paragraph under the heading.
+  lede String
+
+  /// The panel above the story, admitting that what follows is placeholder text.
+  /// Null prints nothing, which is the state the page reaches when the club has
+  /// written its own history.
+  storyNotice String? @map("story_notice")
+
+  /// The long form, one string per paragraph. Three is the size the layout is
+  /// built around; a fourth fits and a tenth does not.
+  story String[]
+
+  labBuilding String? @map("lab_building")
+  labStreet   String? @map("lab_street")
+  labCity     String? @map("lab_city")
+
+  /// A map link rather than an embedded map: an iframe from Google would be a
+  /// third-party frame on a page that has none, and the address is what somebody
+  /// actually pastes into their own phone.
+  labMapUrl String? @map("lab_map_url")
+
+  /// The paragraph in the ONLINE panel. The links beside it are the club's own
+  /// accounts and stay in `web/src/content/home.ts`: a club changes its
+  /// Instagram handle roughly never, and the footer that prints the same list
+  /// has to render before any request comes back.
+  onlineBlurb String @map("online_blurb")
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("about_page")
+}
+
+/// One line on the about page's timeline.
+///
+/// Deliberately short as a set: a page of thirty entries is an archive, and this
+/// is an introduction. Only the founding is real; the rest shipped spelling
+/// PLACEHOLDER in the column the page prints in gold, so an unfinished timeline
+/// is unmistakable at a glance rather than plausible.
+model AboutMilestone {
+  id String @id @default(uuid(7))
+
+  /// A year, or a span. Printed in the gold mono column, so it is free text —
+  /// "1972", "1998-2003" and "Last spring" are all things a club says.
+  ///
+  /// Mapped off `when`, which is a reserved word in SQL. Prisma quotes its own
+  /// identifiers so the bare name would work; hand-written SQL in a migration or
+  /// a `$queryRaw` is where that stops being true.
+  when String @map("when_label")
+
+  what String
+
+  /// Position on the timeline, and it is the reading order rather than the
+  /// chronology — a club that wants its newest first says so by dragging. Same
+  /// shape and same reasoning as `Faq.sortOrder`.
+  sortOrder Int @default(0) @map("sort_order")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([sortOrder])
+  @@map("about_milestones")
 }
 
 // --------------------------------------------------------------- contact form

@@ -136,6 +136,7 @@ export const managedProjectSelect = {
   meetingStartTime: true,
   meetingEndTime: true,
   meetingLocation: true,
+  meetingDescription: true,
   // Officer business rather than a lead's, so it belongs to the surfaces that
   // carry this select — and the dashboard prints it, because "why is my
   // project not on the front page" is otherwise unanswerable from the site.
@@ -319,6 +320,7 @@ officer.post(
         meetingStartTime: true,
         meetingEndTime: true,
         meetingLocation: true,
+        meetingDescription: true,
         // Copied like the rest of the writing. The same build next semester
         // meets the same nights in the same room until somebody says otherwise,
         // and a duplicate that landed off the public calendar would be a

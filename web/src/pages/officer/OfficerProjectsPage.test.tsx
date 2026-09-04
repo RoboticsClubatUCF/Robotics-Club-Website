@@ -64,6 +64,7 @@ const created: ApiManagedProject = {
   meetingStartTime: null,
   meetingEndTime: null,
   meetingLocation: null,
+  meetingDescription: null,
   meetingsPublic: true,
   discordRoleId: null,
 }
@@ -116,7 +117,8 @@ const context = (
       billable: term,
       freeActive: false,
       canActivate: false,
-      surveyRequired: false,
+      surveyPending: false,
+      surveyPromptDismissed: false,
     },
   },
   reloadMembership: () => Promise.resolve(),

@@ -7,6 +7,7 @@ import { HTTPException } from 'hono/http-exception'
 import { logger } from 'hono/logger'
 import { prisma } from './core/db.js'
 import { env } from './core/env.js'
+import { aboutPage } from './routes/officer/aboutPage.js'
 import { account } from './routes/account/account.js'
 import { auth } from './routes/account/auth.js'
 import { content } from './routes/public/content.js'
@@ -16,10 +17,12 @@ import { equipment } from './routes/member/equipment.js'
 import { eventManage } from './routes/projects/eventManage.js'
 import { files } from './routes/public/files.js'
 import { forms } from './routes/public/forms.js'
+import { frontPage } from './routes/officer/frontPage.js'
 import { heroSlides } from './routes/officer/heroSlides.js'
 import { lab } from './routes/public/lab.js'
 import { me } from './routes/member/me.js'
 import { officer } from './routes/officer/officer.js'
+import { officerArchive } from './routes/officer/officerArchive.js'
 import { print } from './routes/member/print.js'
 import { projectManage } from './routes/projects/projectManage.js'
 import { signup } from './routes/account/signup.js'
@@ -157,10 +160,22 @@ app.route('/api/officer/survey', surveyAdmin)
 // here and read from `content.ts` on the cached side below — see the note at the
 // top of `routes/officer/heroSlides.ts` for why it is not a section of `officer.ts`.
 app.route('/api/officer/hero-slides', heroSlides)
+// The other half of that desk, and the same rule again. `heroSlides` owns the
+// photographs beside the headline; this owns the headline, the FAQ and the
+// partner programs — the landing page's words rather than its pictures.
+app.route('/api/officer/front-page', frontPage)
+// And `/about`, which is written from the page itself rather than from a desk.
+// Mounted here with the desks all the same: where a form is drawn has never
+// been what decides who may post to it.
+app.route('/api/officer/about', aboutPage)
 // And again. This one owns three tables — the sponsors, what a tier costs and
 // the ways to help that are not money — because they are one page and officers
 // write them as one.
 app.route('/api/officer/sponsors', sponsorsAdmin)
+// And once more. The officers desk owns `officer_terms` outright — every tenure
+// the club has recorded, past ones included — which is the half of `/officers`
+// no route could write before it.
+app.route('/api/officer/archive', officerArchive)
 app.route('/api/officer', officer)
 app.route('/api/print', print)
 app.route('/api/equipment', equipment)

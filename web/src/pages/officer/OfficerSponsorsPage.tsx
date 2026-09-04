@@ -34,13 +34,8 @@ import { ACCEPTED_IMAGE_TYPES, downscaleImage } from '../../lib/media/downscaleI
 import { duesLocked } from '../../lib/dues/dues'
 import { hits } from '../../lib/equipment/catalogue'
 import { moveItem } from '../../lib/projects/projectGallery'
-import {
-  MAX_BENEFITS,
-  MAX_IN_KIND,
-  benefitsFromText,
-  benefitsToText,
-  tierLabel,
-} from '../../lib/sponsorship'
+import { MAX_BENEFITS, MAX_IN_KIND, tierLabel } from '../../lib/sponsorship'
+import { linesFromText, linesToText } from '../../lib/textLines'
 import { imageSrc, isStoredUpload } from '../../lib/media/storedFiles'
 
 /**
@@ -1081,9 +1076,9 @@ function TierBlock({
    */
   const [amount, setAmount] = useState(offer?.amount ?? '')
   const [blurb, setBlurb] = useState(offer?.blurb ?? '')
-  const [benefits, setBenefits] = useState(benefitsToText(offer?.benefits ?? []))
+  const [benefits, setBenefits] = useState(linesToText(offer?.benefits ?? []))
 
-  const lines = benefitsFromText(benefits)
+  const lines = linesFromText(benefits)
   const tooMany = lines.length > MAX_BENEFITS
 
   const save = () =>

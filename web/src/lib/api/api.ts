@@ -329,6 +329,98 @@ export type ApiHeroSlide = {
 }
 
 /**
+ * One question on the front page's FAQ.
+ *
+ * `steps` is the one answer shape that is not a paragraph — becoming a member is
+ * a procedure, and the section numbers it. Empty is the ordinary case; seven of
+ * the club's eight answers are prose.
+ */
+export type ApiFaq = {
+  id: string
+  question: string
+  answer: string
+  steps: string[]
+}
+
+/**
+ * One partner program, for somebody who cannot join the club itself.
+ *
+ * `imageUrl` is an external address or `/api/files/<id>`, the same
+ * two-things-in-one-string every image field here holds — so it goes through
+ * `imageSrc` like all the rest. Null draws the hatch well, which is where both
+ * of the club's start.
+ */
+export type ApiPartnerProgram = {
+  id: string
+  name: string
+  audience: string
+  blurb: string
+  href: string
+  linkLabel: string
+  imageUrl: string | null
+}
+
+/**
+ * Everything the landing page *says*, from `GET /api/front-page`.
+ *
+ * **One read for the whole page's copy**, made once by `HomePage` and handed
+ * down: the hero's lede and the FAQ are the top and the bottom of one document
+ * somebody wrote in one sitting, and three routes would be three round trips
+ * and three loading states for it. The sections still fetch their own *data* —
+ * the slideshow, the events, the board, the sponsors — because those are lists
+ * that change on their own.
+ *
+ * The copy fields are never empty: a landing page with no headline is not a
+ * state this site is built for, so the route answers with the wording the site
+ * shipped with until an officer writes their own. Both **lists** may be empty
+ * and both sections are built for it.
+ */
+export type ApiFrontPage = {
+  /** The first line of the hero, in the page's own ink. */
+  headline: string
+  /** The second line, set in gold. Two fields because the break between them is
+      a `<br>` the type scale is tuned around. */
+  headlineAccent: string
+  lede: string
+  /** The line above the partner cards, saying who those programs are for. */
+  partnersIntro: string
+  faqs: ApiFaq[]
+  partners: ApiPartnerProgram[]
+}
+
+/** One line on the about page's timeline. `when` is free text — "1972", a span,
+    or a season — because the page prints it as one. */
+export type ApiMilestone = {
+  id: string
+  when: string
+  what: string
+}
+
+/**
+ * The whole of `/about`, from `GET /api/about`.
+ *
+ * **`storyNotice` is the club's own admission that the history below it is
+ * placeholder text**, and null is what finishing it looks like. It was a
+ * hardcoded panel in the component until officers could edit this page, which
+ * meant the only way to retire the admission was a deploy.
+ *
+ * The lab's four fields are null as a set: a club between homes prints no
+ * address rather than half of one, and the panel is built to be absent.
+ */
+export type ApiAboutPage = {
+  heading: string
+  lede: string
+  storyNotice: string | null
+  story: string[]
+  labBuilding: string | null
+  labStreet: string | null
+  labCity: string | null
+  labMapUrl: string | null
+  onlineBlurb: string
+  milestones: ApiMilestone[]
+}
+
+/**
  * Whether the lab is open, from `GET /api/lab`.
  *
  * `changedAt` is null when nobody has ever set it — a fresh database, or a club
@@ -563,6 +655,14 @@ export type ApiManagedProject = ApiProject & {
   meetingStartTime: string | null
   meetingEndTime: string | null
   meetingLocation: string | null
+  /**
+   * The lead's own note about the meeting, or null. The four fields above are
+   * when and where and print themselves; this is the part they cannot hold —
+   * bring a laptop, we skip home game days. Null prints nothing: it is also
+   * the description every occurrence of the meeting carries into a member's
+   * calendar, and the site does not write one on their behalf.
+   */
+  meetingDescription: string | null
   /**
    * Whether the meetings reach the public calendar. An officer's switch, not a
    * lead's: the server refuses this field from anyone else.
@@ -1098,28 +1198,6 @@ export type OfficerPosition =
   | 'FACULTY_ADVISOR'
 
 /**
- * A club subteam, as `GET /api/subteams` answers it.
- *
- * The standing groups somebody belongs to all year — mechanical, software,
- * electrical — which are deliberately a different thing from a project's
- * `ApiTeam`: this one says what a member *does*, that one says which
- * build they turn up to. A member has at most one, and `null` is a real state.
- *
- * `memberCount` counts the active roster only, so it agrees with what
- * `/members?subteam=…` actually returns rather than with the table.
- */
-export type ApiSubteam = {
-  id: string
-  slug: string
-  name: string
-  description: string | null
-  /** A hex literal out of the database. It is data, not a theme token — the
-      one legitimate reason a component writes a colour into a `style`. */
-  color: string | null
-  memberCount: number
-}
-
-/**
  * A roster entry, as `rosterSelect` in `server/src/routes/public/content.ts` returns
  * it. It says nothing about the officer board any more: who sits on it is an
  * `ApiOfficerTerm` below, a different table entirely.
@@ -1149,9 +1227,15 @@ export type ApiMember = {
   profileUrl: string | null
   active: boolean
   /**
-   * Whether the club's Discord **Officer Alumni** role says this person used to
-   * run it. What `?status=alumni` selects on and what the card's badge is drawn
-   * from.
+   * Whether this person used to run the club. What `?status=alumni` selects on
+   * and what the card's badge is drawn from.
+   *
+   * **Two facts collapsed into one, server-side**: the club's Discord *Officer
+   * Alumni* role, and a term in the club's own archive that has ended. Either
+   * is enough. The desk at `/dashboard/officer/officers` writes the second, so
+   * a board typed in from 2011 files those people under ALUMNI without anybody
+   * touching Discord. Collapsed rather than sent as two fields because every
+   * reader wants the same OR, and two fields is two places to get it wrong.
    *
    * **Not `active`, which is the field above and a different fact.** `active`
    * is "still around" and is set back to true by every dues payment, so it can
@@ -1159,7 +1243,6 @@ export type ApiMember = {
    * `rosterStatus` in `routes/public/content.ts` has the full argument.
    */
   officerAlumnus: boolean
-  subteam: { slug: string; name: string; color: string | null } | null
 }
 
 /**
@@ -1221,6 +1304,54 @@ export type ApiOfficerArchive = {
   /** The seats this window used, in board order — the chip row, from the data
       rather than from a list the page keeps. */
   seats: OfficerPosition[]
+}
+
+/**
+ * One term as the officers desk sees it, from `GET /api/officer/archive`.
+ *
+ * `ApiOfficerTerm` plus the three things a public page has no use for and an
+ * officer cannot work without.
+ *
+ * **`endedReason` and `source` are the two that change what somebody does.**
+ * A term whose `source` is `DISCORD` was opened by the role sync and will be
+ * *reopened by it* if it is closed or deleted while the person still carries
+ * the role — so the desk warns rather than letting an officer press the same
+ * button twice and conclude the site is broken. `endedReason` is the archive's
+ * own memory of why a tenure finished: "Succeeded by Priya Raman" and "lost the
+ * Discord officer role" are different pieces of history.
+ *
+ * **`photoUrl` here is the term's own and is not coalesced against the
+ * account**, unlike the same field on `ApiOfficerTerm`. This is the page that
+ * sets and clears that column, so it has to be able to see whether there is
+ * anything in it — a fallback would make an empty column look filled and the
+ * remove button look broken. `user` is the linked account, and its photo is
+ * what the public page will actually draw when there is one.
+ */
+export type ApiArchivedTerm = {
+  id: string
+  position: OfficerPosition | null
+  startedAt: string
+  endedAt: string | null
+  endedReason: string | null
+  source: 'DISCORD' | 'MANUAL'
+  fullName: string
+  photoUrl: string | null
+  user: { id: string; fullName: string; photoUrl: string | null } | null
+}
+
+/**
+ * The whole table, as `GET /api/officer/archive` answers it: every tenure the
+ * club has recorded, open ones included.
+ *
+ * Unpaginated, and the desk searches and filters it in the browser with
+ * `lib/officerTerms.ts` — the same functions and the same reasoning as the
+ * public archive at `/officers`, which is the page this desk writes. `seats` is
+ * every seat there is, in board order, so the picker's options come from the
+ * database rather than from a list here.
+ */
+export type ApiOfficerArchiveDesk = {
+  seats: OfficerPosition[]
+  terms: ApiArchivedTerm[]
 }
 
 /**
@@ -1472,17 +1603,32 @@ export type ApiMembership = {
   /** A free window is running and this person has not claimed it yet. */
   canActivate: boolean
   /**
-   * The one-time member survey has not been answered, so nothing is open —
-   * including the dues page itself.
+   * The one-time member survey has not been answered.
    *
-   * **Not a fact about dues**, and it rides on this object anyway. `accessLock`
-   * in `lib/dues/dues.ts` is the single place the browser decides what is locked,
-   * and this is what that function already reads; putting the flag anywhere
-   * else would mean a second fetch and a changed signature at thirteen call
-   * sites. Mirrors `requireSurvey` in `server/src/auth/authz.ts`, `ADMIN` exemption
-   * included — an admin always reads false here.
+   * **It locks nothing**, and the name says so on purpose: it was
+   * `surveyRequired` while the server had a `requireSurvey` gate behind it, and
+   * five pages read it to draw a padlock. The survey is an invitation now, so
+   * this is only what the dashboard reads to decide whether it still has
+   * something to offer — the prompt, the rail's row and the overview's panel.
+   *
+   * **Not a fact about dues**, and it rides on this object anyway, because
+   * `/dues/status` is the one call the dashboard rail already makes on every
+   * page. A prompt that needed its own fetch would arrive a beat after the page
+   * and pop up under somebody's pointer.
+   *
+   * No `ADMIN` exemption, unlike everything else on this object — there is no
+   * lock left to be exempt from, and an admin's shirt size is as useful as
+   * anybody's.
    */
-  surveyRequired: boolean
+  surveyPending: boolean
+  /**
+   * They ticked *don't ask me again*, so the prompt stays down.
+   *
+   * Separate from the flag above rather than folded into it: the prompt reads
+   * both, and the two panels that offer the form read only the first. A
+   * dismissal silences the nag, it does not hide the survey.
+   */
+  surveyPromptDismissed: boolean
 }
 
 /** One purchasable plan, priced and dated by the server. Never by this code. */

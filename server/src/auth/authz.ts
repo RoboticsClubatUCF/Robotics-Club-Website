@@ -30,16 +30,21 @@ import type { AuthEnv, SessionUser } from './session.js'
  * member who genuinely lacks the rank gets nothing useful from a more specific
  * answer either — the fix is "ask your lead" in every case.
  *
- * **Two gates, in order: the survey, then dues.** Every check below ends with
- * `requireCurrentDues`, and the first thing that does is `requireSurvey` — the
- * one-time member survey outranks dues because paying is one of the things it
- * gates. After it, `hasAccess` is `duesPaidThrough > now`
- * and nothing else — the same question the dashboard draws its padlocks from
- * and the same one the Discord bot asks before handing out the Members role.
+ * **One gate, and it is dues.** Every check below ends with
+ * `requireCurrentDues`, where `hasAccess` is `duesPaidThrough > now` and
+ * nothing else — the same question the dashboard draws its padlocks from and
+ * the same one the Discord bot asks before handing out the Members role.
  * There is exactly one exemption, `ADMIN`, because the club cannot be in a
  * position where the only person who can fix a membership problem is locked out
  * by one. **Officers are not exempt**: a lead or an officer whose dues have
  * lapsed keeps their rank and loses the tools until they pay.
+ *
+ * There used to be a second gate in front of it. `requireSurvey` refused
+ * everything — the tools, the desks and the dues page — until the one-time
+ * member survey was answered, which meant the club could not take somebody's
+ * money until it had their shirt size. The survey is an invitation now: the
+ * dashboard asks once, offers *don't ask me again*, and nothing anywhere is
+ * refused for a null `surveyCompletedAt`.
  *
  * **Reading is never gated.** Nothing checks dues in `requireProjectMember`,
  * because somebody who has let their dues run out is still on their projects
@@ -69,50 +74,6 @@ const NEVER_PAID =
 const CLAIM_IT =
   'Membership is free right now — claim it on the dues page and this opens straight away. It takes one press and costs nothing.'
 
-const SURVEY_OWED =
-  'One thing first: the member survey. It takes about two minutes, it is only ever asked once, and everything opens as soon as it is in — the dues page included.'
-
-/**
- * The gate ahead of the gate.
- *
- * The club needs shirt sizes, majors and — the one that matters at a meeting
- * with food at it — allergies, and it had no way to ask. So the survey is
- * required of everybody before anything else opens, **including the dues page**:
- * somebody who has not answered is not told to pay, because paying is one of
- * the things they cannot do yet.
- *
- * It is checked against `User.surveyCompletedAt` rather than against the
- * `member_surveys` row, and that is why this function is synchronous and free.
- * Session resolution already loaded the column; asking the table would be a
- * query on every authenticated request to learn something that changes once in
- * a member's life. See the column's own comment in `schema.prisma`.
- *
- * `ADMIN` is exempt for exactly the reason it is exempt from dues: whoever can
- * fix an account must not be lockable out of one. **Officers are not exempt.**
- * The whole club is being asked, and the board is part of the club.
- */
-export function requireSurvey(user: SessionUser): void {
-  if (isAdmin(user)) return
-  if (user.surveyCompletedAt !== null) return
-
-  throw new HTTPException(403, { message: SURVEY_OWED })
-}
-
-/**
- * The same check as middleware, for the two dues routes that need it.
- *
- * `POST /dues/checkout` and `POST /dues/activate` are the only places that want
- * the survey gate *without* the dues gate underneath it — everything else on
- * the site reaches both through `requireCurrentDues`.
- */
-export const requireSurveyForRoute: MiddlewareHandler<AuthEnv> = async (
-  c,
-  next,
-) => {
-  requireSurvey(c.get('user'))
-  await next()
-}
-
 /**
  * The one gate. Everything on this site that is not reading goes through here.
  *
@@ -129,11 +90,6 @@ export const requireSurveyForRoute: MiddlewareHandler<AuthEnv> = async (
  * has not paid is a board that cannot reach its own desks, which is the club's
  * decision and not this file's to soften.
  *
- * **The survey is asked before any of this**, so the refusals below are only
- * ever reached by somebody who has answered it. That ordering is the point:
- * "pay your dues" is the wrong sentence for a person who cannot reach the dues
- * page yet.
- *
  * Three refusals, because they need three different sentences and getting them
  * the wrong way round is how somebody two years in reads that they were never
  * a member:
@@ -146,11 +102,6 @@ export const requireSurveyForRoute: MiddlewareHandler<AuthEnv> = async (
  */
 export async function requireCurrentDues(user: SessionUser): Promise<void> {
   if (isAdmin(user)) return
-
-  // The survey first, and this one line is what puts it in front of every
-  // gated route on the site — they all end here. Somebody who has not filled
-  // it in is never told to pay: paying is behind the same gate.
-  requireSurvey(user)
 
   const standing = await membershipStanding(user.duesPaidThrough)
   if (standing.hasAccess) return

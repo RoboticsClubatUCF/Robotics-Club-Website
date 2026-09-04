@@ -27,23 +27,25 @@ import {
 /**
  * The one-time member survey.
  *
- * **The one page in the dashboard that nothing locks**, and the mirror image of
- * what the dues page used to be: every other lock now points here, including
- * the dues page's own. So it follows `DuesPage`'s shape rather than the print
- * page's — its own session redirect, its own load, and all three remote states
- * rendered, because it has to work for somebody arriving cold with nothing else
- * on the screen to explain itself.
+ * **Nothing locks it and it locks nothing.** It was briefly the one page in the
+ * dashboard that could not be shut, because it was where every other lock sent
+ * people — the survey gated the site, the dues page included. That gate is
+ * gone; the form is an invitation, reached from a prompt that can be switched
+ * off and from two standing panels. It still follows `DuesPage`'s shape rather
+ * than the print page's — its own session redirect, its own load, and all three
+ * remote states rendered — because it has to work for somebody arriving cold
+ * with nothing else on the screen to explain itself.
  *
- * **It stays reachable after it is answered.** Being *asked* once is the promise
- * the gate keeps; a shirt size nobody could correct afterwards would just mean
- * the club orders the wrong shirt. So the same form comes back pre-filled and
+ * **It stays reachable after it is answered.** Being *asked* once is the
+ * promise; a shirt size nobody could correct afterwards would just mean the
+ * club orders the wrong shirt. So the same form comes back pre-filled and
  * `PUT`s instead, and the heading says which of the two is happening.
  *
  * **What it asks is not written down anywhere in `web/`.** The questions are
  * rows officers edit at `/dashboard/officer/survey/questions`, so they arrive
  * with the answers and this page is the load, the validation, the two verbs and
  * the redirect. A question added after somebody answered turns up here the next
- * time they open it — the gate does not close again, which is the promise.
+ * time they open it — nobody is prompted a second time, which is the promise.
  */
 
 type PageState =
@@ -61,8 +63,8 @@ export function MemberSurveyPage() {
   const { session } = useSession()
   /**
    * Nullable for the reason the dues page's is: inside the app this always has
-   * a parent, and its own tests render it alone. Unlocking the rail is a
-   * courtesy — the server is what decides.
+   * a parent, and its own tests render it alone. Refreshing the rail is a
+   * courtesy either way — nothing here is what decides anything.
    */
   const dashboard = useOutletContext<DashboardContext | null>()
   const navigate = useNavigate()
@@ -191,15 +193,17 @@ export function MemberSurveyPage() {
       // Re-read rather than patching the response in: one source of truth for
       // this page's state, the same rule the dues page follows.
       await load()
-      // Answering it unlocks the entire rail, which is holding an answer from
-      // before the press. This is the call that makes it open without a reload.
+      // The rail is holding an answer from before the press, and `surveyPending`
+      // on it has just gone false — so this is what takes the MEMBER SURVEY row
+      // off it without a reload. It used to unlock the whole rail; the survey
+      // gates nothing now, and one row is all that moves.
       await dashboard?.reloadMembership()
 
       setSaving({ status: 'saved' })
 
-      // Straight on to what they were locked out of. Only on the first answer:
-      // somebody who came here deliberately to fix a shirt size has not asked
-      // to be taken anywhere.
+      // Back to the overview, because there is nothing more to do here. Only on
+      // the first answer: somebody who came here deliberately to fix a shirt
+      // size has not asked to be taken anywhere.
       if (!answered) void navigate('/dashboard')
     } catch (error) {
       console.error(error)
@@ -236,8 +240,8 @@ export function MemberSurveyPage() {
         ) : (
           <>
             This is how the club knows what size shirts to order and what it can
-            safely feed people at meetings. Everything on the dashboard opens as
-            soon as it is in.
+            safely feed people at meetings. Nothing on the site waits on it
+            &mdash; the club is asking, not charging admission.
           </>
         )}
       </p>
@@ -245,8 +249,8 @@ export function MemberSurveyPage() {
       {/* An officer removed every question, which is allowed and is not an
           error. Saying so beats a page with a heading, a paragraph and one
           gold button on it and nothing in between — and the button still
-          works, because an empty survey is one somebody can still answer and
-          get through the gate with. */}
+          works, because an empty survey is one somebody can still answer, which
+          is what takes them off the club's "has not answered" list. */}
       {page.data.questions.length === 0 && (
         <p className="text-faint mb-7 max-w-[46rem] text-sm leading-[1.7] text-pretty">
           There is nothing to fill in just now &mdash; the club has not put any
