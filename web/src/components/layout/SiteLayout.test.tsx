@@ -6,12 +6,25 @@ import { SiteLayout } from './SiteLayout'
 vi.mock('./SiteNav', () => ({ SiteNav: () => <nav>nav</nav> }))
 vi.mock('./SiteFooter', () => ({ SiteFooter: () => <footer>footer</footer> }))
 
-function renderLayout() {
+function renderLayout(path = '/members') {
   render(
-    <MemoryRouter initialEntries={['/members']}>
+    <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route element={<SiteLayout />}>
           <Route path="members" element={<button type="button">first control</button>} />
+          <Route
+            path="dashboard"
+            element={
+              <>
+                <aside>
+                  <a href="/dashboard/tasks">TASKS</a>
+                </aside>
+                <div data-skip-target tabIndex={-1} data-testid="content">
+                  <button type="button">first control</button>
+                </div>
+              </>
+            }
+          />
         </Route>
       </Routes>
     </MemoryRouter>,
@@ -37,5 +50,13 @@ describe('SiteLayout skip link', () => {
     expect(screen.getByRole('main')).toHaveFocus()
     // fireEvent returns false once the default action was prevented.
     expect(event).toBe(false)
+  })
+
+  it('skips past a section’s own navigation when the page marks where content starts', () => {
+    renderLayout('/dashboard')
+
+    fireEvent.click(screen.getByRole('link', { name: 'SKIP TO CONTENT' }))
+
+    expect(screen.getByTestId('content')).toHaveFocus()
   })
 })

@@ -226,7 +226,9 @@ function DashboardShell({ user }: { user: ApiUser }) {
         <SurveyPromptDialog onClose={closeSurveyPrompt} />
       )}
 
-      <div className="px-page min-w-0 py-9 wide:py-12">
+      {/* Where SKIP TO CONTENT lands. The rail is inside `<main>` too, and skipping to
+          `<main>` left seventeen rail links between the skip and the page. */}
+      <div data-skip-target tabIndex={-1} className="px-page min-w-0 py-9 outline-none wide:py-12">
         {/* Still left-aligned rather than centred in the remaining space: the rail is
             the left edge of the layout, and content that drifted away would put the
             canyon between the two.

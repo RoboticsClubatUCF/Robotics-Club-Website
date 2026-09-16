@@ -28,13 +28,17 @@ export function SiteLayout() {
   return (
     <div className="flex min-h-dvh flex-col">
       {/* The first Tab stop on every page, so a keyboard doesn't walk the whole bar to reach the
-          content. Focus is moved by hand rather than by following `#main`: a hash in the URL would
-          switch off `ScrollToTop` for the next page. */}
+          content. Focus is moved by hand rather than by following `#main`, which would add a
+          history entry and leave `#main` on any link copied from the address bar. A section
+          with its own navigation inside `<main>` marks where its content starts with
+          `data-skip-target`, as the dashboard does past its rail. */}
       <a
         href="#main"
         onClick={(event) => {
           event.preventDefault()
-          mainRef.current?.focus()
+          const main = mainRef.current
+          const target = main?.querySelector<HTMLElement>('[data-skip-target]') ?? main
+          target?.focus()
         }}
         className="bg-primary text-primary-content sr-only z-50 font-mono text-[11px] font-semibold tracking-[0.1em] focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:px-4 focus:py-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-base-content"
       >
