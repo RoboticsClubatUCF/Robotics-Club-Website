@@ -282,7 +282,7 @@ function Archive() {
               <div className="mb-5 space-y-3">
                 <input
                   type="search"
-                  aria-label="Search the archive by name"
+                  aria-label="Search by name"
                   className={fieldClass}
                   placeholder="Search by name"
                   value={query}
