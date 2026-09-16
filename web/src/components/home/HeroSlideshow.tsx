@@ -213,7 +213,10 @@ export function HeroSlideshow({ slides }: { slides: ApiHeroSlide[] }) {
           {/* Squares, like every other mark on this site. A row of circles here
               would be the one curved thing on the page — the same argument the
               lab sign's square makes. */}
-          <ul className="flex flex-1 items-center justify-center gap-1.5">
+          {/* The button is the hit area and the span is the mark, because an 8px button is a
+              coin toss for a thumb. `w-5` is as wide as eight can get beside the arrows at 360px;
+              `wide:w-3.5` keeps the desktop pitch. */}
+          <ul className="flex flex-1 items-center justify-center">
             {slides.map((slide, position) => (
               <li key={slide.id}>
                 <button
@@ -223,12 +226,17 @@ export function HeroSlideshow({ slides }: { slides: ApiHeroSlide[] }) {
                   onClick={() => {
                     go(position)
                   }}
-                  className={`block size-2 cursor-pointer transition-colors duration-200 ${
-                    position === current
-                      ? 'bg-primary'
-                      : 'bg-base-content/25 hover:bg-base-content/50'
-                  }`}
-                />
+                  className="group flex h-11 w-5 cursor-pointer items-center justify-center wide:h-8 wide:w-3.5"
+                >
+                  <span
+                    aria-hidden
+                    className={`block size-2 transition-colors duration-200 ${
+                      position === current
+                        ? 'bg-primary'
+                        : 'bg-base-content/25 group-hover:bg-base-content/50'
+                    }`}
+                  />
+                </button>
               </li>
             ))}
           </ul>
