@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { Link } from 'react-router'
+import { useDialogFocus } from '../../lib/useDialogFocus'
 
 /**
  * The prompt that asks somebody to fill in the member survey.
@@ -20,7 +21,7 @@ import { Link } from 'react-router'
  *
  * Deliberately not a `<dialog>` element, for the reason `ConfirmDialog` gives at length:
  * `showModal` is what this wants and jsdom does not implement it, so the one flow every member hits
- * would be the one flow no test could reach. The two behaviours that costs are rebuilt below, minus
+ * would be the one flow no test could reach. `useDialogFocus` rebuilds what that costs, minus
  * backdrop dismiss — a stray click behind the panel should not count as "later", and certainly not
  * as a tick of the box.
  */
@@ -30,41 +31,21 @@ export function SurveyPromptDialog({
   /** `dontAsk` is the checkbox, and it is the caller's job to persist it. */
   onClose: (dontAsk: boolean) => void
 }) {
+  const panelRef = useRef<HTMLDivElement>(null)
   const laterRef = useRef<HTMLButtonElement>(null)
-  const titleId = 'survey-prompt-title'
+  const titleId = useId()
   const [dontAsk, setDontAsk] = useState(false)
 
-  /**
-   * The tick, mirrored out of React state so the Escape handler below reads the current one. That
-   * effect binds once — it has to, or every keystroke would re-register the listener — and a
-   * `dontAsk` captured in its closure would be the value the box had when the dialog opened.
-   */
-  const ticked = useRef(false)
-  ticked.current = dontAsk
-
-  useEffect(() => {
-    const opener = document.activeElement as HTMLElement | null
-
-    // Focus lands on LATER rather than on the link, the same rule
-    // `ConfirmDialog` follows: whatever a stray Enter does, it should not be
-    // a navigation somebody did not ask for.
-    laterRef.current?.focus()
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose(ticked.current)
-    }
-
-    document.addEventListener('keydown', onKeyDown)
-
-    return () => {
-      document.removeEventListener('keydown', onKeyDown)
-      opener?.focus?.()
-    }
-  }, [onClose])
+  // Focus lands on NOT NOW rather than on the link, the same rule `ConfirmDialog` follows: whatever
+  // a stray Enter does, it should not be a navigation somebody did not ask for.
+  useDialogFocus(panelRef, laterRef, () => {
+    onClose(dontAsk)
+  })
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 wide:items-center">
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}

@@ -1,4 +1,5 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useId, useRef, type ReactNode } from 'react'
+import { useDialogFocus } from '../../lib/useDialogFocus'
 
 /**
  * A confirmation the site draws itself, instead of `window.confirm`.
@@ -18,8 +19,8 @@ import { useEffect, useRef, type ReactNode } from 'react'
  *   - Escape closes it, because a modal that can only be dismissed by aiming at a button is a modal
  *     people click through.
  *   - The backdrop closes it, same reason.
- *   - Focus moves in on open and back out on close, so a keyboard is not left pointing at a button
- *     that is no longer on screen.
+ *   - Focus moves in on open, stays in while Tab is pressed, and goes back out on close — see
+ *     `useDialogFocus`.
  *   - Focus lands on the dismissing button, never the confirming one. Every use of this is
  *     destructive; a stray Enter should do nothing.
  */
@@ -49,26 +50,11 @@ export function ConfirmDialog({
   onConfirm: () => void
   onDismiss: () => void
 }) {
+  const panelRef = useRef<HTMLDivElement>(null)
   const dismissRef = useRef<HTMLButtonElement>(null)
-  const titleId = 'confirm-dialog-title'
+  const titleId = useId()
 
-  useEffect(() => {
-    // Remembered before focus moves, so it can go back to the button that
-    // opened this rather than to the top of the document.
-    const opener = document.activeElement as HTMLElement | null
-    dismissRef.current?.focus()
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onDismiss()
-    }
-
-    document.addEventListener('keydown', onKeyDown)
-
-    return () => {
-      document.removeEventListener('keydown', onKeyDown)
-      opener?.focus?.()
-    }
-  }, [onDismiss])
+  useDialogFocus(panelRef, dismissRef, onDismiss)
 
   return (
     <div
@@ -78,6 +64,7 @@ export function ConfirmDialog({
       onClick={onDismiss}
     >
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
