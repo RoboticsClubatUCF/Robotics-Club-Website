@@ -99,6 +99,20 @@ describe('ConfirmDialog focus', () => {
     expect(screen.getByLabelText('PASSWORD')).toHaveFocus()
   })
 
+  /** The act's button goes disabled under focus while its request is in flight. */
+  it('keeps Tab in when the focused button has just been disabled', () => {
+    openDialog()
+    const field = screen.getByLabelText('PASSWORD')
+    fireEvent.change(field, { target: { value: 'secret' } })
+    const act = screen.getByRole('button', { name: 'DELETE IT' })
+    act.focus()
+    act.setAttribute('disabled', '')
+
+    press('Tab')
+
+    expect(field).toHaveFocus()
+  })
+
   it('leaves Tab alone between two stops in the middle', () => {
     openDialog()
     const field = screen.getByLabelText('PASSWORD')

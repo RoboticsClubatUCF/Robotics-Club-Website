@@ -6,8 +6,10 @@ const TABBABLE = [
   'input:not([disabled]):not([type="hidden"])',
   'select:not([disabled])',
   'textarea:not([disabled])',
-  '[tabindex]:not([tabindex="-1"])',
-].join(',')
+  '[tabindex]',
+]
+  .map((selector) => `${selector}:not([tabindex="-1"])`)
+  .join(',')
 
 /**
  * Focus for an overlay drawn by hand rather than with `<dialog>`: `initial` gets focus on open,
@@ -57,13 +59,16 @@ export function useDialogFocus(
         return
       }
 
+      // Not a stop covers focus behind the panel and focus on a button that was disabled while
+      // focused, as a confirm button is for the length of its request. From either, the browser's
+      // next stop can be the page behind.
       const active = document.activeElement
-      const inside = panel.current.contains(active)
+      const onStop = stops.some((stop) => stop === active)
 
-      if (event.shiftKey && (active === first || !inside)) {
+      if (event.shiftKey && (active === first || !onStop)) {
         event.preventDefault()
         last.focus()
-      } else if (!event.shiftKey && (active === last || !inside)) {
+      } else if (!event.shiftKey && (active === last || !onStop)) {
         event.preventDefault()
         first.focus()
       }
