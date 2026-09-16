@@ -151,7 +151,9 @@ export function DiscordUsernameField({
 
   return (
     <div>
-      <div className="mb-1.5 flex items-center gap-1.5">
+      {/* The card is positioned from this row, not from the button. From the button it starts
+          halfway across a phone, and even hidden its box made the page scroll sideways. */}
+      <div className="relative mb-1.5 flex items-center gap-1.5">
         <label htmlFor={`${id}-discord`} className={`${labelClass} mb-0`}>
           DISCORD USERNAME
         </label>
@@ -160,7 +162,7 @@ export function DiscordUsernameField({
             travel onto the screenshot without it vanishing on the way. The gap
             between the two is the card's own padding rather than a margin, or
             the hover would drop as the pointer crossed it. */}
-        <span className="group relative inline-flex">
+        <span className="group inline-flex">
           <button
             type="button"
             aria-expanded={pinned}

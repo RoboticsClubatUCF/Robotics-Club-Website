@@ -244,7 +244,9 @@ function Archive() {
         members page, so typing in an old board is the whole job.
       </p>
 
-      <div className="grid items-start gap-6 wide:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
+      {/* `grid-cols-1` so a phone gets a column that can shrink. Without a template the column
+          is as wide as the longest truncated row, and the page scrolled sideways. */}
+      <div className="grid grid-cols-1 items-start gap-6 wide:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
         <FormPanel>
           <p className={panelLabel}>
             THE ARCHIVE
@@ -280,6 +282,7 @@ function Archive() {
               <div className="mb-5 space-y-3">
                 <input
                   type="search"
+                  aria-label="Search the archive by name"
                   className={fieldClass}
                   placeholder="Search by name"
                   value={query}
