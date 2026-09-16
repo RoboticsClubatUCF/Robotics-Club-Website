@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { Outlet } from 'react-router'
 import { SiteNav } from './SiteNav'
 import { SiteFooter } from './SiteFooter'
@@ -22,10 +23,25 @@ import { SiteFooter } from './SiteFooter'
  * that would quietly break it.
  */
 export function SiteLayout() {
+  const mainRef = useRef<HTMLElement>(null)
+
   return (
     <div className="flex min-h-dvh flex-col">
+      {/* The first Tab stop on every page, so a keyboard doesn't walk the whole bar to reach the
+          content. Focus is moved by hand rather than by following `#main`: a hash in the URL would
+          switch off `ScrollToTop` for the next page. */}
+      <a
+        href="#main"
+        onClick={(event) => {
+          event.preventDefault()
+          mainRef.current?.focus()
+        }}
+        className="bg-primary text-primary-content sr-only z-50 font-mono text-[11px] font-semibold tracking-[0.1em] focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:px-4 focus:py-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-base-content"
+      >
+        SKIP TO CONTENT
+      </a>
       <SiteNav />
-      <main className="flex-1">
+      <main id="main" ref={mainRef} tabIndex={-1} className="flex-1 outline-none">
         <Outlet />
       </main>
       <SiteFooter />
