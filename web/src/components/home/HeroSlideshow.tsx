@@ -214,11 +214,12 @@ export function HeroSlideshow({ slides }: { slides: ApiHeroSlide[] }) {
               would be the one curved thing on the page — the same argument the
               lab sign's square makes. */}
           {/* The button is the hit area and the span is the mark, because an 8px button is a
-              coin toss for a thumb. `w-5` is as wide as eight can get beside the arrows at 360px;
-              `wide:w-3.5` keeps the desktop pitch. */}
-          <ul className="flex flex-1 items-center justify-center">
+              coin toss for a thumb. Up to 20px each below `wide`, shrinking to share the row when
+              eight slides meet a 320px phone; `wide:max-w-3.5` keeps the desktop pitch. The focus
+              ring goes on the mark, since round a 44px-tall box it reads as a capsule. */}
+          <ul className="flex min-w-0 flex-1 items-center justify-center">
             {slides.map((slide, position) => (
-              <li key={slide.id}>
+              <li key={slide.id} className="max-w-5 min-w-0 flex-1 wide:max-w-3.5">
                 <button
                   type="button"
                   aria-label={`Photo ${position + 1}`}
@@ -226,11 +227,11 @@ export function HeroSlideshow({ slides }: { slides: ApiHeroSlide[] }) {
                   onClick={() => {
                     go(position)
                   }}
-                  className="group flex h-11 w-5 cursor-pointer items-center justify-center wide:h-8 wide:w-3.5"
+                  className="group flex h-11 w-full cursor-pointer items-center justify-center outline-none wide:h-8"
                 >
                   <span
                     aria-hidden
-                    className={`block size-2 transition-colors duration-200 ${
+                    className={`group-focus-visible:outline-primary block size-2 transition-colors duration-200 group-focus-visible:outline-2 group-focus-visible:outline-offset-2 ${
                       position === current
                         ? 'bg-primary'
                         : 'bg-base-content/25 group-hover:bg-base-content/50'
