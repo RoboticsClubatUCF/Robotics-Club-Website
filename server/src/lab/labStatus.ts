@@ -9,7 +9,6 @@ import {
   labChannelConfigured,
   labChannelId,
   labMessageId,
-  memberRoleId,
   postChannelMessage,
   readChannelName,
   renameChannel,
@@ -29,13 +28,15 @@ import {
  *     is indistinguishable from a sign somebody just corrected, and trusting one
  *     closed the lab for the whole club once, against the real guild.
  *
- * One message in the channel, and it still pings. Posting notifies and editing
- * never does, so opening posts a fresh sign (that post is the `@Members` ping)
- * and deletes the one it replaces. Everything else edits: closing, the curfew, a
- * sweep retry. Whether a post goes out is a property of the press, never of the
- * row, so a retry can't ping the club twice for one evening — at the cost of
- * losing the ping when the post itself fails. `tidyChannel` on the sweep deletes
- * strays, which is what makes "one message" hold rather than be intended.
+ * One message in the channel, and nothing replaces it. Every state change edits it
+ * in place — opening, closing, the curfew, a sweep retry — so the sign keeps its
+ * place in the channel, nobody is pinged and nothing goes unread for a fact people
+ * read the channel to look up. The club is told by the channel itself: the name
+ * turns green in the sidebar, which is the half of the sign somebody sees without
+ * opening it. A post only happens with no message to edit at all — an empty
+ * channel, or a sign somebody deleted — and `tidyChannel` on the sweep clears
+ * anything else of ours, which is what makes "one message" hold rather than be
+ * intended.
  *
  * The building shuts at ten, Orlando time, and that overrides Discord. Masked on
  * read so the site is right at 22:00:01, and written by the sweep so the row and
@@ -225,20 +226,17 @@ function stateOf(
  * ago" in their own client and it keeps counting without another edit, which a
  * formatted string wouldn't.
  *
- * The mention rides on the open headline and nowhere else. It's only ever
- * delivered by a fresh post — an edit carrying one reaches nobody — so on the
- * closed sign it would look like a notification somebody missed. With
- * `memberRoleId` unset there's simply nobody to address, and the unread mark is
- * the signal.
+ * Nothing here mentions anybody. The sign is a thing to look at, not an
+ * interruption, and it is only ever delivered by an edit — which reaches nobody
+ * however it reads — so a mention on it would be a notification that never went
+ * out, sitting there looking like one somebody had missed.
  *
  * Exported for the tests, which assert on the two states rather than on whatever
  * Discord happened to accept.
  */
 export function labMessage(state: LabState): string {
-  const ping = state.open && memberRoleId ? ` <@&${memberRoleId}>` : ''
-
   const headline = state.open
-    ? `🟢 **${LAB_HEADLINE.open}**${ping}`
+    ? `🟢 **${LAB_HEADLINE.open}**`
     : `🔴 **${LAB_HEADLINE.closed}**`
 
   // Said on the sign rather than left to be inferred: a lab reading CLOSED at 2am
@@ -271,20 +269,47 @@ export function signSays(content: string): boolean | null {
 }
 
 /**
- * The one button under the sign, so an officer already in Discord never has to
- * open the site.
+ * The one button under the sign, as the two facts about it that matter: which
+ * state a press asks for, and whether it can be pressed at all.
  *
- * A single button for the opposite state rather than a pair — the sign is a
- * toggle, and OPEN beside CLOSE is two controls for one fact, one of which is
- * always a no-op. The `custom_id` names the target state anyway, so a press on a
- * message not yet edited asks for what the presser meant.
+ * Split out from the row it goes in because the reconcile compares the sign's
+ * button against this and nothing else. Reading back a label or a colour would be
+ * comparing the sign to its own decoration; these two are what a press does.
  *
- * Nothing is attached unless a press would actually land: a dead button answers
- * "This interaction failed" in front of the whole club. Hence `buttonsLive` — the
- * key and a confirmed interactions endpoint — rather than the key alone.
+ * Null when nothing should be attached: a dead button answers "This interaction
+ * failed" in front of the whole club, so `buttonsLive` — the key and a confirmed
+ * interactions endpoint — rather than the key alone.
+ */
+function labButton(
+  state: LabState,
+): { customId: string; disabled: boolean } | null {
+  if (!buttonsLive()) return null
+
+  return {
+    // A single button for the opposite state rather than a pair — the sign is a
+    // toggle, and OPEN beside CLOSE is two controls for one fact, one of which is
+    // always a no-op. The id names the target state anyway, so a press on a
+    // message not yet edited asks for what the presser meant.
+    customId: state.open ? LAB_BUTTON.close : LAB_BUTTON.open,
+    // Greyed rather than dropped overnight, like the dashboard's switch: the
+    // control is still theirs, it just has nothing to act on until eight. A press
+    // gets the same sentence back privately anyway, since a stale message can
+    // still carry a live button.
+    //
+    // This is the one part of the sign that changes on the clock rather than on a
+    // press, so it is also the part that goes stale on its own — `signAgrees` in
+    // the reconcile is what puts it back at eight in the morning.
+    disabled: !state.open && !state.buildingOpen,
+  }
+}
+
+/**
+ * That button in the shape Discord wants it, so an officer already in Discord
+ * never has to open the site.
  */
 export function labButtons(state: LabState): MessageComponents {
-  if (!buttonsLive()) return []
+  const button = labButton(state)
+  if (!button) return []
 
   return [
     {
@@ -297,12 +322,8 @@ export function labButtons(state: LabState): MessageComponents {
           // destructive one, which is the dashboard's convention too.
           style: state.open ? 4 : 3,
           label: state.open ? 'Close the lab' : 'Open the lab',
-          custom_id: state.open ? LAB_BUTTON.close : LAB_BUTTON.open,
-          // Greyed rather than dropped overnight, like the dashboard's switch:
-          // the control is still theirs, it just has nothing to act on until
-          // eight. A press gets the same sentence back privately anyway, since a
-          // stale message can still carry a live button.
-          disabled: !state.open && !state.buildingOpen,
+          custom_id: button.customId,
+          disabled: button.disabled,
         },
       ],
     },
@@ -467,11 +488,9 @@ async function flip(
       }
     }
 
-    // The one place anything announces. Opening is a person doing something the
-    // club wants to hear about, so it posts and the message it replaces is
-    // deleted behind it. Nothing else here may post: a retry that re-announced
-    // would ping the club again for an evening they already heard about.
-    const written = await writeSign(next, current, { announce: open })
+    // Always the same edit, opening included. The club hears about it from the
+    // channel name going green, not from a message arriving.
+    const written = await writeSign(next, current)
     messageId = written.messageId ?? messageId
     landed = written.landed
   }
@@ -549,9 +568,9 @@ async function push(): Promise<void> {
     )
   }
 
-  // Never announces. Whether the club is pinged is decided by the press, not the
-  // row, and this runs every ten minutes for as long as something is failing.
-  const written = await writeSign(state, row, { announce: false })
+  // The same edit a press makes, which is why this can run every ten minutes for
+  // as long as something is failing without anybody hearing about it.
+  const written = await writeSign(state, row)
   const nameLanded = renamed.status === 'done' || renamed.status === 'unchecked'
 
   await prisma.labStatus.update({
@@ -565,12 +584,13 @@ async function push(): Promise<void> {
 }
 
 /**
- * The message half of the sign: exactly one message in the channel.
+ * The message half of the sign: exactly one message in the channel, edited in
+ * place for the life of the channel.
  *
- * `announce` picks the shape. Announcing posts a new message — the only thing
- * Discord notifies anybody about — and deletes the one it replaces. Otherwise the
- * existing message is edited in place: no ping, and no unread mark for something
- * nobody can act on.
+ * Posting is the last resort rather than a mode. An edit notifies nobody and keeps
+ * the sign where people last saw it, so the only thing that gets a new message is
+ * a channel with no sign in it — a new one, a restored dump, a message somebody
+ * deleted.
  *
  * Finding the existing message is three candidates, in order of trust:
  *
@@ -578,8 +598,9 @@ async function push(): Promise<void> {
  *      elsewhere since — an edit aimed at the wrong channel 404s exactly like a
  *      message somebody deleted.
  *   2. `DISCORD_LAB_MESSAGE_ID`, which seeds a row that has never pushed. It
- *      doesn't outrank the row and can't: the id changes every time the lab
- *      opens, so a setting that won would point at a message we deleted.
+ *      doesn't outrank the row and can't: the row's id is the message this
+ *      process has been keeping up to date, and a setting that won would point at
+ *      whatever was in the channel the day somebody last edited `.env`.
  *   3. Whatever this bot has already posted there. This is what makes the rule
  *      hold across a restored dump or a row somebody reset.
  *
@@ -589,7 +610,6 @@ async function push(): Promise<void> {
 async function writeSign(
   state: LabState,
   row: StoredMessage | null,
-  { announce }: { announce: boolean },
 ): Promise<{ messageId: string | null; landed: boolean }> {
   if (!labChannelId) return { messageId: null, landed: false }
 
@@ -602,39 +622,6 @@ async function writeSign(
       : null
 
   const candidate = stored ?? labMessageId
-
-  if (announce) {
-    const posted = await postChannelMessage(labChannelId, content, {
-      // Said out loud rather than left to Discord's default parsing, which
-      // would let anything that ended up in the body become a mention.
-      mentionRoles: memberRoleId ? [memberRoleId] : [],
-      components,
-    })
-
-    if (posted.status === 'sent') {
-      // The other half of the trade, and it runs before this returns rather than
-      // behind it: the point of posting was to leave one message in the channel,
-      // and a delete deferred to a background task is one nobody notices failing.
-      // `tidyChannel` is the backstop, not the mechanism.
-      const removed = candidate
-        ? await deleteChannelMessage(labChannelId, candidate)
-        : { status: 'done' as const }
-
-      return {
-        messageId: posted.messageId,
-        // `gone` counts: the old message not being there is the outcome that
-        // was being asked for.
-        landed: removed.status === 'done' || removed.status === 'gone',
-      }
-    }
-
-    // The post failed, so there's no ping and never was going to be. Fall through
-    // and edit: an evening nobody was told about is a shame, and a sign reading
-    // CLOSED over an open lab is worse.
-    console.error(
-      'lab status: could not post the announcement, so the sign was edited instead — this opening pinged nobody',
-    )
-  }
 
   if (candidate) {
     const edit = await editChannelMessage(labChannelId, candidate, content, {
@@ -688,9 +675,10 @@ const TIDY_PER_SWEEP = 5
 /**
  * Delete every message of the bot's in the lab channel except the sign.
  *
- * This is what makes "one message" an invariant rather than an intention: the
- * delete after a post can fail, an earlier design can have left one per opening,
- * two instances can both have posted, and none of those heal on their own.
+ * This is what makes "one message" an invariant rather than an intention: an
+ * earlier design posted a fresh sign every opening and deleted the one before it,
+ * so a failed delete left a message behind, and two instances can both have
+ * posted into an empty channel. Nothing that edits heals either.
  *
  * Bounded three ways, because it's the only destructive thing here: only messages
  * Discord says this bot posted, only in `DISCORD_LAB_CHANNEL_ID`, and never the
@@ -861,21 +849,50 @@ export async function reconcileLabStatus(
   const nameAgrees = name.status !== 'found' || name.name === expected
 
   /**
-   * Whether the message carries the buttons it should.
-   *
-   * For one invisible gap: a club that fills in `DISCORD_PUBLIC_KEY` and restarts
-   * has a sign whose content is already correct, so nothing would push and no
-   * buttons would appear until somebody flipped the lab — which reads as the key
-   * not working.
+   * The sign as it should read this minute, to compare what is in the channel
+   * against. `changedAt` and `changedBy` are left out because nothing below reads
+   * them: they write the line under the headline, which is the row's own and
+   * cannot drift from it.
    */
+  const wanted: LabState = {
+    open: adoptable,
+    changedAt: null,
+    changedBy: null,
+    buildingOpen: buildingOpen(now),
+  }
+
+  /**
+   * Whether the sign carries the button it should — there at all, asking for the
+   * right state, and pressable or not as the hour says.
+   *
+   * Two gaps, and the second is why this compares the button rather than counting
+   * them. A club that fills in `DISCORD_PUBLIC_KEY` and restarts has a sign whose
+   * words are already correct, so without this nothing would push and no buttons
+   * would appear until somebody flipped the lab — which reads as the key not
+   * working. And the button is greyed out overnight, which is a fact about the
+   * hour rather than about the lab: at eight in the morning the row still says
+   * closed and the sign still says CLOSED, so a check that only compared those
+   * left a dead Open button up at exactly the hour somebody wants to press it,
+   * until the next flip — which they were using the button to make.
+   */
+  const wantedButton = labButton(wanted)
+
   const buttonsAgree =
-    message.hasComponents ===
-    labButtons({
-      open: adoptable,
-      changedAt: null,
-      changedBy: null,
-      buildingOpen: buildingOpen(now),
-    }).length > 0
+    message.buttons.length === (wantedButton ? 1 : 0) &&
+    message.buttons.every(
+      (button) =>
+        button.customId === wantedButton?.customId &&
+        button.disabled === wantedButton?.disabled,
+    )
+
+  /**
+   * And whether the words match the hour too. The curfew sentence is written by
+   * the clock in the same breath as the greyed button, so it goes stale in the
+   * same way: left alone, the sign tells the club the building is shut until
+   * somebody flips the lab in the afternoon.
+   */
+  const hoursAgree =
+    message.content.includes(BUILDING_HOURS_SENTENCE) === !wanted.buildingOpen
 
   /**
    * Whether the sign already says what the row is about to say — all of it.
@@ -885,7 +902,8 @@ export async function reconcileLabStatus(
    * the morning, in a channel somebody also renamed green, agrees with itself
    * perfectly and would sit there all night.
    */
-  const signAgrees = nameAgrees && buttonsAgree && adoptable === says
+  const signAgrees =
+    nameAgrees && buttonsAgree && hoursAgree && adoptable === says
 
   if (!row) {
     // No row at all and a sign in the channel: adopt it, attributed to nobody,

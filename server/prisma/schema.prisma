@@ -1970,10 +1970,10 @@ model LabStatus {
 
   /// The one message the bot keeps in the lab channel, and the channel it is in.
   ///
-  /// It changes every time the lab opens, and that is the design. Discord notifies on a post and
-  /// never on an edit, so opening posts a new message — that post is the `@Members` ping — and
-  /// deletes the one it replaces. Everything else edits this one in place, so the channel holds
-  /// exactly one sign without collecting a message per press.
+  /// It is written once and edited from then on, opening included. Discord notifies on a post and
+  /// never on an edit, and the club would rather not be notified: the sign is a thing to look up,
+  /// and the channel name turning green is what announces. So this id changes only when there is
+  /// no message to edit — a new channel, a restored dump, a sign somebody deleted.
   ///
   /// The channel id is kept beside it because the message id alone is not enough to find it again:
   /// `DISCORD_LAB_CHANNEL_ID` can be pointed somewhere else, and an edit aimed at the wrong channel

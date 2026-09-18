@@ -21,6 +21,7 @@ import { env } from '../../core/env.js'
 import { UserRole } from '../../generated/prisma/enums.js'
 import {
   BUILDING_CLOSES_AT,
+  BUILDING_HOURS_SENTENCE,
   BUILDING_OPENS_AT,
   LAB_BUTTON,
   LAB_CHANNEL_NAME,
@@ -54,10 +55,10 @@ import { createSession } from '../../auth/session.js'
  * suite after ten at night. The two instants below are written in UTC on purpose:
  * `new Date('…T14:00:00')` is fourteen hundred in the runner's zone.
  *
- * What this suite is mostly about is the direction of the sync and the two verbs. Discord is
- * the record: a flip the rename won't take doesn't happen, and the sweep reads the sign back
- * and corrects the row against it. And the sign is one message that can nonetheless ping —
- * opening posts a new message and deletes the old one, everything else edits.
+ * What this suite is mostly about is the direction of the sync. Discord is the record: a flip
+ * the rename won't take doesn't happen, and the sweep reads the sign back and corrects the row
+ * against it. And the sign is one message, edited in place for ever — nothing here posts a
+ * second one or pings anybody, and two cases exist to keep it that way.
  */
 
 /** A `vi.hoisted` holder, so one case can see the buttons switched off — the real
@@ -71,9 +72,9 @@ vi.mock('../../discord/discord.js', async (importOriginal) => ({
   labChannelConfigured: true,
   labChannelId: '111111111111111111',
   labMessageId: null,
-  // Invented, not the club's. The real one is in the dev `.env`, and a suite that read it
-  // would put the actual Members role into the assertions below — which passes here and
-  // pings two and a half thousand people the first time one of these stubs is forgotten.
+  // Invented, not the club's. Nothing about the sign reads this any more — it mentions
+  // nobody — but the real one is in the dev `.env`, and a stub is what keeps it that way
+  // rather than leaving it to nobody reintroducing a ping.
   memberRoleId: '333333333333333333',
   // Buttons are attached only when a press would actually land — the key and an
   // Interactions Endpoint URL confirmed at startup. Stubbed live here, because asserting on
@@ -96,15 +97,27 @@ const listed = vi.mocked(findBotMessages)
 const named = vi.mocked(readChannelName)
 
 const CHANNEL = '111111111111111111'
-const MEMBERS = '333333333333333333'
 
-/** A message of the bot's, as `findBotMessages` hands them back. Buttons on,
-    because everything this file posts carries them. */
-const sign = (messageId: string, open: boolean, hasComponents = true) => ({
+/** A message of the bot's, as `findBotMessages` hands them back — carrying the button
+    that state's sign carries, because the reconcile compares it. Daytime: the open
+    button is greyed only while the building is shut. */
+const sign = (
+  messageId: string,
+  open: boolean,
+  buttons: { customId: string; disabled: boolean }[] = [
+    { customId: open ? LAB_BUTTON.close : LAB_BUTTON.open, disabled: false },
+  ],
+) => ({
   messageId,
   content: open ? '🟢 **THE LAB IS OPEN**' : '🔴 **THE LAB IS CLOSED**',
-  hasComponents,
+  buttons,
 })
+
+/** The one button out of a sign on its way to Discord. Cast, because
+    `MessageComponents` is deliberately loose — see the note on it in `discord.ts`. */
+const buttonSent = (components: unknown) =>
+  (components as { components: Record<string, unknown>[] }[] | undefined)?.[0]
+    ?.components[0]
 const PREFIX = 'test-lab-'
 const email = (name: string) => `${PREFIX}${name}@ucf.edu`
 
@@ -120,6 +133,9 @@ const DAYTIME = new Date('2035-06-15T18:00:00Z')
 
 /** 23:00 in Orlando, the same evening. */
 const NIGHT = new Date('2035-06-16T03:00:00Z')
+
+/** 08:30 in Orlando, the morning after — the building has just opened again. */
+const MORNING = new Date('2035-06-16T12:30:00Z')
 
 const clearWindows = () =>
   prisma.rateLimit.deleteMany({ where: { key: { startsWith: 'lab:' } } })
@@ -394,14 +410,16 @@ describe('a flip Discord will not take does not happen', () => {
 })
 
 /**
- * One message in the channel, and it still pings.
+ * One message in the channel, for the life of the channel.
  *
- * The two requirements that look like they can't both hold: posting notifies and editing
- * never does, so a sign kept up to date for ever reaches nobody, and a sign that posts every
- * evening fills a channel until people mute it. The way through is post new, delete old.
+ * It used to post a new sign on the way open and delete the one before it, because that is
+ * the only thing Discord notifies anybody about, and the post carried an `@Members` ping. The
+ * club asked for neither: the notification is what people mute a channel over, and a sign
+ * that moves is one nobody can keep in view. So every press edits, the channel name going
+ * green is what announces, and the only message that gets posted is the first one.
  */
 describe('the one message', () => {
-  it('posts a new message when the lab opens, and deletes the one before it', async () => {
+  it('edits the sign the lab already has when it opens, and posts nothing', async () => {
     // The channel already holds last week's sign, which is the ordinary state.
     await prisma.labStatus.create({
       data: {
@@ -411,35 +429,38 @@ describe('the one message', () => {
         discordMessageId: 'msg-last-week',
       },
     })
-    posted.mockResolvedValue({ status: 'sent', messageId: 'msg-tonight' })
 
     await flip(true, officerCookie)
 
-    expect(posted).toHaveBeenCalledTimes(1)
-    expect(posted.mock.calls[0]?.[1]).toContain('THE LAB IS OPEN')
-    // One in, one out — the whole point of posting was to leave one message.
-    expect(deleted).toHaveBeenCalledWith(CHANNEL, 'msg-last-week')
-    expect((await row())?.discordMessageId).toBe('msg-tonight')
+    expect(posted).not.toHaveBeenCalled()
+    expect(edited).toHaveBeenCalledTimes(1)
+    expect(edited.mock.calls[0]?.[1]).toBe('msg-last-week')
+    expect(edited.mock.calls[0]?.[2]).toContain('THE LAB IS OPEN')
+    // Nothing is replaced, so nothing is deleted. The sign keeps its place and its id.
+    expect(deleted).not.toHaveBeenCalled()
+    expect((await row())?.discordMessageId).toBe('msg-last-week')
   })
 
   /**
-   * The ping, and the reason opening posts at all: an edit notifies nobody, so a message kept
-   * up to date for ever would reach @Members once and never again.
+   * A mention on the sign would be a notification that never went out — an edit reaches
+   * nobody however it reads — sitting there looking like one somebody had missed. There is
+   * no longer a way to ask for one either: `postChannelMessage` takes no roles to ping, so
+   * this guards the body, which is the half that could come back by hand.
    */
-  it('pings @Members on the way open', async () => {
+  it('mentions nobody, on the way open or anywhere else', async () => {
     await flip(true, officerCookie)
+    expect(posted.mock.calls[0]?.[1]).not.toContain('<@&')
 
-    expect(posted.mock.calls[0]?.[1]).toContain(`<@&${MEMBERS}>`)
-    // Said out loud rather than relying on Discord's default parsing, which would let
-    // anything in the body become a mention.
-    expect(posted.mock.calls[0]?.[2]?.mentionRoles).toEqual([MEMBERS])
+    await flip(false, officerCookie)
+    expect(edited.mock.calls[0]?.[2]).not.toContain('<@&')
   })
 
   /**
-   * Closing edits, and not only to save a message: a new message marks the channel unread for
-   * the whole club, and "the lab shut twenty seconds ago" is an interruption nobody can act on.
+   * Closing edits for the same reason opening does: a new message marks the channel unread
+   * for the whole club, and "the lab shut twenty seconds ago" is an interruption nobody can
+   * act on.
    */
-  it('edits in place when the lab closes, and pings nobody', async () => {
+  it('edits in place when the lab closes', async () => {
     await flip(true, officerCookie)
     posted.mockClear()
 
@@ -449,9 +470,6 @@ describe('the one message', () => {
     expect(edited).toHaveBeenCalledTimes(1)
     expect(edited.mock.calls[0]?.[1]).toBe('msg-1')
     expect(edited.mock.calls[0]?.[2]).toContain('THE LAB IS CLOSED')
-    // The mention is off the closed sign entirely — on a message an edit delivered, it would
-    // look like a notification somebody had missed.
-    expect(edited.mock.calls[0]?.[2]).not.toContain('<@&')
   })
 
   it('renames the channel to match, both ways', async () => {
@@ -463,19 +481,21 @@ describe('the one message', () => {
   })
 
   /**
-   * The failure worth choosing a direction on. A post that doesn't go out took the ping with
-   * it and nothing can bring it back — so the sign is put right by an edit instead. An evening
-   * nobody was told about is a shame; a sign reading CLOSED over an open lab is worse.
+   * Posting is what happens once, in a channel with no sign in it — a new channel, a restored
+   * dump, a message somebody deleted. Every press after that is an edit, whichever way it
+   * goes.
    */
-  it('falls back to editing when the announcement will not post', async () => {
+  it('posts the first sign and then never posts again', async () => {
+    await flip(true, officerCookie)
+
+    expect(posted).toHaveBeenCalledTimes(1)
+    expect(posted.mock.calls[0]?.[1]).toContain('THE LAB IS OPEN')
+
     await flip(false, officerCookie)
-    posted.mockResolvedValue({ status: 'unavailable', reason: 'network' })
-    edited.mockClear()
+    await flip(true, officerCookie)
 
-    expect((await flip(true, officerCookie)).status).toBe(200)
-
-    expect(edited.mock.calls[0]?.[2]).toContain('THE LAB IS OPEN')
-    expect((await row())?.open).toBe(true)
+    expect(posted).toHaveBeenCalledTimes(1)
+    expect(edited).toHaveBeenCalledTimes(2)
   })
 
   /**
@@ -692,13 +712,7 @@ describe('reading the sign back', () => {
 
     listed.mockResolvedValue({
       status: 'found',
-      messages: [
-        {
-          messageId: 'msg-1',
-          content: '🟢 **THE LAB IS OPEN**',
-          hasComponents: true,
-        },
-      ],
+      messages: [sign('msg-1', true)],
     })
     named.mockResolvedValue({ status: 'found', name: LAB_CHANNEL_NAME.open })
 
@@ -718,13 +732,7 @@ describe('reading the sign back', () => {
 
     listed.mockResolvedValue({
       status: 'found',
-      messages: [
-        {
-          messageId: 'msg-1',
-          content: '🟢 **THE LAB IS OPEN**',
-          hasComponents: true,
-        },
-      ],
+      messages: [sign('msg-1', true)],
     })
     named.mockResolvedValue({ status: 'found', name: LAB_CHANNEL_NAME.open })
 
@@ -744,13 +752,7 @@ describe('reading the sign back', () => {
 
     listed.mockResolvedValue({
       status: 'found',
-      messages: [
-        {
-          messageId: 'msg-1',
-          content: '🟢 **THE LAB IS OPEN**',
-          hasComponents: true,
-        },
-      ],
+      messages: [sign('msg-1', true)],
     })
     named.mockResolvedValue({ status: 'found', name: 'lab-status-🔴' })
 
@@ -767,13 +769,7 @@ describe('reading the sign back', () => {
 
     listed.mockResolvedValue({
       status: 'found',
-      messages: [
-        {
-          messageId: 'msg-1',
-          content: '🟢 **THE LAB IS OPEN**',
-          hasComponents: true,
-        },
-      ],
+      messages: [sign('msg-1', true)],
     })
 
     await expect(reconcileLabStatus()).resolves.toEqual({
@@ -803,13 +799,7 @@ describe('reading the sign back', () => {
     vi.setSystemTime(NIGHT)
     listed.mockResolvedValue({
       status: 'found',
-      messages: [
-        {
-          messageId: 'msg-1',
-          content: '🟢 **THE LAB IS OPEN**',
-          hasComponents: true,
-        },
-      ],
+      messages: [sign('msg-1', true)],
     })
     named.mockResolvedValue({ status: 'found', name: LAB_CHANNEL_NAME.open })
 
@@ -834,13 +824,7 @@ describe('reading the sign back', () => {
 
     listed.mockResolvedValue({
       status: 'found',
-      messages: [
-        {
-          messageId: 'msg-1',
-          content: '🟢 **THE LAB IS OPEN**',
-          hasComponents: false,
-        },
-      ],
+      messages: [sign('msg-1', true, [])],
     })
     named.mockResolvedValue({ status: 'found', name: LAB_CHANNEL_NAME.open })
 
@@ -910,7 +894,7 @@ describe('reading the sign back', () => {
         {
           messageId: 'msg-1',
           content: 'pizza in the lab',
-          hasComponents: true,
+          buttons: [],
         },
       ],
     })
@@ -939,13 +923,7 @@ describe('reading the sign back', () => {
 
     listed.mockResolvedValue({
       status: 'found',
-      messages: [
-        {
-          messageId: 'msg-1',
-          content: '🟢 **THE LAB IS OPEN**',
-          hasComponents: true,
-        },
-      ],
+      messages: [sign('msg-1', true)],
     })
     named.mockResolvedValue({ status: 'found', name: LAB_CHANNEL_NAME.open })
 
@@ -1149,6 +1127,73 @@ describe('the building shuts at ten', () => {
     await expect(sweepLabStatus()).resolves.toMatchObject({ closed: false })
 
     expect(renamed).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The sign as the curfew leaves it: the hours sentence, and the Open button greyed out.
+   *
+   * Both are written by the clock rather than by a press, and that is what made them stick.
+   * At eight in the morning the row still says closed and the message still says CLOSED, so
+   * a check that compared only those agreed with itself — and the club got a dead Open button
+   * at exactly the hour somebody wants to press it, until an officer opened the lab from the
+   * site, which is the thing the button is there to save them.
+   */
+  it('gives the button back when the building opens', async () => {
+    vi.setSystemTime(NIGHT)
+    await flip(false, officerCookie)
+    // Nothing outstanding: the only reason to push is the hour having changed.
+    await prisma.labStatus.update({
+      where: { id: 'current' },
+      data: { discordSynced: true },
+    })
+
+    vi.setSystemTime(MORNING)
+    listed.mockResolvedValue({
+      status: 'found',
+      messages: [
+        {
+          messageId: 'msg-1',
+          content: `🔴 **THE LAB IS CLOSED**\n${BUILDING_HOURS_SENTENCE}`,
+          buttons: [{ customId: LAB_BUTTON.open, disabled: true }],
+        },
+      ],
+    })
+    named.mockResolvedValue({ status: 'found', name: LAB_CHANNEL_NAME.closed })
+    edited.mockClear()
+
+    await sweepLabStatus()
+
+    expect(edited).toHaveBeenCalledTimes(1)
+    expect(edited.mock.calls[0]?.[2]).not.toContain(BUILDING_HOURS_SENTENCE)
+    expect(buttonSent(edited.mock.calls[0]?.[3]?.components)).toMatchObject({
+      custom_id: LAB_BUTTON.open,
+      disabled: false,
+    })
+  })
+
+  /** The same drift the other way round, and the reason the two are one check: the sentence
+      and the greyed button are written in the same breath. */
+  it('greys it again when the building shuts', async () => {
+    await flip(false, officerCookie)
+    await prisma.labStatus.update({
+      where: { id: 'current' },
+      data: { discordSynced: true },
+    })
+
+    vi.setSystemTime(NIGHT)
+    listed.mockResolvedValue({
+      status: 'found',
+      messages: [sign('msg-1', false)],
+    })
+    named.mockResolvedValue({ status: 'found', name: LAB_CHANNEL_NAME.closed })
+    edited.mockClear()
+
+    await sweepLabStatus()
+
+    expect(edited.mock.calls[0]?.[2]).toContain(BUILDING_HOURS_SENTENCE)
+    expect(buttonSent(edited.mock.calls[0]?.[3]?.components)).toMatchObject({
+      disabled: true,
+    })
   })
 
   /**

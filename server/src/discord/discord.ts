@@ -864,21 +864,16 @@ export async function sendDirectMessage(
 export type MessageComponents = readonly Record<string, unknown>[]
 
 /**
- * Which mentions in the body are allowed to be mentions.
+ * Which mentions in the body are allowed to be mentions: none of them, anywhere this
+ * bot writes.
  *
- * Always sent, always a closed list. Left off, Discord parses whatever it finds — so
- * a bot posting anything containing `@everyone`, from any source, eventually pings a
- * guild of two and a half thousand. `parse: []` refuses the lot; `roles` re-admits
- * exactly the ones the caller named.
- *
- * Mentioning a role the guild hasn't marked mentionable needs the bot to hold Mention
- * Everyone. Without it the mention still renders — as plain grey text, not a ping —
- * which is worth knowing in advance, because it looks like it worked.
+ * Always sent, never omitted. Left off, Discord parses whatever it finds — so a bot
+ * posting anything containing `@everyone`, from any source, eventually pings a guild
+ * of two and a half thousand. `parse: []` refuses the lot, and nothing re-admits a
+ * role: there is no caller that should ping the club, and no parameter here to become
+ * one. The lab sign used to be the exception and isn't any more.
  */
-const allowedMentions = (roleIds: string[]) => ({
-  parse: [] as string[],
-  roles: roleIds,
-})
+const allowedMentions = { parse: [] as string[] }
 
 export type ChannelPost =
   /** `messageId` so the next flip can edit this message instead of posting a second
@@ -892,9 +887,6 @@ export async function postChannelMessage(
   channelId: string,
   content: string,
   options: {
-    /** Roles this message may ping. Empty by default, the only safe default for a bot
-        posting into a channel the whole club can see. */
-    mentionRoles?: string[]
     /** Buttons to hang under it. See `MessageComponents`. */
     components?: MessageComponents
   } = {},
@@ -905,7 +897,9 @@ export async function postChannelMessage(
     method: 'POST',
     body: JSON.stringify({
       content,
-      allowed_mentions: allowedMentions(options.mentionRoles ?? []),
+      // Nothing a post carries is a mention. A channel post is the one thing Discord
+      // notifies people about, which is exactly why it doesn't also get to ping them.
+      allowed_mentions: allowedMentions,
       components: options.components ?? [],
     }),
   })
@@ -974,7 +968,7 @@ export async function editChannelMessage(
       // Suppressed, not omitted. Nothing the sign says is meant to ping — an edit
       // reaches nobody however it reads — so anything that looks like a mention
       // renders as flat text.
-      allowed_mentions: allowedMentions([]),
+      allowed_mentions: allowedMentions,
       components: options.components ?? [],
     }),
   })
@@ -1116,16 +1110,43 @@ export function forgetBotUser(): void {
  *
  * `content` is what the sign is read back out of — see `reconcileLabStatus`.
  *
- * `hasComponents` is for one gap: a club that fills in `DISCORD_PUBLIC_KEY` and
- * restarts has a sign whose content is already correct, so nothing would push and no
- * buttons would appear until somebody flipped the lab, which reads as the key not
- * working. It arrives in the same response and costs nothing.
+ * `buttons` is what the rest of it is checked against, and neither half of that is
+ * visible in the content. Whether there are any at all: a club that fills in
+ * `DISCORD_PUBLIC_KEY` and restarts has a sign whose words are already correct, so
+ * without this nothing would push and no buttons would appear until somebody flipped
+ * the lab, which reads as the key not working. And whether each one can be pressed:
+ * the lab's is greyed out overnight, and nothing about the lab itself changes at
+ * eight in the morning to put it back.
+ *
+ * Two fields, because they're the two a press turns on — which button it is, and
+ * whether it does anything. The label and the colour are decoration, and a component
+ * comes back carrying fields Discord adds itself, so the less of one that is compared
+ * the fewer ways there are to think a sign has drifted when it hasn't.
  */
 export interface BotMessage {
   messageId: string
   content: string
-  hasComponents: boolean
+  buttons: { customId: string; disabled: boolean }[]
 }
+
+/** A message's components as Discord hands them back: buttons inside action rows. */
+type ComponentRow = { components?: { custom_id?: string; disabled?: boolean }[] }
+
+/**
+ * The buttons under a message, flattened out of the rows they arrive in.
+ *
+ * Anything carrying no `custom_id` is dropped — a link button is the one that never
+ * does, and a press never comes back from it. `disabled` is read rather than trusted
+ * to be there: Discord leaves it off a live button rather than sending `false`.
+ */
+const buttonsOf = (rows: ComponentRow[] = []): BotMessage['buttons'] =>
+  rows.flatMap((row) =>
+    (row.components ?? []).flatMap((component) =>
+      typeof component.custom_id === 'string'
+        ? [{ customId: component.custom_id, disabled: component.disabled === true }]
+        : [],
+    ),
+  )
 
 export type ChannelMessages =
   /** Newest first, and never empty — an empty channel is `none`, because "nothing of
@@ -1185,7 +1206,7 @@ export async function findBotMessages(
       id?: string
       content?: string
       author?: { id?: string }
-      components?: unknown[]
+      components?: ComponentRow[]
     }[]
 
     // Discord answers newest first and that order is kept: if a channel somehow holds
@@ -1195,7 +1216,7 @@ export async function findBotMessages(
       .map((message) => ({
         messageId: message.id as string,
         content: message.content ?? '',
-        hasComponents: (message.components?.length ?? 0) > 0,
+        buttons: buttonsOf(message.components),
       }))
 
     return messages.length > 0 ? { status: 'found', messages } : { status: 'none' }
@@ -1347,7 +1368,7 @@ export async function followUpInteraction(
       body: JSON.stringify({
         content,
         flags: 64,
-        allowed_mentions: allowedMentions([]),
+        allowed_mentions: allowedMentions,
       }),
       signal: AbortSignal.timeout(5_000),
     })
