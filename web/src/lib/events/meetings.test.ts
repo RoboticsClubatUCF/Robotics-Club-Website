@@ -258,7 +258,7 @@ describe('the schedule form', () => {
     expect(draftProblem({ ...timed, repeat: 'MONTHLY_WEEKDAY', weekdays: [6] })).toBe(
       'Pick which week of the month.',
     )
-    expect(draftProblem({ ...timed, repeat: 'DATES' })).toBe('Add at least one date.')
+    expect(draftProblem({ ...timed, repeat: 'DATES' })).toBe('Pick at least one date.')
     expect(
       draftProblem({ ...timed, repeat: 'DATES', dates: ['2035-10-01'], endTime: '17:00' }),
     ).toBe('The meeting has to end after it starts.')

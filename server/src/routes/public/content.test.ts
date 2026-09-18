@@ -991,6 +991,59 @@ describe('GET /api/events with project meetings', () => {
  * No Discord anywhere near this: the sweep writes the column and these tests write it
  * directly, which is the boundary worth testing on this side.
  */
+/**
+ * A term's dates, which the meeting date picker greys days out by.
+ *
+ * Asserted as relationships rather than dates: an officer may have overridden this year's
+ * real term on the semesters desk, and the dev database has the club's rows in it. The feed
+ * is stubbed to fail, so without an override the answer is the fallback dates.
+ */
+describe('GET /api/terms/:year/:season', () => {
+  const year = new Date().getFullYear()
+
+  beforeEach(() => {
+    clearCalendarCache()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(new Response('nope', { status: 503 }))),
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    clearCalendarCache()
+  })
+
+  it('answers with the bounds and finals week, in order', async () => {
+    const term = await get<{
+      year: number
+      season: string
+      startsAt: string
+      endsAt: string
+      finalsStartAt: string | null
+      finalsEndAt: string | null
+    }>(`/api/terms/${String(year)}/FALL`)
+
+    expect(term).toMatchObject({ year, season: 'FALL' })
+    expect(new Date(term.startsAt) < new Date(term.endsAt)).toBe(true)
+    // Both or neither, as `Term` promises.
+    expect(term.finalsStartAt === null).toBe(term.finalsEndAt === null)
+  })
+
+  it('answers for the term a project made today would be stamped with', async () => {
+    const term = await get<{ startsAt: string; endsAt: string }>('/api/terms/current')
+
+    expect(new Date(term.startsAt) < new Date(term.endsAt)).toBe(true)
+  })
+
+  it('refuses a year far from this one, and a season that is not one', async () => {
+    expect((await app.request('/api/terms/2090/FALL')).status).toBe(404)
+    expect(
+      (await app.request(`/api/terms/${String(year)}/WINTER`)).status,
+    ).toBe(400)
+  })
+})
+
 describe('GET /api/members and its three chips', () => {
   const PREFIX = 'test-content-roster-'
   const email = (name: string) => `${PREFIX}${name}@ucf.edu`

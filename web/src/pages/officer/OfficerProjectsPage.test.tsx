@@ -263,6 +263,17 @@ function stubDesk(over: Record<string, unknown> = {}) {
     // The duplicate panel's source list. One project, so the select has
     // something to pick and the term suffix has something to print.
     if (url.includes('/projects?')) return json(over.projects ?? [existing])
+    // The term the date picker greys days by. Fall 2035, so no day is past.
+    if (url.includes('/terms/current')) {
+      return json({
+        year: 2035,
+        season: 'FALL',
+        startsAt: '2035-08-24T04:00:00.000Z',
+        endsAt: '2035-12-14T04:59:59.999Z',
+        finalsStartAt: '2035-12-07T05:00:00.000Z',
+        finalsEndAt: '2035-12-14T04:59:59.999Z',
+      })
+    }
     if (init?.method === 'DELETE') return json({ deleted: true })
     return json({})
   })
@@ -316,6 +327,35 @@ describe('OfficerProjectsPage', () => {
    * what makes the gate narrow enough to be honest. The repository used to go up in this same
    * request and is a resource link now, held in the draft with the others.
    */
+  it('creates a project that meets on dates picked from the calendar', async () => {
+    const fetchMock = stubDesk()
+    vi.stubGlobal('fetch', fetchMock)
+    renderPage()
+    await act(async () => {})
+
+    const panel = createPanel()
+    fireEvent.change(panel.getByLabelText('TITLE'), { target: { value: 'Mars Rover' } })
+    fireEvent.change(panel.getByLabelText(/SLUG/), { target: { value: 'mars-rover' } })
+    fireEvent.change(panel.getByLabelText(/ONE-LINE SUMMARY/), {
+      target: { value: 'A rover.' },
+    })
+    fireEvent.click(panel.getByRole('radio', { name: 'ON CHOSEN DATES' }))
+    fireEvent.click(panel.getByRole('button', { name: 'Saturday, August 25' }))
+    fireEvent.change(panel.getByLabelText('FROM'), { target: { value: '10:00' } })
+    fireEvent.change(panel.getByLabelText('TO'), { target: { value: '14:00' } })
+
+    await act(async () => {
+      fireEvent.click(panel.getByRole('button', { name: 'CREATE PROJECT' }))
+    })
+
+    const posted = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')
+    expect(JSON.parse(posted![1]!.body as string)).toMatchObject({
+      meetingRepeat: 'DATES',
+      meetingDates: ['2035-08-25'],
+      meetingWeekdays: [],
+    })
+  })
+
   it('sends the write-up with the project itself', async () => {
     const fetchMock = stubDesk()
     vi.stubGlobal('fetch', fetchMock)

@@ -7,6 +7,7 @@ import {
   EventType,
   OfficerPosition,
   ProjectStatus,
+  Season,
   SponsorTier,
   UserRole,
 } from '../../generated/prisma/enums.js'
@@ -23,7 +24,7 @@ import {
   expandMeetings,
   meetingProjectSelect,
 } from '../../projects/meetings.js'
-import { currentTerm } from '../../membership/semester.js'
+import { currentTerm, getTerm, type Term } from '../../membership/semester.js'
 // The desk that writes the front page's slideshow owns the shape of a slide;
 // this read borrows it rather than restating six columns that could disagree.
 import { heroSlideSelect } from '../officer/heroSlides.js'
@@ -808,6 +809,41 @@ content.get('/events/:slug', async (c) => {
   })
 
   return event ? c.json(event) : notFound('event')
+})
+
+// -------------------------------------------------------------------- terms
+
+/**
+ * One term's dates and finals week, so the meeting date picker can grey out the days the
+ * write routes would refuse.
+ *
+ * Public because they're UCF's published dates. The year is held near today: each new
+ * year is a request to calendar.ucf.edu, and a cached public route shouldn't be a way to
+ * make this server fetch a century of them.
+ */
+const termParams = z.object({
+  year: z.coerce.number().int(),
+  season: z.enum(Season),
+})
+
+const termDates = (term: Term) => ({
+  year: term.year,
+  season: term.season,
+  startsAt: term.startsAt.toISOString(),
+  endsAt: term.endsAt.toISOString(),
+  finalsStartAt: term.finalsStartAt?.toISOString() ?? null,
+  finalsEndAt: term.finalsEndAt?.toISOString() ?? null,
+})
+
+/** The term a project created today is stamped with, for the create desk's picker. */
+content.get('/terms/current', async (c) => c.json(termDates(await currentTerm())))
+
+content.get('/terms/:year/:season', validate('param', termParams), async (c) => {
+  const { year, season } = c.req.valid('param')
+  const thisYear = new Date().getFullYear()
+  if (year < thisYear - 1 || year > thisYear + 1) notFound('term')
+
+  return c.json(termDates(await getTerm(year, season)))
 })
 
 // -------------------------------------------------------------------- posts

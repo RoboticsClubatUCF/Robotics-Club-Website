@@ -24,6 +24,7 @@ import {
 import type {
   ApiManagedProject,
   ApiMeEvent,
+  ApiTermDates,
   ApiProjectDetail,
   ApiProjectTeamMember,
   ApiProjectTeamView,
@@ -1322,6 +1323,11 @@ function MeetingSection({
   const [draft, setDraft] = useState(() => draftOf(project))
   const [fault, setFault] = useState('')
   const [removing, setRemoving] = useState(false)
+  // The project's own term, not today's, so a lead planning next semester's dates sees
+  // next semester. The picker works without it, and the server checks regardless.
+  const term = useApi<ApiTermDates>(
+    `/terms/${String(project.termYear)}/${project.termSeason}`,
+  )
 
   const write = (body: Record<string, unknown>) =>
     run(async () => {
@@ -1363,6 +1369,7 @@ function MeetingSection({
         <MeetingScheduleFields
           draft={draft}
           disabled={busy}
+          term={term.status === 'ready' ? term.data : null}
           onChange={(next) => {
             setDraft(next)
             setFault('')

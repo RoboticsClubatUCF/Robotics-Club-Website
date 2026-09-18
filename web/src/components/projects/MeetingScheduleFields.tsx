@@ -1,17 +1,17 @@
-import { useId, useRef, type ReactNode } from 'react'
+import { useId, type ReactNode } from 'react'
 import { fieldClass, labelClass } from '../shared/formChrome'
+import { MeetingDatesPicker } from './MeetingDatesPicker'
+import type { ApiTermDates } from '../../lib/api/api'
+import { termBounds } from '../../lib/events/meetingDates'
 import {
   MONTH_WEEKS,
   WEEKDAY_NAMES,
   WEEKDAY_SHORT,
-  formatCivilDate,
   meetingPattern,
   ordinal,
-  todayCivil,
 } from '../../lib/events/meetings'
 import {
   type MeetingDraft,
-  datesOf,
   draftBody,
   toggled,
 } from '../../lib/events/meetingDraft'
@@ -21,8 +21,8 @@ import {
  * the note.
  *
  * Shared by the create desk and the manage page so the two can't drift, the way `LinkRows` is.
- * The caller owns the form, the draft and the save; the date waiting in the picker is part of
- * the draft, so SAVE can't drop it.
+ * The caller owns the form, the draft, the save and the term's dates; a list of dates is picked
+ * on `MeetingDatesPicker`, which greys out the days the term won't have.
  *
  * Each pattern shows only its own controls. A line under them reads the pattern back in words
  * ("Meets every other Wednesday from Oct 1"), because a set of ticked chips is easy to get
@@ -32,13 +32,15 @@ export function MeetingScheduleFields({
   draft,
   onChange,
   disabled,
+  term = null,
 }: {
   draft: MeetingDraft
   onChange: (draft: MeetingDraft) => void
   disabled: boolean
+  /** The project's term, for the date picker. Null while it loads, and it works without. */
+  term?: ApiTermDates | null
 }) {
   const id = useId()
-  const picker = useRef<HTMLInputElement>(null)
 
   const set = (patch: Partial<MeetingDraft>) => {
     onChange({ ...draft, ...patch })
@@ -49,11 +51,6 @@ export function MeetingScheduleFields({
     draft.repeat === 'MONTHLY_WEEKDAY' || draft.repeat === 'MONTHLY_DAY'
   const counted = weekly && draft.interval > 1
   const pattern = meetingPattern(draftBody(draft))
-
-  const addDate = () => {
-    if (!draft.pendingDate) return
-    set({ dates: datesOf(draft), pendingDate: '' })
-  }
 
   const days = (
     <fieldset>
@@ -234,77 +231,14 @@ export function MeetingScheduleFields({
       )}
 
       {draft.repeat === 'DATES' && (
-        <fieldset>
-          <legend className={labelClass}>DATES</legend>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="w-44">
-              <input
-                ref={picker}
-                type="date"
-                aria-label="Date to add"
-                // A meeting that has already happened is nothing to schedule. The server
-                // refuses dates outside the term, with the reason.
-                min={todayCivil()}
-                value={draft.pendingDate}
-                disabled={disabled}
-                onChange={(change) => {
-                  set({ pendingDate: change.target.value })
-                }}
-                onKeyDown={(key) => {
-                  // Enter adds the date rather than submitting the whole form half-filled.
-                  if (key.key === 'Enter') {
-                    key.preventDefault()
-                    addDate()
-                  }
-                }}
-                className={fieldClass}
-              />
-            </div>
-            <button
-              type="button"
-              onClick={addDate}
-              disabled={disabled || !draft.pendingDate}
-              className="text-dim border-rule hover:border-primary hover:text-primary focus-visible:outline-primary flex min-h-11 cursor-pointer items-center border px-3 font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-default disabled:opacity-50 wide:min-h-9"
-            >
-              ADD DATE
-            </button>
-          </div>
-
-          {draft.dates.length > 0 ? (
-            <ul className="mt-2 flex flex-wrap gap-1.5">
-              {draft.dates.map((date) => {
-                const label = formatCivilDate(date, {
-                  weekday: 'short',
-                  month: 'short',
-                  day: 'numeric',
-                })
-                return (
-                  <li
-                    key={date}
-                    className="border-rule text-dim flex items-center border pl-3 font-mono text-[10px] font-medium tracking-[0.14em] uppercase"
-                  >
-                    {label}
-                    <button
-                      type="button"
-                      aria-label={`Remove ${label}`}
-                      disabled={disabled}
-                      onClick={() => {
-                        set({ dates: draft.dates.filter((each) => each !== date) })
-                        // The chip goes, and focus would go with it to the top of the page.
-                        picker.current?.focus()
-                      }}
-                      className="text-faint hover:text-error focus-visible:outline-primary flex min-h-11 min-w-11 cursor-pointer items-center justify-center text-sm transition-colors duration-200 focus-visible:outline-2 focus-visible:-outline-offset-2 wide:min-h-8 wide:min-w-8"
-                    >
-                      <span aria-hidden>×</span>
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          ) : (
-            <p className="text-faint mt-1.5 text-[12px]">No dates yet.</p>
-          )}
-        </fieldset>
+        <MeetingDatesPicker
+          dates={draft.dates}
+          disabled={disabled}
+          bounds={term ? termBounds(term) : null}
+          onChange={(dates) => {
+            set({ dates })
+          }}
+        />
       )}
 
       {draft.repeat !== 'DATES' && (

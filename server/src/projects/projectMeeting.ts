@@ -295,7 +295,7 @@ export function scheduleProblem(schedule: MeetingSchedule): string | null {
         ? 'Pick at least one day of the month.'
         : null
     case MeetingRepeat.DATES:
-      return schedule.meetingDates.length === 0 ? 'Add at least one date.' : null
+      return schedule.meetingDates.length === 0 ? 'Pick at least one date.' : null
   }
 }
 

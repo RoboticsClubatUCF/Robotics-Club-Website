@@ -223,6 +223,7 @@ List routes take `?limit=` (max 100) and `?offset=`.
 | `GET /api/officers/past` | The archive, `{ terms, older }`. `?years=` (default 2), `&all=1` |
 | `GET /api/projects` | `?status= &season= &featured=true &term=current\|other &cover=true &images=true &description=true`. `term` is resolved from the academic calendar; `other` is everything not current, newest first. `cover=true` adds the first gallery image, `images=true` the whole gallery, `description=true` the write-up. Cover columns and section headings are always included |
 | `GET /api/projects/:slug` | Adds description and credited members |
+| `GET /api/terms/current` · `/api/terms/:year/:season` | A term's start, end and finals week as instants, for the meeting date picker. Years more than one from now are a 404 |
 | `GET /api/events` | `?when=upcoming\|past\|all &type= &from= &to=`. Published rows, plus project meetings (from `src/projects/meetings.ts`) when both `from` and `to` are given and the project has `meetingsPublic`. Windows match by overlap. Meeting ids start `meeting:` and can't be edited |
 | `GET /api/events/:slug` | Published only |
 | `GET /api/posts` · `/posts/:slug` | Published, not future-dated; the list omits the body |

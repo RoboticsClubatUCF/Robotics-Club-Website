@@ -597,6 +597,16 @@ const series: ApiMeetingSeries = {
   cancelledDates: [],
 }
 
+/** Fall 2035 as the term route answers: classes from 24 August, finals 7 to 13 December. */
+const fallTerm = {
+  year: 2035,
+  season: 'FALL',
+  startsAt: '2035-08-24T04:00:00.000Z',
+  endsAt: '2035-12-14T04:59:59.999Z',
+  finalsStartAt: '2035-12-07T05:00:00.000Z',
+  finalsEndAt: '2035-12-14T04:59:59.999Z',
+}
+
 /** Six in the evening on campus, which is 22:00Z while daylight saving lasts. */
 const occurrence = (
   day: string,
@@ -628,12 +638,17 @@ const stubMeetings = (
     occurrence('2035-10-18', { reason: 'Homecoming' }),
   ],
   status = 200,
+  term: 'ready' | 'failed' | 'pending' = 'ready',
 ) =>
   vi.fn((input: string | URL | Request, init?: RequestInit) => {
     const url = urlOf(input)
 
     if (url.includes('/team')) {
       return json({ project: scheduled, teams: [], members: [] })
+    }
+    if (url.includes('/terms/')) {
+      if (term === 'pending') return new Promise<Response>(() => {})
+      return term === 'failed' ? json({ error: 'down' }, 503) : json(fallTerm)
     }
     if (url.includes('/cancel')) return json({})
     if (url.includes('/meetings')) return json(meetings, status)
@@ -715,37 +730,145 @@ describe('the meeting schedule', () => {
     })
   })
 
-  it('takes a list of dates', async () => {
+  /**
+   * A list of dates is clicked on a month grid. The term is fall 2035, which starts after
+   * today whenever this runs, so the grid opens on August and no day is greyed for being past.
+   */
+  it('takes a list of dates clicked on the calendar', async () => {
     const fetchMock = stubMeetings()
     renderPage(fetchMock)
     await act(async () => {})
 
     fireEvent.click(schedulePanel().getByRole('radio', { name: 'ON CHOSEN DATES' }))
-    expect(schedulePanel().getByText('No dates yet.')).toBeInTheDocument()
+    expect(schedulePanel().getByText('No dates picked yet.')).toBeInTheDocument()
+    expect(schedulePanel().getByText('August 2035')).toBeInTheDocument()
 
-    for (const date of ['2035-11-03', '2035-10-20']) {
-      fireEvent.change(schedulePanel().getByLabelText('Date to add'), {
-        target: { value: date },
-      })
-      fireEvent.click(schedulePanel().getByRole('button', { name: 'ADD DATE' }))
-    }
-
-    // Sorted as they go in, and each can come back out.
-    const removes = schedulePanel().getAllByRole('button', { name: /^Remove / })
-    expect(removes).toHaveLength(2)
-
-    // Picked and never added, the way a phone leaves it: SAVE takes it anyway.
-    fireEvent.change(schedulePanel().getByLabelText('Date to add'), {
-      target: { value: '2035-12-01' },
+    // Before classes start, greyed and read out as such, and a click does nothing.
+    const early = schedulePanel().getByRole('button', {
+      name: 'Monday, August 20, outside the semester',
     })
+    expect(early).toHaveAttribute('aria-disabled', 'true')
+    fireEvent.click(early)
+    expect(early).toHaveAttribute('aria-pressed', 'false')
+
+    fireEvent.click(schedulePanel().getByRole('button', { name: 'Next month' }))
+    for (const day of ['Thursday, September 13', 'Saturday, September 1']) {
+      fireEvent.click(schedulePanel().getByRole('button', { name: day }))
+    }
+    expect(
+      schedulePanel().getByRole('button', { name: 'Saturday, September 1' }),
+    ).toHaveAttribute('aria-pressed', 'true')
+
+    // A second click takes one back off.
+    fireEvent.click(schedulePanel().getByRole('button', { name: 'Thursday, September 13' }))
+    fireEvent.click(schedulePanel().getByRole('button', { name: 'Tuesday, September 25' }))
+
+    // Listed under the grid, sorted, each removable.
+    expect(
+      schedulePanel().getAllByRole('button', { name: /^Remove / }).map((button) =>
+        button.getAttribute('aria-label'),
+      ),
+    ).toEqual(['Remove Sat, Sep 1', 'Remove Tue, Sep 25'])
 
     await saveSchedule()
     expect(patchBody(fetchMock)).toMatchObject({
       meetingRepeat: 'DATES',
-      meetingDates: ['2035-10-20', '2035-11-03', '2035-12-01'],
+      meetingDates: ['2035-09-01', '2035-09-25'],
       meetingWeekdays: [],
       meetingStartsOn: null,
     })
+  })
+
+  /**
+   * The term read is an extra, not a gate: while it loads, or if it fails, the grid still
+   * works and greys only the past, and the server refuses the rest with its reason.
+   */
+  it.each(['failed', 'pending'] as const)(
+    'still takes dates when the term read has %s',
+    async (term) => {
+      renderPage(stubMeetings(undefined, 200, term))
+      await act(async () => {})
+
+      fireEvent.click(schedulePanel().getByRole('radio', { name: 'ON CHOSEN DATES' }))
+
+      expect(schedulePanel().getByText('Greyed days are past.')).toBeInTheDocument()
+      expect(
+        schedulePanel().getByRole('button', { name: 'Next month' }),
+      ).not.toHaveAttribute('aria-disabled')
+      expect(
+        schedulePanel()
+          .getByRole('table')
+          .querySelectorAll('button:not([aria-disabled])').length,
+      ).toBeGreaterThan(0)
+    },
+  )
+
+  it('hands focus to the next picked date when one is removed', async () => {
+    renderPage(stubMeetings())
+    await act(async () => {})
+
+    fireEvent.click(schedulePanel().getByRole('radio', { name: 'ON CHOSEN DATES' }))
+    fireEvent.click(schedulePanel().getByRole('button', { name: 'Next month' }))
+    fireEvent.click(schedulePanel().getByRole('button', { name: 'Saturday, September 1' }))
+    fireEvent.click(schedulePanel().getByRole('button', { name: 'Tuesday, September 4' }))
+
+    await act(async () => {
+      fireEvent.click(schedulePanel().getByRole('button', { name: 'Remove Sat, Sep 1' }))
+    })
+
+    expect(schedulePanel().getByRole('button', { name: 'Remove Tue, Sep 4' })).toHaveFocus()
+  })
+
+  it('greys finals week and stops paging at the end of the term', async () => {
+    renderPage(stubMeetings())
+    await act(async () => {})
+
+    fireEvent.click(schedulePanel().getByRole('radio', { name: 'ON CHOSEN DATES' }))
+    for (let month = 0; month < 4; month++) {
+      fireEvent.click(schedulePanel().getByRole('button', { name: 'Next month' }))
+    }
+
+    expect(schedulePanel().getByText('December 2035')).toBeInTheDocument()
+    expect(schedulePanel().getByRole('button', { name: 'Next month' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    )
+    expect(
+      schedulePanel().getByRole('button', { name: 'Thursday, December 6' }),
+    ).not.toHaveAttribute('aria-disabled')
+    expect(
+      schedulePanel().getByRole('button', { name: 'Friday, December 7, finals week' }),
+    ).toHaveAttribute('aria-disabled', 'true')
+  })
+
+  /**
+   * One day is in the tab order and the arrows move it, crossing into the next month at the
+   * edge, the way a date grid works everywhere else.
+   */
+  it('moves between days with the arrow keys, into the next month', async () => {
+    renderPage(stubMeetings())
+    await act(async () => {})
+
+    fireEvent.click(schedulePanel().getByRole('radio', { name: 'ON CHOSEN DATES' }))
+    const tabbable = schedulePanel()
+      .getAllByRole('button', { pressed: false })
+      .filter((button) => button.getAttribute('tabindex') === '0')
+    expect(tabbable).toHaveLength(1)
+
+    const lastDay = schedulePanel().getByRole('button', { name: 'Friday, August 31' })
+    await act(async () => {
+      fireEvent.keyDown(lastDay, { key: 'ArrowRight' })
+    })
+
+    expect(schedulePanel().getByText('September 2035')).toBeInTheDocument()
+    const first = schedulePanel().getByRole('button', { name: 'Saturday, September 1' })
+    expect(first).toHaveFocus()
+
+    // Home is the start of the week, back across the month edge.
+    await act(async () => {
+      fireEvent.keyDown(first, { key: 'Home' })
+    })
+    expect(schedulePanel().getByRole('button', { name: 'Sunday, August 26' })).toHaveFocus()
   })
 
   it('asks before taking the schedule off, then sends no pattern', async () => {

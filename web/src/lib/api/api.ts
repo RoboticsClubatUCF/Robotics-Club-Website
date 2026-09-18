@@ -1462,6 +1462,20 @@ export type ApiTerm = {
 }
 
 /**
+ * One term's dates and finals week, from `GET /api/terms/:year/:season`. What the meeting
+ * date picker greys days out by. Finals is null when nobody has said, and then nothing is
+ * halted; both are null together.
+ */
+export type ApiTermDates = {
+  year: number
+  season: Season
+  startsAt: string
+  endsAt: string
+  finalsStartAt: string | null
+  finalsEndAt: string | null
+}
+
+/**
  * Where a member stands today.
  *
  * Four statuses rather than a boolean, because they call for four different things

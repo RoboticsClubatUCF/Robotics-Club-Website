@@ -14,11 +14,6 @@ export type MeetingDraft = {
   monthWeeks: number[]
   monthDays: number[]
   dates: string[]
-  /**
-   * The date sitting in the picker, not added yet. On a phone, picking a date and pressing
-   * SAVE is the natural move and there's no Enter to add it first, so SAVE takes it too.
-   */
-  pendingDate: string
   /** '' for none, the way a date input says it. */
   startsOn: string
   startTime: string
@@ -34,7 +29,6 @@ export const EMPTY_DRAFT: MeetingDraft = {
   monthWeeks: [],
   monthDays: [],
   dates: [],
-  pendingDate: '',
   startsOn: '',
   startTime: '',
   endTime: '',
@@ -65,7 +59,6 @@ export const draftOf = (project: Saved): MeetingDraft => ({
   monthWeeks: project.meetingMonthWeeks,
   monthDays: project.meetingMonthDays,
   dates: project.meetingDates,
-  pendingDate: '',
   startsOn: project.meetingStartsOn ?? '',
   startTime: project.meetingStartTime ?? '',
   endTime: project.meetingEndTime ?? '',
@@ -79,10 +72,6 @@ export const draftOf = (project: Saved): MeetingDraft => ({
  */
 export const tidyNumbers = (values: number[]) =>
   [...new Set(values)].sort((a, b) => (a === -1 ? 99 : a) - (b === -1 ? 99 : b))
-
-/** The listed dates plus the one waiting in the picker, sorted and unique. */
-export const datesOf = (draft: MeetingDraft) =>
-  [...new Set([...draft.dates, draft.pendingDate].filter(Boolean))].sort()
 
 /** Adds a value to a set held as an array, or takes it out. */
 export const toggled = (values: number[], value: number) =>
@@ -111,7 +100,7 @@ export function draftProblem(draft: MeetingDraft): string | null {
       if (draft.monthDays.length === 0) return 'Pick at least one day of the month.'
       break
     case 'DATES':
-      if (datesOf(draft).length === 0) return 'Add at least one date.'
+      if (draft.dates.length === 0) return 'Pick at least one date.'
       break
   }
 
@@ -137,7 +126,7 @@ export function draftBody(draft: MeetingDraft) {
     meetingInterval: weekly ? draft.interval : 1,
     meetingMonthWeeks: draft.repeat === 'MONTHLY_WEEKDAY' ? draft.monthWeeks : [],
     meetingMonthDays: draft.repeat === 'MONTHLY_DAY' ? draft.monthDays : [],
-    meetingDates: dated ? datesOf(draft) : [],
+    meetingDates: dated ? draft.dates : [],
     meetingStartsOn: dated || !draft.startsOn ? null : draft.startsOn,
     meetingStartTime: draft.startTime,
     meetingEndTime: draft.endTime,

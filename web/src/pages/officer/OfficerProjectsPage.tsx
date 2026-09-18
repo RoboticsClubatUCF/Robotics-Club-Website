@@ -25,6 +25,7 @@ import type {
   ApiProjectDetail,
   ApiProjectImage,
   ApiProjectLink,
+  ApiTermDates,
 } from '../../lib/api/api'
 import { explainApiError } from '../../lib/api/apiErrors'
 import {
@@ -173,6 +174,8 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
    * the manage page uses.
    */
   const [meeting, setMeeting] = useState(EMPTY_DRAFT)
+  // The term the create route will stamp, for the date picker's greyed days.
+  const term = useApi<ApiTermDates>('/terms/current')
   const [fault, setFault] = useState('')
   const [state, setState] = useState<
     | { status: 'idle' }
@@ -361,6 +364,7 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
           <MeetingScheduleFields
             draft={meeting}
             disabled={sending}
+            term={term.status === 'ready' ? term.data : null}
             onChange={(next) => {
               setMeeting(next)
               setFault('')
