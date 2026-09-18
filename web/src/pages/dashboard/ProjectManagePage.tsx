@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { useNavigate, useOutletContext, useParams } from 'react-router'
 import { ConfirmDialog } from '../../components/shared/ConfirmDialog'
 import { DiscordRoleHelp } from '../../components/shared/DiscordRoleHelp'
@@ -19,8 +19,10 @@ import {
   getJson,
   patchJson,
   postJson,
+  putJson,
 } from '../../lib/api/api'
 import type {
+  ApiManagedProject,
   ApiMeEvent,
   ApiProjectDetail,
   ApiProjectTeamMember,
@@ -36,14 +38,23 @@ import {
   toDateInput,
   toTimeInput,
 } from '../../lib/events/events'
-import { WEEKDAY_SHORT, meetingLine, meetingNote } from '../../lib/events/meetings'
+import {
+  formatCivilDate,
+  formatMeetingRange,
+  hasSchedule,
+  meetingLine,
+  meetingNote,
+} from '../../lib/events/meetings'
+import { draftBody, draftOf, draftProblem } from '../../lib/events/meetingDraft'
+import { campusDateOf } from '../../lib/events/calendarLinks'
+import { MeetingScheduleFields } from '../../components/projects/MeetingScheduleFields'
 import { TASK_LABEL, isSettled } from '../../lib/tasks'
 import type { ApiState } from '../../lib/api/useApi'
 import { useApi } from '../../lib/api/useApi'
 import { isOfficer } from '../../lib/auth/session'
 
 /**
- * The lead's side of a project: members, teams, and the meeting schedule.
+ * The lead's side of a project: members, teams, the meeting schedule and its meetings.
  *
  * Which controls appear follows the caller's rank on this project — a team lead gets their own
  * team's roster, a project lead gets everything — but appearance is all it is. Every button
@@ -248,7 +259,7 @@ function Manage({
       <FormEyebrow>/ PROJECT · MANAGE</FormEyebrow>
       <FormHeading>{project.title}</FormHeading>
 
-      {/* Seven sections, none of which reads on from the one above — a lead comes here to do one
+      {/* Eight sections, none of which reads on from the one above — a lead comes here to do one
           of them. Stacked, that meant scrolling past four panels to reach the fifth while the
           right half of the screen stayed empty. `items-start` keeps the short ones short: DISCORD
           ROLE is four lines and has no business being as tall as the roster. */}
@@ -260,6 +271,13 @@ function Manage({
             <EventsSection projectId={projectId} teams={teams} rank={rank} myTeamId={myTeamId} />
             <TasksSection projectId={projectId} teams={teams} members={members} rank={rank} myTeamId={myTeamId} canCreate={canCreateTasks} />
             <MeetingSection project={project} reload={load} officer={officer} />
+            {hasSchedule(project) && (
+              <UpcomingMeetingsSection
+                /* Keyed on the saved schedule, so saving a new one refetches the list. */
+                key={JSON.stringify(draftBody(draftOf(project)))}
+                projectId={projectId}
+              />
+            )}
             <DiscordRoleSection project={project} reload={load} />
             <DangerSection projectId={projectId} title={project.title} reloadProjects={reloadProjects} />
           </>
@@ -1301,71 +1319,36 @@ function MeetingSection({
 }) {
   const { message, busy, run } = useSectionStatus()
   const [saved, setSaved] = useState(false)
-  const [days, setDays] = useState<number[]>(project.meetingWeekdays)
+  const [draft, setDraft] = useState(() => draftOf(project))
   const [fault, setFault] = useState('')
-  const id = useId()
+  const [removing, setRemoving] = useState(false)
 
-  const toggle = (day: number) => {
-    setDays(
-      days.includes(day)
-        ? days.filter((each) => each !== day)
-        : [...days, day].sort((a, b) => a - b),
-    )
-    setFault('')
-  }
-
-  const save = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const data = new FormData(event.currentTarget)
-    // Narrowed rather than coerced, the same way `EventsSection` above does it:
-    // `FormData.get` can hand back a `File`, and `String()` on one is the
-    // literal text '[object File]'.
-    const text = (name: string) => {
-      const raw = data.get(name)
-      return typeof raw === 'string' ? raw.trim() : ''
-    }
-    const from = text('from')
-    const to = text('to')
-    const location = text('location')
-    const noteText = text('note')
-    const clearing = days.length === 0
-
-    // Checked here as well as on the server, because these are the two mistakes
-    // somebody actually makes and a round trip to be told so is a round trip.
-    // The server refuses both regardless — see `projectMeeting.ts`.
-    if (!clearing && (!from || !to)) {
-      setFault(
-        'Pick a start and an end time, or clear the days to remove the schedule.',
+  const write = (body: Record<string, unknown>) =>
+    run(async () => {
+      const updated = await patchJson<ApiManagedProject>(
+        `/projects/${project.id}`,
+        body,
       )
-      return
-    }
-    if (!clearing && from >= to) {
-      setFault('The meeting has to end after it starts.')
-      return
-    }
-
-    setFault('')
-    setSaved(false)
-    void run(async () => {
-      await patchJson(`/projects/${project.id}`, {
-        meetingWeekdays: days,
-        // Cleared together with the days. Half a schedule is a project that
-        // reads as meeting somewhere and appears on no calendar.
-        meetingStartTime: clearing ? null : from,
-        meetingEndTime: clearing ? null : to,
-        meetingLocation: clearing || !location ? null : location,
-        // Goes with the schedule too. A note is about the meeting, and keeping
-        // one on a project that has stopped meeting is a stale sentence
-        // nobody would think to come back and delete.
-        meetingDescription: clearing || !noteText ? null : noteText,
-      })
+      // What the server kept, which is tidier than what was typed: sorted, deduplicated,
+      // and with the other patterns' fields emptied.
+      setDraft(draftOf(updated))
       await reload()
       setSaved(true)
     })
+
+  const save = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const problem = draftProblem(draft)
+    setFault(problem ?? '')
+    setSaved(false)
+    if (problem) return
+
+    void write(draftBody(draft))
   }
 
   const line = meetingLine(project)
   const note = meetingNote(project)
+  const scheduled = hasSchedule(project)
 
   return (
     <FormPanel>
@@ -1373,124 +1356,78 @@ function MeetingSection({
         MEETING SCHEDULE
       </p>
       <p className="text-dim mb-4 text-[13px] leading-[1.6] text-pretty">
-        Every member&rsquo;s calendar carries this, and it repeats to the end of
-        the semester. Clear every day to take it off.
+        Every member&rsquo;s calendar carries this, to the end of the semester.
       </p>
 
       <form onSubmit={save} className="space-y-4">
-        <fieldset>
-          <legend className={labelClass}>DAYS</legend>
-          <div className="flex flex-wrap gap-1.5">
-            {WEEKDAY_SHORT.map((short, index) => {
-              const on = days.includes(index)
-              return (
-                <label
-                  key={short}
-                  className={`focus-within:outline-primary flex min-h-11 cursor-pointer items-center border px-3 font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 focus-within:outline-2 focus-within:outline-offset-2 wide:min-h-9 ${
-                    on
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-rule text-dim hover:border-primary hover:text-primary'
-                  }`}
-                >
-                  {/* Really a checkbox, visually hidden rather than absent: the
-                      accessible name is what a screen reader reads and what the
-                      tests query on, and `sr-only` keeps it focusable where
-                      `hidden` would not. */}
-                  <input
-                    type="checkbox"
-                    className="sr-only"
-                    checked={on}
-                    disabled={busy}
-                    onChange={() => {
-                      toggle(index)
-                    }}
-                  />
-                  {short}
-                </label>
-              )
-            })}
-          </div>
-        </fieldset>
-
-        <div className="flex flex-wrap items-end gap-3">
-          <div>
-            <label htmlFor={`${id}-from`} className={labelClass}>
-              FROM
-            </label>
-            <input
-              id={`${id}-from`}
-              name="from"
-              type="time"
-              defaultValue={project.meetingStartTime ?? ''}
-              className={`${fieldClass} h-8 w-32`}
-              disabled={busy}
-            />
-          </div>
-
-          <div>
-            <label htmlFor={`${id}-to`} className={labelClass}>
-              TO
-            </label>
-            <input
-              id={`${id}-to`}
-              name="to"
-              type="time"
-              defaultValue={project.meetingEndTime ?? ''}
-              className={`${fieldClass} h-8 w-32`}
-              disabled={busy}
-            />
-          </div>
-
-          <div className="min-w-40 flex-1">
-            <label htmlFor={`${id}-location`} className={labelClass}>
-              PLACE
-            </label>
-            <input
-              id={`${id}-location`}
-              name="location"
-              maxLength={160}
-              defaultValue={project.meetingLocation ?? ''}
-              placeholder="ENG2 Lab"
-              className={`${fieldClass} h-8`}
-              disabled={busy}
-            />
-          </div>
-        </div>
-
-        {/* The one part of a schedule the columns above can't hold, and the one that's genuinely
-            optional. Left empty, the meeting reaches a member's calendar with no description at
-            all, which is deliberate: the site used to write one here and it only ever repeated
-            the title and the room. */}
-        <div>
-          <label htmlFor={`${id}-note`} className={labelClass}>
-            NOTE (OPTIONAL)
-          </label>
-          <textarea
-            id={`${id}-note`}
-            name="note"
-            maxLength={400}
-            rows={2}
-            defaultValue={project.meetingDescription ?? ''}
-            placeholder="Anything the time and place don't say — bring a laptop, we skip home game days"
-            className="textarea border-rule bg-base-200 w-full text-sm"
-            disabled={busy}
-          />
-          <p className="text-faint mt-1 text-[12px] leading-[1.5] text-pretty">
-            This is what members see on the meeting in their calendar. Leave it
-            empty and nothing is said.
-          </p>
-        </div>
-
-        {fault && <p className="text-error text-[13px]">{fault}</p>}
-
-        <button
-          type="submit"
+        <MeetingScheduleFields
+          draft={draft}
           disabled={busy}
-          className="btn btn-primary btn-cta px-5 py-2.5 text-[12px] font-semibold disabled:opacity-60"
-        >
-          {busy ? 'SAVING…' : 'SAVE'}
-        </button>
+          onChange={(next) => {
+            setDraft(next)
+            setFault('')
+          }}
+        />
+
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+          <button
+            type="submit"
+            disabled={busy}
+            className="btn btn-primary btn-cta px-5 py-2.5 text-[12px] font-semibold disabled:opacity-60"
+          >
+            {busy ? 'SAVING…' : 'SAVE'}
+          </button>
+          {scheduled && (
+            <button
+              type="button"
+              disabled={busy}
+              className={`${dangerButton} ${focusRing} inline-flex min-h-11 items-center wide:min-h-0`}
+              onClick={() => {
+                setRemoving(true)
+              }}
+            >
+              REMOVE SCHEDULE
+            </button>
+          )}
+        </div>
+
+        {/* Beside SAVE, whichever side refused: the form's own check or the server's,
+            which is the only one that knows the term. At the foot of the panel it was
+            off screen on a phone. */}
+        <p role="status" className="min-h-4 text-[13px]">
+          {fault || message ? (
+            <span className="text-error">{fault || message}</span>
+          ) : saved ? (
+            <span className="text-success">Saved.</span>
+          ) : (
+            ''
+          )}
+        </p>
       </form>
+
+      {removing && (
+        <ConfirmDialog
+          title="Remove the meeting schedule?"
+          confirmLabel="REMOVE IT"
+          busy={busy}
+          onConfirm={() => {
+            setSaved(false)
+            // Closed either way, so a refusal lands in the status line beside SAVE
+            // rather than behind the dialog.
+            void write({ meetingRepeat: null }).then(() => {
+              setRemoving(false)
+            })
+          }}
+          onDismiss={() => {
+            setRemoving(false)
+          }}
+        >
+          <p>
+            Every meeting comes off every calendar, and the place and note go with
+            them.
+          </p>
+        </ConfirmDialog>
+      )}
 
       {/* An officer's switch, not a lead's, and the server refuses it from anyone else — the same
           split as `published` on an event. Drawn only for officers rather than disabled for leads:
@@ -1526,18 +1463,17 @@ function MeetingSection({
         </label>
       )}
 
-      {/* What the schedule actually produces, read back from the saved row rather than the form.
-          A lead who has just typed 18:00 wants to see "6:00 - 10:00 PM" agree with them, and the
-          bound is the part nobody expects: the meetings stop at the end of the term. */}
+      {/* What the schedule actually produces, read back from the saved row rather than the form,
+          and the bound nobody expects: the meetings stop at the end of the term. */}
       {line && (
         <div className="border-rule mt-4 border-t pt-3">
           <p className="text-faint text-[12px] leading-[1.5] text-pretty">
-            {line}. It repeats to the end of this project&rsquo;s semester, and
-            skips finals week.
+            {line}.
+            {project.meetingRepeat !== 'DATES' &&
+              ' It runs to the end of this project’s semester and skips finals week.'}
           </p>
           {/* Quoted rather than restated, so a lead can see the note as a
-              member will read it. Absent when there is none, which is the
-              state this whole field is optional for. */}
+              member will read it. */}
           {note && (
             <p className="text-dim mt-1.5 text-[12px] leading-[1.5] text-pretty">
               {note}
@@ -1545,12 +1481,283 @@ function MeetingSection({
           )}
         </div>
       )}
+    </FormPanel>
+  )
+}
+
+/** How many of the term's meetings show before the list needs asking. */
+const MEETING_ROWS = 6
+
+/** The gold ring the rulebook asks of every hand-rolled control. */
+const focusRing =
+  'focus-visible:outline-primary focus-visible:outline-2 focus-visible:outline-offset-2'
+
+/**
+ * The rest of the term's meetings, one by one, so a lead can call one off without touching the
+ * schedule: homecoming, a closed building, half the team away at a competition.
+ *
+ * A cancelled meeting stays on every calendar, marked, with the reason, and RESTORE puts it
+ * back. Remounted by the caller whenever the saved schedule changes, which is what refetches it.
+ *
+ * The row button reads CALL OFF rather than CANCEL, so it can't be mistaken for dismissing the
+ * form it opens. It stays mounted while that form is open, which is what focus goes back to.
+ */
+function UpcomingMeetingsSection({ projectId }: { projectId: string }) {
+  const { message, busy, run } = useSectionStatus()
+  const [meetings, setMeetings] = useState<ApiState<ApiMeEvent[]>>({
+    status: 'loading',
+  })
+  const [expanded, setExpanded] = useState(false)
+  const [cancelling, setCancelling] = useState<string | null>(null)
+  const [reason, setReason] = useState('')
+  const [done, setDone] = useState('')
+  const id = useId()
+  /** Each row's action button, by occurrence id, so focus can follow a row through a reload. */
+  const actions = useRef(new Map<string, HTMLButtonElement>())
+  const focusNext = useRef<string | null>(null)
+
+  const load = useCallback(async () => {
+    try {
+      const data = await getJson<ApiMeEvent[]>(`/projects/${projectId}/meetings`)
+      setMeetings({ status: 'ready', data })
+    } catch (error) {
+      console.error(error)
+      setMeetings({
+        status: 'error',
+        code: error instanceof ApiError ? error.status : 0,
+      })
+    }
+  }, [projectId])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  // After a cancel or a restore the row's button changes (CALL OFF for RESTORE), so the one
+  // that had focus is gone. Put focus on its replacement once the list has redrawn.
+  useEffect(() => {
+    if (!focusNext.current) return
+    actions.current.get(focusNext.current)?.focus()
+    focusNext.current = null
+  }, [meetings])
+
+  /**
+   * The campus date, which is what a cancellation is keyed on, rather than the reader's own
+   * day: a lead away from Florida would otherwise see one date and cancel another.
+   */
+  const day = (event: ApiMeEvent) =>
+    formatCivilDate(campusDateOf(event.startsAt), {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    })
+
+  const close = (event: ApiMeEvent) => {
+    setCancelling(null)
+    actions.current.get(event.id)?.focus()
+  }
+
+  const cancel = (event: ApiMeEvent) =>
+    run(async () => {
+      setDone('')
+      await putJson(
+        `/projects/${projectId}/meetings/${campusDateOf(event.startsAt)}/cancel`,
+        { reason: reason.trim() || null },
+      )
+      setCancelling(null)
+      setReason('')
+      focusNext.current = event.id
+      await load()
+      setDone(`Cancelled ${day(event)}.`)
+    })
+
+  const restore = (event: ApiMeEvent) =>
+    run(async () => {
+      setDone('')
+      await deleteJson(
+        `/projects/${projectId}/meetings/${campusDateOf(event.startsAt)}/cancel`,
+      )
+      focusNext.current = event.id
+      await load()
+      setDone(`${day(event)} is back on.`)
+    })
+
+  const all = meetings.status === 'ready' ? meetings.data : []
+  const shown = expanded ? all : all.slice(0, MEETING_ROWS)
+
+  return (
+    <FormPanel>
+      <p className="text-faint mb-1 font-mono text-[10px] font-medium tracking-[0.16em]">
+        UPCOMING MEETINGS
+      </p>
+      <p className="text-dim mb-3 text-[13px] leading-[1.6] text-pretty">
+        Call off one meeting without changing the schedule. It stays on the
+        calendar, marked cancelled.
+      </p>
+
+      {meetings.status === 'loading' && (
+        <div aria-busy="true" className="space-y-2">
+          {Array.from({ length: 3 }, (_, index) => (
+            <div key={index} className="bg-base-300 h-9 animate-pulse rounded-[2px]" />
+          ))}
+        </div>
+      )}
+
+      {meetings.status === 'error' && (
+        <p className="text-faint text-[13px]">
+          Couldn&rsquo;t load the meetings just now.
+        </p>
+      )}
+
+      {meetings.status === 'ready' && all.length === 0 && (
+        <p className="text-faint text-[13px]">No meetings left this semester.</p>
+      )}
+
+      {shown.length > 0 && (
+        <ul>
+          {shown.map((event) => {
+            const open = cancelling === event.id
+            const when = `${day(event)} · ${
+              event.meeting
+                ? formatMeetingRange(event.meeting.startTime, event.meeting.endTime)
+                : ''
+            }`
+            const keep = (node: HTMLButtonElement | null) => {
+              if (node) actions.current.set(event.id, node)
+              else actions.current.delete(event.id)
+            }
+
+            return (
+              <li key={event.id} className="border-rule border-t py-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                  <div className="min-w-0">
+                    <p
+                      className={`text-[13px] ${
+                        event.cancelled ? 'text-faint line-through' : ''
+                      }`}
+                    >
+                      {when}
+                    </p>
+                    {event.cancelled && (
+                      <p className="text-dim text-[12px] leading-[1.5]">
+                        <span className="text-error font-mono text-[10px] font-medium tracking-[0.14em]">
+                          CANCELLED
+                        </span>
+                        {event.cancelled.reason && ` · ${event.cancelled.reason}`}
+                      </p>
+                    )}
+                  </div>
+
+                  {event.cancelled ? (
+                    <button
+                      ref={keep}
+                      type="button"
+                      disabled={busy}
+                      className={`${smallButton} ${focusRing} min-h-11 wide:min-h-0`}
+                      aria-label={`Restore ${day(event)}`}
+                      onClick={() => void restore(event)}
+                    >
+                      RESTORE
+                    </button>
+                  ) : (
+                    <button
+                      ref={keep}
+                      type="button"
+                      disabled={busy}
+                      aria-expanded={open}
+                      className={`${open ? smallButton : dangerButton} ${focusRing} min-h-11 wide:min-h-0`}
+                      aria-label={`Call off ${day(event)}`}
+                      onClick={() => {
+                        if (open) {
+                          close(event)
+                          return
+                        }
+                        // Opening a second row drops the first one's reason, so say
+                        // nothing was typed rather than carry it to another date.
+                        setCancelling(event.id)
+                        setReason('')
+                      }}
+                    >
+                      CALL OFF
+                    </button>
+                  )}
+                </div>
+
+                {open && (
+                  <form
+                    className="mt-2 flex flex-wrap items-end gap-2"
+                    onSubmit={(submit) => {
+                      submit.preventDefault()
+                      void cancel(event)
+                    }}
+                    onKeyDown={(key) => {
+                      if (key.key === 'Escape') close(event)
+                    }}
+                  >
+                    <div className="min-w-44 flex-1">
+                      <label htmlFor={`${id}-reason`} className={labelClass}>
+                        REASON (OPTIONAL)
+                      </label>
+                      <input
+                        id={`${id}-reason`}
+                        autoFocus
+                        maxLength={200}
+                        value={reason}
+                        disabled={busy}
+                        placeholder="Homecoming"
+                        onChange={(change) => {
+                          setReason(change.target.value)
+                        }}
+                        className={fieldClass}
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={busy}
+                      className="btn btn-outline border-error/40 text-error hover:border-error hover:bg-error/10 hover:text-error h-auto min-h-11 cursor-pointer px-4 py-2 text-[11px] font-semibold tracking-[0.04em] disabled:opacity-50 wide:min-h-10"
+                    >
+                      CANCEL MEETING
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      className={`${smallButton} ${focusRing} min-h-11 px-2 wide:min-h-10`}
+                      onClick={() => {
+                        close(event)
+                      }}
+                    >
+                      KEEP IT
+                    </button>
+                  </form>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+
+      {all.length > MEETING_ROWS && (
+        <button
+          type="button"
+          aria-expanded={expanded}
+          onClick={() => {
+            setExpanded(!expanded)
+          }}
+          className={`text-primary ${focusRing} mt-2 inline-flex min-h-11 cursor-pointer items-center font-mono text-[10px] font-medium tracking-[0.14em] wide:min-h-0`}
+        >
+          {/* The underline is on the words, so a phone-sized hit area doesn't push it
+              a thumb's width away from them. */}
+          <span className="border-primary/40 hover:border-primary border-b pb-0.5 transition-colors duration-200">
+            {expanded ? 'SHOW FEWER' : `SHOW ALL ${String(all.length)}`}
+          </span>
+        </button>
+      )}
 
       <p role="status" className="mt-2 min-h-4 text-[12px]">
         {message ? (
           <span className="text-error">{message}</span>
-        ) : saved ? (
-          <span className="text-success">Saved.</span>
+        ) : done ? (
+          <span className="text-success">{done}</span>
         ) : (
           ''
         )}

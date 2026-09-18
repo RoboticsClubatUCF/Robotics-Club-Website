@@ -4,6 +4,7 @@ import { prisma } from '../../core/db.js'
 import { env } from '../../core/env.js'
 import {
   FileKind,
+  MeetingRepeat,
   ProjectMemberRank,
   ProjectStatus,
   Season,
@@ -1663,6 +1664,9 @@ describe('the meeting schedule', () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toMatchObject({
+      // A body with days and no pattern is a page loaded before there were patterns, and
+      // it means weekly.
+      meetingRepeat: MeetingRepeat.WEEKLY,
       // Sorted and deduplicated on the way in, so every reader downstream gets to assume it
       // rather than each sorting for itself.
       meetingWeekdays: [2, 4],
@@ -1732,9 +1736,119 @@ describe('the meeting schedule', () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toMatchObject({
+      meetingRepeat: null,
       meetingWeekdays: [],
       meetingStartTime: null,
     })
+  })
+
+  it('clears everything with no pattern, the place and the note included', async () => {
+    await patch({
+      meetingRepeat: MeetingRepeat.WEEKLY,
+      meetingWeekdays: [2, 4],
+      meetingStartTime: '18:00',
+      meetingEndTime: '22:00',
+      meetingLocation: 'ENG2 Lab',
+      meetingDescription: 'Bring a laptop.',
+    })
+
+    const response = await patch({ meetingRepeat: null })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      meetingRepeat: null,
+      meetingWeekdays: [],
+      meetingStartTime: null,
+      meetingEndTime: null,
+      meetingLocation: null,
+      meetingDescription: null,
+    })
+  })
+
+  it('takes every other week once it knows where to count from', async () => {
+    const body = {
+      meetingRepeat: MeetingRepeat.WEEKLY,
+      meetingWeekdays: [3],
+      meetingInterval: 2,
+      meetingStartTime: '18:00',
+      meetingEndTime: '20:00',
+    }
+
+    const unanchored = await patch(body)
+    expect(unanchored.status).toBe(400)
+    expect(((await unanchored.json()) as { error: string }).error).toContain(
+      'first meeting',
+    )
+
+    const response = await patch({ ...body, meetingStartsOn: '2035-10-17' })
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      meetingRepeat: MeetingRepeat.WEEKLY,
+      meetingInterval: 2,
+      meetingStartsOn: '2035-10-17',
+    })
+  })
+
+  it('empties the columns a new pattern does not read', async () => {
+    await patch({
+      meetingWeekdays: [2, 4],
+      meetingStartTime: '18:00',
+      meetingEndTime: '22:00',
+    })
+
+    const response = await patch({
+      meetingRepeat: MeetingRepeat.MONTHLY_DAY,
+      meetingMonthDays: [1],
+    })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      meetingRepeat: MeetingRepeat.MONTHLY_DAY,
+      meetingMonthDays: [1],
+      meetingWeekdays: [],
+      meetingStartTime: '18:00',
+    })
+  })
+
+  it('refuses a monthly pattern with no week picked', async () => {
+    const response = await patch({
+      meetingRepeat: MeetingRepeat.MONTHLY_WEEKDAY,
+      meetingWeekdays: [6],
+      meetingMonthWeeks: [],
+      meetingStartTime: '10:00',
+      meetingEndTime: '14:00',
+    })
+
+    expect(response.status).toBe(400)
+  })
+
+  /**
+   * A listed date outside the term would never be drawn, so it's refused with the reason
+   * rather than missing from every calendar with no explanation. The fixture's term is
+   * fall 2035 on the fallback dates, 24 August to 31 December.
+   */
+  it('takes a list of dates inside the term and refuses one outside it', async () => {
+    const dated = (dates: string[]) =>
+      patch({
+        meetingRepeat: MeetingRepeat.DATES,
+        meetingDates: dates,
+        meetingStartTime: '18:00',
+        meetingEndTime: '20:00',
+      })
+
+    const outside = await dated(['2034-10-20'])
+    expect(outside.status).toBe(400)
+    expect(((await outside.json()) as { error: string }).error).toContain(
+      '20 October 2034',
+    )
+
+    const inside = await dated(['2035-11-03', '2035-10-20', '2035-10-20'])
+    expect(inside.status).toBe(200)
+    expect(await inside.json()).toMatchObject({
+      meetingDates: ['2035-10-20', '2035-11-03'],
+    })
+
+    expect((await dated(['2035-02-30'])).status).toBe(400)
   })
 
   /**
@@ -1806,6 +1920,7 @@ describe('creating a project needs a schedule', () => {
 
     expect(response.status).toBe(201)
     expect(await response.json()).toMatchObject({
+      meetingRepeat: MeetingRepeat.WEEKLY,
       meetingWeekdays: [2, 4],
       meetingStartTime: '18:00',
       meetingEndTime: '22:00',
@@ -1813,6 +1928,119 @@ describe('creating a project needs a schedule', () => {
       // to say so.
       meetingsPublic: true,
     })
+  })
+
+  it('takes a monthly one', async () => {
+    const response = await create({
+      meetingRepeat: MeetingRepeat.MONTHLY_WEEKDAY,
+      meetingWeekdays: [6],
+      meetingMonthWeeks: [3, 1],
+      meetingStartTime: '10:00',
+      meetingEndTime: '14:00',
+    })
+
+    expect(response.status).toBe(201)
+    expect(await response.json()).toMatchObject({
+      meetingRepeat: MeetingRepeat.MONTHLY_WEEKDAY,
+      meetingWeekdays: [6],
+      meetingMonthWeeks: [1, 3],
+    })
+  })
+})
+
+/**
+ * A lead calling off one meeting: homecoming, a building closure. It stays on every
+ * calendar marked, so the member who knows the project meets on Tuesdays sees why this
+ * one isn't happening. The clock is mid-October 2035; the 16th is a Tuesday.
+ */
+describe('cancelling one meeting', () => {
+  const cancel = (date: string, body: unknown = {}, cookie = leadCookie) =>
+    request('PUT', `/api/projects/${projectId}/meetings/${date}/cancel`, cookie, body)
+
+  type Listed = { startsAt: string; cancelled: { reason: string | null } | null }
+
+  const upcoming = async () => {
+    const response = await request(
+      'GET',
+      `/api/projects/${projectId}/meetings`,
+      leadCookie,
+    )
+    expect(response.status).toBe(200)
+    return (await response.json()) as Listed[]
+  }
+
+  beforeEach(async () => {
+    await prisma.project.update({
+      where: { id: projectId },
+      data: {
+        meetingRepeat: MeetingRepeat.WEEKLY,
+        meetingWeekdays: [2, 4],
+        meetingStartTime: '18:00',
+        meetingEndTime: '22:00',
+      },
+    })
+  })
+
+  it('lists the rest of the term with the cancelled one marked', async () => {
+    const response = await cancel('2035-10-16', { reason: 'Homecoming' })
+    expect(response.status).toBe(200)
+
+    const meetings = await upcoming()
+    // Tuesdays and Thursdays from the 16th of October to the end of December.
+    expect(meetings.length).toBeGreaterThan(15)
+    expect(meetings[0]).toMatchObject({ cancelled: { reason: 'Homecoming' } })
+    expect(meetings.filter((meeting) => meeting.cancelled)).toHaveLength(1)
+  })
+
+  it('reaches a member calendar marked, with the reason', async () => {
+    await cancel('2035-10-16', { reason: 'Homecoming' })
+
+    const response = await request(
+      'GET',
+      '/api/me/events?from=2035-10-01T00:00:00.000Z&to=2035-11-01T00:00:00.000Z',
+      paidCookie,
+    )
+    const mine = ((await response.json()) as (Listed & { id: string })[]).filter(
+      (event) => event.id.startsWith(`meeting:${projectId}:`),
+    )
+
+    expect(mine.length).toBeGreaterThan(0)
+    expect(mine.filter((event) => event.cancelled)).toEqual([
+      expect.objectContaining({ cancelled: { reason: 'Homecoming' } }),
+    ])
+  })
+
+  it('puts it back', async () => {
+    await cancel('2035-10-16')
+
+    const response = await request(
+      'DELETE',
+      `/api/projects/${projectId}/meetings/2035-10-16/cancel`,
+      leadCookie,
+    )
+    expect(response.status).toBe(200)
+    expect((await upcoming()).some((meeting) => meeting.cancelled)).toBe(false)
+  })
+
+  it('refuses a day the schedule has no meeting on', async () => {
+    // A Wednesday.
+    expect((await cancel('2035-10-17')).status).toBe(404)
+    expect(await prisma.projectMeetingCancellation.count({ where: { projectId } })).toBe(0)
+  })
+
+  it('refuses something that is not a date', async () => {
+    expect((await cancel('next-tuesday')).status).toBe(400)
+  })
+
+  it('is for the lead, not the members', async () => {
+    await prisma.projectMember.create({ data: { projectId, userId: paidId } })
+
+    expect((await cancel('2035-10-16', {}, paidCookie)).status).toBe(403)
+    expect(
+      (
+        await request('GET', `/api/projects/${projectId}/meetings`, paidCookie)
+      ).status,
+    ).toBe(403)
   })
 })
 
@@ -1930,10 +2158,12 @@ describe('duplicating a project', () => {
         coverFocalX: 25,
         coverFocalY: 75,
         coverZoom: 2,
+        meetingRepeat: MeetingRepeat.WEEKLY,
         meetingWeekdays: [2, 4],
         meetingStartTime: '18:00',
         meetingEndTime: '22:00',
         meetingLocation: 'ENG2 Lab',
+        meetingCancellations: { create: { date: '2035-10-16' } },
         links: {
           create: [
             { label: 'Docs', url: 'https://example.com', sortOrder: 0 },
@@ -1967,12 +2197,36 @@ describe('duplicating a project', () => {
       coverFocalX: 25,
       coverFocalY: 75,
       coverZoom: 2,
+      meetingRepeat: MeetingRepeat.WEEKLY,
       meetingWeekdays: [2, 4],
       meetingStartTime: '18:00',
       meetingEndTime: '22:00',
       termYear: 2036,
       termSeason: Season.SPRING,
     })
+  })
+
+  /**
+   * Dates belong to the term they were picked for, and none would land in the new one. A
+   * cancellation is a date too.
+   */
+  it('leaves last term\'s dates and cancellations behind', async () => {
+    await prisma.project.update({
+      where: { id: projectId },
+      data: {
+        meetingRepeat: MeetingRepeat.DATES,
+        meetingWeekdays: [],
+        meetingDates: ['2035-10-20'],
+      },
+    })
+
+    const response = await duplicate({ slug: `${PREFIX}rover-dated` })
+    const copy = (await response.json()) as { id: string }
+
+    expect(copy).toMatchObject({ meetingRepeat: null, meetingDates: [] })
+    expect(
+      await prisma.projectMeetingCancellation.count({ where: { projectId: copy.id } }),
+    ).toBe(0)
   })
 
   /**

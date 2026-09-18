@@ -32,12 +32,22 @@ import {
 } from '../../generated/prisma/enums.js'
 import { notifyOfficers } from '../../discord/officerNotify.js'
 import {
-  MEETING_ORDER,
-  MEETING_WHOLE,
-  meetingIsWhole,
+  isCivilDate,
   meetingPatchFields,
-  meetingRunsForward,
+  mergeSchedule,
+  scheduleProblem,
+  scheduleTermProblem,
+  touchesSchedule,
 } from '../../projects/projectMeeting.js'
+import {
+  MAX_WINDOW_DAYS,
+  asMemberEvent,
+  expandMeetings,
+  meetingOn,
+  meetingProjectSelect,
+  startOfCampusDay,
+} from '../../projects/meetings.js'
+import { getTerm } from '../../membership/semester.js'
 import { TERM_PAIRED, termFields, termsAgree } from '../../projects/projectTerm.js'
 import { rateLimit } from '../../core/rateLimit.js'
 import {
@@ -56,6 +66,9 @@ import { managedProjectSelect } from '../officer/officer.js'
  *   DELETE /api/projects/:id/members/me            -> leave
  *   GET    /api/projects/:id/team                  -> teams + members, for members
  *   PATCH  /api/projects/:id                       -> edit (project lead)
+ *   GET    /api/projects/:id/meetings              -> the rest of the term's meetings (project lead)
+ *   PUT    /api/projects/:id/meetings/:date/cancel -> call one off (project lead)
+ *   DELETE /api/projects/:id/meetings/:date/cancel -> put it back (project lead)
  *   POST   /api/projects/:id/cover                 -> listing image (project lead)
  *   POST   /api/projects/:id/images                -> gallery, by URL (project lead)
  *   POST   /api/projects/:id/images/upload         -> gallery, by file (project lead)
@@ -273,7 +286,13 @@ projectManage.get('/projects/:id/team', requireAuth, async (c) => {
     featured,
     startedAt,
     completedAt,
+    meetingRepeat,
     meetingWeekdays,
+    meetingInterval,
+    meetingMonthWeeks,
+    meetingMonthDays,
+    meetingDates,
+    meetingStartsOn,
     meetingStartTime,
     meetingEndTime,
     meetingLocation,
@@ -304,7 +323,13 @@ projectManage.get('/projects/:id/team', requireAuth, async (c) => {
       featured,
       startedAt,
       completedAt,
+      meetingRepeat,
       meetingWeekdays,
+      meetingInterval,
+      meetingMonthWeeks,
+      meetingMonthDays,
+      meetingDates,
+      meetingStartsOn,
       meetingStartTime,
       meetingEndTime,
       meetingLocation,
@@ -360,7 +385,7 @@ const editProject = z
      * When the project meets. Shared with the create route rather than restated —
      * see `projectMeeting.ts` for the pairing rules.
      *
-     * Optional here and required there, and an empty `meetingWeekdays` clears the
+     * Optional here and required there, and `meetingRepeat: null` clears the
      * schedule. Nobody starts a build without knowing when it meets; finishing one
      * and wanting the Tuesday off the front page is a real case.
      */
@@ -388,8 +413,6 @@ const editProject = z
     ...discordRoleField,
   })
   .refine(termsAgree, TERM_PAIRED)
-  .refine(meetingRunsForward, MEETING_ORDER)
-  .refine(meetingIsWhole, MEETING_WHOLE)
 
 projectManage.patch(
   '/projects/:id',
@@ -412,26 +435,19 @@ projectManage.patch(
       })
     }
 
-    // The pairing rule holds on the resulting row, whichever half the body carried.
-    // Without it, a PATCH naming only `meetingStartTime: null` leaves days with no
-    // times: a project that reads as scheduled and appears on no calendar.
-    const resulting = {
-      meetingWeekdays: patch.meetingWeekdays ?? project.meetingWeekdays,
-      meetingStartTime:
-        patch.meetingStartTime === undefined
-          ? project.meetingStartTime
-          : patch.meetingStartTime,
-      meetingEndTime:
-        patch.meetingEndTime === undefined
-          ? project.meetingEndTime
-          : patch.meetingEndTime,
-    }
-
-    if (!meetingRunsForward(resulting)) {
-      throw new HTTPException(400, { message: MEETING_ORDER.message })
-    }
-    if (!meetingIsWhole(resulting)) {
-      throw new HTTPException(400, { message: MEETING_WHOLE.message })
+    // Checked on the resulting row, whichever fields the body carried, and against the
+    // term the project will be in once this lands.
+    const schedule = touchesSchedule(patch)
+      ? mergeSchedule(project, patch)
+      : null
+    if (schedule) {
+      const problem =
+        scheduleProblem(schedule) ??
+        (await scheduleTermProblem(schedule, {
+          termYear: patch.termYear ?? project.termYear,
+          termSeason: patch.termSeason ?? project.termSeason,
+        }))
+      if (problem) throw new HTTPException(400, { message: problem })
     }
 
     if (patch.discordRoleId !== undefined) {
@@ -440,7 +456,7 @@ projectManage.patch(
 
     const updated = await prisma.project.update({
       where: { id: project.id },
-      data: patch,
+      data: { ...patch, ...schedule },
       // `description` is added to the shape here and only here. It's left out of
       // `managedProjectSelect` because that feeds `/me/projects`, which every
       // dashboard page loads, and a 20,000-character column per project is a payload
@@ -478,6 +494,111 @@ projectManage.patch(
     }
 
     return c.json(updated)
+  },
+)
+
+// ----------------------------------------------------------------- meetings
+
+async function getMeetingProject(id: string) {
+  const project = await prisma.project.findUnique({
+    where: { id },
+    select: meetingProjectSelect,
+  })
+  if (!project) throw noSuchProject()
+  return project
+}
+
+/** The date in the URL, which is also the key a cancellation is stored under. */
+function meetingDate(date: string) {
+  if (!isCivilDate(date)) {
+    throw new HTTPException(400, { message: 'Dates look like "2026-09-23".' })
+  }
+  return date
+}
+
+/**
+ * The rest of this term's meetings, cancelled ones included, for the lead's list.
+ *
+ * From the start of today rather than now, so this evening's meeting can still be
+ * called off after lunch. Capped at the expander's window, which only bites on a
+ * project stamped for a term more than a year out.
+ */
+projectManage.get('/projects/:id/meetings', requireAuth, async (c) => {
+  const project = await getMeetingProject(c.req.param('id'))
+  await requireProjectLead(c.get('user'), project.id)
+
+  const term = await getTerm(project.termYear, project.termSeason)
+  const from = startOfCampusDay(new Date())
+  const to = new Date(
+    Math.min(
+      term.endsAt.getTime() + 1,
+      from.getTime() + MAX_WINDOW_DAYS * 24 * 60 * 60 * 1000,
+    ),
+  )
+
+  return c.json((await expandMeetings([project], from, to)).map(asMemberEvent))
+})
+
+/**
+ * Calling one meeting off, with an optional reason that prints on it wherever it
+ * shows. Pressing it again on a cancelled one rewrites the reason.
+ *
+ * Only a date the schedule actually lands on, so a stray request can't leave a
+ * cancellation waiting for the day a lead changes the pattern to meet on it.
+ */
+const cancelBody = z.object({
+  reason: z
+    .string()
+    .trim()
+    .max(200)
+    .nullable()
+    .optional()
+    .transform((text) => text || null),
+})
+
+projectManage.put(
+  '/projects/:id/meetings/:date/cancel',
+  originGuard,
+  requireAuth,
+  writes,
+  validate('json', cancelBody),
+  async (c) => {
+    const date = meetingDate(c.req.param('date'))
+    const project = await getMeetingProject(c.req.param('id'))
+    await requireProjectLead(c.get('user'), project.id)
+
+    if (!(await meetingOn(project, date))) {
+      throw new HTTPException(404, {
+        message: 'The schedule has no meeting on that day.',
+      })
+    }
+
+    const { reason } = c.req.valid('json')
+    await prisma.projectMeetingCancellation.upsert({
+      where: { projectId_date: { projectId: project.id, date } },
+      create: { projectId: project.id, date, reason },
+      update: { reason },
+    })
+
+    return c.json({ date, reason })
+  },
+)
+
+projectManage.delete(
+  '/projects/:id/meetings/:date/cancel',
+  originGuard,
+  requireAuth,
+  writes,
+  async (c) => {
+    const date = meetingDate(c.req.param('date'))
+    const project = await getMeetingProject(c.req.param('id'))
+    await requireProjectLead(c.get('user'), project.id)
+
+    await prisma.projectMeetingCancellation.deleteMany({
+      where: { projectId: project.id, date },
+    })
+
+    return c.json({ deleted: true })
   },
 )
 

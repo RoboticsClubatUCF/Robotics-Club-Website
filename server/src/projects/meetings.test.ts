@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { MAX_WINDOW_DAYS, expandMeetings } from './meetings.js'
+import { MAX_WINDOW_DAYS, expandMeetings, meetingOn } from './meetings.js'
 import type { MeetingProject } from './meetings.js'
 import { clearCalendarCache } from '../membership/semester.js'
-import { Season } from '../generated/prisma/enums.js'
+import { MeetingRepeat, Season } from '../generated/prisma/enums.js'
 
 /**
  * Turning "Tuesdays and Thursdays, six till ten" into squares on a calendar.
@@ -104,11 +104,18 @@ const rover = (over: Partial<MeetingProject> = {}): MeetingProject => ({
   title: 'Rover',
   termYear: 2035,
   termSeason: Season.FALL,
+  meetingRepeat: MeetingRepeat.WEEKLY,
   meetingWeekdays: [2, 4],
+  meetingInterval: 1,
+  meetingMonthWeeks: [],
+  meetingMonthDays: [],
+  meetingDates: [],
+  meetingStartsOn: null,
   meetingStartTime: '18:00',
   meetingEndTime: '22:00',
   meetingLocation: 'ENG2 Lab',
   meetingDescription: null,
+  meetingCancellations: [],
   ...over,
 })
 
@@ -134,6 +141,12 @@ const campusWeekday = (iso: string) =>
 
 const window = (from: string, to: string) =>
   [new Date(from), new Date(to)] as const
+
+/** The campus dates a list of occurrences lands on. */
+const daysOf = (out: { startsAt: string }[]) =>
+  out.map((occurrence) => onCampus(occurrence.startsAt).slice(0, 10))
+
+const SEPTEMBER = window('2035-09-01T04:00:00Z', '2035-10-01T04:00:00Z')
 
 describe('expanding a weekly meeting', () => {
   it('lands on every named weekday and no others', async () => {
@@ -243,6 +256,7 @@ describe('the bounds', () => {
     const none = await expandMeetings(
       [
         rover({
+          meetingRepeat: null,
           meetingWeekdays: [],
           meetingStartTime: null,
           meetingEndTime: null,
@@ -297,6 +311,7 @@ describe('the finals halt', () => {
     const [first] = await expandMeetings([rover()], from, to)
 
     expect(onCampus(first!.meeting.untilDate).slice(0, 10)).toBe('2035-12-12')
+    expect(first!.meeting.repeat).toBe(MeetingRepeat.WEEKLY)
     expect(first!.meeting.weekdays).toEqual([2, 4])
     expect(first!.meeting.startTime).toBe('18:00')
     expect(first!.meeting.endTime).toBe('22:00')
@@ -338,5 +353,194 @@ describe('what an occurrence looks like', () => {
       String(call[0]).endsWith('2035/fall'),
     )
     expect(asked).toHaveLength(1)
+  })
+})
+
+describe('every few weeks', () => {
+  it('lands on alternate weeks, counted from the first date', async () => {
+    const out = await expandMeetings(
+      [rover({ meetingWeekdays: [3], meetingInterval: 2, meetingStartsOn: '2035-09-05' })],
+      ...SEPTEMBER,
+    )
+
+    // Wednesdays: the 5th and 19th are on, the 12th and 26th are off.
+    expect(daysOf(out)).toEqual(['2035-09-05', '2035-09-19'])
+  })
+
+  /**
+   * Weeks run Sunday to Saturday, the way `WKST=SU` tells a calendar app. Counting in
+   * days instead would split a Tuesday and Thursday pair across the on and off weeks.
+   */
+  it('keeps the days of one week together', async () => {
+    const out = await expandMeetings(
+      [rover({ meetingInterval: 2, meetingStartsOn: '2035-09-04' })],
+      ...SEPTEMBER,
+    )
+
+    expect(daysOf(out)).toEqual([
+      '2035-09-04',
+      '2035-09-06',
+      '2035-09-18',
+      '2035-09-20',
+    ])
+  })
+
+  it('draws nothing before the first date', async () => {
+    const out = await expandMeetings(
+      [rover({ meetingStartsOn: '2035-09-18' })],
+      ...SEPTEMBER,
+    )
+
+    expect(daysOf(out)[0]).toBe('2035-09-18')
+  })
+})
+
+describe('monthly', () => {
+  it('lands on the first and third Saturday', async () => {
+    const out = await expandMeetings(
+      [
+        rover({
+          meetingRepeat: MeetingRepeat.MONTHLY_WEEKDAY,
+          meetingWeekdays: [6],
+          meetingMonthWeeks: [1, 3],
+        }),
+      ],
+      ...SEPTEMBER,
+    )
+
+    expect(daysOf(out)).toEqual(['2035-09-01', '2035-09-15'])
+  })
+
+  it('lands on the last Friday, whichever week that is', async () => {
+    const out = await expandMeetings(
+      [
+        rover({
+          meetingRepeat: MeetingRepeat.MONTHLY_WEEKDAY,
+          meetingWeekdays: [5],
+          meetingMonthWeeks: [-1],
+        }),
+      ],
+      ...window('2035-09-01T04:00:00Z', '2035-12-01T05:00:00Z'),
+    )
+
+    // A five-Friday month and two four-Friday ones.
+    expect(daysOf(out)).toEqual(['2035-09-28', '2035-10-26', '2035-11-30'])
+  })
+
+  it('lands on the 1st and on the last day of each month', async () => {
+    const out = await expandMeetings(
+      [
+        rover({
+          meetingRepeat: MeetingRepeat.MONTHLY_DAY,
+          meetingWeekdays: [],
+          meetingMonthDays: [1, -1],
+        }),
+      ],
+      ...window('2035-09-01T04:00:00Z', '2035-11-01T04:00:00Z'),
+    )
+
+    expect(daysOf(out)).toEqual([
+      '2035-09-01',
+      '2035-09-30',
+      '2035-10-01',
+      '2035-10-31',
+    ])
+  })
+})
+
+describe('a list of dates', () => {
+  const dated = (dates: string[], over: Partial<MeetingProject> = {}) =>
+    rover({
+      meetingRepeat: MeetingRepeat.DATES,
+      meetingWeekdays: [],
+      meetingDates: dates,
+      ...over,
+    })
+
+  it('lands on the dates and nowhere else', async () => {
+    const out = await expandMeetings(
+      [dated(['2035-09-10', '2035-09-27'])],
+      ...SEPTEMBER,
+    )
+
+    expect(daysOf(out)).toEqual(['2035-09-10', '2035-09-27'])
+  })
+
+  it('still leaves finals week out', async () => {
+    const out = await expandMeetings(
+      [dated(['2035-12-04', '2035-12-08'])],
+      ...window('2035-12-01T05:00:00Z', '2035-12-20T05:00:00Z'),
+    )
+
+    expect(daysOf(out)).toEqual(['2035-12-04'])
+    expect(out[0]!.meeting.dates).toHaveLength(1)
+  })
+
+  /**
+   * There's no rule a calendar app can repeat for a list, so the export writes one entry
+   * per date. It gets the whole term's worth whichever month was asked for, minus the
+   * cancelled ones, which a file of separate entries has no `EXDATE` to leave out.
+   */
+  it('hands the calendar file every date left standing', async () => {
+    const [first] = await expandMeetings(
+      [
+        dated(['2035-09-10', '2035-10-02', '2035-11-05'], {
+          meetingCancellations: [{ date: '2035-10-02', reason: null }],
+        }),
+      ],
+      ...SEPTEMBER,
+    )
+
+    expect(daysOf(first!.meeting.dates)).toEqual(['2035-09-10', '2035-11-05'])
+    expect(onCampus(first!.meeting.dates[0]!.endsAt)).toBe('2035-09-10 22:00')
+    expect(first!.meeting.skipDates).toEqual([])
+  })
+})
+
+describe('a cancelled meeting', () => {
+  const homecoming = rover({
+    meetingCancellations: [{ date: '2035-09-13', reason: 'Homecoming' }],
+  })
+
+  it('stays on the calendar, marked, with the reason', async () => {
+    const out = await expandMeetings([homecoming], ...SEPTEMBER)
+    const thirteenth = out.find((occurrence) =>
+      onCampus(occurrence.startsAt).startsWith('2035-09-13'),
+    )
+
+    expect(thirteenth?.cancelled).toEqual({ reason: 'Homecoming' })
+    expect(out.filter((occurrence) => occurrence.cancelled)).toHaveLength(1)
+  })
+
+  it('is named for the calendar file to leave out', async () => {
+    const [first] = await expandMeetings([homecoming], ...SEPTEMBER)
+
+    expect(first!.meeting.cancelledDates.map(onCampus)).toEqual([
+      '2035-09-13 18:00',
+    ])
+  })
+
+  it('does nothing on a day the schedule has no meeting', async () => {
+    const out = await expandMeetings(
+      [rover({ meetingCancellations: [{ date: '2035-09-12', reason: null }] })],
+      ...SEPTEMBER,
+    )
+
+    expect(out.some((occurrence) => occurrence.cancelled)).toBe(false)
+    expect(out[0]!.meeting.cancelledDates).toEqual([])
+  })
+})
+
+describe('the meeting on one date', () => {
+  it('is found on a meeting day, cancelled or not, and not on any other', async () => {
+    const project = rover({
+      meetingCancellations: [{ date: '2035-09-13', reason: null }],
+    })
+
+    expect(onCampus((await meetingOn(project, '2035-09-11'))!.startsAt)).toBe(
+      '2035-09-11 18:00',
+    )
+    expect(await meetingOn(project, '2035-09-13')).not.toBeNull()
+    expect(await meetingOn(project, '2035-09-12')).toBeNull()
   })
 })

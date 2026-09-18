@@ -243,6 +243,7 @@ const sandbox = {
   // Two nights a week, so both calendars have recurring chips to draw without anybody
   // setting one up by hand — and so the multi-day case gets looked at every day rather than
   // the one nobody sees until it breaks.
+  meetingRepeat: 'WEEKLY' as const,
   meetingWeekdays: [2, 4],
   meetingStartTime: '18:00',
   meetingEndTime: '22:00',

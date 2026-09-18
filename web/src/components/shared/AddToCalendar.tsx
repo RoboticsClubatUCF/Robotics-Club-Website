@@ -18,9 +18,9 @@ import {
  * other downloads, and a select that does either on change is a control that fires when somebody is
  * only looking.
  *
- * On a recurring meeting the panel says what it is about to add — the term it runs to, and that
- * finals week is left out — because "add to calendar" on a weekly meeting could reasonably mean one
- * evening, and somebody should know which before their phone fills up with Tuesdays.
+ * On a project meeting the panel says what it is about to add — the term it runs to, and what is
+ * left out — because "add to calendar" on a weekly meeting could reasonably mean one evening, and
+ * somebody should know which before their phone fills up with Tuesdays.
  */
 export function AddToCalendar({
   event,
@@ -120,7 +120,7 @@ export function AddToCalendar({
                 their own app wants to see its name, and ".ics" is not a word
                 most people know they need. */}
             The .ics file opens in Samsung Calendar, Apple Calendar and Outlook.
-            {event.meeting && ` ${seriesSummary(event.meeting)}`}
+            {event.meeting && ` ${seriesSummary(event.meeting, event.startsAt)}`}
           </p>
         </div>
       )}

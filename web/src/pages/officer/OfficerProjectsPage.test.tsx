@@ -57,7 +57,13 @@ const created: ApiManagedProject = {
   featured: false,
   startedAt: null,
   completedAt: null,
+  meetingRepeat: null,
   meetingWeekdays: [],
+  meetingInterval: 1,
+  meetingMonthWeeks: [],
+  meetingMonthDays: [],
+  meetingDates: [],
+  meetingStartsOn: null,
   meetingStartTime: null,
   meetingEndTime: null,
   meetingLocation: null,
@@ -188,7 +194,7 @@ async function createProject() {
 function fillMeeting() {
   const panel = createPanel()
 
-  for (const day of ['TUE', 'THU']) {
+  for (const day of ['Tuesday', 'Thursday']) {
     fireEvent.click(panel.getByRole('checkbox', { name: day }))
   }
   fireEvent.change(panel.getByLabelText('FROM'), {
@@ -324,7 +330,14 @@ describe('OfficerProjectsPage', () => {
 
     const posted = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')
     const sent = JSON.parse(posted![1]!.body as string) as Record<string, unknown>
-    expect(sent).toMatchObject({ description: 'Two years of chassis work.' })
+    expect(sent).toMatchObject({
+      description: 'Two years of chassis work.',
+      // The schedule goes with it, as the pattern the form was showing.
+      meetingRepeat: 'WEEKLY',
+      meetingWeekdays: [2, 4],
+      meetingStartTime: '18:00',
+      meetingEndTime: '22:00',
+    })
     // The column is gone, so the create route no longer takes it — and zod
     // strips what it does not declare, which would turn re-adding this field
     // into a silent no-op rather than an error somebody sees.

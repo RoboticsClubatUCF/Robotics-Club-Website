@@ -400,29 +400,43 @@ model Project {
   startedAt   DateTime? @map("started_at")
   completedAt DateTime? @map("completed_at")
 
-  /// The weekly meeting, as "what the lead would say out loud": the weekdays it runs on (0-6,
-  /// Sunday first, matching `Date.getDay()`), wall-clock times like "18:00" and "22:00", and a
-  /// place. Deliberately not timestamps and not Event rows — "Tuesdays and Thursdays, 6 till 10" is
-  /// a campus-local, DST-proof idea that a UTC instant cannot carry, and generated rows would need
-  /// a sweeper plus dedupe on every edit.
+  /// The meeting schedule, as "what the lead would say out loud": a repeat pattern, wall-clock
+  /// times like "18:00" and "22:00", and a place. Deliberately not timestamps and not Event rows —
+  /// "every other Tuesday, 6 till 10" is a campus-local, DST-proof idea that a UTC instant cannot
+  /// carry, and generated rows would need a sweeper plus dedupe on every edit.
   ///
-  /// `src/projects/meetings.ts` expands these into occurrences, on the server. It used to be done
-  /// in the browser, for the dashboard only and unbounded; now one module answers "when does this
-  /// project meet" for both calendars, stops at the end of the project's own term, and drops finals
-  /// week. There is still no recurrence model on `Event` — this is the only recurring thing on the
-  /// site and it is three columns, not a table.
+  /// `src/projects/meetings.ts` expands these into occurrences for both calendars, stopping at the
+  /// end of the project's own term and dropping finals week. `src/projects/projectMeeting.ts` is
+  /// the write rule: `meetingRepeat` says which of the pattern columns below are read, and the
+  /// write routes empty the ones it doesn't use, so a reader can trust whatever is set.
   ///
-  /// Nullable, and required by the create route rather than by Postgres. A project made after this
-  /// change cannot be made without a schedule; the rows that predate it have no end time, and a
-  /// `NOT NULL` would mean inventing one for them.
+  /// Null `meetingRepeat` is no schedule, and then the times are null too. Required by the create
+  /// route rather than by Postgres; the rows that predate that have no end time.
+  meetingRepeat     MeetingRepeat? @map("meeting_repeat")
+  /// WEEKLY and MONTHLY_WEEKDAY: the weekdays, 0-6, Sunday first like `Date.getDay()`.
   ///
   /// The `@default([])` is the `DEFAULT '{}'` that 20260824220000 put on the column, written down.
   /// Declaring it here rather than dropping it there is what stops `migrate diff` offering the same
   /// unrelated `DROP DEFAULT` on top of every migration generated since.
-  meetingWeekdays  Int[]   @default([]) @map("meeting_weekdays")
-  meetingStartTime String? @map("meeting_start_time")
-  meetingEndTime   String? @map("meeting_end_time")
-  meetingLocation  String? @map("meeting_location")
+  meetingWeekdays   Int[]          @default([]) @map("meeting_weekdays")
+  /// WEEKLY: every this many weeks, 1 to 4, counted from `meetingStartsOn`. Weeks start on Sunday,
+  /// and the calendar export says `WKST=SU` to match.
+  meetingInterval   Int            @default(1) @map("meeting_interval")
+  /// MONTHLY_WEEKDAY: which weeks of the month, 1 to 4, or -1 for the last. "The first and third
+  /// Saturday" is weeks [1, 3] on weekday [6].
+  meetingMonthWeeks Int[]          @default([]) @map("meeting_month_weeks")
+  /// MONTHLY_DAY: days of the month, 1 to 28, or -1 for the last day. Capped at 28 so no month is
+  /// ever skipped; the 30th of February is a question nobody should have to answer.
+  meetingMonthDays  Int[]          @default([]) @map("meeting_month_days")
+  /// DATES: campus dates like "2026-09-23", sorted. Strings for the same reason the times are.
+  meetingDates      String[]       @default([]) @map("meeting_dates")
+  /// WEEKLY and the monthly patterns: the first date the schedule may land on, or null for the
+  /// start of the term. Required when the interval is over 1, because it's where the counting
+  /// starts, and a term start that moves with UCF's feed would flip every other week.
+  meetingStartsOn   String?        @map("meeting_starts_on")
+  meetingStartTime  String?        @map("meeting_start_time")
+  meetingEndTime    String?        @map("meeting_end_time")
+  meetingLocation   String?        @map("meeting_location")
 
   /// What the lead wants said about the meeting, in their own words, or null.
   ///
@@ -469,20 +483,58 @@ model Project {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  members       ProjectMember[]
-  teams         Team[]
-  events        Event[]
-  tasks         Task[]
-  printRequests PrintRequest[]
-  images        ProjectImage[]
-  links         ProjectLink[]
-  documents     ProjectDocument[]
+  members              ProjectMember[]
+  teams                Team[]
+  events               Event[]
+  tasks                Task[]
+  printRequests        PrintRequest[]
+  images               ProjectImage[]
+  links                ProjectLink[]
+  documents            ProjectDocument[]
+  meetingCancellations ProjectMeetingCancellation[]
 
   @@index([status])
   @@index([featured])
   // Matches the default project listing order.
   @@index([featured, startedAt])
   @@map("projects")
+}
+
+/// How a project's meeting repeats. Which `Project.meeting*` columns each one reads is written on
+/// the columns.
+enum MeetingRepeat {
+  /// "Tuesdays and Thursdays", or "every other Wednesday" with an interval.
+  WEEKLY
+  /// "The first Saturday of the month".
+  MONTHLY_WEEKDAY
+  /// "The 1st of the month".
+  MONTHLY_DAY
+  /// A list of dates, for a project that meets when it can.
+  DATES
+}
+
+/// One meeting a lead called off: homecoming, a building closure, half the team at a competition.
+///
+/// Keyed on the campus date, since a project meets at most once a day. It stays on the calendars
+/// marked cancelled, with the reason, rather than disappearing, because somebody who knows the
+/// project meets on Thursdays would otherwise turn up to a locked lab.
+///
+/// A row whose date no longer matches the schedule does nothing, and applies again if the
+/// schedule comes back to that day. Nothing needs cleaning up when a lead edits the pattern.
+model ProjectMeetingCancellation {
+  id        String  @id @default(uuid(7))
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  /// "2026-09-25", campus-local, like `Project.meetingDates`.
+  date   String
+  /// Printed on the cancelled meeting wherever it shows, the public calendar included.
+  reason String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([projectId, date])
+  @@map("project_meeting_cancellations")
 }
 
 /// Someone's standing within one project, most permission to least — declared in that order like

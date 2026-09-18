@@ -6,7 +6,14 @@ import {
   hasSchedule,
   meetingLine,
   meetingNote,
+  meetingPattern,
 } from './meetings'
+import {
+  EMPTY_DRAFT,
+  draftBody,
+  draftOf,
+  draftProblem,
+} from './meetingDraft'
 import type { ApiManagedProject } from '../api/api'
 
 /**
@@ -21,13 +28,25 @@ const project = (
   over: Partial<ApiManagedProject> = {},
 ): Pick<
   ApiManagedProject,
+  | 'meetingRepeat'
   | 'meetingWeekdays'
+  | 'meetingInterval'
+  | 'meetingMonthWeeks'
+  | 'meetingMonthDays'
+  | 'meetingDates'
+  | 'meetingStartsOn'
   | 'meetingStartTime'
   | 'meetingEndTime'
   | 'meetingLocation'
   | 'meetingDescription'
 > => ({
+  meetingRepeat: 'WEEKLY',
   meetingWeekdays: [2, 4],
+  meetingInterval: 1,
+  meetingMonthWeeks: [],
+  meetingMonthDays: [],
+  meetingDates: [],
+  meetingStartsOn: null,
   meetingStartTime: '18:00',
   meetingEndTime: '22:00',
   meetingLocation: 'ENG2 Lab',
@@ -98,7 +117,7 @@ describe('meetingLine', () => {
    * the invented content the site's copy rules forbid. The caller says nothing instead.
    */
   it('says nothing when the schedule is incomplete', () => {
-    expect(meetingLine(project({ meetingWeekdays: [] }))).toBeNull()
+    expect(meetingLine(project({ meetingRepeat: null }))).toBeNull()
     expect(meetingLine(project({ meetingStartTime: null }))).toBeNull()
     expect(meetingLine(project({ meetingEndTime: null }))).toBeNull()
   })
@@ -122,16 +141,154 @@ describe('meetingNote', () => {
   it('says nothing when there is no schedule to say it about', () => {
     expect(
       meetingNote(
-        project({ meetingWeekdays: [], meetingDescription: 'Bring a laptop.' }),
+        project({ meetingRepeat: null, meetingDescription: 'Bring a laptop.' }),
       ),
     ).toBeNull()
   })
 })
 
 describe('hasSchedule', () => {
-  it('needs all three, matching the server rule', () => {
+  it('needs a pattern and both times, matching the server rule', () => {
     expect(hasSchedule(project())).toBe(true)
-    expect(hasSchedule(project({ meetingWeekdays: [] }))).toBe(false)
+    expect(hasSchedule(project({ meetingRepeat: null }))).toBe(false)
     expect(hasSchedule(project({ meetingEndTime: null }))).toBe(false)
+  })
+})
+
+/** Mid-September 2035, so "ahead" and "past" have something either side of them. */
+const NOW = new Date(2035, 8, 15, 12, 0)
+
+describe('meetingPattern', () => {
+  it('says every other week the way people do', () => {
+    expect(
+      meetingPattern(project({ meetingWeekdays: [3], meetingInterval: 2 }), NOW),
+    ).toBe('every other Wednesday')
+    expect(
+      meetingPattern(project({ meetingInterval: 2 }), NOW),
+    ).toBe('every other Tuesday and Thursday')
+    expect(
+      meetingPattern(project({ meetingInterval: 3 }), NOW),
+    ).toBe('every 3 weeks on Tuesdays and Thursdays')
+  })
+
+  it('names a first date only while it is still ahead', () => {
+    const later = project({ meetingStartsOn: '2035-10-01' })
+    expect(meetingPattern(later, NOW)).toMatch(/^Tuesdays and Thursdays from /)
+    expect(meetingPattern(later, new Date(2035, 9, 5))).toBe(
+      'Tuesdays and Thursdays',
+    )
+  })
+
+  it('reads a monthly pattern back', () => {
+    expect(
+      meetingPattern(
+        project({
+          meetingRepeat: 'MONTHLY_WEEKDAY',
+          meetingWeekdays: [6],
+          meetingMonthWeeks: [1, 3],
+        }),
+        NOW,
+      ),
+    ).toBe('the first and third Saturday of the month')
+    expect(
+      meetingPattern(
+        project({
+          meetingRepeat: 'MONTHLY_WEEKDAY',
+          meetingWeekdays: [5],
+          meetingMonthWeeks: [-1],
+        }),
+        NOW,
+      ),
+    ).toBe('the last Friday of the month')
+    expect(
+      meetingPattern(
+        project({ meetingRepeat: 'MONTHLY_DAY', meetingMonthDays: [1, 12, -1] }),
+        NOW,
+      ),
+    ).toBe('on the 1st, 12th and last day of the month')
+  })
+
+  /**
+   * A list names the dates still ahead, a few of them, since a past date is no use to anybody
+   * reading a dashboard card. With none left there's nothing to say, and the line goes.
+   */
+  it('names the next few dates of a list, and nothing once they have passed', () => {
+    const dated = (dates: string[]) =>
+      project({ meetingRepeat: 'DATES', meetingWeekdays: [], meetingDates: dates })
+
+    expect(
+      meetingPattern(
+        dated(['2035-09-01', '2035-09-20', '2035-10-04', '2035-10-18', '2035-11-01']),
+        NOW,
+      ),
+    ).toMatch(/ and 1 more date$/)
+    expect(meetingPattern(dated(['2035-09-01']), NOW)).toBeNull()
+    expect(meetingLine(dated(['2035-09-01']), NOW)).toBeNull()
+  })
+})
+
+describe('a pattern not filled in yet', () => {
+  /** The form reads its draft through here, so half a pattern is a normal state. */
+  it('says nothing rather than half a sentence', () => {
+    expect(meetingPattern(project({ meetingWeekdays: [], meetingInterval: 2 }), NOW)).toBeNull()
+    expect(
+      meetingPattern(project({ meetingRepeat: 'MONTHLY_WEEKDAY', meetingMonthWeeks: [] }), NOW),
+    ).toBeNull()
+    expect(
+      meetingPattern(project({ meetingRepeat: 'MONTHLY_DAY', meetingMonthDays: [] }), NOW),
+    ).toBeNull()
+  })
+})
+
+describe('the schedule form', () => {
+  it('opens an unscheduled project as an empty weekly one', () => {
+    expect(draftOf(project({ meetingRepeat: null, meetingWeekdays: [] }))).toMatchObject({
+      repeat: 'WEEKLY',
+      weekdays: [],
+    })
+  })
+
+  it('asks for the part each pattern needs before anything else', () => {
+    const timed = { ...EMPTY_DRAFT, startTime: '18:00', endTime: '20:00' }
+
+    expect(draftProblem(timed)).toBe('Pick at least one day.')
+    expect(draftProblem({ ...timed, weekdays: [3], interval: 2 })).toMatch(
+      /first meeting/,
+    )
+    expect(draftProblem({ ...timed, repeat: 'MONTHLY_WEEKDAY', weekdays: [6] })).toBe(
+      'Pick which week of the month.',
+    )
+    expect(draftProblem({ ...timed, repeat: 'DATES' })).toBe('Add at least one date.')
+    expect(
+      draftProblem({ ...timed, repeat: 'DATES', dates: ['2035-10-01'], endTime: '17:00' }),
+    ).toBe('The meeting has to end after it starts.')
+    expect(draftProblem({ ...timed, weekdays: [2] })).toBeNull()
+  })
+
+  /**
+   * The draft keeps every pattern's fields while a lead flips between them, so trying monthly
+   * doesn't lose the ticked days. Only the chosen pattern's reach the server.
+   */
+  it('sends only the chosen pattern', () => {
+    const body = draftBody({
+      ...EMPTY_DRAFT,
+      repeat: 'DATES',
+      weekdays: [2, 4],
+      interval: 2,
+      startsOn: '2035-09-02',
+      dates: ['2035-10-01'],
+      startTime: '18:00',
+      endTime: '20:00',
+      location: '  ',
+    })
+
+    expect(body).toMatchObject({
+      meetingRepeat: 'DATES',
+      meetingWeekdays: [],
+      meetingInterval: 1,
+      meetingStartsOn: null,
+      meetingDates: ['2035-10-01'],
+      meetingLocation: null,
+    })
   })
 })

@@ -27,7 +27,12 @@ import type {
   ApiProjectLink,
 } from '../../lib/api/api'
 import { explainApiError } from '../../lib/api/apiErrors'
-import { WEEKDAY_SHORT } from '../../lib/events/meetings'
+import {
+  EMPTY_DRAFT,
+  draftBody,
+  draftProblem,
+} from '../../lib/events/meetingDraft'
+import { MeetingScheduleFields } from '../../components/projects/MeetingScheduleFields'
 import {
   publishDraft,
   usableLinks,
@@ -163,11 +168,11 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
   // pictures that are already on the server, and there's no project for one to be on yet.
   const [images, setImages] = useState<NewImage[]>([])
   /**
-   * The meeting days, and the only field on this form that isn't a plain uncontrolled input.
-   * Seven checkboxes are a set rather than a value, and reading them back out of `FormData`
-   * would be `getAll` plus a cast — state is what lets the chips draw themselves selected.
+   * The meeting schedule, the one part of this form held in state rather than read out of
+   * `FormData`: which fields it draws depends on the pattern chosen, and it's the same editor
+   * the manage page uses.
    */
-  const [days, setDays] = useState<number[]>([])
+  const [meeting, setMeeting] = useState(EMPTY_DRAFT)
   const [fault, setFault] = useState('')
   const [state, setState] = useState<
     | { status: 'idle' }
@@ -188,26 +193,12 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
     const description = value('description')
     const ready = usableLinks(links)
 
-    const from = value('meetingStartTime')
-    const to = value('meetingEndTime')
-
     // Refused here as well as on the server, so somebody who has just typed a page of
-    // write-up isn't told about a missing checkbox by a round trip. The server refuses all
-    // three regardless.
-    if (days.length === 0) {
-      setFault('Pick at least one day the project meets.')
-      return
-    }
-    if (!from || !to) {
-      setFault('Give the meeting a start and an end time.')
-      return
-    }
-    if (from >= to) {
-      setFault('The meeting has to end after it starts.')
-      return
-    }
+    // write-up isn't told about a missing checkbox by a round trip.
+    const problem = draftProblem(meeting)
+    setFault(problem ?? '')
+    if (problem) return
 
-    setFault('')
     setState({ status: 'sending', step: 'CREATING…' })
     postJson<ApiManagedProject>('/officer/projects', {
       slug: value('slug'),
@@ -220,11 +211,7 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
       // Required by the route, unlike everything above it but the title, slug and summary. A
       // project's meeting time is the one thing a prospective member needs and the one thing
       // nobody ever came back to fill in.
-      meetingWeekdays: days,
-      meetingStartTime: from,
-      meetingEndTime: to,
-      meetingLocation: value('meetingLocation'),
-      meetingDescription: value('meetingDescription'),
+      ...draftBody(meeting),
       // No lead. Appointing one is the roles desk's job now, and the term is left off so the
       // server stamps the one we're in — which is what an officer creating a project today
       // means every time.
@@ -242,7 +229,7 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
         })
 
         form.reset()
-        setDays([])
+        setMeeting(EMPTY_DRAFT)
         setLinks([])
         // Not released: the object URLs belong to the editor's rows now, and `DraftGallery`
         // unmounting is what hands back any that never landed.
@@ -368,107 +355,23 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
             above the write-up because it's a fact somebody already knows when they open this
             page, and the write-up is the part they'll go away and come back to. */}
         <div className="border-rule border-t pt-5">
-          <fieldset>
-            <legend className={labelClass}>MEETING DAYS</legend>
-            <div className="flex flex-wrap gap-1.5">
-              {WEEKDAY_SHORT.map((short, index) => {
-                const on = days.includes(index)
-                return (
-                  <label
-                    key={short}
-                    className={`flex min-h-11 cursor-pointer items-center border px-3 font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary wide:min-h-9 ${
-                      on
-                        ? 'border-primary bg-primary/10 text-primary'
-                        : 'border-rule text-dim hover:border-primary hover:text-primary'
-                    }`}
-                  >
-                    {/* A real checkbox, hidden with `sr-only` rather than replaced: the
-                        accessible name is what a screen reader announces and what the tests
-                        query on, and `hidden` would take it out of the tab order too. */}
-                    <input
-                      type="checkbox"
-                      className="sr-only"
-                      checked={on}
-                      disabled={sending}
-                      onChange={() => {
-                        setDays(
-                          on
-                            ? days.filter((each) => each !== index)
-                            : [...days, index].sort((a, b) => a - b),
-                        )
-                        setFault('')
-                      }}
-                    />
-                    {short}
-                  </label>
-                )
-              })}
-            </div>
-          </fieldset>
+          <p className="text-faint mb-4 font-mono text-[10px] font-medium tracking-[0.16em]">
+            MEETING SCHEDULE
+          </p>
+          <MeetingScheduleFields
+            draft={meeting}
+            disabled={sending}
+            onChange={(next) => {
+              setMeeting(next)
+              setFault('')
+            }}
+          />
 
-          <div className="mt-4 flex flex-wrap items-end gap-4">
-            <div>
-              <label htmlFor={`${id}-from`} className={labelClass}>
-                FROM
-              </label>
-              <input
-                id={`${id}-from`}
-                name="meetingStartTime"
-                type="time"
-                required
-                className={`${fieldClass} w-36`}
-                disabled={sending}
-              />
-            </div>
-            <div>
-              <label htmlFor={`${id}-to`} className={labelClass}>
-                TO
-              </label>
-              <input
-                id={`${id}-to`}
-                name="meetingEndTime"
-                type="time"
-                required
-                className={`${fieldClass} w-36`}
-                disabled={sending}
-              />
-            </div>
-            <div className="min-w-48 flex-1">
-              <label htmlFor={`${id}-where`} className={labelClass}>
-                WHERE
-              </label>
-              <input
-                id={`${id}-where`}
-                name="meetingLocation"
-                maxLength={160}
-                placeholder="ENG2 Lab"
-                className={fieldClass}
-                disabled={sending}
-              />
-            </div>
-          </div>
-
-          {/* Optional where the three above are required, and the lead can write it later on
-              their own manage page. It's the description the meeting carries into somebody's
-              calendar; empty means empty, so nothing has to be invented at creation. */}
-          <div className="mt-3">
-            <label htmlFor={`${id}-meeting-note`} className={labelClass}>
-              NOTE (OPTIONAL)
-            </label>
-            <textarea
-              id={`${id}-meeting-note`}
-              name="meetingDescription"
-              maxLength={400}
-              rows={2}
-              placeholder="Anything the time and place don't say"
-              className="textarea border-rule bg-base-200 w-full text-sm"
-              disabled={sending}
-            />
-          </div>
-
-          <p className="text-faint mt-1.5 text-[11px] leading-[1.5] text-pretty">
-            Every calendar on the site carries this. It repeats weekly to the
-            end of the project&rsquo;s semester, and finals week is left out.
+          <p className="text-faint mt-3 text-[11px] leading-[1.5] text-pretty">
+            Every calendar on the site carries this
+            {meeting.repeat === 'DATES'
+              ? '.'
+              : ', to the end of the project’s semester, and finals week is left out.'}
           </p>
 
           {fault && <p className="text-error mt-2 text-[13px]">{fault}</p>}

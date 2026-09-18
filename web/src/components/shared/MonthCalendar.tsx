@@ -106,6 +106,23 @@ function eventsOn(events: ApiEvent[], day: Date): ApiEvent[] {
   })
 }
 
+/**
+ * The line a cancelled meeting carries in place of its add-to-calendar button: the word, for
+ * anybody who can't see the strikethrough, and the lead's reason when there is one.
+ */
+function CancelledNote({ event }: { event: ApiEvent }) {
+  if (!event.cancelled) return null
+
+  return (
+    <p className="text-dim mt-1.5 text-xs leading-[1.5]">
+      <span className="text-error font-mono text-[10px] font-medium tracking-[0.14em]">
+        CANCELLED
+      </span>
+      {event.cancelled.reason && ` · ${event.cancelled.reason}`}
+    </p>
+  )
+}
+
 const monthName = (date: Date) =>
   date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
 
@@ -483,8 +500,8 @@ function DayCell({
           {events.map((event) => (
             <span
               key={event.id}
-              title={event.title}
-              className="bg-primary size-1 rounded-full"
+              title={event.cancelled ? `Cancelled: ${event.title}` : event.title}
+              className={`size-1 rounded-full ${event.cancelled ? 'bg-faint' : 'bg-primary'}`}
             />
           ))}
         </span>
@@ -601,8 +618,9 @@ function EventChip({
           isTaskEntry(event)
             ? 'border-warning border-l-2 pr-1 pl-1.5'
             : 'px-1'
-        }`}
+        } ${event.cancelled ? 'text-faint line-through' : ''}`}
       >
+        {event.cancelled && <span className="sr-only">Cancelled: </span>}
         {event.title}
       </button>
 
@@ -627,7 +645,7 @@ function EventChip({
             {event.type}
             {event.location && ` · ${event.location}`}
           </p>
-          {event.description && (
+          {event.description && !event.cancelled && (
             <p className="text-dim mt-2 line-clamp-3 text-xs leading-[1.5]">
               {event.description}
             </p>
@@ -635,12 +653,16 @@ function EventChip({
 
           {/* Aligned with the card, not the chip: on the right-hand columns the card
               already hangs left, and a menu wider than the card would reach past the
-              edge of the grid. */}
-          <AddToCalendar
-            event={event}
-            align={alignRight ? 'right' : 'left'}
-            className="mt-3"
-          />
+              edge of the grid. Nothing to add for a meeting that isn't happening. */}
+          {event.cancelled ? (
+            <CancelledNote event={event} />
+          ) : (
+            <AddToCalendar
+              event={event}
+              align={alignRight ? 'right' : 'left'}
+              className="mt-3"
+            />
+          )}
         </div>
       </div>
     </div>
@@ -669,7 +691,12 @@ export function AgendaRow({ event }: { event: ApiEvent }) {
       </div>
 
       <div>
-        <h4 className="text-base leading-snug font-semibold">{event.title}</h4>
+        <h4
+          className={`text-base leading-snug font-semibold ${event.cancelled ? 'text-faint line-through' : ''}`}
+        >
+          {event.cancelled && <span className="sr-only">Cancelled: </span>}
+          {event.title}
+        </h4>
         <p className="text-dim mt-1 font-mono text-[11px] font-medium tracking-[0.06em]">
           {timeLabel(event)}
         </p>
@@ -677,7 +704,8 @@ export function AgendaRow({ event }: { event: ApiEvent }) {
           {event.type}
           {event.location && ` · ${event.location}`}
         </p>
-        {event.description && (
+        <CancelledNote event={event} />
+        {event.description && !event.cancelled && (
           <p className="text-dim mt-2 max-w-[42rem] text-sm leading-[1.6] text-pretty">
             {event.description}
           </p>
@@ -685,18 +713,20 @@ export function AgendaRow({ event }: { event: ApiEvent }) {
         {/* The two things somebody does with an entry, on one row: sign up for it, or
             put it in their own calendar. Both last, because both are actions and
             everything above is description. */}
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          <AddToCalendar event={event} />
+        {!event.cancelled && (
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <AddToCalendar event={event} />
 
-          {event.registrationUrl && (
-            <a
-              href={event.registrationUrl}
-              className="text-primary border-primary/40 hover:border-primary border-b pb-0.5 text-xs font-medium transition-colors duration-200"
-            >
-              Register
-            </a>
-          )}
-        </div>
+            {event.registrationUrl && (
+              <a
+                href={event.registrationUrl}
+                className="text-primary border-primary/40 hover:border-primary border-b pb-0.5 text-xs font-medium transition-colors duration-200"
+              >
+                Register
+              </a>
+            )}
+          </div>
+        )}
       </div>
     </article>
   )

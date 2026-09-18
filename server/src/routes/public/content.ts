@@ -792,7 +792,7 @@ async function publicMeetings(
   if (type && type !== EventType.MEETING) return []
 
   const projects = await prisma.project.findMany({
-    where: { meetingsPublic: true, meetingWeekdays: { isEmpty: false } },
+    where: { meetingsPublic: true, meetingRepeat: { not: null } },
     select: meetingProjectSelect,
   })
 

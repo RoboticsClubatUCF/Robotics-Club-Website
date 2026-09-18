@@ -5,6 +5,8 @@ import { ProjectManagePage } from './ProjectManagePage'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
 import type {
   ApiManagedProject,
+  ApiMeEvent,
+  ApiMeetingSeries,
   ApiMyProject,
   ApiTerm,
   UserRole,
@@ -51,7 +53,13 @@ const project: ApiManagedProject = {
   featured: false,
   startedAt: null,
   completedAt: null,
+  meetingRepeat: null,
   meetingWeekdays: [],
+  meetingInterval: 1,
+  meetingMonthWeeks: [],
+  meetingMonthDays: [],
+  meetingDates: [],
+  meetingStartsOn: null,
   meetingStartTime: null,
   meetingEndTime: null,
   meetingLocation: null,
@@ -551,6 +559,320 @@ describe('deleting a project', () => {
 
     expect(
       screen.getByText(/asked to type the project’s name/i),
+    ).toBeInTheDocument()
+  })
+})
+
+/**
+ * The meeting schedule and the meetings it makes.
+ *
+ * The schedule is one pattern at a time, and the form only sends that pattern's fields. The
+ * list below it is where a lead calls one meeting off, which is keyed on the campus date.
+ */
+
+const scheduled: ApiManagedProject = {
+  ...project,
+  meetingRepeat: 'WEEKLY',
+  meetingWeekdays: [2, 4],
+  meetingStartTime: '18:00',
+  meetingEndTime: '22:00',
+  meetingLocation: 'ENG2 Lab',
+}
+
+const series: ApiMeetingSeries = {
+  projectSlug: 'rover',
+  projectTitle: 'Rover',
+  repeat: 'WEEKLY',
+  weekdays: [2, 4],
+  interval: 1,
+  monthWeeks: [],
+  monthDays: [],
+  dates: [],
+  startTime: '18:00',
+  endTime: '22:00',
+  location: 'ENG2 Lab',
+  untilDate: term.endsAt,
+  skip: null,
+  skipDates: [],
+  cancelledDates: [],
+}
+
+/** Six in the evening on campus, which is 22:00Z while daylight saving lasts. */
+const occurrence = (
+  day: string,
+  cancelled: { reason: string | null } | null = null,
+): ApiMeEvent => ({
+  id: `meeting:p1:${day}T22:00:00.000Z`,
+  slug: 'rover',
+  title: 'Rover meeting',
+  description: null,
+  type: 'MEETING',
+  location: 'ENG2 Lab',
+  startsAt: `${day}T22:00:00.000Z`,
+  endsAt: `${day}T02:00:00.000Z`,
+  allDay: false,
+  registrationUrl: null,
+  meeting: series,
+  cancelled,
+  published: true,
+  projectId: 'p1',
+  teamId: null,
+  createdById: null,
+  project: { slug: 'rover', title: 'Rover' },
+  team: null,
+})
+
+const stubMeetings = (
+  meetings: unknown = [
+    occurrence('2035-10-16'),
+    occurrence('2035-10-18', { reason: 'Homecoming' }),
+  ],
+  status = 200,
+) =>
+  vi.fn((input: string | URL | Request, init?: RequestInit) => {
+    const url = urlOf(input)
+
+    if (url.includes('/team')) {
+      return json({ project: scheduled, teams: [], members: [] })
+    }
+    if (url.includes('/cancel')) return json({})
+    if (url.includes('/meetings')) return json(meetings, status)
+    if (init?.method === 'PATCH') {
+      return json({ ...scheduled, ...(JSON.parse(init.body as string) as object) })
+    }
+
+    return json([])
+  })
+
+const schedulePanel = () =>
+  within(screen.getByText('MEETING SCHEDULE').closest('div')!)
+
+const meetingsPanel = () =>
+  within(screen.getByText('UPCOMING MEETINGS').closest('div')!)
+
+const saveSchedule = () =>
+  act(async () => {
+    fireEvent.submit(
+      schedulePanel().getByRole('button', { name: 'SAVE' }).closest('form')!,
+    )
+  })
+
+describe('the meeting schedule', () => {
+  it('needs a first date for every other week, then saves it', async () => {
+    const fetchMock = stubMeetings()
+    renderPage(fetchMock)
+    await act(async () => {})
+
+    fireEvent.change(schedulePanel().getByLabelText('EVERY'), {
+      target: { value: '2' },
+    })
+    expect(
+      schedulePanel().getByText('Meets every other Tuesday and Thursday.'),
+    ).toBeInTheDocument()
+
+    await saveSchedule()
+    expect(schedulePanel().getByText(/first meeting/)).toBeInTheDocument()
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'PATCH')).toBe(
+      false,
+    )
+
+    fireEvent.change(schedulePanel().getByLabelText('FIRST MEETING'), {
+      target: { value: '2035-10-14' },
+    })
+    await saveSchedule()
+
+    expect(patchBody(fetchMock)).toMatchObject({
+      meetingRepeat: 'WEEKLY',
+      meetingWeekdays: [2, 4],
+      meetingInterval: 2,
+      meetingStartsOn: '2035-10-14',
+      meetingMonthWeeks: [],
+    })
+    expect(schedulePanel().getByText('Saved.')).toBeInTheDocument()
+  })
+
+  it('sends a monthly weekday as the weeks and the days', async () => {
+    const fetchMock = stubMeetings()
+    renderPage(fetchMock)
+    await act(async () => {})
+
+    fireEvent.click(schedulePanel().getByRole('radio', { name: 'MONTHLY' }))
+    // The days ticked for weekly are kept, so only the week is new.
+    fireEvent.click(schedulePanel().getByRole('checkbox', { name: 'Thursday' }))
+    fireEvent.click(schedulePanel().getByRole('checkbox', { name: '1st week of the month' }))
+    fireEvent.click(schedulePanel().getByRole('checkbox', { name: 'Last week of the month' }))
+
+    expect(
+      schedulePanel().getByText('Meets the first and last Tuesday of the month.'),
+    ).toBeInTheDocument()
+
+    await saveSchedule()
+    expect(patchBody(fetchMock)).toMatchObject({
+      meetingRepeat: 'MONTHLY_WEEKDAY',
+      meetingWeekdays: [2],
+      meetingMonthWeeks: [1, -1],
+      meetingInterval: 1,
+    })
+  })
+
+  it('takes a list of dates', async () => {
+    const fetchMock = stubMeetings()
+    renderPage(fetchMock)
+    await act(async () => {})
+
+    fireEvent.click(schedulePanel().getByRole('radio', { name: 'ON CHOSEN DATES' }))
+    expect(schedulePanel().getByText('No dates yet.')).toBeInTheDocument()
+
+    for (const date of ['2035-11-03', '2035-10-20']) {
+      fireEvent.change(schedulePanel().getByLabelText('Date to add'), {
+        target: { value: date },
+      })
+      fireEvent.click(schedulePanel().getByRole('button', { name: 'ADD DATE' }))
+    }
+
+    // Sorted as they go in, and each can come back out.
+    const removes = schedulePanel().getAllByRole('button', { name: /^Remove / })
+    expect(removes).toHaveLength(2)
+
+    // Picked and never added, the way a phone leaves it: SAVE takes it anyway.
+    fireEvent.change(schedulePanel().getByLabelText('Date to add'), {
+      target: { value: '2035-12-01' },
+    })
+
+    await saveSchedule()
+    expect(patchBody(fetchMock)).toMatchObject({
+      meetingRepeat: 'DATES',
+      meetingDates: ['2035-10-20', '2035-11-03', '2035-12-01'],
+      meetingWeekdays: [],
+      meetingStartsOn: null,
+    })
+  })
+
+  it('asks before taking the schedule off, then sends no pattern', async () => {
+    const fetchMock = stubMeetings()
+    renderPage(fetchMock)
+    await act(async () => {})
+
+    fireEvent.click(schedulePanel().getByRole('button', { name: 'REMOVE SCHEDULE' }))
+    const dialog = within(screen.getByRole('dialog'))
+    expect(
+      fetchMock.mock.calls.some(([, init]) => init?.method === 'PATCH'),
+    ).toBe(false)
+
+    await act(async () => {
+      fireEvent.click(dialog.getByRole('button', { name: 'REMOVE IT' }))
+    })
+
+    expect(patchBody(fetchMock)).toEqual({ meetingRepeat: null })
+  })
+})
+
+describe('the upcoming meetings', () => {
+  it('lists them, the cancelled one marked with its reason', async () => {
+    renderPage(stubMeetings())
+    await act(async () => {})
+
+    const list = meetingsPanel()
+    expect(list.getByText('CANCELLED')).toBeInTheDocument()
+    expect(list.getByText(/Homecoming/)).toBeInTheDocument()
+    expect(list.getAllByRole('button', { name: /^Call off / })).toHaveLength(1)
+    expect(list.getAllByRole('button', { name: /^Restore / })).toHaveLength(1)
+  })
+
+  it('cancels one with a reason, keyed on the campus date', async () => {
+    const fetchMock = stubMeetings()
+    renderPage(fetchMock)
+    await act(async () => {})
+
+    fireEvent.click(meetingsPanel().getByRole('button', { name: /^Call off / }))
+    fireEvent.change(meetingsPanel().getByLabelText('REASON (OPTIONAL)'), {
+      target: { value: 'Lab closed' },
+    })
+    await act(async () => {
+      fireEvent.click(meetingsPanel().getByRole('button', { name: 'CANCEL MEETING' }))
+    })
+
+    const call = fetchMock.mock.calls.find(([, init]) => init?.method === 'PUT')
+    expect(urlOf(call![0])).toContain('/projects/p1/meetings/2035-10-16/cancel')
+    expect(JSON.parse(call![1]!.body as string)).toEqual({ reason: 'Lab closed' })
+    expect(meetingsPanel().getByText(/^Cancelled /)).toBeInTheDocument()
+  })
+
+  it('puts a cancelled one back', async () => {
+    const fetchMock = stubMeetings()
+    renderPage(fetchMock)
+    await act(async () => {})
+
+    await act(async () => {
+      fireEvent.click(meetingsPanel().getByRole('button', { name: /^Restore / }))
+    })
+
+    const call = fetchMock.mock.calls.find(([, init]) => init?.method === 'DELETE')
+    expect(urlOf(call![0])).toContain('/projects/p1/meetings/2035-10-18/cancel')
+    expect(meetingsPanel().getByText(/is back on\.$/)).toBeInTheDocument()
+  })
+
+  it('closes the reason without cancelling, and gives focus back to the row', async () => {
+    const fetchMock = stubMeetings()
+    renderPage(fetchMock)
+    await act(async () => {})
+
+    const callOff = meetingsPanel().getByRole('button', { name: /^Call off / })
+    fireEvent.click(callOff)
+    expect(callOff).toHaveAttribute('aria-expanded', 'true')
+
+    fireEvent.keyDown(meetingsPanel().getByLabelText('REASON (OPTIONAL)'), {
+      key: 'Escape',
+    })
+
+    expect(meetingsPanel().queryByLabelText('REASON (OPTIONAL)')).toBeNull()
+    expect(callOff).toHaveFocus()
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(false)
+  })
+
+  it('holds its place while the list loads', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string | URL | Request) =>
+        urlOf(input).includes('/meetings')
+          ? new Promise<Response>(() => {})
+          : stubMeetings()(input),
+      ),
+    )
+    render(
+      <MemoryRouter initialEntries={['/rover']}>
+        <Routes>
+          <Route element={<Outlet context={context()} />}>
+            <Route path="/:slug" element={<ProjectManagePage />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    )
+    await act(async () => {})
+
+    expect(
+      meetingsPanel()
+        .getByText('UPCOMING MEETINGS')
+        .closest('div')!
+        .querySelector('[aria-busy="true"]'),
+    ).not.toBeNull()
+  })
+
+  it('says so when there are none left', async () => {
+    renderPage(stubMeetings([]))
+    await act(async () => {})
+
+    expect(
+      meetingsPanel().getByText('No meetings left this semester.'),
+    ).toBeInTheDocument()
+  })
+
+  it('says so when they will not load, rather than showing none', async () => {
+    renderPage(stubMeetings({ error: 'down' }, 500))
+    await act(async () => {})
+
+    expect(
+      meetingsPanel().getByText(/Couldn.t load the meetings just now\./),
     ).toBeInTheDocument()
   })
 })

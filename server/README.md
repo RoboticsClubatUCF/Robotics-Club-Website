@@ -294,7 +294,9 @@ public block in `src/app.ts`, so no shared-cache headers reach them.
 | `POST /api/projects/:id/join` | Requires current dues |
 | `DELETE /api/projects/:id/members/me` | Leave. The only lead may leave; officers get a DM |
 | `GET /api/projects/:id/team` | Members only. Teams and roster, no emails |
-| `PATCH /api/projects/:id` | Project lead. Slug and `featured` aren't editable. Takes the meeting schedule (days and times together or neither), `meetingsPublic` (officers only), `discordRoleId` (pushes role changes immediately), the cover and its framing, and section headings. Returns `managedProjectSelect` plus `description` |
+| `PATCH /api/projects/:id` | Project lead. Slug and `featured` aren't editable. Takes the meeting schedule (a `meetingRepeat` pattern with its fields and both times, or `meetingRepeat: null` to clear it), `meetingsPublic` (officers only), `discordRoleId` (pushes role changes immediately), the cover and its framing, and section headings. Returns `managedProjectSelect` plus `description` |
+| `GET /api/projects/:id/meetings` | Project lead. The rest of the term's meetings from the start of today, cancelled ones marked |
+| `PUT /api/projects/:id/meetings/:date/cancel` · `DELETE` | Project lead. Calls off, or restores, the meeting on one campus date (`YYYY-MM-DD`) with an optional `reason`. 404 if the schedule has no meeting that day |
 | `POST /api/projects/:id/cover` | Project lead. Multipart; replaces and deletes the old upload |
 | `POST /api/projects/:id/images` · `/images/upload` | Project lead. By URL or file, max 12, framing accepted with the picture |
 | `PATCH /api/projects/:id/images/order` | Project lead. The complete list of ids or it's refused |

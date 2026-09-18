@@ -40,13 +40,19 @@ const event = (over: Partial<ApiEvent> = {}): ApiEvent => ({
 const series = (over: Partial<ApiMeetingSeries> = {}): ApiMeetingSeries => ({
   projectSlug: 'rover',
   projectTitle: 'Rover',
+  repeat: 'WEEKLY',
   weekdays: [2, 4],
+  interval: 1,
+  monthWeeks: [],
+  monthDays: [],
+  dates: [],
   startTime: '18:00',
   endTime: '22:00',
   untilDate: '2035-12-13T04:59:59.999Z',
   location: 'ENG2 Lab',
   skip: { from: '2035-12-06T05:00:00.000Z', to: '2035-12-13T04:59:59.999Z' },
   skipDates: ['2035-12-06T23:00:00.000Z', '2035-12-11T23:00:00.000Z'],
+  cancelledDates: [],
   ...over,
 })
 
@@ -169,6 +175,108 @@ describe('a recurring meeting', () => {
     const uid = (ics: string) =>
       linesOf(ics).find((line) => line.startsWith('UID:'))
     expect(uid(first)).toBe(uid(second))
+  })
+})
+
+describe('the other patterns', () => {
+  /**
+   * `WKST=SU` is the part that matters: the site counts every other week in Sunday-first
+   * weeks, and an app left on its Monday default would put a Sunday meeting in the other one.
+   */
+  it('says every other week, and which day a week starts on', () => {
+    const lines = linesOf(
+      icsFor(event({ meeting: series({ weekdays: [3], interval: 2 }) }), NOW),
+    )
+
+    expect(lines).toContain(
+      'RRULE:FREQ=WEEKLY;INTERVAL=2;WKST=SU;BYDAY=WE;UNTIL=20351213T045959Z',
+    )
+  })
+
+  it('writes a monthly weekday as the week and the day together', () => {
+    const lines = linesOf(
+      icsFor(
+        event({
+          meeting: series({
+            repeat: 'MONTHLY_WEEKDAY',
+            weekdays: [6],
+            monthWeeks: [1, -1],
+          }),
+        }),
+        NOW,
+      ),
+    )
+
+    expect(lines).toContain(
+      'RRULE:FREQ=MONTHLY;BYDAY=1SA,-1SA;UNTIL=20351213T045959Z',
+    )
+  })
+
+  it('writes a monthly date as the days of the month', () => {
+    const lines = linesOf(
+      icsFor(
+        event({
+          meeting: series({ repeat: 'MONTHLY_DAY', weekdays: [], monthDays: [1, -1] }),
+        }),
+        NOW,
+      ),
+    )
+
+    expect(lines).toContain('RRULE:FREQ=MONTHLY;BYMONTHDAY=1,-1;UNTIL=20351213T045959Z')
+  })
+
+  it('leaves the cancelled meetings out beside finals week', () => {
+    const lines = linesOf(
+      icsFor(
+        event({
+          meeting: series({ cancelledDates: ['2035-09-13T22:00:00.000Z'] }),
+        }),
+        NOW,
+      ),
+    )
+
+    // One line, in date order, whichever list each came from.
+    expect(lines).toContain(
+      'EXDATE;TZID=America/New_York:20350913T180000,20351206T180000,20351211T180000',
+    )
+    expect(seriesSummary(series({ cancelledDates: ['2035-09-13T22:00:00.000Z'] }))).toContain(
+      'Cancelled meetings are left out.',
+    )
+  })
+
+  /**
+   * A list of dates has no rule an app can repeat, so the file carries one entry per date from
+   * the pressed one on, each with its own UID. Google takes one event per link and gets the one
+   * that was pressed.
+   */
+  it('writes a list of dates as one entry each, from the pressed date on', () => {
+    const dated = event({
+      startsAt: '2035-09-06T22:00:00.000Z',
+      endsAt: '2035-09-07T02:00:00.000Z',
+      meeting: series({
+        repeat: 'DATES',
+        weekdays: [],
+        skipDates: [],
+        dates: [
+          { startsAt: '2035-09-01T22:00:00.000Z', endsAt: '2035-09-02T02:00:00.000Z' },
+          { startsAt: '2035-09-06T22:00:00.000Z', endsAt: '2035-09-07T02:00:00.000Z' },
+          { startsAt: '2035-10-11T22:00:00.000Z', endsAt: '2035-10-12T02:00:00.000Z' },
+        ],
+      }),
+    })
+
+    const lines = linesOf(icsFor(dated, NOW))
+
+    expect(lines.filter((line) => line === 'BEGIN:VEVENT')).toHaveLength(2)
+    expect(lines).toContain('DTSTART;TZID=America/New_York:20351011T180000')
+    // The zone block has yearly rules of its own; the entries have none.
+    expect(lines.filter((line) => line.startsWith('RRULE')).every((line) => line.includes('YEARLY'))).toBe(true)
+    expect(new Set(lines.filter((line) => line.startsWith('UID:'))).size).toBe(2)
+
+    expect(new URL(googleCalendarUrl(dated)).searchParams.get('recur')).toBeNull()
+    expect(seriesSummary(dated.meeting!, dated.startsAt)).toContain(
+      'all 2 dates from this one on',
+    )
   })
 })
 

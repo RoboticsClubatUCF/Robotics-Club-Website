@@ -1,25 +1,20 @@
 import { CAMPUS_ZONE } from '../lab/labStatus.js'
-import type { Season } from '../generated/prisma/enums.js'
+import { MeetingRepeat, type Season } from '../generated/prisma/enums.js'
 import { getTerm, type Term } from '../membership/semester.js'
 
 /**
  * When a project meets, turned into occurrences on a calendar.
  *
  * The club's one recurring thing. A project stores what a lead would say out loud —
- * "Tuesdays and Thursdays, six till ten, in the lab" — as three columns rather than as
- * generated `Event` rows, and this expands them.
+ * "every other Tuesday, six till ten, in the lab" — as columns rather than as generated
+ * `Event` rows, and this expands them. It lives on the server because the landing page
+ * is anonymous, the bounds come from UCF's calendar, and two implementations of "when
+ * does this project meet" is the bug class this codebase keeps warning about.
  *
- * It lives on the server, and that's the change. The expansion used to be in the
- * browser, for the dashboard only. Three things forced it here: the landing page is
- * anonymous and has no `/me/projects` to read a schedule out of; the bounds are async,
- * since a term's dates and finals week come from UCF's calendar; and two
- * implementations of "when does this project meet" is the bug class this codebase
- * keeps warning about.
- *
- * Two rules make an occurrence, both subtractive. It stops at the end of the project's
- * own term — the old client-side version painted Tuesdays into the next decade, which
- * is how a graduated lead's project still claimed to meet. And finals week is skipped,
- * except when nobody has said when finals is, in which case nothing is.
+ * Two rules remove an occurrence: it stops at the end of the project's own term, and
+ * finals week is skipped (unless nobody has said when finals is). A lead's cancellation
+ * doesn't remove one. The occurrence stays, marked, so the calendar says the meeting is
+ * off rather than going quiet about it.
  */
 
 /** What the expander needs off a project row, and nothing else. */
@@ -29,11 +24,18 @@ export const meetingProjectSelect = {
   title: true,
   termYear: true,
   termSeason: true,
+  meetingRepeat: true,
   meetingWeekdays: true,
+  meetingInterval: true,
+  meetingMonthWeeks: true,
+  meetingMonthDays: true,
+  meetingDates: true,
+  meetingStartsOn: true,
   meetingStartTime: true,
   meetingEndTime: true,
   meetingLocation: true,
   meetingDescription: true,
+  meetingCancellations: { select: { date: true, reason: true } },
 } as const
 
 export interface MeetingProject {
@@ -42,20 +44,26 @@ export interface MeetingProject {
   title: string
   termYear: number
   termSeason: Season
+  meetingRepeat: MeetingRepeat | null
   meetingWeekdays: number[]
+  meetingInterval: number
+  meetingMonthWeeks: number[]
+  meetingMonthDays: number[]
+  meetingDates: string[]
+  meetingStartsOn: string | null
   meetingStartTime: string | null
   meetingEndTime: string | null
   meetingLocation: string | null
   meetingDescription: string | null
+  meetingCancellations: { date: string; reason: string | null }[]
 }
 
 /**
  * The whole series in one object, carried on every occurrence.
  *
- * What lets a member press one button and have the entire term in their phone. A
- * calendar app wants a rule plus its exceptions, not a list of instances, so the
- * client needs the days, the hours, the last date and the gap — and rebuilding those
- * in the browser would be guessing at what this module already knows.
+ * What lets a member press one button and have the term in their phone. A calendar app
+ * wants a rule plus its exceptions, so the client gets the pattern, the hours, the last
+ * date and the instants to leave out, rather than rebuilding them from guesses.
  *
  * Repeated on each occurrence rather than sent alongside: both calendars hand a flat
  * array to the same widget, and a parallel structure keyed by project would have to
@@ -64,8 +72,21 @@ export interface MeetingProject {
 export interface MeetingSeries {
   projectSlug: string
   projectTitle: string
-  /** 0-6, Sunday first, sorted. */
+  repeat: MeetingRepeat
+  /** 0-6, Sunday first, sorted. WEEKLY and MONTHLY_WEEKDAY. */
   weekdays: number[]
+  /** WEEKLY: every this many weeks. */
+  interval: number
+  /** MONTHLY_WEEKDAY: 1-4, or -1 for the last. */
+  monthWeeks: number[]
+  /** MONTHLY_DAY: 1-28, or -1 for the last day. */
+  monthDays: number[]
+  /**
+   * DATES: every date left standing this term, as instants, cancelled ones and finals
+   * week already out. A list of dates has no rule a calendar app can repeat, so the
+   * export writes one entry per date. Empty for the other patterns.
+   */
+  dates: { startsAt: string; endsAt: string }[]
   /** Campus wall-clock, "18:00". */
   startTime: string
   endTime: string
@@ -75,16 +96,13 @@ export interface MeetingSeries {
   /** Finals week, which the series skips, or null when nobody has set one. */
   skip: { from: string; to: string } | null
   /**
-   * The exact occurrences finals week eats, as ISO instants.
-   *
-   * Worked out here rather than left to the client, which is the same decision this
-   * whole module is: a calendar app needs `EXDATE` lines and each has to name a real
-   * instant to the second. Doing it in the browser would be a second implementation of
-   * the halt, and would have to re-derive campus wall-clock times to do it.
-   *
-   * Empty when no finals week is set, which is also when `skip` is null.
+   * The exact occurrences finals week eats, as ISO instants, for `EXDATE`. Each has to
+   * name a real instant of the rule to the second, which is why it's worked out here.
+   * Empty when no finals week is set, and for DATES.
    */
   skipDates: string[]
+  /** The occurrences the lead cancelled, as ISO instants, for `EXDATE` the same way. */
+  cancelledDates: string[]
 }
 
 /** One meeting, shaped like the events it sits beside on a calendar. */
@@ -100,6 +118,8 @@ export interface MeetingOccurrence {
   allDay: false
   registrationUrl: null
   meeting: MeetingSeries
+  /** Set when the lead called this one off. */
+  cancelled: { reason: string | null } | null
   /** For the member view, which says which project a row came from. */
   projectId: string
   project: { slug: string; title: string }
@@ -109,8 +129,7 @@ export interface MeetingOccurrence {
  * The longest window anybody may expand at once.
  *
  * A year and a bit, which covers the widest thing the site asks for and refuses the
- * request that would hurt: `?from=2020&to=2100` is four hundred occurrences a project
- * per decade, built one `Intl` call at a time, on a cached public endpoint. The term
+ * request that would hurt: `?from=2020&to=2100` on a cached public endpoint. The term
  * bound already caps it in practice; this caps it before the work starts.
  */
 export const MAX_WINDOW_DAYS = 400
@@ -165,12 +184,9 @@ function campusOffsetMs(at: Date): number {
 /**
  * The instant at which it is `hour:minute` on campus on a given civil date.
  *
- * The inverse of what `Intl` offers, done by correction because there's no "parse in
- * this zone" primitive: treat the wall clock as UTC, ask what the offset is near that
- * guess, subtract it.
- *
- * Corrected twice, and the second pass isn't superstition — the first guess can land
- * on the wrong side of a DST transition. A third would never differ.
+ * Done by correction because there's no "parse in this zone" primitive: treat the wall
+ * clock as UTC, ask what the offset is near that guess, subtract it. Corrected twice,
+ * because the first guess can land on the wrong side of a DST transition.
  */
 function campusInstant(
   { year, month, day }: CivilDate,
@@ -199,25 +215,172 @@ function addDays(date: CivilDate, days: number): CivilDate {
   }
 }
 
-/**
- * Which weekday a civil date is, 0-6 with Sunday first.
- *
- * `Date.UTC` on a bare civil date is exact — no zone is involved, so this is calendar
- * arithmetic rather than a conversion, and it matches what `Date.getDay()` gives the
- * browser for the same wall date.
- */
+/** Days since the epoch. Calendar arithmetic on a bare date, so no zone is involved. */
+const dayNumber = (date: CivilDate) =>
+  Date.UTC(date.year, date.month - 1, date.day) / DAY_MS
+
+/** Which weekday a civil date is, 0-6 with Sunday first, as `Date.getDay()` has it. */
 const weekdayOf = (date: CivilDate): number =>
   new Date(Date.UTC(date.year, date.month - 1, date.day)).getUTCDay()
 
-const beforeOrEqual = (a: CivilDate, b: CivilDate) =>
-  Date.UTC(a.year, a.month - 1, a.day) <= Date.UTC(b.year, b.month - 1, b.day)
+const daysInMonth = (date: CivilDate) =>
+  new Date(Date.UTC(date.year, date.month, 0)).getUTCDate()
+
+const beforeOrEqual = (a: CivilDate, b: CivilDate) => dayNumber(a) <= dayNumber(b)
+
+const pad = (value: number) => String(value).padStart(2, '0')
+
+/** "2026-09-23", the form every date column and every URL uses. */
+const isoDate = (date: CivilDate) =>
+  `${String(date.year)}-${pad(date.month)}-${pad(date.day)}`
+
+/** The inverse, for strings the write routes already checked. */
+function civilDate(iso: string): CivilDate {
+  const [year = 0, month = 1, day = 1] = iso.split('-').map(Number)
+  return { year, month, day }
+}
+
+/** The campus date an instant falls on, as "2026-09-23". */
+export const campusDate = (at: Date) => isoDate(readCampus(at))
+
+/** Midnight on campus on the day `at` falls on. */
+export const startOfCampusDay = (at: Date) => campusInstant(readCampus(at), 0, 0)
+
+/** The pattern columns, read. Null when the row has no usable schedule. */
+interface Rule {
+  repeat: MeetingRepeat
+  weekdays: number[]
+  interval: number
+  monthWeeks: number[]
+  monthDays: number[]
+  dates: Set<string>
+  startsOn: CivilDate | null
+  start: [number, number]
+  end: [number, number]
+}
+
+function ruleOf(project: MeetingProject): Rule | null {
+  if (!project.meetingRepeat) return null
+
+  const start = readClock(project.meetingStartTime ?? '')
+  const end = readClock(project.meetingEndTime ?? '')
+  // A row whose times were written straight into Postgres. Skipped rather than guessed
+  // at: a meeting drawn at midnight because "6pm-ish" wouldn't parse is worse than none.
+  if (!start || !end) return null
+
+  return {
+    repeat: project.meetingRepeat,
+    weekdays: [...new Set(project.meetingWeekdays)].sort((a, b) => a - b),
+    interval: Math.max(1, project.meetingInterval),
+    monthWeeks: project.meetingMonthWeeks,
+    monthDays: project.meetingMonthDays,
+    dates: new Set(project.meetingDates),
+    startsOn: project.meetingStartsOn ? civilDate(project.meetingStartsOn) : null,
+    start,
+    end,
+  }
+}
+
+/**
+ * Whether the pattern lands on a campus date, before the term and finals have a say.
+ *
+ * Every other week counts whole Sunday-to-Saturday weeks from the week `startsOn` is in,
+ * which is what `WKST=SU` tells a calendar app, so the two agree on which weeks are on.
+ * `termStart` stands in for a missing `startsOn`; the write routes require one for an
+ * interval over 1, so that's only a row edited by hand.
+ */
+function patternLandsOn(rule: Rule, day: CivilDate, termStart: CivilDate): boolean {
+  if (rule.repeat === MeetingRepeat.DATES) return rule.dates.has(isoDate(day))
+
+  if (rule.startsOn && !beforeOrEqual(rule.startsOn, day)) return false
+
+  const weekday = weekdayOf(day)
+
+  switch (rule.repeat) {
+    case MeetingRepeat.WEEKLY: {
+      if (!rule.weekdays.includes(weekday)) return false
+      if (rule.interval === 1) return true
+
+      const anchor = rule.startsOn ?? termStart
+      const anchorSunday = dayNumber(anchor) - weekdayOf(anchor)
+      const weeks = (dayNumber(day) - weekday - anchorSunday) / 7
+      return weeks >= 0 && weeks % rule.interval === 0
+    }
+    case MeetingRepeat.MONTHLY_WEEKDAY: {
+      if (!rule.weekdays.includes(weekday)) return false
+      const nth = Math.ceil(day.day / 7)
+      const last = day.day + 7 > daysInMonth(day)
+      return (
+        rule.monthWeeks.includes(nth) || (last && rule.monthWeeks.includes(-1))
+      )
+    }
+    case MeetingRepeat.MONTHLY_DAY:
+      return (
+        rule.monthDays.includes(day.day) ||
+        (rule.monthDays.includes(-1) && day.day === daysInMonth(day))
+      )
+  }
+}
+
+/** The instants a meeting on this campus date runs between. */
+function timesOn(rule: Pick<Rule, 'start' | 'end'>, day: CivilDate) {
+  const startsAt = campusInstant(day, rule.start[0], rule.start[1])
+  let endsAt = campusInstant(day, rule.end[0], rule.end[1])
+  // A meeting that ends before it starts ran past midnight. The write routes refuse one,
+  // so this only reads rows written before they did.
+  if (endsAt <= startsAt) endsAt = new Date(endsAt.getTime() + DAY_MS)
+  return { startsAt, endsAt }
+}
+
+/**
+ * Why the term won't have a meeting at these times, or null when it will.
+ *
+ * Finals is overlap rather than containment, so a meeting that begins the evening
+ * finals starts is dropped too.
+ */
+function haltedBy(
+  term: Term,
+  startsAt: Date,
+  endsAt: Date,
+): 'outside' | 'finals' | null {
+  if (startsAt < term.startsAt || startsAt > term.endsAt) return 'outside'
+  if (
+    term.finalsStartAt &&
+    term.finalsEndAt &&
+    startsAt <= term.finalsEndAt &&
+    endsAt >= term.finalsStartAt
+  ) {
+    return 'finals'
+  }
+  return null
+}
+
+/**
+ * Whether a meeting on `date` from `startTime` to `endTime` could happen in `term`.
+ *
+ * For the write routes, so a lead who picks a date in finals week or in the wrong year
+ * is told so instead of watching it vanish from the calendar.
+ */
+export function dateProblem(
+  term: Term,
+  date: string,
+  startTime: string,
+  endTime: string,
+): 'outside' | 'finals' | null {
+  const start = readClock(startTime)
+  const end = readClock(endTime)
+  if (!start || !end) return null
+
+  const { startsAt, endsAt } = timesOn({ start, end }, civilDate(date))
+  return haltedBy(term, startsAt, endsAt)
+}
 
 /**
  * Every occurrence of every project's meeting inside `[from, to)`.
  *
  * Terms are read once per distinct `(year, season)` rather than once per project.
- * `getTerm` caches for a day so the repeat would usually be free, but "usually free"
- * is a property of the cache and this loops over every project on the site.
+ * `getTerm` caches for a day, but "usually free" is a property of the cache and this
+ * loops over every project on the site.
  *
  * Half-open at the top, matching both calendar routes, so a meeting at midnight on the
  * 1st belongs to the month that's starting rather than to both.
@@ -234,70 +397,101 @@ export async function expandMeetings(
     )
   }
 
-  const scheduled = projects.filter(
-    (project) =>
-      project.meetingWeekdays.length > 0 &&
-      project.meetingStartTime !== null &&
-      project.meetingEndTime !== null,
-  )
+  const scheduled = projects.flatMap((project) => {
+    const rule = ruleOf(project)
+    return rule ? [{ project, rule }] : []
+  })
   if (scheduled.length === 0) return []
+
+  const termKey = (project: MeetingProject) =>
+    `${String(project.termYear)}-${project.termSeason}`
 
   const terms = new Map<string, Term>()
   await Promise.all(
-    [
-      ...new Set(
-        scheduled.map(
-          (project) => `${String(project.termYear)}-${project.termSeason}`,
-        ),
-      ),
-    ].map(async (key) => {
-      const [year, season] = key.split('-') as [string, Season]
-      terms.set(key, await getTerm(Number(year), season))
-    }),
+    [...new Set(scheduled.map(({ project }) => termKey(project)))].map(
+      async (key) => {
+        const [year, season] = key.split('-') as [string, Season]
+        terms.set(key, await getTerm(Number(year), season))
+      },
+    ),
   )
 
   const occurrences: MeetingOccurrence[] = []
 
-  for (const project of scheduled) {
-    const term = terms.get(
-      `${String(project.termYear)}-${project.termSeason}`,
-    )
+  for (const { project, rule } of scheduled) {
+    const term = terms.get(termKey(project))
     if (!term) continue
 
-    const start = readClock(project.meetingStartTime ?? '')
-    const end = readClock(project.meetingEndTime ?? '')
-    // A row whose times predate the column's validation, or were written straight into
-    // Postgres. Skipped rather than guessed at: a meeting drawn at midnight because
-    // "6pm-ish" wouldn't parse is worse than no chip.
-    if (!start || !end) continue
+    const termStart = readCampus(term.startsAt)
+    const lands = (day: CivilDate) => patternLandsOn(rule, day, termStart)
 
-    const weekdays = [...new Set(project.meetingWeekdays)].sort((a, b) => a - b)
+    const cancellations = new Map(
+      project.meetingCancellations.map((row) => [row.date, row.reason]),
+    )
 
-    // The occurrences finals week eats, walked once per project rather than per request
-    // window: they're a property of the term, and a calendar app needs every one of
-    // them whichever month the caller asked for.
+    // The instants a calendar app has to leave out, walked across the whole term rather
+    // than the request window: somebody adding the series in September needs December's.
     const skipDates: string[] = []
-    if (term.finalsStartAt && term.finalsEndAt) {
-      const finalsFrom = addDays(readCampus(term.finalsStartAt), -1)
-      const finalsTo = addDays(readCampus(term.finalsEndAt), 1)
+    const cancelledDates: string[] = []
+    const dates: MeetingSeries['dates'] = []
+    const termEnd = readCampus(term.endsAt)
 
-      for (
-        let day = finalsFrom;
-        beforeOrEqual(day, finalsTo);
-        day = addDays(day, 1)
+    // Only days that can matter get their instants worked out, since each is four `Intl`
+    // calls and this runs per project per request: a listed date, a cancelled one, or one
+    // within a day of finals week.
+    const finalsFrom = term.finalsStartAt
+      ? dayNumber(readCampus(term.finalsStartAt)) - 1
+      : null
+    const finalsTo = term.finalsEndAt
+      ? dayNumber(readCampus(term.finalsEndAt)) + 1
+      : null
+    const nearFinals = (day: CivilDate) =>
+      finalsFrom !== null &&
+      finalsTo !== null &&
+      dayNumber(day) >= finalsFrom &&
+      dayNumber(day) <= finalsTo
+
+    for (
+      let day: CivilDate = termStart;
+      beforeOrEqual(day, termEnd);
+      day = addDays(day, 1)
+    ) {
+      if (!lands(day)) continue
+      if (
+        rule.repeat !== MeetingRepeat.DATES &&
+        !cancellations.has(isoDate(day)) &&
+        !nearFinals(day)
       ) {
-        if (!weekdays.includes(weekdayOf(day))) continue
-        const at = campusInstant(day, start[0], start[1])
-        if (at >= term.finalsStartAt && at <= term.finalsEndAt) {
-          skipDates.push(at.toISOString())
+        continue
+      }
+
+      const { startsAt, endsAt } = timesOn(rule, day)
+      const halted = haltedBy(term, startsAt, endsAt)
+      if (halted === 'outside') continue
+
+      if (rule.repeat === MeetingRepeat.DATES) {
+        if (!halted && !cancellations.has(isoDate(day))) {
+          dates.push({
+            startsAt: startsAt.toISOString(),
+            endsAt: endsAt.toISOString(),
+          })
         }
+      } else if (halted === 'finals') {
+        skipDates.push(startsAt.toISOString())
+      } else if (cancellations.has(isoDate(day))) {
+        cancelledDates.push(startsAt.toISOString())
       }
     }
 
     const series: MeetingSeries = {
       projectSlug: project.slug,
       projectTitle: project.title,
-      weekdays,
+      repeat: rule.repeat,
+      weekdays: rule.weekdays,
+      interval: rule.interval,
+      monthWeeks: rule.monthWeeks,
+      monthDays: rule.monthDays,
+      dates,
       startTime: project.meetingStartTime ?? '',
       endTime: project.meetingEndTime ?? '',
       location: project.meetingLocation,
@@ -310,62 +504,38 @@ export async function expandMeetings(
             }
           : null,
       skipDates,
+      cancelledDates,
     }
-
-    // The lead's own note, or nothing. This used to be a sentence built here, which
-    // told a reader the two things already printed on the chip they were reading it
-    // from, on every occurrence of every project. What's worth saying about a meeting
-    // is whatever the lead knows and the columns can't hold. The bounds that sentence
-    // also mentioned are said by `seriesSummary` in the browser, off `meeting` below,
-    // which is where they belong.
-    const description = project.meetingDescription
 
     // Walk the campus calendar, not the UTC one — which Tuesday a meeting falls on is
     // decided in Orlando. One day of slack at each end so an occurrence starting on the
     // campus day before `from` but running into the window still lands.
-    const walkFrom = addDays(readCampus(from), -1)
     const walkTo = addDays(readCampus(to), 1)
 
     for (
-      let day = walkFrom;
+      let day = addDays(readCampus(from), -1);
       beforeOrEqual(day, walkTo);
       day = addDays(day, 1)
     ) {
-      if (!weekdays.includes(weekdayOf(day))) continue
+      if (!lands(day)) continue
 
-      const startsAt = campusInstant(day, start[0], start[1])
-      let endsAt = campusInstant(day, end[0], end[1])
-      // A meeting that ends before it starts ran past midnight. The columns hold
-      // wall-clock times with no date, so this is the only reading that makes sense of
-      // "20:00 to 01:00" — and the same one the create route refuses. Here for rows
-      // written before it existed.
-      if (endsAt <= startsAt) endsAt = new Date(endsAt.getTime() + DAY_MS)
-
-      // The term's own bounds, both ends.
-      if (startsAt < term.startsAt || startsAt > term.endsAt) continue
-
-      // The halt. Overlap rather than containment, so a meeting that begins the evening
-      // finals starts is dropped too.
-      if (
-        term.finalsStartAt &&
-        term.finalsEndAt &&
-        startsAt <= term.finalsEndAt &&
-        endsAt >= term.finalsStartAt
-      ) {
-        continue
-      }
+      const { startsAt, endsAt } = timesOn(rule, day)
+      if (haltedBy(term, startsAt, endsAt)) continue
 
       // The requested window, half-open, applied last so the bounds above decide
       // whether a meeting exists at all.
       if (startsAt < from || startsAt >= to) continue
 
+      const date = isoDate(day)
+
       occurrences.push({
-        // The `meeting:` prefix `DashboardCalendar` already used, kept so nothing
-        // downstream mistakes one of these for a row the server owns.
+        // The `meeting:` prefix tells the browser there's no row behind this, so no
+        // page offers to edit it.
         id: `meeting:${project.id}:${startsAt.toISOString()}`,
         slug: project.slug,
         title: `${project.title} meeting`,
-        description,
+        // The lead's own note, or nothing. The site doesn't write one for them.
+        description: project.meetingDescription,
         type: 'MEETING',
         location: project.meetingLocation,
         startsAt: startsAt.toISOString(),
@@ -373,6 +543,9 @@ export async function expandMeetings(
         allDay: false,
         registrationUrl: null,
         meeting: series,
+        cancelled: cancellations.has(date)
+          ? { reason: cancellations.get(date) ?? null }
+          : null,
         projectId: project.id,
         project: { slug: project.slug, title: project.title },
       })
@@ -380,6 +553,25 @@ export async function expandMeetings(
   }
 
   return occurrences
+}
+
+/**
+ * The meeting a project has on one campus date, cancelled or not, or null.
+ *
+ * What the cancel route checks against, so a lead can only call off a meeting the
+ * schedule actually has.
+ */
+export async function meetingOn(
+  project: MeetingProject,
+  date: string,
+): Promise<MeetingOccurrence | null> {
+  const day = civilDate(date)
+  const [found] = await expandMeetings(
+    [project],
+    campusInstant(day, 0, 0),
+    campusInstant(addDays(day, 1), 0, 0),
+  )
+  return found ?? null
 }
 
 /** The public shape: everything a visitor may see, and none of the rest. */

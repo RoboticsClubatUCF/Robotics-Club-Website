@@ -162,7 +162,7 @@ me.get(
      */
     const projects = await prisma.project.findMany({
       where: {
-        meetingWeekdays: { isEmpty: false },
+        meetingRepeat: { not: null },
         OR: [
           { meetingsPublic: true },
           { members: { some: { userId: user.id } } },

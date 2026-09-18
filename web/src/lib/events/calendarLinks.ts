@@ -13,10 +13,12 @@ import type { ApiEvent, ApiMeetingSeries } from '../api/api'
  *     than a second URL scheme: `webcal:` would need somewhere to host the file, and a
  *     subscription somebody would then have to manage.
  *
- * A weekly meeting goes over as a recurring series, not one evening — one press and the
- * term is in your phone. The series stops at the end of the semester and finals week is
- * punched out with `EXDATE`, so what a member ends up with matches what the site's own
- * calendar shows.
+ * A project meeting goes over as its whole series, not one evening — one press and the
+ * term is in your phone. The series stops at the end of the semester, and finals week and
+ * the lead's cancellations are punched out with `EXDATE`, so what a member ends up with
+ * matches what the site's own calendar shows. A list of dates has no rule to repeat, so the
+ * `.ics` carries one entry per date and Google, which takes one event per link, gets the
+ * date that was pressed.
  *
  * Everything here is a pure function over `ApiEvent`. No component, no fetch, and no
  * `Date` arithmetic on wall-clock strings — see `meetings.ts` for why that matters.
@@ -111,6 +113,15 @@ function campusStamp(iso: string): string {
 const campusDay = (iso: string) => campusStamp(iso).slice(0, 8)
 
 /**
+ * "2026-09-03", the campus date an instant falls on. The key a meeting is cancelled under,
+ * which has to be Orlando's date whatever zone the lead's laptop is in.
+ */
+export function campusDateOf(iso: string): string {
+  const day = campusDay(iso)
+  return `${day.slice(0, 4)}-${day.slice(4, 6)}-${day.slice(6, 8)}`
+}
+
+/**
  * The characters iCalendar reserves, and the one that bites.
  *
  * A comma is a value separator in this format, so an unescaped one in a description
@@ -155,33 +166,57 @@ function fold(line: string): string {
 }
 
 /**
- * `FREQ=WEEKLY;BYDAY=TU,TH;UNTIL=…` — the rule, and where it stops.
+ * `FREQ=WEEKLY;BYDAY=TU,TH;UNTIL=…` — the rule, and where it stops. Null for a list of
+ * dates, which has none.
  *
  * `UNTIL` is in UTC with a `Z`, which the spec requires whenever `DTSTART` carries a
  * `TZID`. Getting this wrong is the classic way to produce a series that either never
  * ends or ends a day early.
  */
-const recurrenceRule = (series: ApiMeetingSeries) =>
-  `RRULE:FREQ=WEEKLY;BYDAY=${series.weekdays
-    .map((day) => ICS_DAYS[day])
-    .filter(Boolean)
-    .join(',')};UNTIL=${utcStamp(series.untilDate)}`
+function recurrenceRule(series: ApiMeetingSeries): string | null {
+  const until = `UNTIL=${utcStamp(series.untilDate)}`
+  const days = series.weekdays.map((day) => ICS_DAYS[day]).filter(Boolean)
+
+  switch (series.repeat) {
+    case 'WEEKLY':
+      // `WKST=SU` because the server counts every other week in Sunday-to-Saturday
+      // weeks, and an app left to its Monday default puts a Sunday meeting in the
+      // wrong one.
+      return series.interval > 1
+        ? `RRULE:FREQ=WEEKLY;INTERVAL=${String(series.interval)};WKST=SU;BYDAY=${days.join(',')};${until}`
+        : `RRULE:FREQ=WEEKLY;BYDAY=${days.join(',')};${until}`
+    case 'MONTHLY_WEEKDAY':
+      // "The first and third Tuesday" is `1TU,3TU`; -1 is the format's own "last".
+      return `RRULE:FREQ=MONTHLY;BYDAY=${series.monthWeeks
+        .flatMap((week) => days.map((day) => `${String(week)}${day}`))
+        .join(',')};${until}`
+    case 'MONTHLY_DAY':
+      return `RRULE:FREQ=MONTHLY;BYMONTHDAY=${series.monthDays.join(',')};${until}`
+    case 'DATES':
+      return null
+  }
+}
 
 /**
- * One `EXDATE` line per finals-week occurrence, or nothing.
+ * One `EXDATE` line for finals week and the cancelled meetings together, or nothing.
  *
  * Grouped into a single line — the format allows a comma-separated list, and a dozen
  * separate `EXDATE` lines is a dozen chances for a parser to disagree. The instants come
- * from the server; nothing here recomputes which evenings finals eats.
+ * from the server; nothing here recomputes which evenings are out.
  */
 function exceptionDates(series: ApiMeetingSeries): string[] {
-  if (series.skipDates.length === 0) return []
+  const out = [...series.skipDates, ...series.cancelledDates].sort()
+  if (out.length === 0) return []
 
   return [
-    `EXDATE;TZID=${CAMPUS_ZONE}:${series.skipDates
-      .map((iso) => campusStamp(iso))
-      .join(',')}`,
+    `EXDATE;TZID=${CAMPUS_ZONE}:${out.map((iso) => campusStamp(iso)).join(',')}`,
   ]
+}
+
+/** The rule and its exceptions, or nothing for a one-off or a list of dates. */
+function recurrence(series: ApiMeetingSeries | null): string[] {
+  const rule = series ? recurrenceRule(series) : null
+  return series && rule ? [rule, ...exceptionDates(series)] : []
 }
 
 /** What the two exports call the thing, with the project's name in front. */
@@ -191,7 +226,8 @@ const titleOf = (event: ApiEvent) => event.title
 function detailOf(event: ApiEvent): string {
   const parts = [event.description?.trim()].filter(Boolean) as string[]
 
-  if (event.meeting) {
+  // Not on a list of dates, where each entry is a single evening of its own.
+  if (event.meeting && event.meeting.repeat !== 'DATES') {
     parts.push(seriesSummary(event.meeting))
   }
   if (event.registrationUrl) {
@@ -206,27 +242,50 @@ function detailOf(event: ApiEvent): string {
  *
  * Exported because the button prints it too — the person pressing it should know what
  * they're about to put in their calendar, and saying it in two places from two strings is
- * how the two drift.
+ * how the two drift. `from` is the occurrence pressed, which is where a list of dates starts.
  */
-export function seriesSummary(series: ApiMeetingSeries): string {
+export function seriesSummary(series: ApiMeetingSeries, from?: string): string {
+  if (series.repeat === 'DATES') {
+    const start = from ? new Date(from).getTime() : 0
+    const count = series.dates.filter(
+      (date) => new Date(date.startsAt).getTime() >= start,
+    ).length
+
+    return count > 1
+      ? `The file adds all ${String(count)} dates from this one on. Google Calendar takes one date at a time.`
+      : ''
+  }
+
   const until = new Date(series.untilDate).toLocaleDateString(undefined, {
     day: 'numeric',
     month: 'long',
   })
 
-  const base = `Repeats weekly until ${until}.`
-  if (!series.skip) return base
+  const every =
+    series.repeat !== 'WEEKLY'
+      ? 'monthly'
+      : series.interval === 2
+        ? 'every other week'
+        : series.interval > 2
+          ? `every ${String(series.interval)} weeks`
+          : 'weekly'
 
-  const from = new Date(series.skip.from).toLocaleDateString(undefined, {
+  const cancelled =
+    series.cancelledDates.length > 0 ? ' Cancelled meetings are left out.' : ''
+
+  const base = `Repeats ${every} until ${until}.`
+  if (!series.skip) return `${base}${cancelled}`
+
+  const start = new Date(series.skip.from).toLocaleDateString(undefined, {
     day: 'numeric',
     month: 'short',
   })
-  const to = new Date(series.skip.to).toLocaleDateString(undefined, {
+  const end = new Date(series.skip.to).toLocaleDateString(undefined, {
     day: 'numeric',
     month: 'short',
   })
 
-  return `${base} The club pauses every project for finals week (${from} – ${to}), so those dates are left out.`
+  return `${base} The club pauses every project for finals week (${start} – ${end}), so those dates are left out.${cancelled}`
 }
 
 /**
@@ -261,11 +320,38 @@ export function icsFor(event: ApiEvent, now: Date = new Date()): string {
   // to complain about.
   if (!event.allDay) lines.push(...VTIMEZONE)
 
-  lines.push(
+  if (series?.repeat === 'DATES') {
+    // One entry per date from the pressed one on, each with its own UID so adding the
+    // list twice updates rather than duplicates.
+    const pressed = new Date(event.startsAt).getTime()
+    const ahead = series.dates.filter(
+      (date) => new Date(date.startsAt).getTime() >= pressed,
+    )
+    for (const date of ahead.length > 0 ? ahead : [event]) {
+      lines.push(
+        ...vevent(
+          { ...event, startsAt: date.startsAt, endsAt: date.endsAt },
+          `meeting-${series.projectSlug}-${campusDay(date.startsAt)}@rccf`,
+          now,
+        ),
+      )
+    }
+  } else {
+    lines.push(...vevent(event, uidOf(event), now))
+  }
+
+  lines.push('END:VCALENDAR')
+
+  return lines.map(fold).join('\r\n')
+}
+
+/** One `VEVENT`, recurrence and all. */
+function vevent(event: ApiEvent, uid: string, now: Date): string[] {
+  const lines: string[] = [
     'BEGIN:VEVENT',
-    `UID:${uidOf(event)}`,
+    `UID:${uid}`,
     `DTSTAMP:${utcStamp(now.toISOString())}`,
-  )
+  ]
 
   if (event.allDay) {
     // A date with no time, and `DTEND` is exclusive — the day after the last one. Without
@@ -286,9 +372,7 @@ export function icsFor(event: ApiEvent, now: Date = new Date()): string {
     }
   }
 
-  if (series) {
-    lines.push(recurrenceRule(series), ...exceptionDates(series))
-  }
+  lines.push(...recurrence(event.meeting ?? null))
 
   lines.push(`SUMMARY:${escapeText(titleOf(event))}`)
 
@@ -297,9 +381,9 @@ export function icsFor(event: ApiEvent, now: Date = new Date()): string {
   if (event.location) lines.push(`LOCATION:${escapeText(event.location)}`)
   if (event.registrationUrl) lines.push(`URL:${event.registrationUrl}`)
 
-  lines.push('END:VEVENT', 'END:VCALENDAR')
+  lines.push('END:VEVENT')
 
-  return lines.map(fold).join('\r\n')
+  return lines
 }
 
 /**
@@ -333,17 +417,10 @@ export function googleCalendarUrl(event: ApiEvent): string {
   if (detail) params.set('details', detail)
   if (event.location) params.set('location', event.location)
 
-  if (event.meeting) {
-    // Google takes the recurrence as raw iCalendar lines, newline-separated.
-    // `URLSearchParams` percent-encodes the newline for us.
-    params.set(
-      'recur',
-      [
-        recurrenceRule(event.meeting),
-        ...exceptionDates(event.meeting),
-      ].join('\n'),
-    )
-  }
+  // Google takes the recurrence as raw iCalendar lines, newline-separated.
+  // `URLSearchParams` percent-encodes the newline for us.
+  const recur = recurrence(event.meeting ?? null)
+  if (recur.length > 0) params.set('recur', recur.join('\n'))
 
   return `https://calendar.google.com/calendar/render?${params.toString()}`
 }

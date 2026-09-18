@@ -553,15 +553,33 @@ export type ApiCardProject = ApiProject & { images: ApiProjectImage[] }
  */
 export type ProjectMemberRank = 'PROJECT_LEAD' | 'TEAM_LEAD' | 'MEMBER'
 
+/**
+ * How a project's meeting repeats, mirroring the `MeetingRepeat` enum in
+ * `schema.prisma`, where each value's columns are written down.
+ */
+export type MeetingRepeat = 'WEEKLY' | 'MONTHLY_WEEKDAY' | 'MONTHLY_DAY' | 'DATES'
+
 /** A project as its members and leads see it: the public row plus the meeting
     schedule, mirroring `managedProjectSelect` in `server/src/routes/officer/officer.ts`. */
 export type ApiManagedProject = ApiProject & {
   /**
-   * The days it meets — 0 = Sunday, matching `Date.getDay()`. Sorted and
-   * deduplicated by the time it leaves the server. Empty means no schedule, which
-   * is the only legal way for the two times below to be null.
+   * The pattern, or null for no schedule, which is the only legal way for the two
+   * times below to be null. The server empties whichever of the pattern fields
+   * below this one doesn't read.
    */
+  meetingRepeat: MeetingRepeat | null
+  /** WEEKLY and MONTHLY_WEEKDAY: 0 = Sunday, matching `Date.getDay()`, sorted. */
   meetingWeekdays: number[]
+  /** WEEKLY: every this many weeks, 1 to 4. */
+  meetingInterval: number
+  /** MONTHLY_WEEKDAY: which weeks of the month, 1 to 4, or -1 for the last. */
+  meetingMonthWeeks: number[]
+  /** MONTHLY_DAY: which days of the month, 1 to 28, or -1 for the last. */
+  meetingMonthDays: number[]
+  /** DATES: campus dates like "2026-09-23", sorted. */
+  meetingDates: string[]
+  /** The first date a repeating schedule may land on, "2026-09-02", or null. */
+  meetingStartsOn: string | null
   /** Wall-clock "18:00" and "22:00", campus-local. Not moments — see
       `web/src/lib/events/meetings.ts` for why neither is ever put through `Date`. */
   meetingStartTime: string | null
@@ -939,8 +957,17 @@ export type EventType =
 export type ApiMeetingSeries = {
   projectSlug: string
   projectTitle: string
+  repeat: MeetingRepeat
   /** 0-6, Sunday first, sorted. */
   weekdays: number[]
+  interval: number
+  monthWeeks: number[]
+  monthDays: number[]
+  /**
+   * DATES only: every date left this term, cancelled ones and finals week already
+   * out. A calendar file gets one entry per date, since a list has no rule to repeat.
+   */
+  dates: { startsAt: string; endsAt: string }[]
   /** Campus wall-clock, "18:00". */
   startTime: string
   endTime: string
@@ -954,6 +981,8 @@ export type ApiMeetingSeries = {
    * each in the .ics. Worked out server-side so the halt has one implementation.
    */
   skipDates: string[]
+  /** The occurrences the lead cancelled, as ISO instants, left out the same way. */
+  cancelledDates: string[]
 }
 
 export type ApiEvent = {
@@ -980,6 +1009,11 @@ export type ApiEvent = {
    * is `meeting:…` and nothing may edit or delete it.
    */
   meeting?: ApiMeetingSeries | null
+  /**
+   * Set only on a project meeting its lead called off. It stays on the calendar,
+   * marked, with the lead's reason if they gave one.
+   */
+  cancelled?: { reason: string | null } | null
   /**
    * Set only on a task deadline, the calendar's other generated entry — its `id` is
    * `task:…`, there's no row behind it, and it reaches only the assignee who asked.

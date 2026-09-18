@@ -14,6 +14,7 @@ import { appointLead } from '../../projects/projectLead.js'
 import {
   DuesPlan,
   LoanStatus,
+  MeetingRepeat,
   OfficerPosition,
   OfficerTermSource,
   PrintRequestStatus,
@@ -30,9 +31,12 @@ import {
 } from '../../printing/printAllowance.js'
 import { printedColumns, printedSettings } from '../../printing/printSettings.js'
 import {
-  MEETING_ORDER,
+  NO_SCHEDULE,
   meetingFields,
-  meetingRunsForward,
+  mergeSchedule,
+  scheduleOf,
+  scheduleProblem,
+  scheduleTermProblem,
 } from '../../projects/projectMeeting.js'
 import {
   TERM_PAIRED,
@@ -122,7 +126,13 @@ export const managedProjectSelect = {
   featured: true,
   startedAt: true,
   completedAt: true,
+  meetingRepeat: true,
   meetingWeekdays: true,
+  meetingInterval: true,
+  meetingMonthWeeks: true,
+  meetingMonthDays: true,
+  meetingDates: true,
+  meetingStartsOn: true,
   meetingStartTime: true,
   meetingEndTime: true,
   meetingLocation: true,
@@ -180,7 +190,6 @@ const createProject = z
     ...discordRoleField,
   })
   .refine(termsAgree, TERM_PAIRED)
-  .refine(meetingRunsForward, MEETING_ORDER)
 
 officer.post(
   '/projects',
@@ -209,8 +218,14 @@ officer.post(
     // is not an error at Discord's API or in Postgres.
     await assertUsableRole(data.discordRoleId)
 
+    const term = await termFor(data)
+    const schedule = mergeSchedule(NO_SCHEDULE, data)
+    const problem =
+      scheduleProblem(schedule) ?? (await scheduleTermProblem(schedule, term))
+    if (problem) throw new HTTPException(400, { message: problem })
+
     const project = await prisma.project.create({
-      data: { ...data, ...(await termFor(data)) },
+      data: { ...data, ...schedule, ...term },
       select: managedProjectSelect,
     })
 
@@ -291,7 +306,13 @@ officer.post(
         resourcesHeading: true,
         teamHeading: true,
         discordRoleId: true,
+        meetingRepeat: true,
         meetingWeekdays: true,
+        meetingInterval: true,
+        meetingMonthWeeks: true,
+        meetingMonthDays: true,
+        meetingDates: true,
+        meetingStartsOn: true,
         meetingStartTime: true,
         meetingEndTime: true,
         meetingLocation: true,
@@ -330,6 +351,15 @@ officer.post(
     const { images, links, coverUrl, ...content } = source
     const officerId = c.get('user').id
 
+    // A list of dates belongs to the term it was picked for, and none of them would land
+    // in the new one, so that schedule starts empty. Cancellations aren't copied for the
+    // same reason. A repeating pattern carries on, its first date included, which keeps
+    // every other week on the same weeks.
+    const schedule =
+      source.meetingRepeat === MeetingRepeat.DATES
+        ? NO_SCHEDULE
+        : scheduleOf(source)
+
     // Only what the officer typed is checked. The source's own id came through this
     // check when it was set, and re-checking would let a role since deleted in
     // Discord block a duplication that has nothing to do with it.
@@ -352,6 +382,7 @@ officer.post(
     const project = await prisma.project.create({
       data: {
         ...content,
+        ...schedule,
         slug,
         ...(title === undefined ? {} : { title }),
         ...(season === undefined ? {} : { season }),

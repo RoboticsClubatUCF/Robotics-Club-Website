@@ -20,13 +20,19 @@ const NOW = new Date(2026, 7, 12, 9, 0)
 const series: ApiMeetingSeries = {
   projectSlug: 'rover',
   projectTitle: 'Rover',
+  repeat: 'WEEKLY',
   weekdays: [2, 4],
+  interval: 1,
+  monthWeeks: [],
+  monthDays: [],
+  dates: [],
   startTime: '18:00',
   endTime: '22:00',
   location: 'ENG2 Lab',
   untilDate: new Date(2026, 11, 13, 23, 59).toISOString(),
   skip: null,
   skipDates: [],
+  cancelledDates: [],
 }
 
 const meEvent = (over: Partial<ApiMeEvent> = {}): ApiMeEvent => ({
@@ -134,6 +140,35 @@ describe('DashboardCalendar', () => {
     expect(cellHas(21, 'Kickoff')).toBe(true)
     expect(cellHas(20, 'Rover meeting')).toBe(true)
     expect(cellHas(25, 'Rover meeting')).toBe(true)
+  })
+
+  /**
+   * A cancelled meeting stays on the calendar so a member who knows the project meets that
+   * night sees why it isn't happening. It says CANCELLED in words, since a strikethrough alone
+   * is colour and shape, and offers nothing to add to a calendar.
+   */
+  it('marks a cancelled meeting in words and offers nothing to add', async () => {
+    vi.stubGlobal(
+      'fetch',
+      stubFetch({
+        '/me/events': [
+          meeting(20),
+          { ...meeting(25), cancelled: { reason: 'Homecoming' } },
+        ],
+      }),
+    )
+
+    render(<DashboardCalendar />)
+    await screen.findByRole('heading', { name: 'August 2026' })
+
+    expect(cellHas(25, 'Cancelled: Rover meeting')).toBe(true)
+
+    const rows = await screen.findAllByRole('article')
+    const cancelled = rows.find((row) => within(row).queryByText('CANCELLED'))!
+    expect(within(cancelled).getByText(/Homecoming/)).toBeInTheDocument()
+    expect(
+      within(cancelled).queryByRole('button', { name: /ADD TO CALENDAR/ }),
+    ).toBeNull()
   })
 
   it('invents nothing when the server sends no meetings', async () => {

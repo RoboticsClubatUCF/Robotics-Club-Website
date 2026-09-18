@@ -9,7 +9,7 @@ import {
 } from 'vitest'
 import { app } from '../../app.js'
 import { prisma } from '../../core/db.js'
-import { Season, UserRole } from '../../generated/prisma/enums.js'
+import { MeetingRepeat, Season, UserRole } from '../../generated/prisma/enums.js'
 import { clearCalendarCache } from '../../membership/semester.js'
 
 /**
@@ -868,6 +868,7 @@ describe('GET /api/events with project meetings', () => {
         title: `Content ${slug}`,
         termYear: 2035,
         termSeason: Season.FALL,
+        meetingRepeat: MeetingRepeat.WEEKLY,
         meetingWeekdays: [2, 4],
         meetingStartTime: '18:00',
         meetingEndTime: '22:00',
@@ -913,6 +914,37 @@ describe('GET /api/events with project meetings', () => {
     expect(mine.length).toBeGreaterThan(0)
     // Generated, not stored — nothing downstream may offer to edit one.
     expect(mine.every((event) => event.id.startsWith('meeting:'))).toBe(true)
+  })
+
+  /**
+   * A visitor who read "Tuesdays at six" last week needs to see this Tuesday is off, so a
+   * cancelled meeting stays on the public calendar with the lead's reason on it.
+   */
+  it('marks a cancelled meeting rather than dropping it', async () => {
+    const project = await makeProject('called-off', true)
+    const events = await get<
+      { title: string; startsAt: string; cancelled?: { reason: string | null } | null }[]
+    >(`/api/events?${WINDOW}`)
+    const first = events.find((event) => event.title === 'Content called-off meeting')!
+
+    const date = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/New_York',
+    }).format(new Date(first.startsAt))
+    await prisma.projectMeetingCancellation.create({
+      data: { projectId: project.id, date, reason: 'Homecoming' },
+    })
+
+    const after = await get<typeof events>(`/api/events?${WINDOW}`)
+    const cancelled = after.filter(
+      (event) => event.title === 'Content called-off meeting' && event.cancelled,
+    )
+
+    expect(cancelled).toEqual([
+      expect.objectContaining({
+        startsAt: first.startsAt,
+        cancelled: { reason: 'Homecoming' },
+      }),
+    ])
   })
 
   it('leaves out a project switched off the public calendar', async () => {
