@@ -1,241 +1,191 @@
 # Deploying
 
-The box pulls. Nothing pushes to it.
-
-Push to `main`, CI runs in GitHub, and within a couple of minutes the box
-notices the branch moved, checks that CI went green on that exact commit, and
-updates whichever half of the site actually changed. No SSH, no tarball, no
-`scp`.
+The server pulls; nothing pushes to it. Push to `main`, CI runs on GitHub, and
+within a couple of minutes the server sees the branch moved, checks CI passed on
+that exact commit, and updates whichever half of the site changed.
 
 ```
-   push ──▶ GitHub ──▶ CI: web │ server │ deploy   (three parallel jobs, ~2 min)
+   push ──▶ GitHub ──▶ CI: web │ server │ deploy   (parallel, ~2 min)
                              │
                              ▼  all green?
-   box ──▶ every 2 min: git fetch ──▶ ask GitHub ──▶ deploy what changed
+   server ──▶ every 2 min: git fetch ──▶ ask GitHub ──▶ deploy what changed
 ```
 
-**`main` is production.** There is no approval step and nobody is watching.
+`main` is production. There's no approval step.
 
 ## Why it pulls
 
-The box has no public address. It sits on the LAN and a Cloudflare Tunnel on
-another machine reaches it at `:4173`, so GitHub cannot open a connection to it
-and there is no webhook to receive.
+The server has no public address. It sits on the club's LAN, and a Cloudflare
+Tunnel on another machine reaches it at `:4173`, so GitHub can't connect to it.
 
-A self-hosted Actions runner would solve that — it dials out — but **this
-repository is public**, and a runner executes workflow files that arrive with a
-pull request. This box holds the club's live Discord bot token, live Stripe keys
-and a database of real members. Pulling means nothing from GitHub runs here
-except code that is already on `main` and already passed CI.
+A self-hosted Actions runner would connect outward, but this repository is
+public and a runner executes workflow files from pull requests. This server
+holds the live Discord bot token, Stripe keys and the members database. Pulling
+means only code already on `main` and already through CI runs here.
 
 ## What it does with a change
 
-Worked out from the diff between what is running and what is being deployed.
-The rules are `classify` in `deploy.sh` and every one of them is tested by
-`classify.test.sh`:
+The diff between the running commit and the new one decides. The rules are
+`classify` in `deploy.sh`, all tested by `classify.test.sh`:
 
-| Changed | What happens |
+| Changed | Action |
 | --- | --- |
 | `web/**` | rebuild the bundle, sync it into the nginx root |
 | `server/**` | rebuild the API image, `compose up -d` (migrations run first) |
-| `server/nginx.conf` | recreate the web container, which mounts it |
+| `server/nginx.conf` | recreate the web container |
 | `server/docker-compose.yml` | both of the above |
-| anything else | the checkout moves to the commit; nothing is rebuilt |
+| anything else | move the checkout to the commit; rebuild nothing |
 
-That last row still moves the working tree, which matters more than it sounds:
-`deploy/**` classifies as nothing-to-rebuild by design — the unit runs the
-script straight out of the checkout, so a changed script needs no build — and if
-the checkout did not follow, an improvement to the deploy agent would be exactly
-the kind of commit that never reached the disk.
+The checkout always moves, because the service runs `deploy.sh` straight from
+it, so a change to `deploy/**` takes effect without a build.
 
-Migrations are not sequenced here on purpose: `docker-compose.yml` makes `api`
-depend on the `migrate` service completing, so `prisma migrate deploy` runs
-exactly once, before any API process starts, however many replicas there are.
+Migrations aren't sequenced here. In `docker-compose.yml`, `api` depends on the
+`migrate` service completing, so `prisma migrate deploy` runs once before any API
+process starts.
 
 ## Setting it up
 
-On the box, and **every command needs `sudo`** — the checkout is root-owned, and
-`sudo` on the first line of a pasted block does not cover the second.
+Run everything on the server with `sudo`. The checkout is root-owned, and `sudo`
+on the first line of a pasted block doesn't cover the next.
 
-**1. Dependencies.** Docker is already there.
+1. Dependencies (Docker is already installed):
 
-```sh
-sudo apt install -y git curl jq rsync
-curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
-sudo apt install -y nodejs
-node -v && npm -v
-```
+   ```sh
+   sudo apt install -y git curl jq rsync
+   curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
+   sudo apt install -y nodejs
+   node -v && npm -v
+   ```
 
-`sudo -E` on the NodeSource line, not just `sudo` on the `apt` line after it —
-the setup script does its own `apt update` and fails without root.
+   The NodeSource script runs its own `apt update`, so it needs `sudo -E`.
 
-**2. Docker at boot.** This is the half of "survives a reboot" that brings the
-site back; the timer only brings the *deploys* back.
+2. Start Docker at boot, which is what brings the site back after a reboot:
 
-```sh
-sudo systemctl enable --now docker
-```
+   ```sh
+   sudo systemctl enable --now docker
+   ```
 
-**3. The checkout.** One persistent clone, not a fresh one per deploy — the two
-env files live in it:
+3. One persistent checkout, which holds the env files:
 
-```sh
-sudo mkdir -p /srv/rccf
-sudo git clone https://github.com/RoboticsClubatUCF/Robotics-Club-Website.git /srv/rccf/app
-```
+   ```sh
+   sudo mkdir -p /srv/rccf
+   sudo git clone https://github.com/RoboticsClubatUCF/Robotics-Club-Website.git /srv/rccf/app
+   ```
 
-**4. The env files.** Both are gitignored, so `git reset --hard` leaves them
-alone — that is what makes a persistent checkout safe.
+4. The env files. Both are gitignored, so `git reset --hard` leaves them alone.
+   Copy them from a working deployment rather than retyping keys:
 
-**Copy them from a deployment that already works.** Retyping a live Discord
-token and Stripe keys by hand is how one character goes missing:
+   ```sh
+   cd ~/rccf/website/Robotics-Club-Website
+   sudo cp server/.env /srv/rccf/app/server/.env
+   sudo cp web/.env /srv/rccf/app/web/.env
+   ```
 
-```sh
-cd ~/rccf/website/Robotics-Club-Website
-sudo cp server/.env /srv/rccf/app/server/.env
-sudo cp web/.env /srv/rccf/app/web/.env
-```
+   - `server/.env` configures the API; `server/.env.example` lists every key.
+     Its `WEB_ROOT` and `WEB_PORT` must match step 5.
+   - `web/.env` holds `VITE_API_URL` and `VITE_STRIPE_PUBLISHABLE_KEY`, baked into
+     the bundle at build time. That's why the frontend builds here and not in
+     CI, which would otherwise need the club's keys.
 
-- `server/.env` — the API's configuration. `server/.env.example` lists every
-  key. `WEB_ROOT` and `WEB_PORT` in it are also what compose mounts and
-  publishes, so they have to agree with step 5.
-- `web/.env` — `VITE_API_URL` and `VITE_STRIPE_PUBLISHABLE_KEY`. **Baked into
-  the bundle at build time**, which is the reason the frontend is built on the
-  box rather than in CI: CI would need the club's keys to produce a correct
-  bundle, and they are not going into GitHub secrets to save a minute.
+   `VITE_API_URL` is `https://rccf.club`, the site's own origin. nginx proxies
+   `/api/` on the same origin; there's no `api.` host, and a bundle pointing at
+   one loads and fails every request. `assert_api_url` refuses an unset or
+   localhost value and logs `bundle will call …` on every frontend deploy.
 
-**`VITE_API_URL` is `https://rccf.club`** — the site's own origin, with no
-`api.` in front of it. Both halves are served from one origin and nginx proxies
-`/api/`; there is no separate API host, and a bundle pointing at one loads fine
-and fails every request. `assert_api_url` in the script refuses an unset or
-localhost value and logs what it is about to bake in, so the journal says
-`bundle will call …` on every frontend deploy. Read that line.
+5. Configuration, only if the defaults (`BRANCH=main`, `REPO_DIR=/srv/rccf/app`,
+   `WEB_ROOT=/srv/rccf/web`, `WEB_PORT=4173`) are wrong:
 
-**5. Configuration.** Only if the defaults are wrong for this box — they are
-`BRANCH=main`, `REPO_DIR=/srv/rccf/app`, `WEB_ROOT=/srv/rccf/web`,
-`WEB_PORT=4173`, which is what the club's box already uses.
+   ```sh
+   sudo tee /etc/rccf-deploy.conf >/dev/null <<'EOF'
+   BRANCH=main
+   WEB_ROOT=/srv/rccf/web
+   WEB_PORT=4173
+   # Optional: raises the GitHub API limit from 60/hour. A fine-grained token with
+   # read-only Actions access on this repository is enough.
+   # GITHUB_TOKEN=github_pat_...
+   EOF
+   sudo chmod 600 /etc/rccf-deploy.conf
+   ```
 
-```sh
-sudo tee /etc/rccf-deploy.conf >/dev/null <<'EOF'
-BRANCH=main
-WEB_ROOT=/srv/rccf/web
-WEB_PORT=4173
-# Optional: raises the GitHub API limit from 60/hour. A fine-grained token with
-# read-only Actions access on this one repository is enough.
-# GITHUB_TOKEN=github_pat_...
-EOF
-sudo chmod 600 /etc/rccf-deploy.conf
-```
+   Use `sudo tee`. With `sudo cat > file`, your own shell opens the file and gets
+   `Permission denied`.
 
-`sudo tee`, not `sudo cat > file` — the redirect is performed by your own shell
-before sudo is involved, so that fails with `Permission denied`.
+6. The timer:
 
-**6. The timer.**
+   ```sh
+   sudo cp /srv/rccf/app/deploy/rccf-deploy.{service,timer} /etc/systemd/system/
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now rccf-deploy.timer
+   ```
 
-```sh
-sudo cp /srv/rccf/app/deploy/rccf-deploy.{service,timer} /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now rccf-deploy.timer
-```
+   Enable the timer, never the service. The service has no `[Install]` section,
+   so enabling it fails instead of adding a second trigger at boot.
 
-Enable the **timer**, never the service. The service has no `[Install]` section
-precisely so that `systemctl enable rccf-deploy.service` fails rather than
-quietly adding a second trigger at every boot.
+7. First deploy. Rehearse, then run it:
 
-**7. First deploy.** Rehearse, then do it:
+   ```sh
+   sudo bash /srv/rccf/app/deploy/deploy.sh --dry-run --force
+   sudo bash /srv/rccf/app/deploy/deploy.sh --force
+   ```
 
-```sh
-sudo bash /srv/rccf/app/deploy/deploy.sh --dry-run --force
-sudo bash /srv/rccf/app/deploy/deploy.sh --force
-```
+   The dry run prints the plan. The real run ends with `health checks passed`
+   and `deployed <sha>`.
 
-The dry run prints the plan and touches nothing. The real one ends with
-`health checks passed` and `deployed <sha>`.
+8. Confirm it survives a reboot:
 
-**8. Confirm it survives a reboot.** Two things must be true, and neither needs
-an actual reboot to check:
+   ```sh
+   systemctl is-enabled rccf-deploy.timer   # enabled
+   systemctl is-enabled docker              # enabled
+   systemctl list-timers rccf-deploy.timer  # next fire time
+   ```
 
-```sh
-systemctl is-enabled rccf-deploy.timer   # enabled
-systemctl is-enabled docker              # enabled
-systemctl list-timers rccf-deploy.timer  # next fire time
-```
-
-`enabled` means a symlink in `timers.target.wants`, which is what makes systemd
-start it at boot; `OnBootSec=2min` resumes the cycle two minutes in. The
-containers come back on their own because compose marks them
-`restart: unless-stopped`, which is why the Docker line matters as much.
+   `OnBootSec=2min` restarts the cycle after boot, and the containers come back
+   through `restart: unless-stopped`.
 
 ## Using it
 
 ```sh
-journalctl -u rccf-deploy -f              # watch a deploy happen
-journalctl -u rccf-deploy -n 50           # what it did last
-sudo bash /srv/rccf/app/deploy/deploy.sh --dry-run   # what would it do
-sudo bash /srv/rccf/app/deploy/deploy.sh --force     # deploy now, CI or no CI
+journalctl -u rccf-deploy -f                         # watch a deploy
+journalctl -u rccf-deploy -n 50                      # the last run
+sudo bash /srv/rccf/app/deploy/deploy.sh --dry-run   # what it would do
+sudo bash /srv/rccf/app/deploy/deploy.sh --force     # deploy now, CI or not
 ```
 
-State lives in `/var/lib/rccf-deploy`: `deployed` is the commit currently
-serving, `failed` is one that broke.
+State is in `/var/lib/rccf-deploy`: `deployed` is the commit being served,
+`failed` is one that broke.
 
-`git` in `/srv/rccf/app` needs `sudo` too, or it refuses with
-`detected dubious ownership` — the clone is root-owned and you are not root.
-Do not add a `safe.directory` exception to make that go away: the agent runs as
-root, root owns the repository, and the check never fires for it.
+`git` in `/srv/rccf/app` needs `sudo`, or it refuses with
+`detected dubious ownership`. Don't add a `safe.directory` exception; the agent
+runs as root and never hits the check.
 
-## Things worth knowing before you rely on it
+## Before you rely on it
 
-**A commit with no CI run is never deployed, and never gives up waiting.** The
-gate asks GitHub for the `ci.yml` run against that exact SHA *on that branch*;
-"no run yet" and "still running" are the same answer, because seconds after a
-push they are indistinguishable. That is the safe direction to be wrong in, but
-a branch whose head predates the workflow sits there forever with
-`CI still running` in the journal. Deploy it once with `--force`.
+- A commit with no CI run is never deployed and waits forever. The gate asks
+  GitHub for the `ci.yml` run on that SHA and that branch; "no run yet" and
+  "still running" look the same. A branch whose head predates the workflow sits
+  at `CI still running`. Deploy it once with `--force`. The branch matters
+  because one SHA can have runs on several branches.
+- A failed deploy isn't retried. The commit goes in
+  `/var/lib/rccf-deploy/failed` and is skipped until the branch moves. Push a
+  fix, or `--force` once you know why.
+- There's no automatic rollback. A failed health check stops loudly with the new
+  containers already running. Roll back with
+  `sudo git -C /srv/rccf/app checkout <good-sha>` and `--force`.
+- Nothing brings a stopped stack back up. The agent only acts on changes.
+- Old asset chunks are kept for two weeks. Routes are split with `lazy()`, and a
+  member with the dashboard open holds an `index.html` naming the previous
+  build's chunks.
+- `index.html` syncs last, after the chunks it references.
+- Every compose call names both profiles, `app` (postgres, migrate, api) and
+  `web` (nginx). `web` depends on `api`, so naming one gives
+  `service "web" depends on undefined service "api": invalid compose project`.
+  The `compose` helper handles this and `classify.test.sh` checks it.
+- Nothing touches the database except migrations. There's no seed on deploy.
 
-The branch matters: one commit can carry runs from several branches — develop on
-a feature branch, fast-forward `main` onto it, and that SHA now has one of each.
-Asking by SHA alone and taking the newest would make the verdict depend on which
-push landed last.
+## Cloudflare
 
-**A commit that fails to deploy is not retried.** It is recorded in
-`/var/lib/rccf-deploy/failed` and skipped until the branch moves again — without
-that, the timer would rebuild a broken commit every two minutes all night. The
-fix is another commit, or `--force` once you know why.
-
-**There is no automatic rollback.** If the health check fails the script stops
-and says so, loudly, in the journal — but the new containers are already up.
-Rolling back is `sudo git -C /srv/rccf/app checkout <good-sha>` and `--force`.
-
-**Nothing here brings the stack up if it is down.** The agent acts on *changes*,
-so a tick with nothing new to deploy exits before it health-checks anything.
-
-**Old asset chunks are kept for a fortnight, not deleted.** The frontend splits
-its routes with `lazy()`, so a member with the dashboard open when a deploy
-lands is holding an `index.html` that names the *previous* build's chunks.
-Deleting those turns their next click into a failed import. Filenames are
-content-hashed, so keeping them costs a few hundred kilobytes.
-
-**`index.html` is synced last**, after every other file, because it names those
-chunks — copying it first leaves a window where the browser is handed an index
-pointing at files that are not on disk yet.
-
-**Both compose profiles are named on every call.** The stack splits into `app`
-(postgres, migrate, api) and `web` (nginx), and `web` declares `depends_on: api`
-across that boundary — so a command naming one profile describes a project in
-which the other half does not exist, and compose refuses the lot:
-`service "web" depends on undefined service "api": invalid compose project`.
-That is in the `compose` helper rather than at the call sites, and
-`classify.test.sh` asserts it stays there.
-
-**Nothing touches the database beyond migrations**, and those are the compose
-`migrate` service's job. There is no seed on deploy — the production database
-has real members in it.
-
-## Cloudflare is in front of all of this
-
-It is not only a CDN. A WAF rule matching `/join` once served a managed
-challenge to `POST /api/projects/:id/join`, and members could not join projects:
-a `403` with `cf-mitigated: challenge`, from the edge, never reaching the server.
-When something works locally and not on the live site, check whether the request
-is arriving at all — `curl -sD - -o /dev/null https://rccf.club/<path>` and look
-for `cf-mitigated`.
+Cloudflare fronts the site with a WAF. A rule matching `/join` once challenged
+`POST /api/projects/:id/join`, and members couldn't join projects: a `403` with
+`cf-mitigated: challenge` that never reached the server. If something works
+locally but not live, check the request arrives:
+`curl -sD - -o /dev/null https://rccf.club/<path>` and look for `cf-mitigated`.
