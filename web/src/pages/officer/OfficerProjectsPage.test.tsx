@@ -66,6 +66,7 @@ const created: ApiManagedProject = {
   meetingStartsOn: null,
   meetingStartTime: null,
   meetingEndTime: null,
+  meetingTimes: [],
   meetingLocation: null,
   meetingDescription: null,
   meetingsPublic: true,

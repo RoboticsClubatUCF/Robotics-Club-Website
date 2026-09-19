@@ -559,6 +559,12 @@ export type ProjectMemberRank = 'PROJECT_LEAD' | 'TEAM_LEAD' | 'MEMBER'
  */
 export type MeetingRepeat = 'WEEKLY' | 'MONTHLY_WEEKDAY' | 'MONTHLY_DAY' | 'DATES'
 
+/**
+ * One meeting day's own hours, mirroring `ProjectMeetingTime`. `day` is in the pattern's
+ * terms: a weekday "0"-"6", a day of the month "1"-"28" or "-1", or a date "2026-09-25".
+ */
+export type ApiMeetingTime = { day: string; startTime: string; endTime: string }
+
 /** A project as its members and leads see it: the public row plus the meeting
     schedule, mirroring `managedProjectSelect` in `server/src/routes/officer/officer.ts`. */
 export type ApiManagedProject = ApiProject & {
@@ -584,6 +590,8 @@ export type ApiManagedProject = ApiProject & {
       `web/src/lib/events/meetings.ts` for why neither is ever put through `Date`. */
   meetingStartTime: string | null
   meetingEndTime: string | null
+  /** The days that keep other hours than the two above, only where they differ. */
+  meetingTimes: ApiMeetingTime[]
   meetingLocation: string | null
   /**
    * The lead's own note about the meeting, or null. The fields above are when and
@@ -954,6 +962,24 @@ export type EventType =
  * and rebuilding those in the browser would be guessing at what the server already
  * worked out.
  */
+/**
+ * The part of a series that keeps one set of hours, mirroring `MeetingHours` in
+ * `server/src/projects/meetings.ts`. A calendar rule carries one time, so each part is
+ * its own rule in an export.
+ */
+export type ApiMeetingHours = {
+  startTime: string
+  endTime: string
+  /** WEEKLY and MONTHLY_WEEKDAY: the weekdays on these hours. */
+  weekdays: number[]
+  /** MONTHLY_DAY: the days of the month on these hours. */
+  monthDays: number[]
+  skipDates: string[]
+  cancelledDates: string[]
+  /** This part's first meeting from the occurrence carrying it, or null when none is left. */
+  next: { startsAt: string; endsAt: string } | null
+}
+
 export type ApiMeetingSeries = {
   projectSlug: string
   projectTitle: string
@@ -968,9 +994,14 @@ export type ApiMeetingSeries = {
    * out. A calendar file gets one entry per date, since a list has no rule to repeat.
    */
   dates: { startsAt: string; endsAt: string }[]
-  /** Campus wall-clock, "18:00". */
+  /** Campus wall-clock, "18:00". The usual hours; `hours` has the days that keep others. */
   startTime: string
   endTime: string
+  /**
+   * The series by its hours, the usual ones first, one entry when every day keeps them.
+   * Empty for DATES, whose `dates` carry their own.
+   */
+  hours: ApiMeetingHours[]
   location: string | null
   /** The last day the series runs: the end of the project's term, as ISO. */
   untilDate: string

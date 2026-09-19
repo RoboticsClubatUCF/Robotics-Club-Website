@@ -33,6 +33,7 @@ const series: ApiMeetingSeries = {
   skip: null,
   skipDates: [],
   cancelledDates: [],
+  hours: [],
 }
 
 const meEvent = (over: Partial<ApiMeEvent> = {}): ApiMeEvent => ({

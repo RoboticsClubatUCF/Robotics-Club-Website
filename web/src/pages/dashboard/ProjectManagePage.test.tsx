@@ -62,6 +62,7 @@ const project: ApiManagedProject = {
   meetingStartsOn: null,
   meetingStartTime: null,
   meetingEndTime: null,
+  meetingTimes: [],
   meetingLocation: null,
   meetingDescription: null,
   meetingsPublic: true,
@@ -576,6 +577,7 @@ const scheduled: ApiManagedProject = {
   meetingWeekdays: [2, 4],
   meetingStartTime: '18:00',
   meetingEndTime: '22:00',
+  meetingTimes: [],
   meetingLocation: 'ENG2 Lab',
 }
 
@@ -595,6 +597,7 @@ const series: ApiMeetingSeries = {
   skip: null,
   skipDates: [],
   cancelledDates: [],
+  hours: [],
 }
 
 /** Fall 2035 as the term route answers: classes from 24 August, finals 7 to 13 December. */
@@ -682,7 +685,7 @@ describe('the meeting schedule', () => {
       target: { value: '2' },
     })
     expect(
-      schedulePanel().getByText('Meets every other Tuesday and Thursday.'),
+      schedulePanel().getByText('Meets every other Tuesday and Thursday · 6:00 – 10:00 PM.'),
     ).toBeInTheDocument()
 
     await saveSchedule()
@@ -718,7 +721,9 @@ describe('the meeting schedule', () => {
     fireEvent.click(schedulePanel().getByRole('checkbox', { name: 'Last week of the month' }))
 
     expect(
-      schedulePanel().getByText('Meets the first and last Tuesday of the month.'),
+      schedulePanel().getByText(
+        'Meets the first and last Tuesday of the month · 6:00 – 10:00 PM.',
+      ),
     ).toBeInTheDocument()
 
     await saveSchedule()
@@ -869,6 +874,167 @@ describe('the meeting schedule', () => {
       fireEvent.keyDown(first, { key: 'Home' })
     })
     expect(schedulePanel().getByRole('button', { name: 'Sunday, August 26' })).toHaveFocus()
+  })
+
+  /**
+   * The saved schedule is Tuesdays and Thursdays, six till ten. Each day starts on those hours
+   * once they vary, so the lead only changes Thursday, and only Thursday is sent.
+   */
+  it('gives a day its own hours, sending only the day that differs', async () => {
+    const fetchMock = stubMeetings()
+    renderPage(fetchMock)
+    await act(async () => {})
+
+    expect(schedulePanel().getByRole('radio', { name: 'SAME EVERY DAY' })).toBeChecked()
+    fireEvent.click(schedulePanel().getByRole('radio', { name: 'DIFFERENT BY DAY' }))
+
+    expect(schedulePanel().queryByLabelText('FROM')).not.toBeInTheDocument()
+    expect(schedulePanel().getByLabelText('Tuesday from')).toHaveValue('18:00')
+    fireEvent.change(schedulePanel().getByLabelText('Thursday from'), {
+      target: { value: '19:00' },
+    })
+    fireEvent.change(schedulePanel().getByLabelText('Thursday to'), {
+      target: { value: '21:00' },
+    })
+
+    await saveSchedule()
+    expect(patchBody(fetchMock)).toMatchObject({
+      meetingStartTime: '18:00',
+      meetingEndTime: '22:00',
+      meetingTimes: [{ day: '4', startTime: '19:00', endTime: '21:00' }],
+    })
+    // Read back from what the server kept, still day by day.
+    expect(schedulePanel().getByLabelText('Thursday from')).toHaveValue('19:00')
+  })
+
+  it('names the day whose hours are backwards, and sends nothing', async () => {
+    const fetchMock = stubMeetings()
+    renderPage(fetchMock)
+    await act(async () => {})
+
+    fireEvent.click(schedulePanel().getByRole('radio', { name: 'DIFFERENT BY DAY' }))
+    fireEvent.change(schedulePanel().getByLabelText('Thursday to'), {
+      target: { value: '17:00' },
+    })
+    await saveSchedule()
+
+    expect(
+      schedulePanel().getByText('Thursday: the meeting has to end after it starts.'),
+    ).toBeInTheDocument()
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'PATCH')).toBe(
+      false,
+    )
+  })
+
+  it('goes back to one set of hours for every day', async () => {
+    const fetchMock = stubMeetings()
+    renderPage(fetchMock)
+    await act(async () => {})
+
+    fireEvent.click(schedulePanel().getByRole('radio', { name: 'DIFFERENT BY DAY' }))
+    for (const day of ['Tuesday', 'Thursday']) {
+      fireEvent.change(schedulePanel().getByLabelText(`${day} from`), {
+        target: { value: '17:00' },
+      })
+    }
+    fireEvent.click(schedulePanel().getByRole('radio', { name: 'SAME EVERY DAY' }))
+
+    // The hours every day had, not the ones from before the split.
+    expect(schedulePanel().getByLabelText('FROM')).toHaveValue('17:00')
+    await saveSchedule()
+    expect(patchBody(fetchMock)).toMatchObject({
+      meetingStartTime: '17:00',
+      meetingTimes: [],
+    })
+
+    // Splitting again starts every day on the shared hours, not on what they were before.
+    fireEvent.change(schedulePanel().getByLabelText('FROM'), { target: { value: '16:00' } })
+    fireEvent.click(schedulePanel().getByRole('radio', { name: 'DIFFERENT BY DAY' }))
+    expect(schedulePanel().getByLabelText('Thursday from')).toHaveValue('16:00')
+  })
+
+  /** The line under the pattern is the check on a mistake, so it carries the hours too. */
+  it('reads each day’s hours back before saving', async () => {
+    renderPage(stubMeetings())
+    await act(async () => {})
+
+    expect(
+      schedulePanel().getByText('Meets Tuesdays and Thursdays · 6:00 – 10:00 PM.'),
+    ).toBeInTheDocument()
+
+    fireEvent.click(schedulePanel().getByRole('radio', { name: 'DIFFERENT BY DAY' }))
+    fireEvent.change(schedulePanel().getByLabelText('Thursday from'), {
+      target: { value: '19:00' },
+    })
+    fireEvent.change(schedulePanel().getByLabelText('Thursday to'), {
+      target: { value: '21:00' },
+    })
+
+    expect(
+      schedulePanel().getByText(
+        'Meets Tuesdays and Thursdays · Tue 6:00 – 10:00 PM; Thu 7:00 – 9:00 PM.',
+      ),
+    ).toBeInTheDocument()
+
+    // A time half cleared leaves the hours out rather than printing midnight.
+    fireEvent.change(schedulePanel().getByLabelText('Thursday to'), {
+      target: { value: '' },
+    })
+    expect(schedulePanel().getByText('Meets Tuesdays and Thursdays.')).toBeInTheDocument()
+  })
+
+  /** With one day, SAME takes the HOURS choice away, and focus would go with it. */
+  it('hands focus to FROM when the choice of hours goes away', async () => {
+    renderPage(stubMeetings())
+    await act(async () => {})
+
+    fireEvent.click(schedulePanel().getByRole('radio', { name: 'DIFFERENT BY DAY' }))
+    fireEvent.click(schedulePanel().getByRole('checkbox', { name: 'Thursday' }))
+    await act(async () => {
+      fireEvent.click(schedulePanel().getByRole('radio', { name: 'SAME EVERY DAY' }))
+    })
+
+    expect(
+      schedulePanel().queryByRole('radio', { name: 'SAME EVERY DAY' }),
+    ).not.toBeInTheDocument()
+    expect(schedulePanel().getByLabelText('FROM')).toHaveFocus()
+  })
+
+  it('offers no choice of hours for a single day', async () => {
+    renderPage(stubMeetings())
+    await act(async () => {})
+
+    fireEvent.click(schedulePanel().getByRole('checkbox', { name: 'Thursday' }))
+    expect(
+      schedulePanel().queryByRole('radio', { name: 'DIFFERENT BY DAY' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('gives a picked date its own hours', async () => {
+    const fetchMock = stubMeetings()
+    renderPage(fetchMock)
+    await act(async () => {})
+
+    fireEvent.click(schedulePanel().getByRole('radio', { name: 'ON CHOSEN DATES' }))
+    fireEvent.click(schedulePanel().getByRole('button', { name: 'Next month' }))
+    for (const day of ['Saturday, September 1', 'Tuesday, September 4']) {
+      fireEvent.click(schedulePanel().getByRole('button', { name: day }))
+    }
+    fireEvent.click(schedulePanel().getByRole('radio', { name: 'DIFFERENT BY DATE' }))
+    fireEvent.change(schedulePanel().getByLabelText('Saturday, September 1 from'), {
+      target: { value: '10:00' },
+    })
+    fireEvent.change(schedulePanel().getByLabelText('Saturday, September 1 to'), {
+      target: { value: '14:00' },
+    })
+
+    await saveSchedule()
+    expect(patchBody(fetchMock)).toMatchObject({
+      meetingRepeat: 'DATES',
+      meetingDates: ['2035-09-01', '2035-09-04'],
+      meetingStartTime: '18:00',
+      meetingTimes: [{ day: '2035-09-01', startTime: '10:00', endTime: '14:00' }],
+    })
   })
 
   it('asks before taking the schedule off, then sends no pattern', async () => {

@@ -53,6 +53,7 @@ const series = (over: Partial<ApiMeetingSeries> = {}): ApiMeetingSeries => ({
   skip: { from: '2035-12-06T05:00:00.000Z', to: '2035-12-13T04:59:59.999Z' },
   skipDates: ['2035-12-06T23:00:00.000Z', '2035-12-11T23:00:00.000Z'],
   cancelledDates: [],
+  hours: [],
   ...over,
 })
 
@@ -351,5 +352,86 @@ describe('what the button says', () => {
     expect(icsFilename(event({ title: 'Design Review!' }))).toBe(
       'design-review.ics',
     )
+  })
+})
+
+/**
+ * Tuesdays six till ten, Thursdays seven till nine. A rule carries one time, so the file
+ * carries two rules, each starting at its own next meeting from the one pressed: here
+ * Thursday the 6th, with the Tuesday rule picking up on the 11th.
+ */
+describe('hours that differ by day', () => {
+  const thursday = event({
+    title: 'Rover meeting',
+    startsAt: '2035-09-06T23:00:00.000Z',
+    endsAt: '2035-09-07T01:00:00.000Z',
+  })
+  const split = series({
+    hours: [
+      {
+        startTime: '18:00',
+        endTime: '22:00',
+        weekdays: [2],
+        monthDays: [],
+        skipDates: ['2035-12-11T23:00:00.000Z'],
+        cancelledDates: [],
+        next: { startsAt: '2035-09-11T22:00:00.000Z', endsAt: '2035-09-12T02:00:00.000Z' },
+      },
+      {
+        startTime: '19:00',
+        endTime: '21:00',
+        weekdays: [4],
+        monthDays: [],
+        skipDates: ['2035-12-07T00:00:00.000Z'],
+        cancelledDates: [],
+        next: { startsAt: thursday.startsAt, endsAt: thursday.endsAt! },
+      },
+    ],
+  })
+
+  it('writes one rule per set of hours, each with its own start and exceptions', () => {
+    const lines = linesOf(icsFor({ ...thursday, meeting: split }, NOW))
+
+    expect(lines.filter((line) => line === 'BEGIN:VEVENT')).toHaveLength(2)
+    expect(lines).toContain('DTSTART;TZID=America/New_York:20350911T180000')
+    expect(lines).toContain('RRULE:FREQ=WEEKLY;BYDAY=TU;UNTIL=20351213T045959Z')
+    expect(lines).toContain('EXDATE;TZID=America/New_York:20351211T180000')
+    expect(lines).toContain('DTSTART;TZID=America/New_York:20350906T190000')
+    expect(lines).toContain('DTEND;TZID=America/New_York:20350906T210000')
+    expect(lines).toContain('RRULE:FREQ=WEEKLY;BYDAY=TH;UNTIL=20351213T045959Z')
+    expect(lines).toContain('EXDATE;TZID=America/New_York:20351206T190000')
+    // Two entries, two ids, the first the series' own.
+    expect(lines.filter((line) => line.startsWith('UID:'))).toEqual([
+      'UID:meeting-rover-2035-12-13T04:59:59.999Z@rccf',
+      'UID:meeting-rover-2035-12-13T04:59:59.999Z-2@rccf',
+    ])
+  })
+
+  it('leaves out the hours with no meeting left this term', () => {
+    const [tuesdays, thursdays] = split.hours
+    const lines = linesOf(
+      icsFor(
+        { ...thursday, meeting: { ...split, hours: [{ ...tuesdays!, next: null }, thursdays!] } },
+        NOW,
+      ),
+    )
+
+    expect(lines.filter((line) => line === 'BEGIN:VEVENT')).toHaveLength(1)
+    expect(lines).not.toContain('RRULE:FREQ=WEEKLY;BYDAY=TU;UNTIL=20351213T045959Z')
+  })
+
+  it('hands Google the rule for the pressed meeting’s hours', () => {
+    const url = new URL(googleCalendarUrl({ ...thursday, meeting: split }))
+    const recur = url.searchParams.get('recur') ?? ''
+
+    expect(url.searchParams.get('dates')).toBe('20350906T190000/20350906T210000')
+    expect(recur).toContain('RRULE:FREQ=WEEKLY;BYDAY=TH;')
+    expect(recur).not.toContain('BYDAY=TU')
+    expect(recur).toContain('EXDATE;TZID=America/New_York:20351206T190000')
+  })
+
+  it('says Google takes only the meetings at these hours', () => {
+    expect(seriesSummary(split)).toContain('Google Calendar gets only the meetings at these hours.')
+    expect(seriesSummary(series())).not.toContain('Google')
   })
 })

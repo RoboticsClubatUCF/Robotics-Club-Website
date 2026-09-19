@@ -10,9 +10,12 @@ import {
 } from './meetings'
 import {
   EMPTY_DRAFT,
+  commonHours,
   draftBody,
   draftOf,
   draftProblem,
+  hoursOf,
+  meetingDays,
 } from './meetingDraft'
 import type { ApiManagedProject } from '../api/api'
 
@@ -37,6 +40,7 @@ const project = (
   | 'meetingStartsOn'
   | 'meetingStartTime'
   | 'meetingEndTime'
+  | 'meetingTimes'
   | 'meetingLocation'
   | 'meetingDescription'
 > => ({
@@ -49,6 +53,7 @@ const project = (
   meetingStartsOn: null,
   meetingStartTime: '18:00',
   meetingEndTime: '22:00',
+  meetingTimes: [],
   meetingLocation: 'ENG2 Lab',
   meetingDescription: null,
   ...over,
@@ -290,5 +295,155 @@ describe('the schedule form', () => {
       meetingDates: ['2035-10-01'],
       meetingLocation: null,
     })
+  })
+})
+
+/** Thursdays at seven till nine where Tuesdays keep six till ten. */
+describe('hours that differ by day', () => {
+  const lateThursdays = { day: '4', startTime: '19:00', endTime: '21:00' }
+
+  it('prints each day with its hours, days that share them together', () => {
+    expect(meetingLine(project({ meetingTimes: [lateThursdays] }), NOW)).toBe(
+      'Meets Tuesdays and Thursdays · Tue 6:00 – 10:00 PM; Thu 7:00 – 9:00 PM · ENG2 Lab',
+    )
+    expect(
+      meetingLine(
+        project({ meetingWeekdays: [1, 2, 4], meetingTimes: [lateThursdays] }),
+        NOW,
+      ),
+    ).toBe(
+      'Meets Mondays, Tuesdays and Thursdays · Mon and Tue 6:00 – 10:00 PM; Thu 7:00 – 9:00 PM · ENG2 Lab',
+    )
+  })
+
+  it('names the day of the month the hours belong to', () => {
+    expect(
+      meetingLine(
+        project({
+          meetingRepeat: 'MONTHLY_DAY',
+          meetingWeekdays: [],
+          meetingMonthDays: [1, -1],
+          meetingTimes: [{ day: '-1', startTime: '09:00', endTime: '11:00' }],
+          meetingLocation: null,
+        }),
+        NOW,
+      ),
+    ).toBe(
+      'Meets on the 1st and last day of the month · 1st 6:00 – 10:00 PM; last day 9:00 – 11:00 AM',
+    )
+  })
+
+  /** A list of dates puts each date's hours beside it, for the ones still ahead. */
+  it('puts a listed date beside its own hours', () => {
+    const dated = project({
+      meetingRepeat: 'DATES',
+      meetingWeekdays: [],
+      meetingDates: ['2035-09-01', '2035-09-20', '2035-10-04', '2035-10-18', '2035-11-01'],
+      meetingTimes: [{ day: '2035-10-04', startTime: '10:00', endTime: '14:00' }],
+      meetingLocation: null,
+    })
+
+    expect(meetingLine(dated, NOW)).toBe(
+      'Meets Sep 20 6:00 – 10:00 PM, Oct 4 10:00 AM – 2:00 PM, Oct 18 6:00 – 10:00 PM and 1 more date',
+    )
+    // Hours that only differed on a date now past leave one set to print.
+    expect(
+      meetingLine(
+        { ...dated, meetingTimes: [{ day: '2035-09-01', startTime: '10:00', endTime: '14:00' }] },
+        NOW,
+      ),
+    ).toMatch(/ · 6:00 – 10:00 PM$/)
+  })
+})
+
+describe('the hours in the schedule form', () => {
+  const weekly = draftOf(
+    project({ meetingTimes: [{ day: '4', startTime: '19:00', endTime: '21:00' }] }),
+  )
+
+  it('opens saved hours as varying, each under its own day', () => {
+    expect(weekly).toMatchObject({
+      varies: true,
+      startTime: '18:00',
+      dayHours: { 'weekday:4': { startTime: '19:00', endTime: '21:00' } },
+    })
+    expect(meetingDays(weekly).map((day) => day.label)).toEqual(['Tuesday', 'Thursday'])
+    expect(hoursOf(weekly, 'weekday:2')).toEqual({ startTime: '18:00', endTime: '22:00' })
+  })
+
+  /**
+   * The hours most days keep are sent as the usual ones, so the fewest days need a row of
+   * their own, and a day back on those hours needs none.
+   */
+  it('sends the common hours as the usual ones and only the days that differ', () => {
+    const body = draftBody({
+      ...weekly,
+      weekdays: [1, 2, 4],
+      dayHours: {
+        'weekday:1': { startTime: '19:00', endTime: '21:00' },
+        'weekday:2': { startTime: '18:00', endTime: '22:00' },
+        'weekday:4': { startTime: '19:00', endTime: '21:00' },
+      },
+    })
+
+    expect(body).toMatchObject({
+      meetingStartTime: '19:00',
+      meetingEndTime: '21:00',
+      meetingTimes: [{ day: '2', startTime: '18:00', endTime: '22:00' }],
+    })
+    expect(draftBody({ ...weekly, varies: false })).toMatchObject({
+      meetingStartTime: '18:00',
+      meetingTimes: [],
+    })
+  })
+
+  /** Tuesday's hours are day "2", and they mustn't turn up as the 2nd of the month's. */
+  it('keeps one kind of day from reading another kind’s hours', () => {
+    const monthly = { ...weekly, repeat: 'MONTHLY_DAY' as const, monthDays: [4] }
+
+    expect(hoursOf(monthly, 'monthDay:4')).toEqual({ startTime: '18:00', endTime: '22:00' })
+    expect(draftBody(monthly).meetingTimes).toEqual([])
+  })
+
+  it('names the day whose hours are wrong', () => {
+    expect(
+      draftProblem({
+        ...weekly,
+        dayHours: { 'weekday:4': { startTime: '21:00', endTime: '19:00' } },
+      }),
+    ).toBe('Thursday: the meeting has to end after it starts.')
+    expect(
+      draftProblem({
+        ...weekly,
+        startTime: '',
+        endTime: '',
+        dayHours: { 'weekday:4': { startTime: '19:00', endTime: '' } },
+      }),
+    ).toBe('Tuesday: pick a start and an end time.')
+  })
+
+  /** On the create desk nothing is shared yet, and a day would otherwise open blank. */
+  it('starts a day with no shared hours on another day’s', () => {
+    const fresh = {
+      ...weekly,
+      startTime: '',
+      endTime: '',
+      dayHours: { 'weekday:4': { startTime: '19:00', endTime: '21:00' } },
+    }
+
+    expect(hoursOf(fresh, 'weekday:2')).toEqual({ startTime: '19:00', endTime: '21:00' })
+    expect(draftProblem(fresh)).toBeNull()
+  })
+
+  it('goes back to one set of hours on the ones most days had', () => {
+    const late = { startTime: '19:00', endTime: '21:00' }
+
+    expect(
+      commonHours({
+        ...weekly,
+        weekdays: [2, 4, 6],
+        dayHours: { 'weekday:4': late, 'weekday:6': late },
+      }),
+    ).toEqual(late)
   })
 })

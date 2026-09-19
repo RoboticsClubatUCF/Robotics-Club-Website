@@ -33,6 +33,7 @@ export const meetingProjectSelect = {
   meetingStartsOn: true,
   meetingStartTime: true,
   meetingEndTime: true,
+  meetingTimes: { select: { day: true, startTime: true, endTime: true } },
   meetingLocation: true,
   meetingDescription: true,
   meetingCancellations: { select: { date: true, reason: true } },
@@ -53,6 +54,7 @@ export interface MeetingProject {
   meetingStartsOn: string | null
   meetingStartTime: string | null
   meetingEndTime: string | null
+  meetingTimes: { day: string; startTime: string; endTime: string }[]
   meetingLocation: string | null
   meetingDescription: string | null
   meetingCancellations: { date: string; reason: string | null }[]
@@ -87,9 +89,14 @@ export interface MeetingSeries {
    * export writes one entry per date. Empty for the other patterns.
    */
   dates: { startsAt: string; endsAt: string }[]
-  /** Campus wall-clock, "18:00". */
+  /** Campus wall-clock, "18:00". The usual hours; `hours` has the days that keep others. */
   startTime: string
   endTime: string
+  /**
+   * The series by its hours, the usual ones first, one entry when every day keeps them.
+   * Empty for DATES, whose `dates` carry their own.
+   */
+  hours: MeetingHours[]
   location: string | null
   /** The last day the series runs: the end of the project's term, as ISO. */
   untilDate: string
@@ -103,6 +110,28 @@ export interface MeetingSeries {
   skipDates: string[]
   /** The occurrences the lead cancelled, as ISO instants, for `EXDATE` the same way. */
   cancelledDates: string[]
+}
+
+/**
+ * The part of a series that keeps one set of hours. A calendar rule carries one time, so a
+ * schedule whose Thursdays run later goes into a calendar app as two rules.
+ */
+export interface MeetingHours {
+  startTime: string
+  endTime: string
+  /** WEEKLY and MONTHLY_WEEKDAY: which of the pattern's weekdays keep these hours. */
+  weekdays: number[]
+  /** MONTHLY_DAY: which of its days of the month. */
+  monthDays: number[]
+  /** This part's share of the series' `skipDates` and `cancelledDates`. */
+  skipDates: string[]
+  cancelledDates: string[]
+  /**
+   * Its first meeting from the occurrence carrying it, passing over cancelled ones and
+   * finals week, or null when none is left this term. The export starts each rule here,
+   * which is why the series differs from one occurrence to the next.
+   */
+  next: { startsAt: string; endsAt: string } | null
 }
 
 /** One meeting, shaped like the events it sits beside on a calendar. */
@@ -246,6 +275,8 @@ export const campusDate = (at: Date) => isoDate(readCampus(at))
 /** Midnight on campus on the day `at` falls on. */
 export const startOfCampusDay = (at: Date) => campusInstant(readCampus(at), 0, 0)
 
+type Clock = [number, number]
+
 /** The pattern columns, read. Null when the row has no usable schedule. */
 interface Rule {
   repeat: MeetingRepeat
@@ -255,8 +286,10 @@ interface Rule {
   monthDays: number[]
   dates: Set<string>
   startsOn: CivilDate | null
-  start: [number, number]
-  end: [number, number]
+  start: Clock
+  end: Clock
+  /** The days with hours of their own, keyed like `ProjectMeetingTime.day`. */
+  own: Map<string, { start: Clock; end: Clock }>
 }
 
 function ruleOf(project: MeetingProject): Rule | null {
@@ -278,7 +311,56 @@ function ruleOf(project: MeetingProject): Rule | null {
     startsOn: project.meetingStartsOn ? civilDate(project.meetingStartsOn) : null,
     start,
     end,
+    // A day whose own hours don't parse keeps the usual ones, for the reason above.
+    own: new Map(
+      project.meetingTimes.flatMap((time) => {
+        const from = readClock(time.startTime)
+        const to = readClock(time.endTime)
+        return from && to ? [[time.day, { start: from, end: to }] as const] : []
+      }),
+    ),
   }
+}
+
+/**
+ * The `ProjectMeetingTime.day` a campus date is under this rule. The last day of February is
+ * the 28th when the 28th is on the list, and the last day otherwise.
+ */
+function dayKey(rule: Rule, day: CivilDate): string {
+  switch (rule.repeat) {
+    case MeetingRepeat.DATES:
+      return isoDate(day)
+    case MeetingRepeat.MONTHLY_DAY:
+      return rule.monthDays.includes(day.day) ? String(day.day) : '-1'
+    default:
+      return String(weekdayOf(day))
+  }
+}
+
+const clockText = ([hour, minute]: Clock) => `${pad(hour)}:${pad(minute)}`
+
+/**
+ * The repeating patterns' days grouped by their hours, usual hours first, for the export.
+ * Nothing for a list of dates, which is exported date by date.
+ */
+function hoursGroups(rule: Rule) {
+  if (rule.repeat === MeetingRepeat.DATES) return []
+
+  const usual = `${clockText(rule.start)}-${clockText(rule.end)}`
+  const groups = new Map<string, string[]>([[usual, []]])
+  const days =
+    rule.repeat === MeetingRepeat.MONTHLY_DAY ? rule.monthDays : rule.weekdays
+
+  for (const day of days.map(String)) {
+    const own = rule.own.get(day)
+    const hours = own ? `${clockText(own.start)}-${clockText(own.end)}` : usual
+    groups.set(hours, [...(groups.get(hours) ?? []), day])
+  }
+
+  return [...groups].flatMap(([hours, keys]) => {
+    const [startTime = '', endTime = ''] = hours.split('-')
+    return keys.length > 0 ? [{ startTime, endTime, keys }] : []
+  })
 }
 
 /**
@@ -322,10 +404,15 @@ function patternLandsOn(rule: Rule, day: CivilDate, termStart: CivilDate): boole
   }
 }
 
-/** The instants a meeting on this campus date runs between. */
-function timesOn(rule: Pick<Rule, 'start' | 'end'>, day: CivilDate) {
-  const startsAt = campusInstant(day, rule.start[0], rule.start[1])
-  let endsAt = campusInstant(day, rule.end[0], rule.end[1])
+/** The instants a meeting on this campus date runs between, on that day's own hours. */
+function timesOn(rule: Rule, day: CivilDate) {
+  const { start, end } = rule.own.get(dayKey(rule, day)) ?? rule
+  return instantsOn(day, start, end)
+}
+
+function instantsOn(day: CivilDate, start: Clock, end: Clock) {
+  const startsAt = campusInstant(day, start[0], start[1])
+  let endsAt = campusInstant(day, end[0], end[1])
   // A meeting that ends before it starts ran past midnight. The write routes refuse one,
   // so this only reads rows written before they did.
   if (endsAt <= startsAt) endsAt = new Date(endsAt.getTime() + DAY_MS)
@@ -371,7 +458,7 @@ export function dateProblem(
   const end = readClock(endTime)
   if (!start || !end) return null
 
-  const { startsAt, endsAt } = timesOn({ start, end }, civilDate(date))
+  const { startsAt, endsAt } = instantsOn(civilDate(date), start, end)
   return haltedBy(term, startsAt, endsAt)
 }
 
@@ -431,9 +518,13 @@ export async function expandMeetings(
 
     // The instants a calendar app has to leave out, walked across the whole term rather
     // than the request window: somebody adding the series in September needs December's.
-    const skipDates: string[] = []
-    const cancelledDates: string[] = []
+    // Each keeps its day, so the export hands it to the rule with that day's hours.
+    const skipped: { key: string; at: string }[] = []
+    const called: { key: string; at: string }[] = []
     const dates: MeetingSeries['dates'] = []
+    // Every day the term has a meeting, and whether it goes ahead, for `MeetingHours.next`.
+    const landings: { day: CivilDate; number: number; key: string; standing: boolean }[] =
+      []
     const termEnd = readCampus(term.endsAt)
 
     // Only days that can matter get their instants worked out, since each is four `Intl`
@@ -457,31 +548,69 @@ export async function expandMeetings(
       day = addDays(day, 1)
     ) {
       if (!lands(day)) continue
-      if (
-        rule.repeat !== MeetingRepeat.DATES &&
-        !cancellations.has(isoDate(day)) &&
-        !nearFinals(day)
-      ) {
+
+      const key = dayKey(rule, day)
+      const number = dayNumber(day)
+      const cancelled = cancellations.has(isoDate(day))
+      if (rule.repeat !== MeetingRepeat.DATES && !cancelled && !nearFinals(day)) {
+        landings.push({ day, number, key, standing: true })
         continue
       }
 
       const { startsAt, endsAt } = timesOn(rule, day)
       const halted = haltedBy(term, startsAt, endsAt)
       if (halted === 'outside') continue
+      landings.push({ day, number, key, standing: !halted && !cancelled })
 
       if (rule.repeat === MeetingRepeat.DATES) {
-        if (!halted && !cancellations.has(isoDate(day))) {
+        if (!halted && !cancelled) {
           dates.push({
             startsAt: startsAt.toISOString(),
             endsAt: endsAt.toISOString(),
           })
         }
       } else if (halted === 'finals') {
-        skipDates.push(startsAt.toISOString())
-      } else if (cancellations.has(isoDate(day))) {
-        cancelledDates.push(startsAt.toISOString())
+        skipped.push({ key, at: startsAt.toISOString() })
+      } else if (cancelled) {
+        called.push({ key, at: startsAt.toISOString() })
       }
     }
+
+    const groups = hoursGroups(rule)
+    const firsts = new Map<number, MeetingHours['next']>()
+
+    /** A group's first meeting that goes ahead on or after day number `from`. */
+    const nextOf = (keys: string[], from: number): MeetingHours['next'] => {
+      const found = landings.find(
+        (landing) =>
+          landing.standing && landing.number >= from && keys.includes(landing.key),
+      )
+      if (!found) return null
+
+      if (!firsts.has(found.number)) {
+        const { startsAt, endsAt } = timesOn(rule, found.day)
+        firsts.set(found.number, {
+          startsAt: startsAt.toISOString(),
+          endsAt: endsAt.toISOString(),
+        })
+      }
+      return firsts.get(found.number) ?? null
+    }
+
+    const hoursFrom = (from: number): MeetingHours[] =>
+      groups.map(({ startTime, endTime, keys }) => ({
+        startTime,
+        endTime,
+        weekdays: rule.repeat === MeetingRepeat.MONTHLY_DAY ? [] : keys.map(Number),
+        monthDays: rule.repeat === MeetingRepeat.MONTHLY_DAY ? keys.map(Number) : [],
+        skipDates: skipped
+          .filter((each) => keys.includes(each.key))
+          .map((each) => each.at),
+        cancelledDates: called
+          .filter((each) => keys.includes(each.key))
+          .map((each) => each.at),
+        next: nextOf(keys, from),
+      }))
 
     const series: MeetingSeries = {
       projectSlug: project.slug,
@@ -494,6 +623,7 @@ export async function expandMeetings(
       dates,
       startTime: project.meetingStartTime ?? '',
       endTime: project.meetingEndTime ?? '',
+      hours: [],
       location: project.meetingLocation,
       untilDate: term.endsAt.toISOString(),
       skip:
@@ -503,8 +633,8 @@ export async function expandMeetings(
               to: term.finalsEndAt.toISOString(),
             }
           : null,
-      skipDates,
-      cancelledDates,
+      skipDates: skipped.map((each) => each.at),
+      cancelledDates: called.map((each) => each.at),
     }
 
     // Walk the campus calendar, not the UTC one — which Tuesday a meeting falls on is
@@ -542,7 +672,7 @@ export async function expandMeetings(
         endsAt: endsAt.toISOString(),
         allDay: false,
         registrationUrl: null,
-        meeting: series,
+        meeting: { ...series, hours: hoursFrom(dayNumber(day)) },
         cancelled: cancellations.has(date)
           ? { reason: cancellations.get(date) ?? null }
           : null,

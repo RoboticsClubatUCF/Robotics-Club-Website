@@ -34,6 +34,7 @@ import {
   NO_SCHEDULE,
   meetingFields,
   mergeSchedule,
+  scheduleCreate,
   scheduleOf,
   scheduleProblem,
   scheduleTermProblem,
@@ -135,6 +136,7 @@ export const managedProjectSelect = {
   meetingStartsOn: true,
   meetingStartTime: true,
   meetingEndTime: true,
+  meetingTimes: { select: { day: true, startTime: true, endTime: true } },
   meetingLocation: true,
   meetingDescription: true,
   // Officer business rather than a lead's, and the dashboard prints it because
@@ -224,8 +226,9 @@ officer.post(
       scheduleProblem(schedule) ?? (await scheduleTermProblem(schedule, term))
     if (problem) throw new HTTPException(400, { message: problem })
 
+    const { meetingTimes: _times, ...fields } = data
     const project = await prisma.project.create({
-      data: { ...data, ...schedule, ...term },
+      data: { ...fields, ...scheduleCreate(schedule), ...term },
       select: managedProjectSelect,
     })
 
@@ -315,6 +318,8 @@ officer.post(
         meetingStartsOn: true,
         meetingStartTime: true,
         meetingEndTime: true,
+        // A day's own hours carry on with its pattern, like the days themselves.
+        meetingTimes: { select: { day: true, startTime: true, endTime: true } },
         meetingLocation: true,
         meetingDescription: true,
         // Copied like the rest of the writing. The same build next semester meets
@@ -348,7 +353,7 @@ officer.post(
       })
     }
 
-    const { images, links, coverUrl, ...content } = source
+    const { images, links, coverUrl, meetingTimes: _times, ...content } = source
     const officerId = c.get('user').id
 
     // A list of dates belongs to the term it was picked for, and none of them would land
@@ -382,7 +387,7 @@ officer.post(
     const project = await prisma.project.create({
       data: {
         ...content,
-        ...schedule,
+        ...scheduleCreate(schedule),
         slug,
         ...(title === undefined ? {} : { title }),
         ...(season === undefined ? {} : { season }),

@@ -63,6 +63,7 @@ const project = (id: string, title: string): ApiMyProject['project'] => ({
   meetingStartsOn: null,
   meetingStartTime: '18:00',
   meetingEndTime: '22:00',
+  meetingTimes: [],
   meetingLocation: 'ENG2 Lab',
   meetingDescription: null,
   meetingsPublic: true,

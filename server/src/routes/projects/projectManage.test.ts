@@ -1810,6 +1810,71 @@ describe('the meeting schedule', () => {
     })
   })
 
+  /**
+   * A day's own hours are stored only where they differ, and only for a day the pattern has:
+   * Friday isn't a meeting day, and Tuesday's are the usual hours.
+   */
+  it('keeps the days whose hours differ, and only those', async () => {
+    const response = await patch({
+      meetingRepeat: MeetingRepeat.WEEKLY,
+      meetingWeekdays: [2, 4],
+      meetingStartTime: '18:00',
+      meetingEndTime: '22:00',
+      meetingTimes: [
+        { day: '4', startTime: '19:00', endTime: '21:00' },
+        { day: '5', startTime: '10:00', endTime: '12:00' },
+        { day: '2', startTime: '18:00', endTime: '22:00' },
+      ],
+    })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      meetingTimes: [{ day: '4', startTime: '19:00', endTime: '21:00' }],
+    })
+    expect(await prisma.projectMeetingTime.count({ where: { projectId } })).toBe(1)
+
+    // A PATCH that leaves the hours out leaves them alone.
+    const moved = await patch({ meetingLocation: 'ENG1 Atrium' })
+    expect(await moved.json()).toMatchObject({
+      meetingTimes: [{ day: '4', startTime: '19:00', endTime: '21:00' }],
+    })
+
+    const same = await patch({ meetingTimes: [] })
+    expect(await same.json()).toMatchObject({ meetingTimes: [] })
+  })
+
+  it('refuses a day whose own meeting ends before it starts', async () => {
+    const response = await patch({
+      meetingRepeat: MeetingRepeat.WEEKLY,
+      meetingWeekdays: [2, 4],
+      meetingStartTime: '18:00',
+      meetingEndTime: '22:00',
+      meetingTimes: [{ day: '4', startTime: '21:00', endTime: '19:00' }],
+    })
+
+    expect(response.status).toBe(400)
+    expect(((await response.json()) as { error: string }).error).toContain('Thursday')
+  })
+
+  /** Thursday's hours are day "4", which a monthly pattern would read as the 4th. */
+  it('drops the hours when the pattern moves to another kind of day', async () => {
+    await patch({
+      meetingRepeat: MeetingRepeat.WEEKLY,
+      meetingWeekdays: [2, 4],
+      meetingStartTime: '18:00',
+      meetingEndTime: '22:00',
+      meetingTimes: [{ day: '4', startTime: '19:00', endTime: '21:00' }],
+    })
+
+    const response = await patch({
+      meetingRepeat: MeetingRepeat.MONTHLY_DAY,
+      meetingMonthDays: [4],
+    })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ meetingTimes: [] })
+  })
+
   it('refuses a monthly pattern with no week picked', async () => {
     const response = await patch({
       meetingRepeat: MeetingRepeat.MONTHLY_WEEKDAY,
@@ -1928,6 +1993,22 @@ describe('creating a project needs a schedule', () => {
       // to say so.
       meetingsPublic: true,
     })
+  })
+
+  it('takes one whose days keep different hours', async () => {
+    const response = await create({
+      ...MEETING,
+      meetingTimes: [{ day: '4', startTime: '19:00', endTime: '21:00' }],
+    })
+
+    expect(response.status).toBe(201)
+    const created = (await response.json()) as { id: string }
+    expect(created).toMatchObject({
+      meetingTimes: [{ day: '4', startTime: '19:00', endTime: '21:00' }],
+    })
+    expect(
+      await prisma.projectMeetingTime.count({ where: { projectId: created.id } }),
+    ).toBe(1)
   })
 
   it('takes a monthly one', async () => {
@@ -2163,6 +2244,7 @@ describe('duplicating a project', () => {
         meetingStartTime: '18:00',
         meetingEndTime: '22:00',
         meetingLocation: 'ENG2 Lab',
+        meetingTimes: { create: { day: '4', startTime: '19:00', endTime: '21:00' } },
         meetingCancellations: { create: { date: '2035-10-16' } },
         links: {
           create: [
@@ -2201,6 +2283,7 @@ describe('duplicating a project', () => {
       meetingWeekdays: [2, 4],
       meetingStartTime: '18:00',
       meetingEndTime: '22:00',
+      meetingTimes: [{ day: '4', startTime: '19:00', endTime: '21:00' }],
       termYear: 2036,
       termSeason: Season.SPRING,
     })
@@ -2223,7 +2306,7 @@ describe('duplicating a project', () => {
     const response = await duplicate({ slug: `${PREFIX}rover-dated` })
     const copy = (await response.json()) as { id: string }
 
-    expect(copy).toMatchObject({ meetingRepeat: null, meetingDates: [] })
+    expect(copy).toMatchObject({ meetingRepeat: null, meetingDates: [], meetingTimes: [] })
     expect(
       await prisma.projectMeetingCancellation.count({ where: { projectId: copy.id } }),
     ).toBe(0)

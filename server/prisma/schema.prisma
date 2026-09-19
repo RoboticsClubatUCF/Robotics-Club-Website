@@ -434,6 +434,7 @@ model Project {
   /// start of the term. Required when the interval is over 1, because it's where the counting
   /// starts, and a term start that moves with UCF's feed would flip every other week.
   meetingStartsOn   String?        @map("meeting_starts_on")
+  /// The usual hours: every meeting day's, except the days with a `ProjectMeetingTime` of their own.
   meetingStartTime  String?        @map("meeting_start_time")
   meetingEndTime    String?        @map("meeting_end_time")
   meetingLocation   String?        @map("meeting_location")
@@ -492,6 +493,7 @@ model Project {
   links                ProjectLink[]
   documents            ProjectDocument[]
   meetingCancellations ProjectMeetingCancellation[]
+  meetingTimes         ProjectMeetingTime[]
 
   @@index([status])
   @@index([featured])
@@ -535,6 +537,27 @@ model ProjectMeetingCancellation {
 
   @@unique([projectId, date])
   @@map("project_meeting_cancellations")
+}
+
+/// One meeting day's own hours, when they aren't the schedule's usual ones: Thursdays run later,
+/// the Saturday build day starts at ten, one date on the list is a morning.
+///
+/// The write routes replace the whole set with every schedule write, and drop a row whose day the
+/// pattern doesn't have or whose hours are the usual ones, so each row is a real difference.
+model ProjectMeetingTime {
+  id        String  @id @default(uuid(7))
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  /// The day in the pattern's own terms, as text: a weekday "0"-"6" for WEEKLY and
+  /// MONTHLY_WEEKDAY, a day of the month "1"-"28" or "-1" for MONTHLY_DAY, a date "2026-09-25"
+  /// for DATES. `meetingRepeat` says which, so a change of pattern clears the set.
+  day       String
+  startTime String @map("start_time")
+  endTime   String @map("end_time")
+
+  @@unique([projectId, day])
+  @@map("project_meeting_times")
 }
 
 /// Someone's standing within one project, most permission to least — declared in that order like

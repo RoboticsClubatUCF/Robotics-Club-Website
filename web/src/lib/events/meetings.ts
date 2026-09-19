@@ -124,6 +124,7 @@ type Scheduled = Pick<
   | 'meetingStartsOn'
   | 'meetingStartTime'
   | 'meetingEndTime'
+  | 'meetingTimes'
 >
 
 /**
@@ -208,17 +209,85 @@ export function meetingLine(
   project: Scheduled & Pick<ApiManagedProject, 'meetingLocation'>,
   now: Date = new Date(),
 ): string | null {
+  const line = meetingWhen(project, now)
+  if (!line) return null
+  return project.meetingLocation ? `${line} · ${project.meetingLocation}` : line
+}
+
+/**
+ * The line without the place: the pattern and the hours. What the schedule form reads back
+ * while it's edited, so a change of hours shows before it's saved.
+ */
+export function meetingWhen(
+  project: Scheduled,
+  now: Date = new Date(),
+): string | null {
   if (!hasSchedule(project)) return null
 
   const pattern = meetingPattern(project, now)
   if (!pattern) return null
 
-  const line = `Meets ${pattern} · ${formatMeetingRange(
-    project.meetingStartTime!,
-    project.meetingEndTime!,
-  )}`
+  const days = hoursByDay(project, todayCivil(now))
+  const ranges = new Map<string, string[]>()
+  for (const { label, range } of days) {
+    ranges.set(range, [...(ranges.get(range) ?? []), label])
+  }
 
-  return project.meetingLocation ? `${line} · ${project.meetingLocation}` : line
+  if (ranges.size <= 1) {
+    const [range] = ranges.keys()
+    return `Meets ${pattern} · ${
+      range ?? formatMeetingRange(project.meetingStartTime!, project.meetingEndTime!)
+    }`
+  }
+
+  if (project.meetingRepeat === 'DATES') {
+    // Each date its own hours, for the dates the pattern would have named.
+    const named = days.slice(0, 3).map(({ label, range }) => `${label} ${range}`)
+    const rest = days.length - named.length
+    return `Meets ${
+      rest > 0
+        ? `${named.join(', ')} and ${String(rest)} more ${rest === 1 ? 'date' : 'dates'}`
+        : listed(named)
+    }`
+  }
+
+  // "Tue 6:00 – 10:00 PM; Thu 7:00 – 9:00 PM", the days that share hours together.
+  return `Meets ${pattern} · ${[...ranges]
+    .map(([range, labels]) => `${listed(labels)} ${range}`)
+    .join('; ')}`
+}
+
+/**
+ * Each of the pattern's days with its hours, shortened for a line: "Tue", "1st", "Sep 23".
+ * A list of dates gives only the ones still ahead, like `meetingPattern`.
+ */
+function hoursByDay(
+  project: Scheduled,
+  today: string,
+): { label: string; range: string }[] {
+  const own = new Map(project.meetingTimes.map((time) => [time.day, time]))
+  const rangeOf = (day: string) =>
+    formatMeetingRange(
+      own.get(day)?.startTime ?? project.meetingStartTime!,
+      own.get(day)?.endTime ?? project.meetingEndTime!,
+    )
+
+  switch (project.meetingRepeat) {
+    case 'MONTHLY_DAY':
+      return project.meetingMonthDays.map((day) => ({
+        label: day === -1 ? 'last day' : ordinal(day),
+        range: rangeOf(String(day)),
+      }))
+    case 'DATES':
+      return project.meetingDates
+        .filter((date) => date >= today)
+        .map((date) => ({ label: formatCivilDate(date), range: rangeOf(date) }))
+    default:
+      return project.meetingWeekdays.map((day) => ({
+        label: WEEKDAY_NAMES[day]?.slice(0, 3) ?? String(day),
+        range: rangeOf(String(day)),
+      }))
+  }
 }
 
 /**

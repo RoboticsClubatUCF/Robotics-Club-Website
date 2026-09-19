@@ -1,4 +1,4 @@
-import type { ApiEvent, ApiMeetingSeries } from '../api/api'
+import type { ApiEvent, ApiMeetingHours, ApiMeetingSeries } from '../api/api'
 
 /**
  * Handing an event to somebody's calendar app.
@@ -173,9 +173,9 @@ function fold(line: string): string {
  * `TZID`. Getting this wrong is the classic way to produce a series that either never
  * ends or ends a day early.
  */
-function recurrenceRule(series: ApiMeetingSeries): string | null {
+function recurrenceRule(series: ApiMeetingSeries, part: ApiMeetingHours): string | null {
   const until = `UNTIL=${utcStamp(series.untilDate)}`
-  const days = series.weekdays.map((day) => ICS_DAYS[day]).filter(Boolean)
+  const days = part.weekdays.map((day) => ICS_DAYS[day]).filter(Boolean)
 
   switch (series.repeat) {
     case 'WEEKLY':
@@ -191,7 +191,7 @@ function recurrenceRule(series: ApiMeetingSeries): string | null {
         .flatMap((week) => days.map((day) => `${String(week)}${day}`))
         .join(',')};${until}`
     case 'MONTHLY_DAY':
-      return `RRULE:FREQ=MONTHLY;BYMONTHDAY=${series.monthDays.join(',')};${until}`
+      return `RRULE:FREQ=MONTHLY;BYMONTHDAY=${part.monthDays.join(',')};${until}`
     case 'DATES':
       return null
   }
@@ -204,8 +204,8 @@ function recurrenceRule(series: ApiMeetingSeries): string | null {
  * separate `EXDATE` lines is a dozen chances for a parser to disagree. The instants come
  * from the server; nothing here recomputes which evenings are out.
  */
-function exceptionDates(series: ApiMeetingSeries): string[] {
-  const out = [...series.skipDates, ...series.cancelledDates].sort()
+function exceptionDates(part: ApiMeetingHours): string[] {
+  const out = [...part.skipDates, ...part.cancelledDates].sort()
   if (out.length === 0) return []
 
   return [
@@ -213,11 +213,38 @@ function exceptionDates(series: ApiMeetingSeries): string[] {
   ]
 }
 
-/** The rule and its exceptions, or nothing for a one-off or a list of dates. */
-function recurrence(series: ApiMeetingSeries | null): string[] {
-  const rule = series ? recurrenceRule(series) : null
-  return series && rule ? [rule, ...exceptionDates(series)] : []
+/** One part's rule and its exceptions, or nothing for a list of dates. */
+function recurrence(series: ApiMeetingSeries, part: ApiMeetingHours): string[] {
+  const rule = recurrenceRule(series, part)
+  return rule ? [rule, ...exceptionDates(part)] : []
 }
+
+/**
+ * A repeating series by its hours, one part per rule, each starting at its own first meeting
+ * from the one pressed. The server works those out; a series with no parts, which only a
+ * response from before it did could be, is one part starting at the pressed meeting.
+ */
+function partsOf(event: ApiEvent): ApiMeetingHours[] {
+  const series = event.meeting
+  if (!series || series.repeat === 'DATES') return []
+  if (series.hours.length > 0) return series.hours
+
+  return [
+    {
+      startTime: series.startTime,
+      endTime: series.endTime,
+      weekdays: series.weekdays,
+      monthDays: series.monthDays,
+      skipDates: series.skipDates,
+      cancelledDates: series.cancelledDates,
+      next: { startsAt: event.startsAt, endsAt: event.endsAt ?? event.startsAt },
+    },
+  ]
+}
+
+/** The part the pressed meeting belongs to: the one whose next meeting is this one. */
+const pressedPart = (event: ApiEvent) =>
+  partsOf(event).find((part) => part.next?.startsAt === event.startsAt)
 
 /** What the two exports call the thing, with the project's name in front. */
 const titleOf = (event: ApiEvent) => event.title
@@ -272,9 +299,12 @@ export function seriesSummary(series: ApiMeetingSeries, from?: string): string {
 
   const cancelled =
     series.cancelledDates.length > 0 ? ' Cancelled meetings are left out.' : ''
+  // A link carries one rule, and one rule has one time.
+  const google =
+    series.hours.length > 1 ? ' Google Calendar gets only the meetings at these hours.' : ''
 
   const base = `Repeats ${every} until ${until}.`
-  if (!series.skip) return `${base}${cancelled}`
+  if (!series.skip) return `${base}${cancelled}${google}`
 
   const start = new Date(series.skip.from).toLocaleDateString(undefined, {
     day: 'numeric',
@@ -285,7 +315,7 @@ export function seriesSummary(series: ApiMeetingSeries, from?: string): string {
     month: 'short',
   })
 
-  return `${base} The club pauses every project for finals week (${start} – ${end}), so those dates are left out.${cancelled}`
+  return `${base} The club pauses every project for finals week (${start} – ${end}), so those dates are left out.${cancelled}${google}`
 }
 
 /**
@@ -336,6 +366,21 @@ export function icsFor(event: ApiEvent, now: Date = new Date()): string {
         ),
       )
     }
+  } else if (series) {
+    // One entry per set of hours, each from its own first meeting. The first keeps the
+    // series' UID, so re-adding a schedule whose hours never varied still updates it.
+    const parts = partsOf(event).filter((part) => part.next)
+    parts.forEach((part, index) => {
+      lines.push(
+        ...vevent(
+          { ...event, startsAt: part.next!.startsAt, endsAt: part.next!.endsAt },
+          index === 0 ? uidOf(event) : uidOf(event).replace('@rccf', `-${String(index + 1)}@rccf`),
+          now,
+          recurrence(series, part),
+        ),
+      )
+    })
+    if (parts.length === 0) lines.push(...vevent(event, uidOf(event), now))
   } else {
     lines.push(...vevent(event, uidOf(event), now))
   }
@@ -345,8 +390,13 @@ export function icsFor(event: ApiEvent, now: Date = new Date()): string {
   return lines.map(fold).join('\r\n')
 }
 
-/** One `VEVENT`, recurrence and all. */
-function vevent(event: ApiEvent, uid: string, now: Date): string[] {
+/** One `VEVENT`, with its rule and exceptions when it repeats. */
+function vevent(
+  event: ApiEvent,
+  uid: string,
+  now: Date,
+  recur: string[] = [],
+): string[] {
   const lines: string[] = [
     'BEGIN:VEVENT',
     `UID:${uid}`,
@@ -372,7 +422,7 @@ function vevent(event: ApiEvent, uid: string, now: Date): string[] {
     }
   }
 
-  lines.push(...recurrence(event.meeting ?? null))
+  lines.push(...recur)
 
   lines.push(`SUMMARY:${escapeText(titleOf(event))}`)
 
@@ -418,8 +468,10 @@ export function googleCalendarUrl(event: ApiEvent): string {
   if (event.location) params.set('location', event.location)
 
   // Google takes the recurrence as raw iCalendar lines, newline-separated.
-  // `URLSearchParams` percent-encodes the newline for us.
-  const recur = recurrence(event.meeting ?? null)
+  // `URLSearchParams` percent-encodes the newline for us. One rule per link, so a series
+  // whose hours vary by day sends the rule for the pressed meeting's hours.
+  const part = pressedPart(event)
+  const recur = event.meeting && part ? recurrence(event.meeting, part) : []
   if (recur.length > 0) params.set('recur', recur.join('\n'))
 
   return `https://calendar.google.com/calendar/render?${params.toString()}`

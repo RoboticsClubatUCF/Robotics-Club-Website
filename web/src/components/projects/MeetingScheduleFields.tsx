@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from 'react'
+import { useEffect, useId, useRef, type ReactNode } from 'react'
 import { fieldClass, labelClass } from '../shared/formChrome'
 import { MeetingDatesPicker } from './MeetingDatesPicker'
 import type { ApiTermDates } from '../../lib/api/api'
@@ -8,11 +8,17 @@ import {
   WEEKDAY_NAMES,
   WEEKDAY_SHORT,
   meetingPattern,
+  meetingWhen,
   ordinal,
 } from '../../lib/events/meetings'
 import {
+  type Hours,
   type MeetingDraft,
+  commonHours,
   draftBody,
+  hoursOf,
+  hoursProblem,
+  meetingDays,
   toggled,
 } from '../../lib/events/meetingDraft'
 
@@ -24,9 +30,14 @@ import {
  * The caller owns the form, the draft, the save and the term's dates; a list of dates is picked
  * on `MeetingDatesPicker`, which greys out the days the term won't have.
  *
- * Each pattern shows only its own controls. A line under them reads the pattern back in words
- * ("Meets every other Wednesday from Oct 1"), because a set of ticked chips is easy to get
- * subtly wrong and the sentence is what members will read.
+ * Each pattern shows only its own controls. A line under them reads the schedule back in words
+ * ("Meets every other Wednesday from Oct 1 · 6:00 – 8:00 PM"), because a set of ticked chips is
+ * easy to get subtly wrong and the sentence is what members will read.
+ *
+ * The hours are one FROM and TO for every day until a lead picks DIFFERENT BY DAY, which lists
+ * each day with its own. Every day starts on the shared hours, so the lead only changes the
+ * ones that differ. Going back to one set takes the hours most days had, and the line above
+ * shows the result.
  */
 export function MeetingScheduleFields({
   draft,
@@ -41,16 +52,62 @@ export function MeetingScheduleFields({
   term?: ApiTermDates | null
 }) {
   const id = useId()
+  const from = useRef<HTMLInputElement>(null)
+  /** Set when SAME is pressed on a one-day schedule, whose HOURS choice then goes away. */
+  const focusFrom = useRef(false)
 
   const set = (patch: Partial<MeetingDraft>) => {
     onChange({ ...draft, ...patch })
   }
 
+  // Focus would drop to the page with the radio that had it, so it lands on FROM instead,
+  // the field that just took its place.
+  useEffect(() => {
+    if (!focusFrom.current || draft.varies) return
+    focusFrom.current = false
+    from.current?.focus()
+  }, [draft.varies])
+
   const weekly = draft.repeat === 'WEEKLY'
   const monthly =
     draft.repeat === 'MONTHLY_WEEKDAY' || draft.repeat === 'MONTHLY_DAY'
   const counted = weekly && draft.interval > 1
-  const pattern = meetingPattern(draftBody(draft))
+  const body = draftBody(draft)
+  const pattern = meetingPattern(body)
+  // The hours join the line once every day has a whole set, so a half-typed time never
+  // reads as midnight.
+  const readBack = hoursProblem(draft)
+    ? pattern && `Meets ${pattern}`
+    : meetingWhen(body)
+  const dated = draft.repeat === 'DATES'
+  const meetingDayList = meetingDays(draft)
+  // One day has nothing to differ from, unless the lead already said its hours vary.
+  const canVary = draft.varies || meetingDayList.length > 1
+
+  const setHours = (key: string, patch: Partial<Hours>) => {
+    set({
+      dayHours: { ...draft.dayHours, [key]: { ...hoursOf(draft, key), ...patch } },
+    })
+  }
+
+  const place = (
+    <div className="min-w-40 flex-1">
+      <label htmlFor={`${id}-place`} className={labelClass}>
+        PLACE
+      </label>
+      <input
+        id={`${id}-place`}
+        maxLength={160}
+        value={draft.location}
+        disabled={disabled}
+        placeholder="ENG2 Lab"
+        onChange={(change) => {
+          set({ location: change.target.value })
+        }}
+        className={fieldClass}
+      />
+    </div>
+  )
 
   const days = (
     <fieldset>
@@ -267,60 +324,131 @@ export function MeetingScheduleFields({
         </p>
       )}
 
-      {pattern && (
-        <p className="text-dim text-[13px] leading-[1.5] text-pretty">
-          Meets {pattern}.
-        </p>
+      {readBack && (
+        <p className="text-dim text-[13px] leading-[1.5] text-pretty">{readBack}.</p>
       )}
 
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="w-40">
-          <label htmlFor={`${id}-from`} className={labelClass}>
-            FROM
-          </label>
-          <input
-            id={`${id}-from`}
-            type="time"
-            value={draft.startTime}
-            disabled={disabled}
-            onChange={(change) => {
-              set({ startTime: change.target.value })
-            }}
-            className={fieldClass}
-          />
+      {canVary && (
+        <fieldset>
+          <legend className={labelClass}>HOURS</legend>
+          <div className="flex flex-wrap gap-1.5">
+            <Chip
+              radio={`${id}-hours`}
+              checked={!draft.varies}
+              disabled={disabled}
+              onChange={() => {
+                // Back to one set of hours: the ones most days had. The days' own go, so
+                // DIFFERENT starts again from what's on screen.
+                focusFrom.current = meetingDayList.length <= 1
+                set({ varies: false, ...commonHours(draft), dayHours: {} })
+              }}
+            >
+              {dated ? 'SAME EVERY DATE' : 'SAME EVERY DAY'}
+            </Chip>
+            <Chip
+              radio={`${id}-hours`}
+              checked={draft.varies}
+              disabled={disabled}
+              onChange={() => {
+                set({ varies: true })
+              }}
+            >
+              {dated ? 'DIFFERENT BY DATE' : 'DIFFERENT BY DAY'}
+            </Chip>
+          </div>
+        </fieldset>
+      )}
+
+      {draft.varies ? (
+        <>
+          {meetingDayList.length === 0 ? (
+            <p className="text-faint text-[13px]">
+              {dated ? 'Pick the dates first.' : 'Pick the days first.'}
+            </p>
+          ) : (
+            <ul aria-label={dated ? 'Hours by date' : 'Hours by day'} className="space-y-2">
+              {meetingDayList.map(({ key, label, spoken }) => {
+                const hours = hoursOf(draft, key)
+                return (
+                  <li
+                    key={key}
+                    className="flex flex-wrap items-center gap-x-3 gap-y-1"
+                  >
+                    <span className="text-dim w-full text-[13px] wide:w-32">{label}</span>
+                    {/* The dash reads the pair as a span, so the two inputs carry their
+                        names for a screen reader instead of a label each on screen. */}
+                    <div className="flex min-w-0 flex-1 items-center gap-2 wide:flex-none">
+                      <div className="min-w-0 flex-1 wide:w-40 wide:flex-none">
+                        <input
+                          type="time"
+                          aria-label={`${spoken} from`}
+                          value={hours.startTime}
+                          disabled={disabled}
+                          onChange={(change) => {
+                            setHours(key, { startTime: change.target.value })
+                          }}
+                          className={fieldClass}
+                        />
+                      </div>
+                      <span aria-hidden className="text-faint">
+                        –
+                      </span>
+                      <div className="min-w-0 flex-1 wide:w-40 wide:flex-none">
+                        <input
+                          type="time"
+                          aria-label={`${spoken} to`}
+                          value={hours.endTime}
+                          disabled={disabled}
+                          onChange={(change) => {
+                            setHours(key, { endTime: change.target.value })
+                          }}
+                          className={fieldClass}
+                        />
+                      </div>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+          <div className="flex">{place}</div>
+        </>
+      ) : (
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="w-40">
+            <label htmlFor={`${id}-from`} className={labelClass}>
+              FROM
+            </label>
+            <input
+              ref={from}
+              id={`${id}-from`}
+              type="time"
+              value={draft.startTime}
+              disabled={disabled}
+              onChange={(change) => {
+                set({ startTime: change.target.value })
+              }}
+              className={fieldClass}
+            />
+          </div>
+          <div className="w-40">
+            <label htmlFor={`${id}-to`} className={labelClass}>
+              TO
+            </label>
+            <input
+              id={`${id}-to`}
+              type="time"
+              value={draft.endTime}
+              disabled={disabled}
+              onChange={(change) => {
+                set({ endTime: change.target.value })
+              }}
+              className={fieldClass}
+            />
+          </div>
+          {place}
         </div>
-        <div className="w-40">
-          <label htmlFor={`${id}-to`} className={labelClass}>
-            TO
-          </label>
-          <input
-            id={`${id}-to`}
-            type="time"
-            value={draft.endTime}
-            disabled={disabled}
-            onChange={(change) => {
-              set({ endTime: change.target.value })
-            }}
-            className={fieldClass}
-          />
-        </div>
-        <div className="min-w-40 flex-1">
-          <label htmlFor={`${id}-place`} className={labelClass}>
-            PLACE
-          </label>
-          <input
-            id={`${id}-place`}
-            maxLength={160}
-            value={draft.location}
-            disabled={disabled}
-            placeholder="ENG2 Lab"
-            onChange={(change) => {
-              set({ location: change.target.value })
-            }}
-            className={fieldClass}
-          />
-        </div>
-      </div>
+      )}
 
       {/* The one part a schedule's columns can't hold, and genuinely optional. Left empty,
           a meeting reaches a member's calendar with no description at all; the site doesn't

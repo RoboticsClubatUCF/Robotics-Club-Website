@@ -10,7 +10,8 @@ import { campusDate, dateProblem } from './meetings.js'
  * the rules that get copied once correctly and once not, and the second copy is a
  * project whose calendar quietly disagrees with what its lead typed.
  *
- * A schedule is a pattern plus a start and end time, or it's nothing. Each pattern needs
+ * A schedule is a pattern plus a start and end time, or it's nothing. Any of its days may
+ * keep other hours (`meetingTimes`); the start and end are every other day's. Each pattern needs
  * its own part filled in (days for weekly, a date for a list of dates), and the columns
  * a pattern doesn't read are emptied on the way in. Half a schedule is refused, because
  * it would read as scheduled and appear on no calendar.
@@ -90,6 +91,34 @@ const dates = z
 /** Every week to every fourth. Past that it's a monthly meeting. */
 const interval = z.number().int().min(1).max(4)
 
+/** One day's own hours. See `ProjectMeetingTime`. */
+export interface MeetingTime {
+  day: string
+  startTime: string
+  endTime: string
+}
+
+/**
+ * The days with hours of their own. The shape of `day` is only checked loosely here, since
+ * `tidySchedule` drops any day the pattern doesn't have. A day named twice keeps the last.
+ */
+const times = z
+  .array(
+    z.object({
+      day: z
+        .string()
+        .trim()
+        .regex(
+          /^(-1|\d{1,2}|\d{4}-\d{2}-\d{2})$/,
+          'Days are a weekday, a day of the month or a date.',
+        ),
+      startTime: clock,
+      endTime: clock,
+    }),
+  )
+  .max(MAX_MEETING_DATES)
+  .transform((list) => [...new Map(list.map((time) => [time.day, time])).values()])
+
 /** Empty is the same as absent: a field typed into and cleared sends `''`. */
 const blankIsNull = (text: string | null | undefined) =>
   text === '' ? null : text
@@ -119,6 +148,7 @@ export const meetingFields = {
   meetingStartsOn: civilDate.nullable().optional(),
   meetingStartTime: clock,
   meetingEndTime: clock,
+  meetingTimes: times.default([]),
   meetingLocation: place,
   meetingDescription: note,
 }
@@ -134,11 +164,13 @@ export const meetingPatchFields = {
   meetingStartsOn: civilDate.nullable().optional(),
   meetingStartTime: clock.nullable().optional(),
   meetingEndTime: clock.nullable().optional(),
+  /** Replaces the whole set. Absent keeps it, unless the pattern changes kind. */
+  meetingTimes: times.optional(),
   meetingLocation: place,
   meetingDescription: note,
 }
 
-/** A project's schedule columns, as the row holds them. */
+/** A project's schedule columns, as the row holds them, with its `ProjectMeetingTime` rows. */
 export interface MeetingSchedule {
   meetingRepeat: MeetingRepeat | null
   meetingWeekdays: number[]
@@ -149,6 +181,7 @@ export interface MeetingSchedule {
   meetingStartsOn: string | null
   meetingStartTime: string | null
   meetingEndTime: string | null
+  meetingTimes: MeetingTime[]
   meetingLocation: string | null
   meetingDescription: string | null
 }
@@ -163,6 +196,7 @@ const SCHEDULE_KEYS = [
   'meetingStartsOn',
   'meetingStartTime',
   'meetingEndTime',
+  'meetingTimes',
   'meetingLocation',
   'meetingDescription',
 ] as const
@@ -179,6 +213,7 @@ export const NO_SCHEDULE: MeetingSchedule = {
   meetingStartsOn: null,
   meetingStartTime: null,
   meetingEndTime: null,
+  meetingTimes: [],
   meetingLocation: null,
   meetingDescription: null,
 }
@@ -198,16 +233,88 @@ export const scheduleOf = (row: MeetingSchedule): MeetingSchedule => ({
   meetingStartsOn: row.meetingStartsOn,
   meetingStartTime: row.meetingStartTime,
   meetingEndTime: row.meetingEndTime,
+  meetingTimes: row.meetingTimes.map(({ day, startTime, endTime }) => ({
+    day,
+    startTime,
+    endTime,
+  })),
   meetingLocation: row.meetingLocation,
   meetingDescription: row.meetingDescription,
 })
 
+/** A schedule as Prisma writes it onto a row that exists, its day hours replacing the old set. */
+export function scheduleUpdate(schedule: MeetingSchedule) {
+  const { meetingTimes, ...columns } = schedule
+  return { ...columns, meetingTimes: { deleteMany: {}, create: meetingTimes } }
+}
+
+/** The same, for a row being created. */
+export function scheduleCreate(schedule: MeetingSchedule) {
+  const { meetingTimes, ...columns } = schedule
+  return { ...columns, meetingTimes: { create: meetingTimes } }
+}
+
+/** What a pattern's days are: weekdays, days of the month, or dates. */
+const kindOf = (repeat: MeetingRepeat | null) => {
+  switch (repeat) {
+    case MeetingRepeat.WEEKLY:
+    case MeetingRepeat.MONTHLY_WEEKDAY:
+      return 'weekday'
+    case MeetingRepeat.MONTHLY_DAY:
+      return 'monthDay'
+    case MeetingRepeat.DATES:
+      return 'date'
+    case null:
+      return null
+  }
+}
+
+/** The pattern's days, as `ProjectMeetingTime.day` spells them, in the order they read. */
+function daysOf(schedule: MeetingSchedule): string[] {
+  switch (kindOf(schedule.meetingRepeat)) {
+    case 'weekday':
+      return schedule.meetingWeekdays.map(String)
+    case 'monthDay':
+      return schedule.meetingMonthDays.map(String)
+    case 'date':
+      return schedule.meetingDates
+    case null:
+      return []
+  }
+}
+
+/**
+ * Only the days the pattern has, in its order, and only where the hours aren't the usual ones.
+ * An unticked Thursday takes its hours with it, and a day set back to the usual hours needs no
+ * row saying so.
+ */
+function tidyTimes(schedule: MeetingSchedule): MeetingTime[] {
+  const byDay = new Map(schedule.meetingTimes.map((time) => [time.day, time]))
+  return daysOf(schedule).flatMap((day) => {
+    const time = byDay.get(day)
+    if (
+      !time ||
+      (time.startTime === schedule.meetingStartTime &&
+        time.endTime === schedule.meetingEndTime)
+    ) {
+      return []
+    }
+    return [time]
+  })
+}
+
 /**
  * Empties whatever the pattern doesn't read, so the row never carries a Tuesday a
- * monthly schedule ignores. No pattern empties everything, the note and the place
- * included: a project that has stopped meeting shouldn't keep a note about how it used to.
+ * monthly schedule ignores, and that goes for the day hours too (`tidyTimes`). No pattern
+ * empties everything, the note and the place included: a project that has stopped meeting
+ * shouldn't keep a note about how it used to.
  */
 export function tidySchedule(schedule: MeetingSchedule): MeetingSchedule {
+  const tidied = tidyPattern(schedule)
+  return { ...tidied, meetingTimes: tidyTimes(tidied) }
+}
+
+function tidyPattern(schedule: MeetingSchedule): MeetingSchedule {
   switch (schedule.meetingRepeat) {
     case null:
       return NO_SCHEDULE
@@ -243,6 +350,9 @@ export function tidySchedule(schedule: MeetingSchedule): MeetingSchedule {
  *
  * A body with days and no pattern is a page loaded before patterns existed, and it
  * means weekly, the only thing there was. Empty days was how it cleared a schedule.
+ *
+ * A body that moves to a pattern with another kind of day and doesn't send the hours
+ * drops the old ones, or Tuesday's hours ("2") would come back as the 2nd of the month's.
  */
 export function mergeSchedule(
   row: MeetingSchedule,
@@ -257,6 +367,13 @@ export function mergeSchedule(
     merged.meetingRepeat =
       patch.meetingWeekdays.length > 0 ? MeetingRepeat.WEEKLY : null
     merged.meetingInterval = 1
+  }
+
+  if (
+    patch.meetingTimes === undefined &&
+    kindOf(merged.meetingRepeat) !== kindOf(row.meetingRepeat)
+  ) {
+    merged.meetingTimes = []
   }
 
   return tidySchedule(merged)
@@ -276,6 +393,13 @@ export function scheduleProblem(schedule: MeetingSchedule): string | null {
   const { meetingStartTime: start, meetingEndTime: end } = schedule
   if (!start || !end) return 'A schedule needs a start and an end time.'
   if (start >= end) return 'A meeting has to end after it starts.'
+
+  const backwards = schedule.meetingTimes.find(
+    (time) => time.startTime >= time.endTime,
+  )
+  if (backwards) {
+    return `${dayName(schedule.meetingRepeat, backwards.day)}: the meeting has to end after it starts.`
+  }
 
   switch (schedule.meetingRepeat) {
     case MeetingRepeat.WEEKLY:
@@ -308,6 +432,33 @@ const spoken = (date: string, withYear = false) =>
     timeZone: 'UTC',
   })
 
+const WEEKDAYS = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+]
+
+/** "Tuesday", "The 15th", "8 December": a `ProjectMeetingTime.day`, to start a sentence. */
+function dayName(repeat: MeetingRepeat, day: string): string {
+  switch (kindOf(repeat)) {
+    case 'weekday':
+      return WEEKDAYS[Number(day)] ?? day
+    case 'monthDay': {
+      if (day === '-1') return 'The last day'
+      const n = Number(day)
+      const suffix =
+        n >= 11 && n <= 13 ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] ?? 'th')
+      return `The ${day}${suffix}`
+    }
+    default:
+      return spoken(day)
+  }
+}
+
 /**
  * The problems only the project's term can see, or null.
  *
@@ -327,8 +478,17 @@ export async function scheduleTermProblem(
     return `The first meeting is after the term ends on ${spoken(campusDate(found.endsAt))}.`
   }
 
+  // A date's own hours decide it, since an evening that starts before finals week can
+  // still run into it.
+  const own = new Map(schedule.meetingTimes.map((time) => [time.day, time]))
   for (const date of schedule.meetingDates) {
-    const problem = dateProblem(found, date, start, end)
+    const hours = own.get(date)
+    const problem = dateProblem(
+      found,
+      date,
+      hours?.startTime ?? start,
+      hours?.endTime ?? end,
+    )
     if (problem === 'outside') {
       return `${spoken(date, true)} isn't in this project's semester.`
     }

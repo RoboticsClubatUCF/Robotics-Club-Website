@@ -113,6 +113,7 @@ const rover = (over: Partial<MeetingProject> = {}): MeetingProject => ({
   meetingStartsOn: null,
   meetingStartTime: '18:00',
   meetingEndTime: '22:00',
+  meetingTimes: [],
   meetingLocation: 'ENG2 Lab',
   meetingDescription: null,
   meetingCancellations: [],
@@ -528,6 +529,124 @@ describe('a cancelled meeting', () => {
 
     expect(out.some((occurrence) => occurrence.cancelled)).toBe(false)
     expect(out[0]!.meeting.cancelledDates).toEqual([])
+  })
+})
+
+/**
+ * A day with hours of its own: Thursdays run seven till nine where Tuesdays keep six till ten.
+ * The 11th of September 2035 is a Tuesday; finals week is 6 to 12 December.
+ */
+describe('hours that differ by day', () => {
+  const lateThursdays = (over: Partial<MeetingProject> = {}) =>
+    rover({
+      meetingTimes: [{ day: '4', startTime: '19:00', endTime: '21:00' }],
+      ...over,
+    })
+
+  it('puts each day on its own hours', async () => {
+    const out = await expandMeetings([lateThursdays()], ...SEPTEMBER)
+    const week = out.filter((occurrence) =>
+      ['2035-09-11', '2035-09-13'].includes(onCampus(occurrence.startsAt).slice(0, 10)),
+    )
+
+    expect(week.map((occurrence) => onCampus(occurrence.startsAt))).toEqual([
+      '2035-09-11 18:00',
+      '2035-09-13 19:00',
+    ])
+    expect(onCampus(week[1]!.endsAt)).toBe('2035-09-13 21:00')
+  })
+
+  /**
+   * A calendar rule has one time, so the export needs the series in two: the usual hours
+   * first. Each starts from the meeting pressed, so the Thursday rule begins two days later.
+   */
+  it('splits the series by hours, each part starting from this meeting on', async () => {
+    const out = await expandMeetings([lateThursdays()], ...SEPTEMBER)
+    const tuesday = out.find((occurrence) =>
+      onCampus(occurrence.startsAt).startsWith('2035-09-11'),
+    )!
+
+    expect(
+      tuesday.meeting.hours.map(({ startTime, endTime, weekdays, next }) => ({
+        startTime,
+        endTime,
+        weekdays,
+        next: next && onCampus(next.startsAt),
+      })),
+    ).toEqual([
+      { startTime: '18:00', endTime: '22:00', weekdays: [2], next: '2035-09-11 18:00' },
+      { startTime: '19:00', endTime: '21:00', weekdays: [4], next: '2035-09-13 19:00' },
+    ])
+  })
+
+  it('keeps one part when every day has the usual hours', async () => {
+    const [first] = await expandMeetings([rover()], ...SEPTEMBER)
+
+    expect(first!.meeting.hours).toHaveLength(1)
+    expect(first!.meeting.hours[0]).toMatchObject({ weekdays: [2, 4], startTime: '18:00' })
+  })
+
+  it('leaves out finals week and cancellations at each day’s own hours', async () => {
+    const out = await expandMeetings(
+      [lateThursdays({ meetingCancellations: [{ date: '2035-09-13', reason: null }] })],
+      ...SEPTEMBER,
+    )
+    const tuesday = out.find((occurrence) =>
+      onCampus(occurrence.startsAt).startsWith('2035-09-11'),
+    )!
+    const [usual, late] = tuesday.meeting.hours
+
+    expect(usual!.skipDates.map(onCampus)).toEqual(['2035-12-11 18:00'])
+    expect(late!.skipDates.map(onCampus)).toEqual(['2035-12-06 19:00'])
+    expect(late!.cancelledDates.map(onCampus)).toEqual(['2035-09-13 19:00'])
+    // The series as a whole still names both, for anything reading it whole.
+    expect(tuesday.meeting.skipDates).toHaveLength(2)
+    // A rule can't start on a meeting that isn't happening.
+    expect(onCampus(late!.next!.startsAt)).toBe('2035-09-20 19:00')
+  })
+
+  it('gives the last day of the month its own hours', async () => {
+    const out = await expandMeetings(
+      [
+        rover({
+          meetingRepeat: MeetingRepeat.MONTHLY_DAY,
+          meetingWeekdays: [],
+          meetingMonthDays: [1, -1],
+          meetingTimes: [{ day: '-1', startTime: '09:00', endTime: '11:00' }],
+        }),
+      ],
+      ...SEPTEMBER,
+    )
+
+    expect(out.map((occurrence) => onCampus(occurrence.startsAt))).toEqual([
+      '2035-09-01 18:00',
+      '2035-09-30 09:00',
+    ])
+    expect(out[0]!.meeting.hours.map((part) => part.monthDays)).toEqual([[1], [-1]])
+  })
+
+  it('gives a listed date its own hours, in the calendar file too', async () => {
+    const out = await expandMeetings(
+      [
+        rover({
+          meetingRepeat: MeetingRepeat.DATES,
+          meetingWeekdays: [],
+          meetingDates: ['2035-09-10', '2035-09-22'],
+          meetingTimes: [{ day: '2035-09-22', startTime: '10:00', endTime: '14:00' }],
+        }),
+      ],
+      ...SEPTEMBER,
+    )
+
+    expect(out.map((occurrence) => onCampus(occurrence.startsAt))).toEqual([
+      '2035-09-10 18:00',
+      '2035-09-22 10:00',
+    ])
+    expect(out[0]!.meeting.dates.map((date) => onCampus(date.endsAt))).toEqual([
+      '2035-09-10 22:00',
+      '2035-09-22 14:00',
+    ])
+    expect(out[0]!.meeting.hours).toEqual([])
   })
 })
 

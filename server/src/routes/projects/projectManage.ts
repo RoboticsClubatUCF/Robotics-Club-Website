@@ -37,6 +37,7 @@ import {
   mergeSchedule,
   scheduleProblem,
   scheduleTermProblem,
+  scheduleUpdate,
   touchesSchedule,
 } from '../../projects/projectMeeting.js'
 import {
@@ -239,7 +240,7 @@ projectManage.get('/projects/:id/team', requireAuth, async (c) => {
   const project = await getProject(c.req.param('id'))
   await requireProjectMember(c.get('user'), project.id)
 
-  const [teams, members] = await Promise.all([
+  const [teams, members, meetingTimes] = await Promise.all([
     prisma.team.findMany({
       where: { projectId: project.id },
       orderBy: { name: 'asc' },
@@ -257,6 +258,10 @@ projectManage.get('/projects/:id/team', requireAuth, async (c) => {
         teamId: true,
         user: { select: { fullName: true, photoUrl: true } },
       },
+    }),
+    prisma.projectMeetingTime.findMany({
+      where: { projectId: project.id },
+      select: { day: true, startTime: true, endTime: true },
     }),
   ])
 
@@ -332,6 +337,7 @@ projectManage.get('/projects/:id/team', requireAuth, async (c) => {
       meetingStartsOn,
       meetingStartTime,
       meetingEndTime,
+      meetingTimes,
       meetingLocation,
       meetingDescription,
       meetingsPublic,
@@ -438,7 +444,15 @@ projectManage.patch(
     // Checked on the resulting row, whichever fields the body carried, and against the
     // term the project will be in once this lands.
     const schedule = touchesSchedule(patch)
-      ? mergeSchedule(project, patch)
+      ? mergeSchedule(
+          {
+            ...project,
+            meetingTimes: await prisma.projectMeetingTime.findMany({
+              where: { projectId: project.id },
+            }),
+          },
+          patch,
+        )
       : null
     if (schedule) {
       const problem =
@@ -454,9 +468,10 @@ projectManage.patch(
       await assertUsableRole(patch.discordRoleId)
     }
 
+    const { meetingTimes: _times, ...fields } = patch
     const updated = await prisma.project.update({
       where: { id: project.id },
-      data: { ...patch, ...schedule },
+      data: { ...fields, ...(schedule ? scheduleUpdate(schedule) : {}) },
       // `description` is added to the shape here and only here. It's left out of
       // `managedProjectSelect` because that feeds `/me/projects`, which every
       // dashboard page loads, and a 20,000-character column per project is a payload
