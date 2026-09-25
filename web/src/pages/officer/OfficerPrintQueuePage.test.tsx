@@ -365,7 +365,7 @@ describe('the print queue', () => {
   /**
    * Caught here rather than at the server's 400: the officer is standing at a
    * printer, and a round trip to be told to fill in a box is a round trip too
-   * many. Nothing is even asked — the dialog does not open.
+   * many. The confirmation never opens.
    */
   it('will not finish a personal print with no figure typed', async () => {
     const stub = stubFetch({ '/officer/print-queue': [item()] })
@@ -376,9 +376,24 @@ describe('the print queue', () => {
 
     press(/mark done/i)
 
-    expect(await screen.findByText(/say how much/i)).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('alertdialog')).getByText(/how much did bracket\.stl take/i),
+    ).toBeInTheDocument()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(sent(stub)).toBeUndefined()
+  })
+
+  it('puts the cursor in the grams box once the officer has read why', async () => {
+    vi.stubGlobal('fetch', stubFetch({ '/officer/print-queue': [item()] }))
+
+    renderPage()
+    await screen.findByText('bracket.stl')
+
+    press(/mark done/i)
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'OK' }))
+
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/grams used for bracket\.stl/i)).toHaveFocus()
   })
 
   it('leaves the printed settings off when nothing was changed', async () => {
@@ -612,6 +627,113 @@ describe('the confirmation', () => {
     press(/mark done/i)
 
     expect(within(dialog()).getByRole('button', { name: /go back/i })).toHaveFocus()
+  })
+})
+
+/**
+ * A refused press, said where the officer is looking.
+ *
+ * The sentence used to go under the last card, screens below the button on a
+ * long queue, so a refusal looked like nothing happening.
+ */
+describe('when the server says no', () => {
+  /** The queue loads; the write fails as told. */
+  const refusing = (
+    rows: ApiPrintQueueItem[],
+    refusal: { status: number; error: string } | 'offline',
+  ) =>
+    vi.fn((_input: string | URL | Request, init?: RequestInit) => {
+      if (init?.method !== 'PATCH') {
+        return Promise.resolve(Response.json(rows))
+      }
+      if (refusal === 'offline') {
+        return Promise.reject(new TypeError('Failed to fetch'))
+      }
+      return Promise.resolve(
+        Response.json({ error: refusal.error }, { status: refusal.status }),
+      )
+    })
+
+  const problem = () => screen.getByRole('alertdialog')
+
+  it.each([
+    ['MARK DONE', printing(), /mark done/i, /mark done/i, /couldn't mark bracket\.stl as done/i],
+    ['DECLINE', item(), /^decline$/i, /^decline$/i, /couldn't decline bracket\.stl/i],
+    [
+      'CANCEL THE PRINT',
+      printing(),
+      /cancel the print/i,
+      /stop the print/i,
+      /couldn't stop the print of bracket\.stl/i,
+    ],
+  ])('names the act that failed after %s', async (_label, row, button, confirm, title) => {
+    vi.stubGlobal(
+      'fetch',
+      refusing([row], { status: 409, error: 'This request is already settled.' }),
+    )
+
+    renderPage()
+    await screen.findByText('bracket.stl')
+
+    typeGrams('42')
+    press(button)
+    agree(confirm)
+
+    expect(await screen.findByRole('alertdialog')).toBeInTheDocument()
+    expect(within(problem()).getByText(title)).toBeInTheDocument()
+    expect(within(problem()).getByText('This request is already settled.')).toBeInTheDocument()
+  })
+
+  it('says so when the server cannot be reached', async () => {
+    vi.stubGlobal('fetch', refusing([item()], 'offline'))
+
+    renderPage()
+    await screen.findByText('bracket.stl')
+
+    press(/start printing/i)
+
+    expect(await screen.findByRole('alertdialog')).toBeInTheDocument()
+    expect(within(problem()).getByText(/couldn't start printing bracket\.stl/i)).toBeInTheDocument()
+    expect(within(problem()).getByText(/couldn't reach the server/i)).toBeInTheDocument()
+  })
+
+  it('closes on OK and hands focus back to the button that was pressed', async () => {
+    vi.stubGlobal(
+      'fetch',
+      refusing([item()], { status: 409, error: 'This request is already settled.' }),
+    )
+
+    renderPage()
+    await screen.findByText('bracket.stl')
+
+    const start = screen.getByRole('button', { name: /start printing/i })
+    fireEvent.click(start)
+
+    await screen.findByRole('alertdialog')
+    const ok = within(problem()).getByRole('button', { name: 'OK' })
+    expect(ok).toHaveFocus()
+
+    // The row's buttons are disabled while the request is out.
+    await waitFor(() => {
+      expect(start).toBeEnabled()
+    })
+    fireEvent.click(ok)
+
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(start).toHaveFocus()
+  })
+
+  it('closes on Escape', async () => {
+    vi.stubGlobal('fetch', refusing([item()], 'offline'))
+
+    renderPage()
+    await screen.findByText('bracket.stl')
+
+    press(/start printing/i)
+    await screen.findByRole('alertdialog')
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
   })
 })
 

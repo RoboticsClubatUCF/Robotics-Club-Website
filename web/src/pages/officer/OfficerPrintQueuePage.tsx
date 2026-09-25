@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useId, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import type { MouseEvent } from 'react'
 import { useOutletContext } from 'react-router'
 import { DuesLocked } from '../../components/dashboard/DuesLocked'
 import { OfficerOnly } from '../../components/dashboard/OfficerOnly'
@@ -25,6 +26,7 @@ import { STATUS_TONE, dateAndTime, fileSize } from '../../lib/format/formats'
 import type { StatusTone } from '../../lib/format/formats'
 import { storedFileUrl } from '../../lib/media/storedFiles'
 import { ConfirmDialog } from '../../components/shared/ConfirmDialog'
+import { ErrorDialog } from '../../components/shared/ErrorDialog'
 import {
   DEFAULT_INFILL_DENSITY,
   INFILL_DENSITIES,
@@ -110,6 +112,15 @@ function explain(error: unknown): string {
   return 'That change did not go through. Try again in a moment.'
 }
 
+/** The pop-up's title when the server turns a press down. */
+function refusal(request: ApiPrintQueueItem, status: PrintRequestStatus): string {
+  if (status === 'PRINTING') return `Couldn't start printing ${request.fileName}.`
+  if (status === 'DONE') return `Couldn't mark ${request.fileName} as done.`
+  return isCancel(request.status)
+    ? `Couldn't stop the print of ${request.fileName}.`
+    : `Couldn't decline ${request.fileName}.`
+}
+
 /**
  * The three queue actions, drawn as buttons rather than text.
  *
@@ -134,6 +145,21 @@ interface Pending {
   /** Grams past the member's allowance, or 0. Computed before the ask so the
       dialog can name the number rather than repeat the rule. */
   over: number
+  /** The row's button, for focus to go back to if the server refuses. */
+  pressed: HTMLElement
+}
+
+/** Something that went wrong, shown in `ErrorDialog`. */
+interface Problem {
+  title: string
+  message: string
+  returnTo: HTMLElement | null
+}
+
+/** Where focus can go back to in the row that was pressed. */
+interface Origin {
+  pressed: HTMLElement
+  grams: HTMLInputElement | null
 }
 
 /** What an officer has typed against one row but not yet sent. */
@@ -157,7 +183,7 @@ export function OfficerPrintQueuePage() {
     'loading',
   )
   const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState('')
+  const [problem, setProblem] = useState<Problem | null>(null)
   // Held at the page rather than per row: one dialog exists, and whichever row
   // opened it is carried inside. A dialog per row would mean as many mounted
   // overlays as there are jobs in the queue.
@@ -227,7 +253,7 @@ export function OfficerPrintQueuePage() {
   }
 
   /** Do it, having asked where asking was warranted. */
-  const send = ({ request, status, draft, over }: Pending) => {
+  const send = ({ request, status, draft, over, pressed }: Pending) => {
     const officerNote = draft.officerNote.trim()
     const gramsUsed = draft.gramsUsed.trim() === '' ? null : Number(draft.gramsUsed)
 
@@ -241,7 +267,6 @@ export function OfficerPrintQueuePage() {
       draft.infillDensity !== asked.infillDensity
 
     setBusy(true)
-    setMessage('')
     setPending(null)
     patchJson(`/officer/print/${request.id}`, {
       status,
@@ -265,7 +290,11 @@ export function OfficerPrintQueuePage() {
     })
       .then(load)
       .catch((error: unknown) => {
-        setMessage(explain(error))
+        setProblem({
+          title: refusal(request, status),
+          message: explain(error),
+          returnTo: pressed,
+        })
       })
       .finally(() => {
         setBusy(false)
@@ -276,6 +305,7 @@ export function OfficerPrintQueuePage() {
     request: ApiPrintQueueItem,
     status: PrintRequestStatus,
     draft: Draft,
+    { pressed, grams }: Origin,
   ) => {
     const gramsUsed = draft.gramsUsed.trim() === '' ? null : Number(draft.gramsUsed)
 
@@ -283,9 +313,11 @@ export function OfficerPrintQueuePage() {
       // Said here rather than let through to the 400, because the officer is
       // standing at a printer and a round trip to be told to fill in a box is
       // a round trip too many.
-      setMessage(
-        `Say how much ${request.fileName} took — it comes out of ${request.user.fullName}'s allowance.`,
-      )
+      setProblem({
+        title: `How much did ${request.fileName} take?`,
+        message: `Type the grams into USED before marking it done. It comes out of ${request.user.fullName}'s allowance.`,
+        returnTo: grams,
+      })
       return
     }
 
@@ -303,7 +335,7 @@ export function OfficerPrintQueuePage() {
         : 0
 
     const terminal = status === 'DONE' || status === 'REJECTED'
-    const next = { request, status, draft, over }
+    const next = { request, status, draft, over, pressed }
 
     // Only the irreversible ones ask. Putting a job on a printer is a step
     // forward that can be walked back; the two below delete the model.
@@ -401,10 +433,6 @@ export function OfficerPrintQueuePage() {
               ))}
             </ul>
           ))}
-
-        <p role="status" className="text-error mt-3 min-h-4 text-[12px]">
-          {message}
-        </p>
       </FormPanel>
 
       {pending && (
@@ -418,6 +446,18 @@ export function OfficerPrintQueuePage() {
             setPending(null)
           }}
         />
+      )}
+
+      {problem && (
+        <ErrorDialog
+          title={problem.title}
+          returnTo={problem.returnTo}
+          onDismiss={() => {
+            setProblem(null)
+          }}
+        >
+          <p>{problem.message}</p>
+        </ErrorDialog>
       )}
     </>
   )
@@ -508,9 +548,11 @@ function QueueRow({
     request: ApiPrintQueueItem,
     status: PrintRequestStatus,
     draft: Draft,
+    origin: Origin,
   ) => void
 }) {
   const asked = actualSettings(request)
+  const gramsRef = useRef<HTMLInputElement>(null)
   // Starts on what was asked for, so an officer who changes nothing sends the
   // truth and the `printed*` columns stay null.
   const [draft, setDraft] = useState<Draft>({
@@ -525,6 +567,14 @@ function QueueRow({
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }))
   }
+
+  const press =
+    (status: PrintRequestStatus) => (event: MouseEvent<HTMLButtonElement>) => {
+      onSettle(request, status, draft, {
+        pressed: event.currentTarget,
+        grams: gramsRef.current,
+      })
+    }
 
   const label = STATUS_LABEL[request.status]
   const settled = request.status === 'DONE' || request.status === 'REJECTED'
@@ -708,6 +758,7 @@ function QueueRow({
                 USED
               </span>
               <input
+                ref={gramsRef}
                 type="number"
                 min={0}
                 max={100000}
@@ -774,9 +825,7 @@ function QueueRow({
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => {
-                  onSettle(request, 'PRINTING', draft)
-                }}
+                onClick={press('PRINTING')}
                 className={loudButton}
               >
                 START PRINTING
@@ -786,9 +835,7 @@ function QueueRow({
             <button
               type="button"
               disabled={busy}
-              onClick={() => {
-                onSettle(request, 'DONE', draft)
-              }}
+              onClick={press('DONE')}
               className={request.status === 'PENDING' ? quietButton : loudButton}
             >
               MARK DONE
@@ -801,9 +848,7 @@ function QueueRow({
             <button
               type="button"
               disabled={busy}
-              onClick={() => {
-                onSettle(request, 'REJECTED', draft)
-              }}
+              onClick={press('REJECTED')}
               // `ml-auto` rather than a spacer: at narrow widths the row wraps
               // and this simply lands on its own line, which is still the far
               // side of everything else.
