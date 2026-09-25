@@ -23,8 +23,11 @@ import { explainApiError } from '../../lib/api/apiErrors'
 import { duesLocked } from '../../lib/dues/dues'
 import {
   EVENT_TYPES,
+  eventInstants,
   isGeneratedMeeting,
+  listedWhen,
   toDateInput,
+  toEndDateInput,
   toTimeInput,
 } from '../../lib/events/events'
 import { useApi } from '../../lib/api/useApi'
@@ -122,6 +125,8 @@ function Events({
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<Message>(null)
   const [when, setWhen] = useState('')
+  const [until, setUntil] = useState('')
+  const [saves, setSaves] = useState(0)
 
   /**
    * This term, for the one warning this page gives.
@@ -192,27 +197,27 @@ function Events({
 
   const mineToEdit = (events ?? []).filter(canTouch)
 
-  /** Finals week for the term the chosen date falls in, when one is set. */
+  /** Finals week, when any day the event covers falls in one. */
   const finalsWarning = (() => {
     if (!when || terms.status !== 'ready') return null
 
-    const at = new Date(`${when}T12:00`).getTime()
+    const from = new Date(`${when}T12:00`).getTime()
+    const to = until > when ? new Date(`${until}T12:00`).getTime() : from
     const term = terms.data.find(
       (row) =>
         row.finalsStartAt !== null &&
         row.finalsEndAt !== null &&
-        at >= new Date(row.finalsStartAt).getTime() &&
-        at <= new Date(row.finalsEndAt).getTime(),
+        to >= new Date(row.finalsStartAt).getTime() &&
+        from <= new Date(row.finalsEndAt).getTime(),
     )
     if (!term) return null
 
-    return `That date is in finals week. Projects are on halt — their weekly meetings stop — but this event will still be created.`
+    return `${to > from ? 'Those dates run into' : 'That date is in'} finals week. Projects are on halt — their weekly meetings stop — but this event will still be created.`
   })()
 
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    const form = event.currentTarget
-    const data = new FormData(form)
+    const data = new FormData(event.currentTarget)
     // Narrowed rather than coerced: `FormData.get` can hand back a `File`, and `String()` on
     // one is the literal text '[object File]' going into the row.
     const text = (name: string) => {
@@ -220,10 +225,18 @@ function Events({
       return typeof raw === 'string' ? raw.trim() : ''
     }
 
-    const date = text('date')
-    const start = text('start')
-    const end = text('end')
     const allDay = data.get('allDay') === 'on'
+    const instants = eventInstants({
+      date: text('date'),
+      start: text('start'),
+      endDate: text('endDate'),
+      end: text('end'),
+      allDay,
+    })
+    if ('error' in instants) {
+      setMessage({ tone: 'error', text: instants.error })
+      return
+    }
 
     const body = {
       title: text('title'),
@@ -231,16 +244,7 @@ function Events({
       type: text('type') as EventType,
       location: text('location') || null,
       registrationUrl: text('registrationUrl') || null,
-      // Built in local time and shipped as an instant — "6:30 in the lab" is campus time, and
-      // the calendar converts back on the way in. An all-day event still needs a timestamp to
-      // sort and range-query on, so it gets midnight and the flag stops anything printing
-      // that as a time.
-      startsAt: new Date(`${date}T${allDay ? '00:00' : start}`).toISOString(),
-      endsAt: allDay
-        ? new Date(`${date}T23:59`).toISOString()
-        : end
-          ? new Date(`${date}T${end}`).toISOString()
-          : null,
+      ...instants,
       allDay,
       // Only officers may send this at all; the checkbox isn't drawn for anybody else, and
       // the server refuses it from them regardless.
@@ -262,8 +266,11 @@ function Events({
           ...(team ? { teamId: team } : {}),
         })
       }
-      form.reset()
+      // A fresh form rather than `form.reset()`, which clears the fields behind React's back:
+      // typing the same date again then fires no onChange and `when` stays empty.
+      setSaves((count) => count + 1)
       setWhen('')
+      setUntil('')
       setMessage({ tone: 'success', text: 'Saved.' })
       await reload()
     })
@@ -272,7 +279,11 @@ function Events({
   const remove = (event: ApiMeEvent) =>
     run(async () => {
       await deleteJson(`/events/${event.id}`)
-      if (editing?.id === event.id) setEditing(null)
+      if (editing?.id === event.id) {
+        setEditing(null)
+        setWhen('')
+        setUntil('')
+      }
       setDeleting(null)
       setMessage({ tone: 'success', text: `"${event.title}" is off the calendar.` })
       await reload()
@@ -341,14 +352,7 @@ function Events({
                       )}
                     </p>
                     <p className="text-faint font-mono text-[10px] font-medium tracking-[0.1em]">
-                      {new Date(event.startsAt).toLocaleString(undefined, {
-                        weekday: 'short',
-                        month: 'short',
-                        day: 'numeric',
-                        ...(event.allDay
-                          ? {}
-                          : { hour: 'numeric', minute: '2-digit' }),
-                      })}
+                      {listedWhen(event)}
                       {' · '}
                       {whereItHangs(event)}
                     </p>
@@ -360,7 +364,9 @@ function Events({
                     className={smallButton}
                     onClick={() => {
                       setEditing(event)
+                      setMessage(null)
                       setWhen(toDateInput(event.startsAt))
+                      setUntil(toEndDateInput(event))
                     }}
                   >
                     EDIT
@@ -384,7 +390,15 @@ function Events({
         <FormPanel>
           {/* `key` swaps the form wholesale between "new" and "editing", which is what lets
               the uncontrolled inputs pick up an event's values as their defaults. */}
-          <form key={editing?.id ?? 'new'} onSubmit={submit} className="space-y-4">
+          <form
+            key={editing?.id ?? `new-${String(saves)}`}
+            onSubmit={submit}
+            // A refusal is about what was typed, so it goes once the typing changes.
+            onChange={() => {
+              if (message?.tone === 'error') setMessage(null)
+            }}
+            className="space-y-4"
+          >
             <p className={panelLabel}>
               {editing ? `EDITING — ${editing.title.toUpperCase()}` : 'NEW EVENT'}
             </p>
@@ -480,52 +494,85 @@ function Events({
               </div>
             )}
 
-            <div className="flex flex-wrap items-end gap-4">
-              <div>
-                <label htmlFor={`${id}-date`} className={labelClass}>
-                  DATE
-                </label>
-                <input
-                  id={`${id}-date`}
-                  name="date"
-                  type="date"
-                  required
-                  defaultValue={editing ? toDateInput(editing.startsAt) : ''}
-                  className={`${fieldClass} w-44`}
-                  disabled={busy}
-                  onChange={(change) => {
-                    setWhen(change.target.value)
-                  }}
-                />
+            {/* Start and end on rows of their own, so the order holds on a phone where each
+                field takes a line. Widths go on the wrappers because `fieldClass` carries
+                `w-full`, which beat them on the inputs and clipped the time behind its clock
+                icon. */}
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-end gap-4">
+                <div className="w-44">
+                  <label htmlFor={`${id}-date`} className={labelClass}>
+                    START DATE
+                  </label>
+                  <input
+                    id={`${id}-date`}
+                    name="date"
+                    type="date"
+                    required
+                    defaultValue={editing ? toDateInput(editing.startsAt) : ''}
+                    className={fieldClass}
+                    disabled={busy}
+                    onChange={(change) => {
+                      setWhen(change.target.value)
+                    }}
+                  />
+                </div>
+                <div className="w-36">
+                  <label htmlFor={`${id}-start`} className={labelClass}>
+                    START TIME
+                  </label>
+                  <input
+                    id={`${id}-start`}
+                    name="start"
+                    type="time"
+                    defaultValue={editing ? toTimeInput(editing.startsAt) : ''}
+                    className={fieldClass}
+                    disabled={busy}
+                  />
+                </div>
               </div>
-              <div>
-                <label htmlFor={`${id}-start`} className={labelClass}>
-                  FROM
-                </label>
-                <input
-                  id={`${id}-start`}
-                  name="start"
-                  type="time"
-                  defaultValue={editing ? toTimeInput(editing.startsAt) : ''}
-                  className={`${fieldClass} w-36`}
-                  disabled={busy}
-                />
+
+              <div className="flex flex-wrap items-end gap-4">
+                <div className="w-44">
+                  <label htmlFor={`${id}-end-date`} className={labelClass}>
+                    END DATE
+                  </label>
+                  <input
+                    id={`${id}-end-date`}
+                    name="endDate"
+                    type="date"
+                    defaultValue={editing ? toEndDateInput(editing) : ''}
+                    aria-describedby={`${id}-end-date-hint`}
+                    className={fieldClass}
+                    disabled={busy}
+                    onChange={(change) => {
+                      setUntil(change.target.value)
+                    }}
+                  />
+                </div>
+                <div className="w-36">
+                  <label htmlFor={`${id}-end`} className={labelClass}>
+                    END TIME
+                  </label>
+                  <input
+                    id={`${id}-end`}
+                    name="end"
+                    type="time"
+                    defaultValue={
+                      editing?.endsAt ? toTimeInput(editing.endsAt) : ''
+                    }
+                    className={fieldClass}
+                    disabled={busy}
+                  />
+                </div>
               </div>
-              <div>
-                <label htmlFor={`${id}-end`} className={labelClass}>
-                  TO
-                </label>
-                <input
-                  id={`${id}-end`}
-                  name="end"
-                  type="time"
-                  defaultValue={
-                    editing?.endsAt ? toTimeInput(editing.endsAt) : ''
-                  }
-                  className={`${fieldClass} w-36`}
-                  disabled={busy}
-                />
-              </div>
+
+              <p
+                id={`${id}-end-date-hint`}
+                className="text-faint text-[12px] leading-[1.5]"
+              >
+                Leave the end date empty for a one-day event.
+              </p>
             </div>
 
             <label className="flex cursor-pointer items-center gap-2.5">
@@ -630,7 +677,9 @@ function Events({
                   disabled={busy}
                   onClick={() => {
                     setEditing(null)
+                    setMessage(null)
                     setWhen('')
+                    setUntil('')
                   }}
                 >
                   STOP EDITING

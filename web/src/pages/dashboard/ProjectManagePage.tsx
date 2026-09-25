@@ -35,8 +35,11 @@ import type {
 } from '../../lib/api/api'
 import {
   EVENT_TYPES,
+  eventInstants,
   isGeneratedMeeting,
+  listedWhen,
   toDateInput,
+  toEndDateInput,
   toTimeInput,
 } from '../../lib/events/events'
 import {
@@ -317,7 +320,7 @@ function useSectionStatus() {
     }
   }
 
-  return { message, busy, run }
+  return { message, setMessage, busy, run }
 }
 
 // ----------------------------------------------------------------- members
@@ -689,7 +692,7 @@ function EventsSection({
   myTeamId: string | null
 }) {
   const { user } = useOutletContext<DashboardContext>()
-  const { message, busy, run } = useSectionStatus()
+  const { message, setMessage, busy, run } = useSectionStatus()
   const [events, setEvents] = useState<ApiMeEvent[] | null>(null)
   const [editing, setEditing] = useState<ApiMeEvent | null>(null)
   const [deleting, setDeleting] = useState<ApiMeEvent | null>(null)
@@ -735,17 +738,25 @@ function EventsSection({
     const start = text('start')
     if (!text('title') || !date || !start) return
 
-    const end = text('end')
+    const instants = eventInstants({
+      date,
+      start,
+      endDate: text('endDate'),
+      end: text('end'),
+      allDay: false,
+    })
+    if ('error' in instants) {
+      setMessage(instants.error)
+      return
+    }
+
     const teamValue = text('team')
 
     const body = {
       title: text('title'),
       type: text('type') as EventType,
       location: text('location') || null,
-      // Built in local time and shipped as an instant — "6:30 in the lab" is
-      // campus time, and the calendar converts back on the way in.
-      startsAt: new Date(`${date}T${start}`).toISOString(),
-      endsAt: end ? new Date(`${date}T${end}`).toISOString() : null,
+      ...instants,
     }
 
     void run(async () => {
@@ -802,13 +813,7 @@ function EventsSection({
               <div className="min-w-0 flex-1 basis-48">
                 <p className="truncate text-sm font-medium">{event.title}</p>
                 <p className="text-faint font-mono text-[10px] font-medium tracking-[0.1em]">
-                  {new Date(event.startsAt).toLocaleString(undefined, {
-                    weekday: 'short',
-                    month: 'short',
-                    day: 'numeric',
-                    hour: 'numeric',
-                    minute: '2-digit',
-                  })}
+                  {listedWhen(event)}
                   {' · '}
                   {teamName(event.teamId).toUpperCase()}
                 </p>
@@ -821,6 +826,7 @@ function EventsSection({
                     className={smallButton}
                     onClick={() => {
                       setEditing(event)
+                      setMessage('')
                     }}
                   >
                     EDIT
@@ -844,7 +850,15 @@ function EventsSection({
 
       {/* `key` swaps the form wholesale between "new" and "editing", which is
           what lets uncontrolled inputs pick up the event's values as defaults. */}
-      <form key={editing?.id ?? 'new'} onSubmit={submit} className="space-y-3">
+      <form
+        key={editing?.id ?? 'new'}
+        onSubmit={submit}
+        // A refusal is about what was typed, so it goes once the typing changes.
+        onChange={() => {
+          if (message) setMessage('')
+        }}
+        className="space-y-3"
+      >
         <p className={labelClass}>
           {editing ? `EDITING — ${editing.title.toUpperCase()}` : 'NEW EVENT'}
         </p>
@@ -897,47 +911,68 @@ function EventsSection({
           </div>
         </div>
 
+        {/* Grouped as start and end, so a wrapping row breaks between the two before it
+            breaks inside either. Widths sit on the wrappers, since `fieldClass`'s `w-full`
+            wins on the input itself. */}
         <div className="flex flex-wrap items-end gap-3">
-          <div>
-            <label htmlFor={`${formId}-date`} className={labelClass}>
-              DATE
-            </label>
-            <input
-              id={`${formId}-date`}
-              name="date"
-              type="date"
-              required
-              defaultValue={editing ? toDateInput(editing.startsAt) : ''}
-              className={`${fieldClass} h-8 w-40`}
-              disabled={busy}
-            />
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="w-40">
+              <label htmlFor={`${formId}-date`} className={labelClass}>
+                START DATE
+              </label>
+              <input
+                id={`${formId}-date`}
+                name="date"
+                type="date"
+                required
+                defaultValue={editing ? toDateInput(editing.startsAt) : ''}
+                className={`${fieldClass} h-8`}
+                disabled={busy}
+              />
+            </div>
+            <div className="w-32">
+              <label htmlFor={`${formId}-start`} className={labelClass}>
+                START TIME
+              </label>
+              <input
+                id={`${formId}-start`}
+                name="start"
+                type="time"
+                required
+                defaultValue={editing ? toTimeInput(editing.startsAt) : ''}
+                className={`${fieldClass} h-8`}
+                disabled={busy}
+              />
+            </div>
           </div>
-          <div>
-            <label htmlFor={`${formId}-start`} className={labelClass}>
-              STARTS
-            </label>
-            <input
-              id={`${formId}-start`}
-              name="start"
-              type="time"
-              required
-              defaultValue={editing ? toTimeInput(editing.startsAt) : ''}
-              className={`${fieldClass} h-8 w-28`}
-              disabled={busy}
-            />
-          </div>
-          <div>
-            <label htmlFor={`${formId}-end`} className={labelClass}>
-              ENDS
-            </label>
-            <input
-              id={`${formId}-end`}
-              name="end"
-              type="time"
-              defaultValue={editing?.endsAt ? toTimeInput(editing.endsAt) : ''}
-              className={`${fieldClass} h-8 w-28`}
-              disabled={busy}
-            />
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="w-40">
+              <label htmlFor={`${formId}-end-date`} className={labelClass}>
+                END DATE
+              </label>
+              <input
+                id={`${formId}-end-date`}
+                name="endDate"
+                type="date"
+                defaultValue={editing ? toEndDateInput(editing) : ''}
+                aria-describedby={`${formId}-end-date-hint`}
+                className={`${fieldClass} h-8`}
+                disabled={busy}
+              />
+            </div>
+            <div className="w-32">
+              <label htmlFor={`${formId}-end`} className={labelClass}>
+                END TIME
+              </label>
+              <input
+                id={`${formId}-end`}
+                name="end"
+                type="time"
+                defaultValue={editing?.endsAt ? toTimeInput(editing.endsAt) : ''}
+                className={`${fieldClass} h-8`}
+                disabled={busy}
+              />
+            </div>
           </div>
           <div className="min-w-36 flex-1">
             <label htmlFor={`${formId}-location`} className={labelClass}>
@@ -954,6 +989,12 @@ function EventsSection({
             />
           </div>
         </div>
+        <p
+          id={`${formId}-end-date-hint`}
+          className="text-faint text-[12px] leading-[1.5]"
+        >
+          Leave the end date empty for a one-day event.
+        </p>
 
         <div className="flex items-center gap-3">
           <button
@@ -970,6 +1011,7 @@ function EventsSection({
               className={smallButton}
               onClick={() => {
                 setEditing(null)
+                setMessage('')
               }}
             >
               CANCEL

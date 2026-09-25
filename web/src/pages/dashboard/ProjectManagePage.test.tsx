@@ -1165,3 +1165,36 @@ describe('the upcoming meetings', () => {
     ).toBeInTheDocument()
   })
 })
+
+describe('the project events form', () => {
+  it('sends an event that runs over several days', async () => {
+    const fetchMock = stubDesk()
+    renderPage(fetchMock)
+    await act(async () => {})
+
+    const local = (value: string) => new Date(value).toISOString()
+    fireEvent.change(screen.getByLabelText('Event title'), {
+      target: { value: 'Build weekend' },
+    })
+    for (const [label, value] of [
+      ['START DATE', '2035-09-21'],
+      ['START TIME', '09:00'],
+      ['END DATE', '2035-09-23'],
+      ['END TIME', '17:00'],
+    ]) {
+      fireEvent.change(screen.getByLabelText(label!), { target: { value } })
+    }
+
+    await act(async () => {
+      fireEvent.submit(screen.getByLabelText('END DATE').closest('form')!)
+    })
+
+    const post = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')
+    expect(JSON.parse(post![1]!.body as string)).toMatchObject({
+      title: 'Build weekend',
+      startsAt: local('2035-09-21T09:00'),
+      endsAt: local('2035-09-23T17:00'),
+      projectId: 'p1',
+    })
+  })
+})

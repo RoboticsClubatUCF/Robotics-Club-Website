@@ -329,10 +329,10 @@ describe('writing an event', () => {
     fireEvent.change(panel.getByLabelText('TITLE'), {
       target: { value: 'Open house' },
     })
-    fireEvent.change(panel.getByLabelText('DATE'), {
+    fireEvent.change(panel.getByLabelText('START DATE'), {
       target: { value: '2035-09-20' },
     })
-    fireEvent.change(panel.getByLabelText('FROM'), {
+    fireEvent.change(panel.getByLabelText('START TIME'), {
       target: { value: '18:00' },
     })
 
@@ -360,7 +360,7 @@ describe('writing an event', () => {
     renderPage(context('OFFICER', []))
     await screen.findByText('NEW EVENT')
 
-    fireEvent.change(formPanel().getByLabelText('DATE'), {
+    fireEvent.change(formPanel().getByLabelText('START DATE'), {
       target: { value: '2035-12-10' },
     })
 
@@ -370,5 +370,183 @@ describe('writing an event', () => {
     expect(
       screen.getByRole('button', { name: 'CREATE EVENT' }),
     ).not.toBeDisabled()
+  })
+
+  it('still warns for the same date on the next event after a save', async () => {
+    vi.stubGlobal('fetch', stubDesk([]))
+    renderPage(context('OFFICER', []))
+    await screen.findByText('NEW EVENT')
+
+    const fill = (label: string, value: string) => {
+      fireEvent.change(formPanel().getByLabelText(label), { target: { value } })
+    }
+    fill('TITLE', 'Study night')
+    fill('START DATE', '2035-12-10')
+    fill('START TIME', '18:00')
+    await act(async () => {
+      fireEvent.submit(
+        screen.getByRole('button', { name: 'CREATE EVENT' }).closest('form')!,
+      )
+    })
+    expect(await screen.findByText('Saved.')).toBeInTheDocument()
+    expect(screen.queryByText(/finals week/i)).not.toBeInTheDocument()
+
+    // `form.reset()` used to leave React holding the old value, so this fired no onChange.
+    fill('START DATE', '2035-12-10')
+    expect(screen.getByText(/finals week/i)).toBeInTheDocument()
+  })
+
+  it('warns when a run that starts before finals week reaches into it', async () => {
+    vi.stubGlobal('fetch', stubDesk([]))
+    renderPage(context('OFFICER', []))
+    await screen.findByText('NEW EVENT')
+
+    fireEvent.change(formPanel().getByLabelText('START DATE'), {
+      target: { value: '2035-12-04' },
+    })
+    expect(screen.queryByText(/finals week/i)).not.toBeInTheDocument()
+
+    fireEvent.change(formPanel().getByLabelText('END DATE'), {
+      target: { value: '2035-12-07' },
+    })
+    expect(
+      await screen.findByText(/Those dates run into finals week/),
+    ).toBeInTheDocument()
+  })
+})
+
+/** Fills the form and presses CREATE EVENT, handing back what went to `POST /events`. */
+async function create(
+  fetchStub: ReturnType<typeof stubDesk>,
+  values: Record<string, string>,
+  allDay = false,
+) {
+  const panel = formPanel()
+  fireEvent.change(panel.getByLabelText('TITLE'), {
+    target: { value: 'Regional qualifier' },
+  })
+  for (const [label, value] of Object.entries(values)) {
+    fireEvent.change(panel.getByLabelText(label), { target: { value } })
+  }
+  if (allDay) fireEvent.click(panel.getByLabelText(/All day/))
+
+  await act(async () => {
+    fireEvent.submit(
+      screen.getByRole('button', { name: 'CREATE EVENT' }).closest('form')!,
+    )
+  })
+
+  const post = fetchStub.mock.calls.find(
+    (call) =>
+      urlOf(call[0]).endsWith('/events') &&
+      (call[1] as RequestInit | undefined)?.method === 'POST',
+  )
+  return post ? (bodyOf(post[1]) as Record<string, unknown>) : null
+}
+
+describe('an event over several days', () => {
+  // Local wall-clock times, the zone the form is filled in, whatever zone the suite runs in.
+  const local = (value: string) => new Date(value).toISOString()
+
+  it('sends the end date with the end time', async () => {
+    const fetchStub = stubDesk([])
+    vi.stubGlobal('fetch', fetchStub)
+    renderPage(context('OFFICER', []))
+    await screen.findByText('NEW EVENT')
+
+    const body = await create(fetchStub, {
+      'START DATE': '2035-09-20',
+      'START TIME': '18:00',
+      'END DATE': '2035-09-22',
+      'END TIME': '14:00',
+    })
+
+    expect(body?.startsAt).toBe(local('2035-09-20T18:00'))
+    expect(body?.endsAt).toBe(local('2035-09-22T14:00'))
+  })
+
+  it('runs an all-day event to the end of its last day', async () => {
+    const fetchStub = stubDesk([])
+    vi.stubGlobal('fetch', fetchStub)
+    renderPage(context('OFFICER', []))
+    await screen.findByText('NEW EVENT')
+
+    const body = await create(
+      fetchStub,
+      { 'START DATE': '2035-09-20', 'END DATE': '2035-09-22' },
+      true,
+    )
+
+    expect(body).toMatchObject({
+      startsAt: local('2035-09-20T00:00'),
+      endsAt: local('2035-09-22T23:59'),
+      allDay: true,
+    })
+  })
+
+  it('says what is missing instead of sending an end date with no time', async () => {
+    const fetchStub = stubDesk([])
+    vi.stubGlobal('fetch', fetchStub)
+    renderPage(context('OFFICER', []))
+    await screen.findByText('NEW EVENT')
+
+    const body = await create(fetchStub, {
+      'START DATE': '2035-09-20',
+      'START TIME': '18:00',
+      'END DATE': '2035-09-22',
+    })
+
+    expect(body).toBeNull()
+    expect(
+      screen.getByText('An event ending on another day needs an end time.'),
+    ).toBeInTheDocument()
+
+    // Gone once the field it names is filled, rather than sitting under the fix.
+    fireEvent.change(formPanel().getByLabelText('END TIME'), {
+      target: { value: '14:00' },
+    })
+    expect(
+      screen.queryByText('An event ending on another day needs an end time.'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('lists the whole run and fills the end date back in to edit', async () => {
+    vi.stubGlobal(
+      'fetch',
+      stubDesk([
+        meEvent({
+          title: 'Regional qualifier',
+          startsAt: local('2035-09-20T00:00'),
+          endsAt: local('2035-09-22T23:59'),
+          allDay: true,
+        }),
+      ]),
+    )
+    renderPage(context('OFFICER', []))
+
+    const row = (await screen.findByText('Regional qualifier')).closest('li')!
+    expect(row).toHaveTextContent(/Sep 20.*–.*Sep 22/)
+
+    fireEvent.click(within(row).getByRole('button', { name: 'EDIT' }))
+    expect(screen.getByLabelText('END DATE')).toHaveValue('2035-09-22')
+  })
+
+  it('leaves the end date empty when editing a one-day event', async () => {
+    // Local times: the fixture's default evening crosses midnight in UTC, where CI runs.
+    vi.stubGlobal(
+      'fetch',
+      stubDesk([
+        meEvent({
+          startsAt: local('2035-09-06T18:00'),
+          endsAt: local('2035-09-06T22:00'),
+        }),
+      ]),
+    )
+    renderPage(context('OFFICER', []))
+
+    const row = (await screen.findByText('Kickoff')).closest('li')!
+    fireEvent.click(within(row).getByRole('button', { name: 'EDIT' }))
+    // Blank, so moving it to another day is one field rather than two.
+    expect(screen.getByLabelText('END DATE')).toHaveValue('')
   })
 })
