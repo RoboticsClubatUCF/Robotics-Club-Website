@@ -74,7 +74,7 @@ export function ConfirmDialog({
         }}
         className="border-rule bg-base-200 w-full max-w-[28rem] border p-6 shadow-2xl"
       >
-        <h2 id={titleId} className="mb-3 text-lg leading-snug font-bold text-pretty">
+        <h2 id={titleId} className="mb-3 text-lg leading-snug font-bold text-pretty break-words">
           {title}
         </h2>
 

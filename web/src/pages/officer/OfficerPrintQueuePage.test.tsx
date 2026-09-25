@@ -723,6 +723,58 @@ describe('when the server says no', () => {
     expect(start).toHaveFocus()
   })
 
+  /** The server knew something the page didn't: here, another officer's print
+      came off the member's balance after the queue loaded. */
+  it('reloads a stale row so the next press can go through', async () => {
+    const reads: string[] = []
+    const stub = vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      if (init?.method === 'PATCH') {
+        return Promise.resolve(
+          Response.json(
+            { error: 'That is 20 g past what they have left.' },
+            { status: 409 },
+          ),
+        )
+      }
+      reads.push(urlOf(input))
+      const remainingGrams = reads.length === 1 ? 400 : 20
+      return Promise.resolve(
+        Response.json([item({ allowance: allowance({ remainingGrams }) })]),
+      )
+    })
+    vi.stubGlobal('fetch', stub)
+
+    renderPage()
+    await screen.findByText(/400 g left/i)
+
+    typeGrams('40')
+    press(/mark done/i)
+    agree(/mark done/i)
+
+    await screen.findByRole('alertdialog')
+    expect(await screen.findByText(/20 g left/i)).toBeInTheDocument()
+    fireEvent.click(within(problem()).getByRole('button', { name: 'OK' }))
+
+    // The grams survive the reload, and the confirmation now names the overage.
+    press(/mark done/i)
+    expect(within(dialog()).getByText(/puts them 20 g over/i)).toBeInTheDocument()
+  })
+
+  it('leaves the queue alone when the server was never reached', async () => {
+    const stub = refusing([item()], 'offline')
+    vi.stubGlobal('fetch', stub)
+
+    renderPage()
+    await screen.findByText('bracket.stl')
+
+    press(/start printing/i)
+    await screen.findByRole('alertdialog')
+
+    const reads = stub.mock.calls.filter((call) => call[1]?.method !== 'PATCH')
+    expect(reads).toHaveLength(1)
+    expect(screen.getByText('bracket.stl')).toBeInTheDocument()
+  })
+
   it('closes on Escape', async () => {
     vi.stubGlobal('fetch', refusing([item()], 'offline'))
 

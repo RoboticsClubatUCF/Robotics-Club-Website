@@ -86,6 +86,23 @@ describe('ErrorDialog', () => {
     expect(screen.getByLabelText('Grams')).toHaveFocus()
   })
 
+  it('falls back to the opener when the field has left the page', () => {
+    const gone = document.createElement('input')
+    const opener = document.createElement('button')
+    document.body.append(opener)
+    opener.focus()
+
+    const { unmount } = render(
+      <ErrorDialog title="Couldn't mark it done." returnTo={gone} onDismiss={() => {}}>
+        <p>This request is already settled.</p>
+      </ErrorDialog>,
+    )
+    unmount()
+
+    expect(opener).toHaveFocus()
+    opener.remove()
+  })
+
   it('closes on the backdrop only when the press started there', () => {
     const onDismiss = vi.fn()
     render(

@@ -295,6 +295,17 @@ export function OfficerPrintQueuePage() {
           message: explain(error),
           returnTo: pressed,
         })
+
+        // The row was out of date: settled by someone else, gone, or the
+        // member's balance moved. Reloading shows its real state, and a new
+        // overage then goes through the confirmation that names it. Not on a
+        // network failure, which would empty the queue and lose typed drafts.
+        if (
+          error instanceof ApiError &&
+          (error.status === 404 || error.status === 409)
+        ) {
+          void load()
+        }
       })
       .finally(() => {
         setBusy(false)

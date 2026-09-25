@@ -57,7 +57,10 @@ export function ErrorDialog({
 
     return () => {
       document.removeEventListener('keydown', onKeyDown)
-      ;(target.current ?? opener)?.focus?.()
+      // A button whose row reloaded away while this was open is no longer on
+      // the page, and focusing it would drop focus on the body.
+      const back = target.current?.isConnected ? target.current : opener
+      back?.focus?.()
     }
   }, [])
 
