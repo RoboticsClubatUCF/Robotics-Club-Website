@@ -42,7 +42,7 @@ import {
 import {
   aboutCopySelect,
   ABOUT_ROW,
-  milestoneSelect,
+  readAboutLists,
 } from '../officer/aboutPage.js'
 import {
   faqSelect,
@@ -1034,19 +1034,18 @@ const ABOUT_COPY = {
   labMapUrl: null,
   onlineBlurb:
     'Discord is where the club actually talks — meeting times, build threads and the lab sign all land there first.',
+  // No row, so nothing for an editor to be behind.
+  updatedAt: null,
 } as const
 
 content.get('/about', async (c) => {
-  const [copy, milestones] = await Promise.all([
+  const [copy, [stats, milestones]] = await Promise.all([
     prisma.aboutPage.findUnique({
       where: { id: ABOUT_ROW },
       select: aboutCopySelect,
     }),
-    prisma.aboutMilestone.findMany({
-      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
-      select: milestoneSelect,
-    }),
+    readAboutLists(),
   ])
 
-  return c.json({ ...(copy ?? ABOUT_COPY), milestones })
+  return c.json({ ...(copy ?? ABOUT_COPY), stats, milestones })
 })

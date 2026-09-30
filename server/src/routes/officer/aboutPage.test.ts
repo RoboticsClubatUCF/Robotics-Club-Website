@@ -5,7 +5,9 @@ import { env } from '../../core/env.js'
 import { UserRole } from '../../generated/prisma/enums.js'
 import { clearCalendarCache } from '../../membership/semester.js'
 import { createSession } from '../../auth/session.js'
-import { ABOUT_ROW, MAX_MILESTONES } from './aboutPage.js'
+import { STORED_PREFIX } from '../../files/files.js'
+import { FileKind } from '../../generated/prisma/enums.js'
+import { ABOUT_ROW, MAX_MILESTONES, MAX_STATS } from './aboutPage.js'
 
 /**
  * `/about`, as officers write it.
@@ -21,9 +23,33 @@ import { ABOUT_ROW, MAX_MILESTONES } from './aboutPage.js'
  * That is a bigger promise than the other suites make, and it is the price of a page that saves
  * atomically — see the note on the transaction in `aboutPage.ts`. Nothing else on this API deletes
  * a table without a filter.
+ *
+ * `about_stats` is borrowed the same way. A case that saves its own timeline takes the club's
+ * photos off it, and the route deletes a removed photo's file, so `deleteIfStored` is guarded
+ * here to delete only files this suite uploaded (named with the prefix). A run killed between a
+ * case and its `afterEach` can't cost the club a photo. The files are borrowed too, bytes and
+ * all, in case the guard is ever taken out.
  */
 
-const PREFIX = 'test-about-'
+const { PREFIX } = vi.hoisted(() => ({ PREFIX: 'test-about-' }))
+
+vi.mock('../../files/files.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../files/files.js')>()
+  const { prisma: db } = await import('../../core/db.js')
+
+  return {
+    ...actual,
+    deleteIfStored: async (url: string | null | undefined) => {
+      if (!url?.startsWith(actual.STORED_PREFIX)) return
+      const file = await db.storedFile.findUnique({
+        where: { id: url.slice(actual.STORED_PREFIX.length) },
+        select: { originalName: true },
+      })
+      if (file?.originalName.startsWith(PREFIX)) await actual.deleteIfStored(url)
+    },
+  }
+})
+
 const email = (name: string) => `${PREFIX}${name}@ucf.edu`
 
 const PAID_THROUGH = new Date(2099, 11, 31)
@@ -41,11 +67,23 @@ const PAGE = {
   labCity: 'Orlando, FL 32826',
   labMapUrl: 'https://maps.example.com/ist',
   onlineBlurb: 'Discord is where the club talks.',
+  stats: [
+    { figure: '50+ years', label: 'of robotics at UCF' },
+    { figure: '$15,000 annually', label: 'in funding' },
+  ],
   milestones: [
-    { when: '1972', what: 'The club is founded.' },
-    { when: '1998', what: 'Something else happens.' },
+    { when: '1972', what: 'The club is founded.', photo: null },
+    { when: '1998', what: 'Something else happens.', photo: null },
   ],
 }
+
+/** Enough of a PNG for the magic-number check, named so the cleanup can find it. */
+const png = (name = 'photo.png') =>
+  new File(
+    [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3])],
+    `${PREFIX}${name}`,
+    { type: 'image/png' },
+  )
 
 const clearWindows = () =>
   prisma.rateLimit.deleteMany({ where: { key: { startsWith: 'officer:' } } })
@@ -53,19 +91,25 @@ const clearWindows = () =>
 const clearRows = () =>
   prisma.user.deleteMany({ where: { email: { startsWith: PREFIX } } })
 
+/** Files this suite uploaded. `createdById` is `SetNull`, so the prefix is what finds them. */
+const clearFiles = () =>
+  prisma.storedFile.deleteMany({ where: { originalName: { startsWith: PREFIX } } })
+
 let officerCookie = ''
 let memberCookie = ''
 
 /** The club's own page and timeline, put back after every case. */
 let borrowedPage: Awaited<ReturnType<typeof prisma.aboutPage.findUnique>> = null
-let borrowedTimeline: { when: string; what: string; sortOrder: number }[] = []
+let borrowedTimeline: Awaited<ReturnType<typeof prisma.aboutMilestone.findMany>> = []
+let borrowedStats: Awaited<ReturnType<typeof prisma.aboutStat.findMany>> = []
+let borrowedFiles: Awaited<ReturnType<typeof prisma.storedFile.findMany>> = []
 
 /**
  * Hono matches paths strictly, so the page's own route is `''` rather than `'/'`
  * — `/api/officer/about/` with the slash on the end is a 404, and one that reads
  * exactly like a router nobody mounted.
  */
-const write = (body?: unknown, cookie = officerCookie) =>
+const write = async (body?: unknown, cookie = officerCookie) =>
   app.request('/api/officer/about', {
     method: 'PUT',
     headers: {
@@ -73,8 +117,14 @@ const write = (body?: unknown, cookie = officerCookie) =>
       Origin: env.allowedOrigins[0] ?? 'http://localhost:5173',
       Cookie: cookie,
     },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    ...(body === undefined ? {} : { body: JSON.stringify(await current(body)) }),
   })
+
+/** A body saved from the page as it stands now, unless the case sends its own `version`. */
+const current = async (body: unknown) =>
+  body !== null && typeof body === 'object' && !('version' in body)
+    ? { ...body, version: (await read()).updatedAt }
+    : body
 
 /** The page as the public route answers it, which is what both `/about` and its
     editor read. */
@@ -88,11 +138,43 @@ type WireAbout = {
   labCity: string | null
   labMapUrl: string | null
   onlineBlurb: string
-  milestones: { id: string; when: string; what: string }[]
+  updatedAt: string | null
+  stats: { id: string; figure: string; label: string }[]
+  milestones: {
+    id: string
+    when: string
+    what: string
+    imageUrl: string | null
+    imageCaption: string | null
+    focalX: number
+    focalY: number
+    zoom: number
+  }[]
 }
 
 const read = async () =>
   (await (await app.request('/api/about')).json()) as WireAbout
+
+/** A save carrying files: the page as JSON in `page`, each photo as its own part. */
+const writeForm = async (body: unknown, photos: Record<string, File> = {}) => {
+  const form = new FormData()
+  form.append('page', JSON.stringify(await current(body)))
+  for (const [name, file] of Object.entries(photos)) form.append(name, file)
+
+  return app.request('/api/officer/about', {
+    method: 'PUT',
+    headers: {
+      Origin: env.allowedOrigins[0] ?? 'http://localhost:5173',
+      Cookie: officerCookie,
+    },
+    body: form,
+  })
+}
+
+const fileExists = async (url: string) =>
+  (await prisma.storedFile.count({
+    where: { id: url.slice(STORED_PREFIX.length) },
+  })) === 1
 
 beforeEach(async () => {
   // `requireCurrentDues` reads UCF's calendar. Stubbed to fail, which puts the
@@ -108,9 +190,18 @@ beforeEach(async () => {
   await clearRows()
 
   borrowedPage = await prisma.aboutPage.findUnique({ where: { id: ABOUT_ROW } })
-  borrowedTimeline = await prisma.aboutMilestone.findMany({
-    orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
-    select: { when: true, what: true, sortOrder: true },
+  borrowedTimeline = await prisma.aboutMilestone.findMany()
+  borrowedStats = await prisma.aboutStat.findMany()
+  borrowedFiles = await prisma.storedFile.findMany({
+    where: {
+      id: {
+        in: borrowedTimeline.flatMap((row) =>
+          row.imageUrl?.startsWith(STORED_PREFIX)
+            ? [row.imageUrl.slice(STORED_PREFIX.length)]
+            : [],
+        ),
+      },
+    },
   })
 
   const [officer, member] = await Promise.all([
@@ -138,12 +229,21 @@ beforeEach(async () => {
   memberCookie = `${env.SESSION_COOKIE_NAME}=${(await createSession(member.id)).token}`
 })
 
-/** Everything this suite borrowed, handed back. The rows come back with new
-    ids, which nothing on the page and nothing in the database depends on. */
+/** Everything this suite borrowed, handed back, ids included. The files go first, since a
+    case may have deleted one the club's timeline points at. */
 const restore = async () => {
+  if (borrowedFiles.length > 0) {
+    await prisma.storedFile.createMany({ data: borrowedFiles, skipDuplicates: true })
+  }
+
   await prisma.aboutMilestone.deleteMany()
   if (borrowedTimeline.length > 0) {
     await prisma.aboutMilestone.createMany({ data: borrowedTimeline })
+  }
+
+  await prisma.aboutStat.deleteMany()
+  if (borrowedStats.length > 0) {
+    await prisma.aboutStat.createMany({ data: borrowedStats })
   }
 
   if (borrowedPage) {
@@ -162,10 +262,12 @@ const restore = async () => {
 afterEach(async () => {
   vi.unstubAllGlobals()
   await restore()
+  await clearFiles()
 })
 
 afterAll(async () => {
   await clearRows()
+  await clearFiles()
   await clearWindows()
 })
 
@@ -184,7 +286,10 @@ describe('saving the page', () => {
     await write(PAGE)
     expect((await read()).milestones).toHaveLength(2)
 
-    await write({ ...PAGE, milestones: [{ when: '2026', what: 'Only this.' }] })
+    await write({
+      ...PAGE,
+      milestones: [{ when: '2026', what: 'Only this.', photo: null }],
+    })
 
     const timeline = (await read()).milestones
     expect(timeline).toHaveLength(1)
@@ -195,9 +300,9 @@ describe('saving the page', () => {
     await write({
       ...PAGE,
       milestones: [
-        { when: 'Third', what: 'c' },
-        { when: 'First', what: 'a' },
-        { when: 'Second', what: 'b' },
+        { when: 'Third', what: 'c', photo: null },
+        { when: 'First', what: 'a', photo: null },
+        { when: 'Second', what: 'b', photo: null },
       ],
     })
 
@@ -263,6 +368,7 @@ describe('saving the page', () => {
       milestones: Array.from({ length: MAX_MILESTONES + 1 }, (_, index) => ({
         when: String(1972 + index),
         what: 'Something happened.',
+        photo: null,
       })),
     })
 
@@ -294,5 +400,193 @@ describe('saving the page', () => {
     expect(page.heading.length).toBeGreaterThan(0)
     expect(page.lede.length).toBeGreaterThan(0)
     expect(Array.isArray(page.milestones)).toBe(true)
+  })
+})
+
+describe('the numbers', () => {
+  it('replaces them in the order they were sent', async () => {
+    await write(PAGE)
+    expect((await read()).stats.map((stat) => stat.figure)).toEqual([
+      '50+ years',
+      '$15,000 annually',
+    ])
+
+    await write({ ...PAGE, stats: [{ figure: '7 active projects', label: 'x' }] })
+
+    expect((await read()).stats.map((stat) => stat.figure)).toEqual([
+      '7 active projects',
+    ])
+  })
+
+  it('refuses more cells than the row holds', async () => {
+    const response = await write({
+      ...PAGE,
+      stats: Array.from({ length: MAX_STATS + 1 }, () => ({
+        figure: '1',
+        label: 'x',
+      })),
+    })
+
+    expect(response.status).toBe(400)
+  })
+
+  /**
+   * An editor loaded before the numbers existed sends no `stats`. Defaulting them to empty
+   * would have that officer's save wipe the club's numbers and every timeline photo.
+   */
+  it('turns away an out-of-date editor rather than wiping the numbers', async () => {
+    await write(PAGE)
+
+    const { stats, ...stale } = PAGE
+    void stats
+    const response = await write({
+      ...stale,
+      milestones: [{ when: '1972', what: 'The club is founded.' }],
+    })
+
+    expect(response.status).toBe(400)
+    expect(((await response.json()) as { error: string }).error).toMatch(/reload/i)
+    expect((await read()).stats).toHaveLength(2)
+  })
+})
+
+describe('timeline photos', () => {
+  const withPhoto = {
+    ...PAGE,
+    milestones: [
+      {
+        when: '1972',
+        what: 'The club is founded.',
+        photo: { upload: 'photo-0' },
+        imageCaption: 'The first meeting',
+        focalX: 30,
+        focalY: 60,
+        zoom: 1.5,
+      },
+      { when: '1998', what: 'Something else happens.', photo: null },
+    ],
+  }
+
+  it('stores an uploaded photo with its caption and framing', async () => {
+    const response = await writeForm(withPhoto, { 'photo-0': png() })
+    expect(response.status).toBe(200)
+
+    const [line, bare] = (await read()).milestones
+
+    expect(line?.imageUrl?.startsWith(STORED_PREFIX)).toBe(true)
+    expect(line?.imageCaption).toBe('The first meeting')
+    expect([line?.focalX, line?.focalY, line?.zoom]).toEqual([30, 60, 1.5])
+    expect(bare?.imageUrl).toBeNull()
+    expect(await fileExists(line?.imageUrl ?? '')).toBe(true)
+  })
+
+  it('keeps a photo across a save that moves its line', async () => {
+    await writeForm(withPhoto, { 'photo-0': png() })
+    const url = (await read()).milestones[0]?.imageUrl ?? ''
+
+    const response = await write({
+      ...PAGE,
+      milestones: [
+        { when: '1998', what: 'Something else happens.', photo: null },
+        { when: '1972', what: 'The club is founded.', photo: { keep: url } },
+      ],
+    })
+
+    expect(response.status).toBe(200)
+    expect((await read()).milestones[1]?.imageUrl).toBe(url)
+    expect(await fileExists(url)).toBe(true)
+  })
+
+  it('deletes the file once no line holds the photo', async () => {
+    await writeForm(withPhoto, { 'photo-0': png() })
+    const url = (await read()).milestones[0]?.imageUrl ?? ''
+
+    expect((await write(PAGE)).status).toBe(200)
+
+    expect((await read()).milestones.every((row) => row.imageUrl === null)).toBe(true)
+    expect(await fileExists(url)).toBe(false)
+  })
+
+  /** The guard that stops a save adopting somebody else's picture and then deleting it. */
+  it('refuses to keep a photo that is not on the timeline, and leaves its file alone', async () => {
+    const other = await prisma.storedFile.create({
+      data: {
+        kind: FileKind.IMAGE,
+        mimeType: 'image/png',
+        byteSize: 3,
+        originalName: `${PREFIX}elsewhere.png`,
+        data: new Uint8Array([1, 2, 3]),
+      },
+    })
+    const url = `${STORED_PREFIX}${other.id}`
+
+    const response = await write({
+      ...PAGE,
+      milestones: [{ when: '1972', what: 'x', photo: { keep: url } }],
+    })
+    expect(response.status).toBe(409)
+
+    await write(PAGE)
+    expect(await fileExists(url)).toBe(true)
+  })
+
+  it('refuses a file that is not an image, and stores nothing', async () => {
+    const text = new File(['not a picture'], `${PREFIX}notes.png`, {
+      type: 'image/png',
+    })
+
+    const response = await writeForm(withPhoto, { 'photo-0': text })
+
+    expect(response.status).toBe(400)
+    expect(
+      await prisma.storedFile.count({
+        where: { originalName: { startsWith: PREFIX } },
+      }),
+    ).toBe(0)
+  })
+
+  it('refuses a photo the request does not carry', async () => {
+    expect((await writeForm(withPhoto)).status).toBe(400)
+  })
+
+  /** Officer A opened the editor, officer B added a photo and saved, then A saved. */
+  it('won’t let an editor opened earlier delete a photo added since', async () => {
+    const opened = (await read()).updatedAt
+    await writeForm(withPhoto, { 'photo-0': png() })
+    const url = (await read()).milestones[0]?.imageUrl ?? ''
+
+    const response = await write({ ...PAGE, version: opened })
+
+    expect(response.status).toBe(409)
+    expect((await read()).milestones[0]?.imageUrl).toBe(url)
+    expect(await fileExists(url)).toBe(true)
+  })
+})
+
+describe('saving over somebody else', () => {
+  it('refuses a save from an editor opened before the last save', async () => {
+    const opened = (await read()).updatedAt
+    await write(PAGE)
+
+    const response = await write({ ...PAGE, heading: 'Stale.', version: opened })
+
+    expect(response.status).toBe(409)
+    expect((await read()).heading).toBe(PAGE.heading)
+  })
+
+  /** What a bundle gets while the deploy is still restarting the API before it: no version. */
+  it('refuses a save that loaded no version once the page exists', async () => {
+    await write(PAGE)
+
+    expect((await write({ ...PAGE, stats: [], version: null })).status).toBe(409)
+    expect((await read()).stats).toHaveLength(2)
+  })
+
+  it('answers with the new version, so the same editor can save twice', async () => {
+    const first = (await (await write(PAGE)).json()) as WireAbout
+
+    const response = await write({ ...PAGE, lede: 'Again.', version: first.updatedAt })
+
+    expect(response.status).toBe(200)
   })
 })

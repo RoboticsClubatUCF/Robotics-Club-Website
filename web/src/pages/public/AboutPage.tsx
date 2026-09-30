@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { AboutEditor } from '../../components/about/AboutEditor'
+import { ImpactSection } from '../../components/about/ImpactSection'
+import { Timeline } from '../../components/about/Timeline'
 import {
   FormEyebrow,
   FormHeading,
@@ -8,7 +10,7 @@ import {
 } from '../../components/shared/formChrome'
 import { socialLinks } from '../../content/home'
 import { ApiError, getJson } from '../../lib/api/api'
-import type { ApiAboutPage } from '../../lib/api/api'
+import type { ApiAboutPage, ApiAboutStat } from '../../lib/api/api'
 import { isOfficer, useSession } from '../../lib/auth/session'
 
 /**
@@ -55,9 +57,18 @@ export function AboutPage() {
    */
   const load = useCallback(
     (signal?: AbortSignal) =>
-      getJson<ApiAboutPage>('/about', signal, officer)
+      getJson<
+        Omit<ApiAboutPage, 'stats' | 'updatedAt'> & {
+          stats?: ApiAboutStat[]
+          updatedAt?: string | null
+        }
+      >('/about', signal, officer)
         .then((data) => {
-          setPage(data)
+          // A deploy puts this bundle up before the API restarts, and the old API
+          // sends no numbers and no version. An editor opened then saves with a
+          // null version, which the new API refuses, so its empty numbers can't
+          // replace the real ones.
+          setPage({ ...data, stats: data.stats ?? [], updatedAt: data.updatedAt ?? null })
           setLoadError('')
         })
         .catch((error: unknown) => {
@@ -145,6 +156,10 @@ export function AboutPage() {
         </div>
       </section>
 
+      {/* Between the opening and the story: what the club amounts to, before how
+          it got here. No numbers, no section. */}
+      {page.stats.length > 0 && <ImpactSection stats={page.stats} />}
+
       <section className="border-rule px-page border-t py-12 wide:py-18">
         <div className="mb-9">
           <h2 className="text-faint mb-5 font-mono text-[13px] font-bold tracking-[0.2em]">
@@ -173,28 +188,8 @@ export function AboutPage() {
           ))}
         </div>
 
-        {/* Rules-and-columns rather than cards, the way the project list is
-            drawn: what somebody does with a timeline is read down the year
-            column, and cards make that a scavenger hunt. An empty timeline
-            prints nothing at all rather than an empty rule. */}
-        {page.milestones.length > 0 && (
-          <div className="mt-9 max-w-[42rem]">
-            {page.milestones.map((milestone) => (
-              <div
-                key={milestone.id}
-                className="border-rule grid grid-cols-[4.5rem_1fr] items-start gap-3 border-t py-4 wide:grid-cols-[7rem_1fr] wide:gap-6"
-              >
-                <div className="text-primary pt-0.5 font-mono text-[11px] font-medium tracking-[0.06em]">
-                  {milestone.when}
-                </div>
-                <p className="text-dim text-sm leading-[1.6] text-pretty">
-                  {milestone.what}
-                </p>
-              </div>
-            ))}
-            <div className="border-rule border-t" />
-          </div>
-        )}
+        {/* An empty timeline prints nothing at all rather than an empty rule. */}
+        {page.milestones.length > 0 && <Timeline milestones={page.milestones} />}
       </section>
 
       <section className="border-rule px-page border-t py-12 wide:py-18">

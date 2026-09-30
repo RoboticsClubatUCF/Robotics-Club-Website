@@ -1,10 +1,17 @@
-import { fireEvent, render as renderBare, screen } from '@testing-library/react'
+import {
+  fireEvent,
+  render as renderBare,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AboutPage } from './AboutPage'
 import { SessionProvider } from '../../lib/auth/auth'
-import type { ApiAboutPage } from '../../lib/api/api'
+import type { ApiAboutPage, ApiMilestone } from '../../lib/api/api'
+import { apiBaseUrl } from '../../lib/api/api'
 import { stubFetch, stubFetchNetworkError } from '../../test/stubFetch'
 
 /**
@@ -34,9 +41,25 @@ const page = (over: Partial<ApiAboutPage> = {}): ApiAboutPage => ({
   labCity: 'Orlando, FL 32826',
   labMapUrl: 'https://maps.example.com/ist',
   onlineBlurb: 'Discord is where the club actually talks.',
-  milestones: [{ id: 'm1', when: '1972', what: 'The club is founded.' }],
+  updatedAt: '2026-09-30T12:00:00.000Z',
+  stats: [
+    { id: 's1', figure: '50+ years', label: 'of robotics at UCF' },
+    { id: 's2', figure: '$15,000 annually', label: 'in funding from our sponsors' },
+  ],
+  milestones: [line({ id: 'm1', when: '1972', what: 'The club is founded.' })],
   ...over,
 })
+
+function line(over: Partial<ApiMilestone> & Pick<ApiMilestone, 'id' | 'when' | 'what'>): ApiMilestone {
+  return {
+    imageUrl: null,
+    imageCaption: null,
+    focalX: 50,
+    focalY: 50,
+    zoom: 1,
+    ...over,
+  }
+}
 
 const officer = {
   id: 'u1',
@@ -195,5 +218,201 @@ describe('AboutPage', () => {
       screen.getByRole('heading', { name: /since 1972/i }),
     ).toBeInTheDocument()
     expect(screen.queryByText('Something else entirely.')).not.toBeInTheDocument()
+  })
+})
+
+describe('OUR IMPACT', () => {
+  /** jsdom has no `IntersectionObserver`, so the numbers never count and land as written. */
+  it('prints each figure and the line under it', async () => {
+    render()
+
+    const section = (
+      await screen.findByRole('heading', { name: /our impact/i })
+    ).closest('section') as HTMLElement
+
+    expect(within(section).getAllByRole('listitem')).toHaveLength(2)
+    expect(within(section).getByText('$15,000 annually')).toBeInTheDocument()
+    expect(within(section).getByText('in funding from our sponsors')).toBeInTheDocument()
+  })
+
+  it('takes the section off the page when there are no numbers', async () => {
+    render(page({ stats: [] }))
+
+    expect(await screen.findByText('One.')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /our impact/i })).not.toBeInTheDocument()
+  })
+
+  /** A deploy puts the bundle up before the API restarts, and the old API sends no `stats`. */
+  it('still draws the page for an API that sends no numbers', async () => {
+    const { stats, ...older } = page()
+    void stats
+    render(older as ApiAboutPage)
+
+    expect(await screen.findByText('One.')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /our impact/i })).not.toBeInTheDocument()
+  })
+})
+
+describe('timeline photos', () => {
+  const withPhoto = page({
+    milestones: [
+      line({
+        id: 'm1',
+        when: '1972',
+        what: 'The club is founded.',
+        imageUrl: '/api/files/abc',
+        imageCaption: 'The first meeting',
+      }),
+      line({ id: 'm2', when: '1998', what: 'Something else happens.' }),
+    ],
+  })
+
+  it('draws a line’s photo from the API’s origin, with its caption as the alt', async () => {
+    render(withPhoto)
+
+    const photo = await screen.findByRole('img', { name: 'The first meeting' })
+
+    expect(photo).toHaveAttribute('src', `${apiBaseUrl}/api/files/abc`)
+    expect(screen.getAllByRole('img')).toHaveLength(1)
+  })
+
+  it('offers to add a photo to each line in the editor', async () => {
+    render(withPhoto, officer)
+
+    fireEvent.click(await screen.findByRole('button', { name: /edit this page/i }))
+
+    expect(screen.getByLabelText(/caption for the photo on line 1/i)).toHaveValue(
+      'The first meeting',
+    )
+    expect(screen.getByRole('button', { name: /add a photo to line 2/i })).toBeInTheDocument()
+  })
+})
+
+describe('saving', () => {
+  const saveWith = async (about: ApiAboutPage) => {
+    const fetch = stubFetch({
+      '/officer/about': about,
+      '/about': about,
+      '/auth/me': { user: officer },
+    })
+    vi.stubGlobal('fetch', fetch)
+
+    renderBare(<AboutPage />, {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <MemoryRouter>
+          <SessionProvider>{children}</SessionProvider>
+        </MemoryRouter>
+      ),
+    })
+
+    fireEvent.click(await screen.findByRole('button', { name: /edit this page/i }))
+
+    return fetch
+  }
+
+  /** The page as JSON in `page`, sent the way the server reads it. */
+  const sentPage = (fetch: ReturnType<typeof stubFetch>) => {
+    const put = fetch.mock.calls.find(([, init]) => init?.method === 'PUT')
+    const form = put?.[1]?.body as FormData
+    return JSON.parse(form.get('page') as string) as {
+      version: string | null
+      stats: { figure: string; label: string }[]
+      milestones: { photo: unknown; imageCaption?: string | null }[]
+    }
+  }
+
+  it('sends the numbers and keeps a stored photo by its address', async () => {
+    const about = page({
+      milestones: [
+        line({
+          id: 'm1',
+          when: '1972',
+          what: 'The club is founded.',
+          imageUrl: '/api/files/abc',
+          imageCaption: 'The first meeting',
+        }),
+      ],
+    })
+    const fetch = await saveWith(about)
+
+    fireEvent.change(screen.getByLabelText(/figure for number 1/i), {
+      target: { value: '55+ years' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /save the page/i }))
+
+    await waitFor(() => {
+      expect(fetch.mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(true)
+    })
+
+    const sent = sentPage(fetch)
+    // The version it loaded, so a save over somebody else's is refused.
+    expect(sent.version).toBe('2026-09-30T12:00:00.000Z')
+    expect(sent.stats[0]).toEqual({ figure: '55+ years', label: 'of robotics at UCF' })
+    expect(sent.milestones[0]?.photo).toEqual({ keep: '/api/files/abc' })
+    expect(sent.milestones[0]?.imageCaption).toBe('The first meeting')
+  })
+
+  it('refuses a number with its figure but not the line under it', async () => {
+    const fetch = await saveWith(page())
+
+    fireEvent.click(screen.getByRole('button', { name: /add a number/i }))
+    fireEvent.change(screen.getByLabelText(/figure for number 3/i), {
+      target: { value: '12 robots' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /save the page/i }))
+
+    expect(
+      await screen.findByText(/every number needs its figure and the line under it/i),
+    ).toBeInTheDocument()
+    expect(fetch.mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(false)
+  })
+
+  it('sends a removed photo as no photo at all', async () => {
+    const fetch = await saveWith(
+      page({
+        milestones: [
+          line({
+            id: 'm1',
+            when: '1972',
+            what: 'The club is founded.',
+            imageUrl: '/api/files/abc',
+          }),
+        ],
+      }),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /remove the photo from line 1/i }))
+
+    // The pressed button is gone, so focus goes to the one that replaced it.
+    expect(screen.getByRole('button', { name: /add a photo to line 1/i })).toHaveFocus()
+
+    fireEvent.click(screen.getByRole('button', { name: /save the page/i }))
+
+    await waitFor(() => {
+      expect(fetch.mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(true)
+    })
+    expect(sentPage(fetch).milestones[0]?.photo).toBeNull()
+  })
+
+  /** The framer hands its framing over only on DONE, so a SAVE past it would drop the change. */
+  it('won’t save while a photo is being framed', async () => {
+    const fetch = await saveWith(
+      page({
+        milestones: [
+          line({
+            id: 'm1',
+            when: '1972',
+            what: 'The club is founded.',
+            imageUrl: '/api/files/abc',
+          }),
+        ],
+      }),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /frame the photo on line 1/i }))
+    fireEvent.click(screen.getByRole('button', { name: /save the page/i }))
+
+    expect(await screen.findByText(/press done or cancel/i)).toBeInTheDocument()
+    expect(fetch.mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(false)
   })
 })

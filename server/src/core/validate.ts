@@ -50,7 +50,9 @@ export const validate = <
  * kept in the server. A field where that isn't close enough gets a written message on
  * the schema, which this prints instead of zod's.
  */
-const refusal = (error: { issues: { path: PropertyKey[]; message: string }[] }) => {
+export const refusal = (error: {
+  issues: { path: PropertyKey[]; message: string }[]
+}) => {
   const [issue] = error.issues
   if (!issue) return 'That request was not in a shape this accepts.'
 

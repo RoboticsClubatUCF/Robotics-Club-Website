@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Status } from '../shared/Status'
 import { useSectionStatus } from '../../lib/useSectionStatus'
 import {
@@ -7,11 +7,20 @@ import {
   fieldClass,
   labelClass,
 } from '../shared/formChrome'
-import { putJson } from '../../lib/api/api'
+import { putForm } from '../../lib/api/api'
 import type { ApiAboutPage } from '../../lib/api/api'
-import { MAX_MILESTONES, MAX_STORY } from '../../lib/aboutPage'
+import {
+  MAX_MILESTONES,
+  MAX_STATS,
+  MAX_STORY,
+  aboutSaveForm,
+  photoOf,
+  releasePhoto,
+  type DraftPhoto,
+} from '../../lib/aboutPage'
 import { paragraphsFromText, paragraphsToText } from '../../lib/textLines'
 import { moveItem } from '../../lib/projects/projectGallery'
+import { TimelinePhotoField } from './TimelinePhotoField'
 
 /**
  * `/about`, rewritten in place.
@@ -23,10 +32,10 @@ import { moveItem } from '../../lib/projects/projectGallery'
  * it currently says.
  *
  * So it is a form, and the whole page is its body: one SAVE that writes everything in one
- * transaction, one CANCEL that discards everything. The timeline is edited here rather than saving
- * itself per row, which is why `PUT /api/officer/about` takes it — a line that wrote itself the
- * moment it was dragged, inside a form waiting for SAVE, would mean CANCEL keeping half of what it
- * just undid.
+ * transaction, one CANCEL that discards everything. The numbers and the timeline are edited here
+ * rather than saving themselves per row, which is why `PUT /api/officer/about` takes them — a line
+ * that wrote itself the moment it was dragged, inside a form waiting for SAVE, would mean CANCEL
+ * keeping half of what it just undid. Timeline photos go up in the same request for that reason.
  *
  * Nothing here is a permission decision. The button that mounts this is drawn for officers, and
  * `requireOfficer` on the route is what actually decides — dues before the role, as on every desk.
@@ -53,24 +62,67 @@ export function AboutEditor({
   const [labCity, setLabCity] = useState(page.labCity ?? '')
   const [labMapUrl, setLabMapUrl] = useState(page.labMapUrl ?? '')
   const [onlineBlurb, setOnlineBlurb] = useState(page.onlineBlurb)
-  const [milestones, setMilestones] = useState<Line[]>(() =>
-    page.milestones.map((row) => ({ key: nextKey(), when: row.when, what: row.what })),
+  const [stats, setStats] = useState<StatRow[]>(() =>
+    page.stats.map((row) => ({ key: nextKey(), figure: row.figure, label: row.label })),
   )
+  const [milestones, setMilestones] = useState<Line[]>(() =>
+    page.milestones.map((row) => ({
+      key: nextKey(),
+      when: row.when,
+      what: row.what,
+      photo: photoOf(row),
+    })),
+  )
+
+  /**
+   * Every preview still held when the editor closes, handed back. Through a ref so the cleanup
+   * doesn't run on every edit and revoke the previews still on screen.
+   */
+  const held = useRef(milestones)
+  useEffect(() => {
+    held.current = milestones
+  })
+  useEffect(
+    () => () => {
+      held.current.forEach((line) => {
+        releasePhoto(line.photo)
+      })
+    },
+    [],
+  )
+
+  /** Lines whose framer is open. Their framing isn't handed over until DONE. */
+  const [framing, setFraming] = useState<string[]>([])
 
   const paragraphs = paragraphsFromText(story)
 
   const save = () =>
     run(async () => {
+      if (framing.length > 0) {
+        setMessage('Press DONE or CANCEL on the photo you’re framing first.')
+        return
+      }
+
       // A row nobody filled in is an ADD somebody thought better of, and is
       // dropped rather than refused. A row filled in *half way* is a mistake
       // worth a sentence — the server would refuse it too, but with the field
       // path rather than with anything a person can act on.
       const written = milestones.filter(
-        (line) => line.when.trim() !== '' || line.what.trim() !== '',
+        (line) =>
+          line.when.trim() !== '' || line.what.trim() !== '' || line.photo !== null,
       )
 
       if (written.some((line) => line.when.trim() === '' || line.what.trim() === '')) {
         setMessage('Every line on the timeline needs a date and a sentence.')
+        return
+      }
+
+      const counted = stats.filter(
+        (row) => row.figure.trim() !== '' || row.label.trim() !== '',
+      )
+
+      if (counted.some((row) => row.figure.trim() === '' || row.label.trim() === '')) {
+        setMessage('Every number needs its figure and the line under it.')
         return
       }
 
@@ -81,28 +133,45 @@ export function AboutEditor({
         return
       }
 
-      const saved = await putJson<ApiAboutPage>('/officer/about', {
-        heading: heading.trim(),
-        lede: lede.trim(),
-        storyNotice: storyNotice.trim(),
-        story: paragraphs,
-        labBuilding: labBuilding.trim(),
-        labStreet: labStreet.trim(),
-        labCity: labCity.trim(),
-        labMapUrl: labMapUrl.trim(),
-        onlineBlurb: onlineBlurb.trim(),
-        milestones: written.map((line) => ({
-          when: line.when.trim(),
-          what: line.what.trim(),
-        })),
-      })
+      const saved = await putForm<ApiAboutPage>(
+        '/officer/about',
+        aboutSaveForm(
+          {
+            heading: heading.trim(),
+            lede: lede.trim(),
+            storyNotice: storyNotice.trim(),
+            story: paragraphs,
+            labBuilding: labBuilding.trim(),
+            labStreet: labStreet.trim(),
+            labCity: labCity.trim(),
+            labMapUrl: labMapUrl.trim(),
+            onlineBlurb: onlineBlurb.trim(),
+            version: page.updatedAt,
+            stats: counted.map((row) => ({
+              figure: row.figure.trim(),
+              label: row.label.trim(),
+            })),
+          },
+          written.map((line) => ({
+            when: line.when.trim(),
+            what: line.what.trim(),
+            photo: line.photo,
+          })),
+        ),
+      )
 
       onSaved(saved)
     })
 
   const editLine = (key: string, patch: Partial<Line>) => {
-    setMilestones((held) =>
-      held.map((line) => (line.key === key ? { ...line, ...patch } : line)),
+    setMilestones((lines) =>
+      lines.map((line) => (line.key === key ? { ...line, ...patch } : line)),
+    )
+  }
+
+  const editStat = (key: string, patch: Partial<StatRow>) => {
+    setStats((rows) =>
+      rows.map((row) => (row.key === key ? { ...row, ...patch } : row)),
     )
   }
 
@@ -113,8 +182,8 @@ export function AboutEditor({
 
       <p className="text-dim mb-9 max-w-[46rem] text-sm leading-[1.7] text-pretty">
         Nothing here is live until you press SAVE, and SAVE writes the whole page
-        at once — the timeline included. CANCEL leaves everything exactly as the
-        page currently reads.
+        at once, numbers and photos included. CANCEL leaves everything exactly as
+        the page currently reads.
       </p>
 
       {/* Two columns at width, in the order the page itself is read: what it opens with, then the
@@ -161,6 +230,97 @@ export function AboutEditor({
               }}
               className={`${fieldClass} h-auto py-2.5 leading-[1.6]`}
             />
+          </div>
+
+          <p className={`${panelLabel} mt-4`}>/ OUR IMPACT</p>
+
+          {stats.length === 0 ? (
+            <p className="border-rule bg-base-200 text-faint border p-5 text-[13px] leading-[1.6]">
+              No numbers. The section comes off the page until there is one.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {stats.map((row, index) => (
+                <li key={row.key} className="border-rule bg-base-200 border p-2">
+                  <div className="flex flex-wrap items-start gap-2">
+                    <input
+                      type="text"
+                      value={row.figure}
+                      maxLength={40}
+                      placeholder="50+ years"
+                      aria-label={`Figure for number ${String(index + 1)}`}
+                      disabled={busy}
+                      onChange={(event) => {
+                        editStat(row.key, { figure: event.target.value })
+                      }}
+                      className="input border-rule bg-base-100 h-9 min-h-0 w-36 shrink-0 text-[13px] font-semibold"
+                    />
+                    <input
+                      type="text"
+                      value={row.label}
+                      maxLength={120}
+                      placeholder="of robotics at UCF"
+                      aria-label={`Line under number ${String(index + 1)}`}
+                      disabled={busy}
+                      onChange={(event) => {
+                        editStat(row.key, { label: event.target.value })
+                      }}
+                      className="input border-rule bg-base-100 h-9 min-h-0 min-w-0 flex-1 basis-40 text-[13px]"
+                    />
+                    <span className="flex shrink-0 items-center gap-1">
+                      <MoveButton
+                        label={`Move number ${String(index + 1)} earlier`}
+                        glyph="‹"
+                        disabled={index === 0 || busy}
+                        onClick={() => {
+                          setStats(moveItem(stats, index, index - 1))
+                        }}
+                      />
+                      <MoveButton
+                        label={`Move number ${String(index + 1)} later`}
+                        glyph="›"
+                        disabled={index === stats.length - 1 || busy}
+                        onClick={() => {
+                          setStats(moveItem(stats, index, index + 1))
+                        }}
+                      />
+                      <button
+                        type="button"
+                        aria-label={`Remove number ${String(index + 1)}`}
+                        disabled={busy}
+                        onClick={() => {
+                          setStats(stats.filter((other) => other.key !== row.key))
+                        }}
+                        className={removeButton}
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div>
+            <button
+              type="button"
+              disabled={busy || stats.length >= MAX_STATS}
+              onClick={() => {
+                setStats([...stats, { key: nextKey(), figure: '', label: '' }])
+              }}
+              className={button}
+            >
+              ADD A NUMBER
+            </button>
+            <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
+              Type the figure as it should read. Its first number counts up on the
+              page, and the words after it print smaller.
+            </p>
+            <p className="text-faint mt-1.5 font-mono text-[10px] font-medium tracking-[0.14em]">
+              {stats.length} / {MAX_STATS} NUMBERS
+              {stats.length >= MAX_STATS && ' — REMOVE ONE TO ADD ANOTHER'}
+            </p>
           </div>
 
           <p className={`${panelLabel} mt-4`}>/ THE STORY</p>
@@ -247,7 +407,7 @@ export function AboutEditor({
                       onChange={(event) => {
                         editLine(line.key, { what: event.target.value })
                       }}
-                      className="input border-rule bg-base-100 h-9 min-h-0 min-w-0 flex-1 text-[13px]"
+                      className="input border-rule bg-base-100 h-9 min-h-0 min-w-0 flex-1 basis-40 text-[13px]"
                     />
                     <span className="flex shrink-0 items-center gap-1">
                       <MoveButton
@@ -271,16 +431,34 @@ export function AboutEditor({
                         aria-label={`Remove line ${String(index + 1)}`}
                         disabled={busy}
                         onClick={() => {
+                          releasePhoto(line.photo)
+                          setFraming(framing.filter((key) => key !== line.key))
                           setMilestones(
                             milestones.filter((row) => row.key !== line.key),
                           )
                         }}
-                        className="text-faint hover:text-error flex size-11 cursor-pointer items-center justify-center text-sm transition-colors duration-200 disabled:opacity-50 wide:size-8"
+                        className={removeButton}
                       >
                         ✕
                       </button>
                     </span>
                   </div>
+                  <TimelinePhotoField
+                    photo={line.photo}
+                    line={index + 1}
+                    disabled={busy}
+                    framing={framing.includes(line.key)}
+                    onFraming={(open) => {
+                      setFraming((keys) =>
+                        open
+                          ? [...keys.filter((key) => key !== line.key), line.key]
+                          : keys.filter((key) => key !== line.key),
+                      )
+                    }}
+                    onChange={(photo) => {
+                      editLine(line.key, { photo })
+                    }}
+                  />
                 </li>
               ))}
             </ul>
@@ -293,13 +471,16 @@ export function AboutEditor({
               onClick={() => {
                 setMilestones([
                   ...milestones,
-                  { key: nextKey(), when: '', what: '' },
+                  { key: nextKey(), when: '', what: '', photo: null },
                 ])
               }}
               className={button}
             >
               ADD A LINE
             </button>
+            <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
+              Photos are optional. One you remove is deleted when you save.
+            </p>
             <p className="text-faint mt-1.5 font-mono text-[10px] font-medium tracking-[0.14em]">
               {milestones.length} / {MAX_MILESTONES} LINES
               {milestones.length >= MAX_MILESTONES && ' — REMOVE ONE TO ADD ANOTHER'}
@@ -436,13 +617,23 @@ export function AboutEditor({
  * A counter rather than an index, because an index as a React key on a reorderable list is how a
  * row's contents end up in its neighbour.
  */
-type Line = { key: string; when: string; what: string }
+type Line = { key: string; when: string; what: string; photo: DraftPhoto | null }
+
+/** A cell of OUR IMPACT while it is being edited, keyed the same way. */
+type StatRow = { key: string; figure: string; label: string }
 
 let keys = 0
 const nextKey = () => `line-${String((keys += 1))}`
 
+/** 44px tall on a phone, like every other control here. */
 const button =
-  'btn btn-outline h-auto min-h-0 border-base-content/28 px-4 py-2 text-[11px] font-semibold tracking-[0.08em] text-base-content hover:border-base-content hover:bg-base-content/6 hover:text-base-content disabled:opacity-40'
+  'btn btn-outline h-auto min-h-11 border-base-content/28 px-4 py-2 text-[11px] font-semibold tracking-[0.08em] text-base-content hover:border-base-content hover:bg-base-content/6 hover:text-base-content disabled:opacity-40 wide:min-h-0'
+
+/** The rulebook's gold ring for hand-rolled controls. */
+const focusRing =
+  'focus-visible:outline-primary focus-visible:outline-2 focus-visible:outline-offset-2'
+
+const removeButton = `${focusRing} text-faint hover:text-error flex size-11 cursor-pointer items-center justify-center text-sm transition-colors duration-200 disabled:opacity-50 wide:size-8`
 
 const panelLabel =
   'text-faint font-mono text-[10px] font-medium tracking-[0.16em]'
@@ -464,7 +655,7 @@ function MoveButton({
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      className="border-rule text-dim enabled:hover:border-primary enabled:hover:text-primary flex size-11 cursor-pointer items-center justify-center border text-sm leading-none transition-colors duration-200 disabled:cursor-default disabled:opacity-30 wide:size-8"
+      className={`${focusRing} border-rule text-dim enabled:hover:border-primary enabled:hover:text-primary flex size-11 cursor-pointer items-center justify-center border text-sm leading-none transition-colors duration-200 disabled:cursor-default disabled:opacity-30 wide:size-8`}
     >
       {glyph}
     </button>

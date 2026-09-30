@@ -218,7 +218,17 @@ export function deleteJson<T>(
  * browser generates, and setting the header by hand replaces the whole value,
  * so the server gets a body it can't split.
  */
-export async function postForm<T>(
+export function postForm<T>(path: string, form: FormData, signal?: AbortSignal) {
+  return sendForm<T>('POST', path, form, signal)
+}
+
+/** The about page's save, which carries its timeline photos in the same request. */
+export function putForm<T>(path: string, form: FormData, signal?: AbortSignal) {
+  return sendForm<T>('PUT', path, form, signal)
+}
+
+async function sendForm<T>(
+  method: 'POST' | 'PUT',
   path: string,
   form: FormData,
   signal?: AbortSignal,
@@ -228,7 +238,7 @@ export async function postForm<T>(
   try {
     response = await fetch(`${baseUrl}/api${path}`, {
       ...withCredentials,
-      method: 'POST',
+      method,
       body: form,
       signal,
     })
@@ -238,7 +248,7 @@ export async function postForm<T>(
   }
 
   if (!response.ok) {
-    throw await failure('POST', path, response)
+    throw await failure(method, path, response)
   }
 
   return (await response.json()) as T
@@ -328,11 +338,25 @@ export type ApiFrontPage = {
 }
 
 /** One line on the about page's timeline. `when` is free text — "1972", a span,
-    or a season — because the page prints it as one. */
+    or a season — because the page prints it as one. The photo is optional and
+    framed like a gallery slide. */
 export type ApiMilestone = {
   id: string
   when: string
   what: string
+  imageUrl: string | null
+  imageCaption: string | null
+  focalX: number
+  focalY: number
+  zoom: number
+}
+
+/** One cell of the about page's BY THE NUMBERS. Typed by officers, not counted:
+    `figure` is "50+ years" as the club says it. */
+export type ApiAboutStat = {
+  id: string
+  figure: string
+  label: string
 }
 
 /**
@@ -355,6 +379,10 @@ export type ApiAboutPage = {
   labCity: string | null
   labMapUrl: string | null
   onlineBlurb: string
+  /** The page's version. The editor sends it back, and a save from an editor
+      opened before somebody else's save is refused. Null before any save. */
+  updatedAt: string | null
+  stats: ApiAboutStat[]
   milestones: ApiMilestone[]
 }
 

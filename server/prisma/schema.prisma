@@ -1683,6 +1683,20 @@ model AboutMilestone {
 
   what String
 
+  /// A photograph from the moment this line describes, or null. An external address or
+  /// `/api/files/<id>`, like every image column. The save replaces the timeline's rows, so this
+  /// URL is carried from the old row to the new one, and a stored file is deleted only when no
+  /// line holds it after a save.
+  imageUrl String? @map("image_url")
+
+  /// Printed under the photograph and used as its `alt`, as on the hero.
+  imageCaption String? @map("image_caption")
+
+  /// How the photograph sits in its 16:10 frame. See `ProjectImage`.
+  focalX Float @default(50) @map("focal_x")
+  focalY Float @default(50) @map("focal_y")
+  zoom   Float @default(1)
+
   /// Position on the timeline, and it is the reading order rather than the
   /// chronology — a club that wants its newest first says so by dragging. Same
   /// shape and same reasoning as `Faq.sortOrder`.
@@ -1692,6 +1706,30 @@ model AboutMilestone {
 
   @@index([sortOrder])
   @@map("about_milestones")
+}
+
+/// One cell in the about page's BY THE NUMBERS block.
+///
+/// Typed by officers rather than counted, because none of them is a row count: "50+ years" is
+/// arithmetic on a founding date, "170+ members" includes people who never made an account, and the
+/// funding figure is a budget line. The landing page's stat strip is the counted one. Replaced as a
+/// whole on every save, like the timeline.
+model AboutStat {
+  id String @id @default(uuid(7))
+
+  /// The big part, as the club says it: "50+ years", "$15,000 annually". The page animates the
+  /// first number in it and prints the words after it smaller, so it stays free text.
+  figure String
+
+  /// The line under it: "of robotics at UCF".
+  label String
+
+  sortOrder Int @default(0) @map("sort_order")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([sortOrder])
+  @@map("about_stats")
 }
 
 // --------------------------------------------------------------- contact form
