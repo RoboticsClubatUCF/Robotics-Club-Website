@@ -11,12 +11,13 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-# Three jobs rather than one, and they are split by what they *need* rather
+# Four jobs rather than one, and they are split by what they *need* rather
 # than by what they are.
 #
 #   web     node, no database, no Docker
 #   server  node and a real Postgres
 #   deploy  Docker, no node, no database
+#   slicer  Docker: builds the OrcaSlicer worker and slices real plates in it
 #
 # As one job that was 256 seconds of which 137 was `npm test` running the two
 # suites back to back, and everything waited on a Postgres container that only
@@ -24,7 +25,7 @@ concurrency:
 # clock is now the slowest job instead of the sum of all of them.
 #
 # The deploy agent on the box gates on this whole workflow's conclusion, which
-# is success only when all three succeed — so splitting them does not weaken
+# is success only when all four succeed, so splitting them does not weaken
 # what "green" means.
 
 jobs:
@@ -84,6 +85,16 @@ jobs:
 
       - name: Test
         run: npm --prefix web run test
+
+      # The workspace and the slicer worker each carry a copy of the plate
+      # transform and the settings table, tested against the same vectors. Two
+      # copies of the vectors that drifted apart would let both suites pass
+      # while the browser and Orca disagree.
+      - name: Check the slicer's shared test vectors match
+        run: |
+          for f in plateTransform processSettings; do
+            cmp "server/src/printing/fixtures/$f.vectors.json" "web/src/lib/slicer/fixtures/$f.vectors.json"
+          done
 
   # ---------------------------------------------------------------- server
   server:
@@ -226,3 +237,38 @@ jobs:
       # Build only; nothing is pushed anywhere and nothing runs it.
       - name: Build the API image
         run: docker build -t rccf-api-ci-check server
+
+  # ---------------------------------------------------------------- slicer
+  #
+  # The server suite never runs Orca, so this is the only place the real CLI is
+  # exercised before the box builds the same image: plates with copies, turns,
+  # overrides and a STEP file are sliced and checked, with no network and a
+  # read-only filesystem, the way compose runs the worker.
+  slicer:
+    name: slicer
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v3
+
+      # The Orca download and the GTK libraries rarely change, so the layer
+      # cache saves most of the build.
+      - name: Build the slicer image
+        uses: docker/build-push-action@v6
+        with:
+          context: server
+          file: server/orca/Dockerfile
+          tags: rccf-v13-slicer:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Slice the fixture plates
+        run: >
+          docker run --rm --network none --read-only
+          --tmpfs /tmp:size=256m
+          --tmpfs /scratch:size=512m,uid=10001,gid=10001,mode=0700
+          -e DATABASE_URL=postgres://unused
+          rccf-v13-slicer:ci node --import tsx src/printing/sliceSmoke.ts

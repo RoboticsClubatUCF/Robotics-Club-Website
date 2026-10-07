@@ -17,9 +17,10 @@
 # What it does with a change depends on what changed:
 #
 #   web/**            rebuild the bundle and sync it into the nginx root
-#   server/**         rebuild the API image and bring the stack up (migrations
-#                     run first — the compose `migrate` service is a dependency
-#                     of `api`, so this is not something to sequence here)
+#   server/**         rebuild the API and slicer images and bring the stack up
+#                     (migrations run first — the compose `migrate` service is a
+#                     dependency of `api` and `slicer`, so this is not something
+#                     to sequence here)
 #   server/nginx.conf recreate the web container, which mounts it
 #
 # Anything else — the docs, this script, CI — reaches the checkout and does
@@ -343,6 +344,9 @@ deploy_api() {
   # API process starts — there is nothing for this script to sequence and it
   # must not try.
   compose up -d --build
+  # Each slicer build leaves the last image dangling, and it's 1.6 GB. Only images
+  # carrying the slicer's label, never anything else on the box.
+  docker image prune -f --filter label=org.rccf.service=slicer >/dev/null || true
 }
 
 deploy_nginx() {
