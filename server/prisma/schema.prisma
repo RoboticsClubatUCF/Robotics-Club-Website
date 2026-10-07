@@ -957,10 +957,15 @@ model Event {
 /// What a stored file is for, which decides who may read it: an IMAGE is public the way every other
 /// site image is, a PRINT_MODEL belongs to whoever uploaded it and the officers who print it, and a
 /// DOCUMENT is public like an image but served as a download or a PDF rather than rendered.
+///
+/// PRINT_SLICE is a filament plate's sliced `.3mf` and PRINT_PREVIEW its layer preview. Neither is
+/// served by `/api/files`; the print routes hand them out (`routes/member/printDrafts.ts`).
 enum FileKind {
   IMAGE
   PRINT_MODEL
   DOCUMENT
+  PRINT_SLICE
+  PRINT_PREVIEW
 }
 
 /// A file, bytes and all, in Postgres.
@@ -990,6 +995,10 @@ model StoredFile {
 
   printRequest    PrintRequest?
   projectDocument ProjectDocument?
+  printModel      PrintModel?      @relation("modelUpload")
+  printMesh       PrintModel?      @relation("modelMesh")
+  sliceOutput     PrintSlice?      @relation("sliceOutput")
+  slicePreview    PrintSlice?      @relation("slicePreview")
 
   @@map("stored_files")
 }
@@ -999,7 +1008,11 @@ model StoredFile {
 /// Lifecycle order, and the reason the last two matter: DONE and REJECTED are
 /// the states that delete the stored file. The request row itself survives as
 /// the record.
+///
+/// DRAFT is a filament plate its owner is still preparing in the slicer workspace. Officers never
+/// see one and it charges nothing. Submitting moves the same row to PENDING.
 enum PrintRequestStatus {
+  DRAFT
   PENDING
   PRINTING
   DONE
@@ -1036,6 +1049,21 @@ enum InfillPattern {
   CUBIC
   HONEYCOMB
   CONCENTRIC
+}
+
+/// The club's filament process presets: the exported Orca presets in `orca/source/`.
+enum PrintPreset {
+  STANDARD
+  Q
+  QS
+}
+
+/// Where a slicer worker job is: meshing a STEP upload, or slicing a plate.
+enum SlicerJobState {
+  QUEUED
+  RUNNING
+  READY
+  FAILED
 }
 
 /// A member asking for something to be printed.
@@ -1113,6 +1141,34 @@ model PrintRequest {
   printedInfillPattern InfillPattern? @map("printed_infill_pattern")
   printedInfillDensity Int?           @map("printed_infill_density")
 
+  /// A sliced filament plate: its models, where each copy sits, and the preset plus the settings
+  /// its owner changed (`printing/processSettings.ts`). The infill columns above stay null on
+  /// these; `overrides` is the spec. Resin and filament requests from before the slicer have no
+  /// preset and keep `fileId`.
+  preset    PrintPreset?
+  overrides Json?
+  models    PrintModel[]
+  objects   PrintObject[]
+  slice     PrintSlice?
+
+  /// Moves on with every change that would slice differently. Each edit, SLICE and SUBMIT names
+  /// the revision it saw, so a stale tab gets a 409 instead of overwriting newer work.
+  revision Int @default(1)
+
+  /// Orca's figures for the plate that was submitted, copied off the slice at SUBMIT and kept
+  /// after the files go. MARK DONE charges `ceil(estimatedGrams)` unless the officer says
+  /// otherwise.
+  estimatedGrams   Float? @map("estimated_grams")
+  estimatedSeconds Int?   @map("estimated_seconds")
+
+  /// When it joined the officers' queue; null only on a draft. Queue order counts from here, so
+  /// time spent preparing a draft doesn't move anyone up.
+  submittedAt DateTime? @map("submitted_at")
+
+  /// A draft's last real change. Drafts expire `PRINT_DRAFT_IDLE_HOURS` after it, or
+  /// `PRINT_DRAFT_MAX_DAYS` after `createdAt`. Reading and polling don't touch it.
+  draftActiveAt DateTime? @map("draft_active_at")
+
   /// The term this print's grams are charged against, frozen when the request is made — the same
   /// thing `DuesPayment` does with its term, and for the same reason: UCF revises its calendar, and
   /// "which semester was that" must not become arithmetic against dates that have since moved.
@@ -1148,11 +1204,161 @@ model PrintRequest {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([status, createdAt])
+  @@index([status, submittedAt])
   @@index([userId, createdAt])
   // The allowance query: one member's grams for one term. See `printAllowance.ts`.
   @@index([userId, termYear, termSeason])
   @@index([projectId])
   @@map("print_requests")
+}
+
+/// One model uploaded to a filament plate.
+///
+/// Copies are more `PrintObject` rows on the same model, never another upload. Orca's CLI can't
+/// read STEP, so a STEP upload is meshed once by the worker into `meshFile`, and the browser and
+/// Orca both use that, so they can't disagree about the shape. An STL is its own mesh and
+/// `meshFileId` stays null. Settling deletes the bytes and keeps the row for the history.
+model PrintModel {
+  id String @id @default(uuid(7))
+
+  requestId String       @map("request_id")
+  request   PrintRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  fileId     String?     @unique @map("file_id")
+  file       StoredFile? @relation("modelUpload", fields: [fileId], references: [id], onDelete: SetNull)
+  meshFileId String?     @unique @map("mesh_file_id")
+  meshFile   StoredFile? @relation("modelMesh", fields: [meshFileId], references: [id], onDelete: SetNull)
+
+  fileName String @map("file_name")
+  fileSize Int    @map("file_size")
+  /// SHA-256 of the upload, hex. Part of every slice fingerprint.
+  sha256   String
+  position Int
+
+  /// READY from the start for an STL; a STEP waits for the worker.
+  meshState   SlicerJobState @default(READY) @map("mesh_state")
+  meshFailure String?        @map("mesh_failure")
+  /// Triangles in the mesh, once known. The plate's cap counts each one per copy.
+  triangles   Int?
+
+  attempts       Int       @default(0)
+  leaseToken     String?   @map("lease_token")
+  leaseExpiresAt DateTime? @map("lease_expires_at")
+  requestedAt    DateTime  @default(now()) @map("requested_at")
+
+  objects PrintObject[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([requestId, position])
+  @@index([meshState, requestedAt])
+  @@map("print_models")
+}
+
+/// One copy of a model on the plate.
+///
+/// The placement is `plateTransform.ts`'s contract, which the browser mirrors: scale and turn the
+/// mesh about its bounding-box centre, put that centre at (`x`, `y`) in plate millimetres, and
+/// lower it until it touches the bed. Height is never stored, so nothing floats or sinks.
+model PrintObject {
+  /// Chosen by the workspace when it adds the copy, so edits can name it before a reload.
+  id String @id
+
+  requestId String       @map("request_id")
+  request   PrintRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  modelId String     @map("model_id")
+  model   PrintModel @relation(fields: [modelId], references: [id], onDelete: Cascade)
+
+  name     String
+  position Int
+
+  x Float
+  y Float
+
+  /// A unit quaternion.
+  qx Float @default(0)
+  qy Float @default(0)
+  qz Float @default(0)
+  qw Float @default(1)
+
+  /// Scale factors per axis, 0.1 to 5.
+  sx Float @default(1)
+  sy Float @default(1)
+  sz Float @default(1)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([requestId, position])
+  @@index([modelId])
+  @@map("print_objects")
+}
+
+/// A plate's slicer job and its one current result. One row per request, never a history:
+/// slicing again replaces the output. A result is only current while `revision` equals the
+/// request's and `profileSetHash` the approved profiles'.
+model PrintSlice {
+  id String @id @default(uuid(7))
+
+  requestId String       @unique @map("request_id")
+  request   PrintRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  state SlicerJobState @default(QUEUED)
+
+  /// The request revision this job was queued for.
+  revision       Int
+  /// What the worker slices: the plate and settings as they were when SLICE was pressed
+  /// (`plateSpec` in `printing/sliceJobs.ts`). Later edits don't reach a running job.
+  spec           Json
+  /// The plate, the settings and the profile set, hashed. A SLICE whose fingerprint matches a
+  /// READY result reuses it instead of slicing again.
+  fingerprint    String
+  profileSetHash String  @map("profile_set_hash")
+  orcaVersion    String? @map("orca_version")
+
+  outputFileId   String?     @unique @map("output_file_id")
+  outputFile     StoredFile? @relation("sliceOutput", fields: [outputFileId], references: [id], onDelete: SetNull)
+  previewFileId  String?     @unique @map("preview_file_id")
+  previewFile    StoredFile? @relation("slicePreview", fields: [previewFileId], references: [id], onDelete: SetNull)
+  /// Why a ready slice has no preview: past the size caps, usually. The `.3mf` is still good.
+  previewFailure String?     @map("preview_failure")
+  layerCount     Int?        @map("layer_count")
+
+  /// Orca's estimate for the whole plate, supports and every copy included.
+  estimatedGrams   Float? @map("estimated_grams")
+  estimatedSeconds Int?   @map("estimated_seconds")
+  filamentMeters   Float? @map("filament_meters")
+
+  /// One of the worker's own sentences, never Orca's output.
+  failure   String?
+  /// Whether pressing SLICE again could help. "Doesn't fit" fails the same way every time.
+  retryable Boolean @default(false)
+  attempts  Int     @default(0)
+
+  leaseToken     String?   @map("lease_token")
+  leaseExpiresAt DateTime? @map("lease_expires_at")
+
+  requestedAt DateTime  @default(now()) @map("requested_at")
+  startedAt   DateTime? @map("started_at")
+  finishedAt  DateTime? @map("finished_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([state, requestedAt])
+  @@map("print_slices")
+}
+
+/// A slicer worker saying it's alive, every twenty seconds. SLICE is refused unless one was seen
+/// in the last ninety, running the same profiles as the API.
+model SlicerWorker {
+  /// The container's host name.
+  id             String   @id
+  orcaVersion    String   @map("orca_version")
+  profileSetHash String   @map("profile_set_hash")
+  seenAt         DateTime @map("seen_at")
+
+  @@map("slicer_workers")
 }
 
 // ------------------------------------------------------------------ equipment

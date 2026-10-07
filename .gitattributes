@@ -14,3 +14,8 @@
 
 # Generated. Collapse them in diffs and don't count them in language stats.
 package-lock.json linguist-generated=true -diff
+
+# Orca bundles and projects are zips; the slicer worker checks their hashes.
+*.orca_printer binary
+*.orca_filament binary
+*.3mf binary

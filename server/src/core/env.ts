@@ -366,6 +366,31 @@ const envSchema = z.object({
    */
   PERSONAL_PRINT_GRAMS: z.coerce.number().int().min(0).max(100_000).default(500),
 
+  // ---------------------------------------------------------------- slicing
+
+  /**
+   * Bounds on members' filament plates, which the slicer worker turns into `.3mf` files. They
+   * keep one member from filling the database or the worker's queue. Each plate's models, its
+   * `.3mf` and its preview count against `PRINT_STORAGE_CAP_MB` until the request settles.
+   */
+  PRINT_DRAFT_MAX: z.coerce.number().int().min(1).max(50).default(3),
+  PRINT_PLATE_MAX_MODELS: z.coerce.number().int().min(1).max(100).default(10),
+  PRINT_PLATE_MAX_OBJECTS: z.coerce.number().int().min(1).max(500).default(50),
+  /** Triangles across the plate, each model counted once per copy. Orca's memory grows with it. */
+  PRINT_PLATE_MAX_TRIANGLES: z.coerce.number().int().min(1_000).default(5_000_000),
+  PRINT_SLICES_PER_HOUR: z.coerce.number().int().min(1).max(1_000).default(20),
+  /** A draft goes this long after its last change, or `PRINT_DRAFT_MAX_DAYS` after it was made. */
+  PRINT_DRAFT_IDLE_HOURS: z.coerce.number().int().min(1).max(24 * 30).default(48),
+  PRINT_DRAFT_MAX_DAYS: z.coerce.number().int().min(1).max(90).default(7),
+  PRINT_STORAGE_CAP_MB: z.coerce.number().int().min(10).max(100_000).default(2048),
+  PRINT_PREVIEW_MAX_MB: z.coerce.number().int().min(1).max(64).default(8),
+
+  /** The worker's whole budget for one job: meshing, Orca, and the preview. */
+  SLICER_TIMEOUT_SECONDS: z.coerce.number().int().min(10).max(3_600).default(300),
+  /** Only the worker reads these two. */
+  ORCA_BINARY: z.string().min(1).default('/opt/orca/bin/orca-slicer'),
+  SLICER_SCRATCH_DIR: z.string().min(1).optional(),
+
   /**
    * Who the bot DMs about new print and equipment requests: Discord user ids,
    * comma-separated. Unset, it falls back to every ADMIN/OFFICER account with a
