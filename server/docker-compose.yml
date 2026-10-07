@@ -13,6 +13,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-rccf}
     ports:
       - "${POSTGRES_PORT:-5433}:5432"
+    # Also on `slicer`, the only network the slicer worker has.
+    networks: [default, slicer]
     volumes:
       # Postgres 18+ images store data in a version-named subdirectory, so the
       # mount goes at /var/lib/postgresql — mounting .../data makes them refuse
@@ -102,6 +104,41 @@ services:
       retries: 3
       start_period: 20s
 
+  # The slicer worker: OrcaSlicer's command line, slicing members' filament
+  # plates from a queue in Postgres. Part of `app`, so it deploys with the API.
+  #
+  # It opens member-supplied models, so it gets as little as possible: no
+  # `.env` (it never needs the bot token or the Stripe key), a network that
+  # reaches Postgres and nothing else, a read-only filesystem with tmpfs
+  # scratch, and no capabilities. The limits are what a large plate needs.
+  slicer:
+    build:
+      context: .
+      dockerfile: orca/Dockerfile
+    image: rccf-v13-slicer
+    profiles: [app]
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-rccf}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-rccf}?schema=public
+      DATABASE_POOL_MAX: 3
+      SLICER_TIMEOUT_SECONDS: ${SLICER_TIMEOUT_SECONDS:-300}
+      PRINT_PLATE_MAX_TRIANGLES: ${PRINT_PLATE_MAX_TRIANGLES:-5000000}
+      PRINT_PREVIEW_MAX_MB: ${PRINT_PREVIEW_MAX_MB:-8}
+    networks: [slicer]
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+      - /scratch:size=512m,uid=10001,gid=10001,mode=0700
+    mem_limit: 2g
+    cpus: 2
+    pids_limit: 256
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 30s
+
   # The site itself: the built frontend, and the one origin both halves are
   # served from.
   #
@@ -166,6 +203,12 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+networks:
+  default:
+  # No route out: the worker can reach Postgres and nothing else.
+  slicer:
+    internal: true
 
 volumes:
   data:
