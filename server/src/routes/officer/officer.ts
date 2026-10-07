@@ -30,6 +30,7 @@ import {
   allowancesFor,
 } from '../../printing/printAllowance.js'
 import { printedColumns, printedSettings } from '../../printing/printSettings.js'
+import { deleteHeldFiles } from '../../printing/printLifecycle.js'
 import {
   NO_SCHEDULE,
   meetingFields,
@@ -62,6 +63,7 @@ import { printSelect } from '../member/print.js'
  *   POST  /api/officer/members/:id/membership            -> grant a term, no money involved
  *   GET   /api/officer/print-queue?status=&all=          -> the 3D print queue
  *   PATCH /api/officer/print/:id                         -> move one through it, and record what it cost
+ *   GET   /api/officer/print/:id/slice-file              -> a sliced filament plate's .3mf
  *   GET   /api/officer/equipment                         -> the inventory, with what is out
  *   POST  /api/officer/equipment                         -> add an item
  *   PATCH /api/officer/equipment/:id                     -> edit or retire one
@@ -481,7 +483,11 @@ const queueSelect = {
   termSeason: true,
   user: { select: { fullName: true, email: true, discordUsername: true } },
   decidedBy: { select: { fullName: true } },
+  slice: { select: { outputFileId: true, layerCount: true, filamentMeters: true } },
 } as const
+
+/** Drafts are their owners' business until they're sent. */
+const SENT = { not: PrintRequestStatus.DRAFT }
 
 /** What "the queue" means with nothing asked for: work still to do. */
 const LIVE_PRINTS: PrintRequestStatus[] = [
@@ -513,7 +519,9 @@ officer.get(
   requireOfficer,
   validate(
     'query',
-    scope.extend({ status: z.enum(PrintRequestStatus).optional() }),
+    scope.extend({
+      status: z.enum(PrintRequestStatus).exclude([PrintRequestStatus.DRAFT]).optional(),
+    }),
   ),
   async (c) => {
     const { status, all } = c.req.valid('query')
@@ -522,8 +530,9 @@ officer.get(
     const requests = await prisma.printRequest.findMany({
       // Unfiltered, the queue is the live work: waiting plus on a printer. History
       // is asked for by status, or by `all`.
-      where: all ? {} : status ? { status } : { status: { in: LIVE_PRINTS } },
-      orderBy: { createdAt: queueOrder(live) },
+      where: all ? { status: SENT } : status ? { status } : { status: { in: LIVE_PRINTS } },
+      // From when it was sent, so time spent on a draft doesn't move anyone up the queue.
+      orderBy: { submittedAt: { sort: queueOrder(live), nulls: 'last' } },
       take: 100,
       select: queueSelect,
     })
@@ -540,8 +549,12 @@ officer.get(
     const allowances = await allowancesFor(personal)
 
     return c.json(
-      requests.map(({ userId, termYear, termSeason, ...request }) => ({
+      requests.map(({ userId, termYear, termSeason, slice, ...request }) => ({
         ...request,
+        // Whether there's a .3mf to download, without handing out the file's id.
+        sliceFile: slice?.outputFileId
+          ? { layers: slice.layerCount, filamentMeters: slice.filamentMeters }
+          : null,
         allowance:
           request.project === null
             ? (allowances.get(allowanceKey(userId, { termYear, termSeason })) ??
@@ -555,14 +568,15 @@ officer.get(
 /**
  * Moving a print through the queue, and recording what it cost.
  *
- * The grams are the officer's half of the material budget: they slice the model,
- * read the figure off the slicer and type it in. On a personal print that comes out
- * of the member's allowance, and this is the only route that ever writes
- * `gramsUsed` — which is what makes `printAllowance.ts` trustworthy.
+ * A filament plate its owner sliced carries Orca's estimate, and MARK DONE charges that, rounded
+ * up, unless the officer sends another figure (a failed first attempt, say). Resin and older
+ * requests have no estimate, so the officer reads the grams off their slicer as before. On a
+ * personal print that comes out of the member's allowance, and this is the only route that ever
+ * writes `gramsUsed`, which is what makes `printAllowance.ts` trustworthy.
  *
- * `printed` records what actually came off the machine when it differs, because
- * officers print in whatever is on the shelf. Left off, the row reads as "printed
- * as asked".
+ * `printed` records what actually came off the machine when it differs, because officers print
+ * in whatever is on the shelf. Left off, the row reads as "printed as asked". A sliced plate's
+ * settings are its owner's spec, so a change there goes in the note instead.
  */
 const settlePrint = z.object({
   status: z.enum(PrintRequestStatus),
@@ -587,7 +601,7 @@ officer.patch(
   validate('json', settlePrint),
   async (c) => {
     const user = c.get('user')
-    const { status, officerNote, gramsUsed, printed, overAllowance } =
+    const { status, officerNote, gramsUsed: sentGrams, printed, overAllowance } =
       c.req.valid('json')
 
     const request = await prisma.printRequest.findUnique({
@@ -596,16 +610,31 @@ officer.patch(
         id: true,
         status: true,
         startedAt: true,
-        fileId: true,
         userId: true,
         projectId: true,
         termYear: true,
         termSeason: true,
+        preset: true,
+        estimatedGrams: true,
       },
     })
-    if (!request) {
+    if (!request || request.status === PrintRequestStatus.DRAFT) {
       throw new HTTPException(404, { message: 'No such print request.' })
     }
+    if (status === PrintRequestStatus.DRAFT) {
+      throw new HTTPException(400, { message: 'Only its owner can turn a print back into a draft.' })
+    }
+    if (printed && request.preset !== null) {
+      throw new HTTPException(400, {
+        message: 'This plate was sliced by its owner. Say what changed in the note instead.',
+      })
+    }
+
+    // Orca's estimate for the plate, in whole grams rounded up, when the officer doesn't say.
+    const gramsUsed =
+      status === PrintRequestStatus.DONE && sentGrams == null && request.estimatedGrams !== null
+        ? Math.ceil(request.estimatedGrams)
+        : sentGrams
 
     // DONE and REJECTED are terminal because they're the moment the file is deleted.
     // A settled request can't reopen; there's nothing left to print from.
@@ -663,11 +692,19 @@ officer.patch(
       }
     }
 
-    // One transaction: the status flip and the byte deletion are one fact. The FK is
-    // SetNull, so deleting the file clears `fileId` while the request row stays as
-    // the record.
-    const [updated] = await prisma.$transaction([
-      prisma.printRequest.update({
+    // One transaction: the status flip and the byte deletion are one fact. The FKs are
+    // SetNull, so deleting the files clears them while the request row stays as the record.
+    const updated = await prisma.$transaction(async (tx) => {
+      // A member's UNSUBMIT can land between the read above and this write.
+      const now = await tx.printRequest.findUnique({
+        where: { id: request.id },
+        select: { status: true },
+      })
+      if (now?.status !== request.status) {
+        throw new HTTPException(409, { message: 'This request changed. Reload the queue.' })
+      }
+      if (settling) await deleteHeldFiles(tx, [request.id])
+      return tx.printRequest.update({
         where: { id: request.id },
         data: {
           status,
@@ -685,15 +722,46 @@ officer.patch(
           decidedById: user.id,
         },
         select: printSelect,
-      }),
-      ...(settling && request.fileId
-        ? [prisma.storedFile.deleteMany({ where: { id: request.fileId } })]
-        : []),
-    ])
+      })
+    })
 
-    return c.json({ ...updated, fileId: settling ? null : updated.fileId })
+    return c.json(updated)
   },
 )
+
+/**
+ * The sliced plate, for desktop OrcaSlicer: the member's models where they put them, with the
+ * approved profiles and their settings inside. Named after the member and the request so a
+ * downloads folder of them stays readable.
+ */
+officer.get('/print/:id/slice-file', requireAuth, requireOfficer, async (c) => {
+  const request = await prisma.printRequest.findUnique({
+    where: { id: c.req.param('id') },
+    select: {
+      status: true,
+      fileName: true,
+      user: { select: { fullName: true } },
+      slice: { select: { outputFileId: true } },
+    },
+  })
+  if (!request || request.status === PrintRequestStatus.DRAFT || !request.slice?.outputFileId) {
+    throw new HTTPException(404, { message: 'This request has no sliced plate.' })
+  }
+  const file = await prisma.storedFile.findUnique({
+    where: { id: request.slice.outputFileId },
+    select: { data: true },
+  })
+  if (!file) throw new HTTPException(404, { message: 'This request has no sliced plate.' })
+
+  const name = `${request.user.fullName} - ${request.fileName.replace(/\.(stl|step|stp)$/i, '')}`
+    .replace(/[^\w .()-]+/g, '')
+    .trim()
+    .slice(0, 120)
+  c.header('Cache-Control', 'private, no-store')
+  c.header('Content-Type', 'model/3mf')
+  c.header('Content-Disposition', `attachment; filename="${name || 'plate'}.3mf"`)
+  return c.body(new Uint8Array(file.data))
+})
 
 // ---------------------------------------------------------------- equipment
 

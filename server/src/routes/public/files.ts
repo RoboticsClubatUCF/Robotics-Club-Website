@@ -38,7 +38,10 @@ files.get('/:id', optionalAuth, async (c) => {
     where: { id: c.req.param('id') },
   })
 
-  if (!file) throw new HTTPException(404, { message: 'No such file' })
+  // A plate's .3mf and preview have their own routes with their own rules.
+  if (!file || file.kind === FileKind.PRINT_SLICE || file.kind === FileKind.PRINT_PREVIEW) {
+    throw new HTTPException(404, { message: 'No such file' })
+  }
 
   if (file.kind === FileKind.PRINT_MODEL) {
     const user = c.get('user')

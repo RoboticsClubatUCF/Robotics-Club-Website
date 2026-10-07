@@ -5,6 +5,7 @@ import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import { socialUrl, validate } from '../../core/validate.js'
 import { prisma } from '../../core/db.js'
+import { heldFileIds } from '../../printing/printLifecycle.js'
 import { checkDiscordHandle, isHandleShaped, normaliseHandle } from '../../discord/discord.js'
 import { pushRoleStrip, pushRoles } from '../../discord/discordRoles.js'
 import { env } from '../../core/env.js'
@@ -714,7 +715,7 @@ account.delete(
      *
      * The stored files are the half the cascades get wrong: `StoredFile.createdById` is
      * `SetNull`, so their bytes would stay in Postgres owned by nobody. Only what this
-     * account points at — its photo, and the models behind its own print requests. A
+     * account points at: its photo, and every file its own print requests hold. A
      * project's gallery images belong to the project, whoever uploaded them.
      */
     const owned = await prisma.user.findUniqueOrThrow({
@@ -724,13 +725,14 @@ account.delete(
         discordId: true,
         discordUsername: true,
         photoUrl: true,
-        printRequests: { select: { fileId: true } },
+        printRequests: { select: { id: true } },
       },
     })
 
-    const fileIds = owned.printRequests
-      .map((request) => request.fileId)
-      .filter((id): id is string => id !== null)
+    const fileIds = await heldFileIds(
+      prisma,
+      owned.printRequests.map((request) => request.id),
+    )
 
     await prisma.user.delete({ where: { id: me.id } })
 

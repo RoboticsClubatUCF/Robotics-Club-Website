@@ -23,6 +23,7 @@ import { sweepLabStatus } from './lab/labStatus.js'
 import { mailConfigured } from './email/mail.js'
 import { sweepLapsedMembers } from './membership/membershipSweep.js'
 import { sweepRateLimits } from './core/rateLimit.js'
+import { sweepPrintDrafts } from './printing/printLifecycle.js'
 import { sweepEmailChanges } from './routes/account/account.js'
 import { sweepPasswordResets } from './routes/account/auth.js'
 import { sweepSignups } from './routes/account/signup.js'
@@ -190,6 +191,14 @@ const sweep = setInterval(
     void sweepSessions().catch((error: unknown) => {
       console.error('session sweep failed', error)
     })
+    // Abandoned print drafts, with their models and sliced files.
+    void sweepPrintDrafts()
+      .then((count) => {
+        if (count > 0) console.log(`print drafts: ${String(count)} expired`)
+      })
+      .catch((error: unknown) => {
+        console.error('print draft sweep failed', error)
+      })
     forgetFinishedTerms()
 
     // These three run in sequence, unlike everything else on this tick, and the order is

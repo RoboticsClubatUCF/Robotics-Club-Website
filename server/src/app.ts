@@ -24,6 +24,7 @@ import { me } from './routes/member/me.js'
 import { officer } from './routes/officer/officer.js'
 import { officerArchive } from './routes/officer/officerArchive.js'
 import { print } from './routes/member/print.js'
+import { printDrafts } from './routes/member/printDrafts.js'
 import { projectManage } from './routes/projects/projectManage.js'
 import { signup } from './routes/account/signup.js'
 import { sponsorsAdmin } from './routes/officer/sponsorsAdmin.js'
@@ -162,6 +163,8 @@ app.route('/api/officer/sponsors', sponsorsAdmin)
 // `/officers` no route could write before it.
 app.route('/api/officer/archive', officerArchive)
 app.route('/api/officer', officer)
+// Before `print`, which only owns `/` and `/:id` underneath the same prefix.
+app.route('/api/print', printDrafts)
 app.route('/api/print', print)
 app.route('/api/equipment', equipment)
 // Public to read and officer-only to write, and mounted here rather than with the club

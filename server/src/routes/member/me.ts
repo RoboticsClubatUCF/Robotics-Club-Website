@@ -20,7 +20,7 @@ import {
   taskSelect,
   wire as wireTask,
 } from '../projects/tasks.js'
-import { TaskStatus } from '../../generated/prisma/enums.js'
+import { PrintRequestStatus, TaskStatus } from '../../generated/prisma/enums.js'
 
 /**
  * The signed-in member's own view of the club — everything here is "mine".
@@ -259,7 +259,8 @@ me.get(
  */
 me.get('/print-requests', requireAuth, async (c) => {
   const requests = await prisma.printRequest.findMany({
-    where: { userId: c.get('user').id },
+    // Drafts list themselves on the slicer's own route.
+    where: { userId: c.get('user').id, status: { not: PrintRequestStatus.DRAFT } },
     orderBy: { createdAt: 'desc' },
     take: 50,
     select: printSelect,

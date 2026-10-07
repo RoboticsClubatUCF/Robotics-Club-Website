@@ -169,18 +169,15 @@ const asciiStl = () => new TextEncoder().encode('solid part\nendsolid part\n')
 const stepFile = () => new TextEncoder().encode('ISO-10303-21;\nHEADER;\nENDSEC;\n')
 
 /**
- * The fields beside the file. Defaults are a legal FDM combination, so a test
- * about something else says nothing about settings; anything set to
- * `undefined` is left off the body entirely, which is how the SLA cases prove
- * the infill fields are refused rather than merely ignored.
+ * The fields beside the file. Defaults are resin, the one kind this form still takes, so a test
+ * about something else says nothing about settings; anything set to `undefined` is left off the
+ * body entirely, which is how the cases prove a field is refused rather than merely ignored.
  */
 type Fields = Record<string, string | number | undefined>
 
 const DEFAULT_FIELDS: Fields = {
-  process: 'FDM',
-  material: 'PLA',
-  infillPattern: 'GRID',
-  infillDensity: 20,
+  process: 'SLA',
+  material: 'ABS_LIKE_RESIN',
 }
 
 // `Uint8Array<ArrayBuffer>`, not a bare `Uint8Array`: the default type
@@ -263,7 +260,7 @@ describe('submitting', () => {
     })
   })
 
-  it('keeps the settings it was given, and defaults nothing about them', async () => {
+  it('sends a filament print to the slicer instead', async () => {
     const response = await upload(memberCookie, 'part.stl', asciiStl(), {
       process: 'FDM',
       material: 'PETG',
@@ -271,15 +268,8 @@ describe('submitting', () => {
       infillDensity: 35,
     })
 
-    expect(await response.json()).toMatchObject({
-      process: 'FDM',
-      material: 'PETG',
-      infillPattern: 'GYROID',
-      infillDensity: 35,
-      // Null until an officer says otherwise — the row reads "as asked".
-      printedMaterial: null,
-      gramsUsed: null,
-    })
+    expect(response.status).toBe(409)
+    expect(await response.json()).toMatchObject({ error: expect.stringContaining('slicer') })
   })
 
   /**
@@ -338,7 +328,10 @@ describe('submitting', () => {
       'infill on a resin print',
       { process: 'SLA', material: 'ABS_LIKE_RESIN', infillPattern: 'GRID' },
     ],
-    ['an FDM print with no infill named', { infillPattern: undefined }],
+    [
+      'an FDM print with no infill named',
+      { process: 'FDM', material: 'PLA', infillDensity: 20 },
+    ],
   ])('refuses %s', async (_case, fields) => {
     const response = await upload(memberCookie, 'part.stl', asciiStl(), fields)
 
@@ -580,15 +573,25 @@ describe('the material allowance', () => {
   })
 
   it('counts resin and filament against the same 500', async () => {
-    const filament = await submit()
-    await patchStatus(filament, { status: 'DONE', gramsUsed: 100 })
-
-    const resin = await submit({
-      process: 'SLA',
-      material: 'ABS_LIKE_RESIN',
-      infillPattern: undefined,
-      infillDensity: undefined,
+    // A filament request from before the slicer, still waiting: the officer types its grams.
+    const filament = await prisma.printRequest.create({
+      data: {
+        userId: memberId,
+        fileName: 'older-filament.stl',
+        fileSize: 10,
+        process: 'FDM',
+        material: 'PLA',
+        infillPattern: 'GRID',
+        infillDensity: 15,
+        termYear: term.termYear,
+        termSeason: term.termSeason,
+        submittedAt: new Date(),
+      },
+      select: { id: true },
     })
+    await patchStatus(filament.id, { status: 'DONE', gramsUsed: 100 })
+
+    const resin = await submit()
     await patchStatus(resin, { status: 'DONE', gramsUsed: 50 })
 
     expect((await allowance()).usedGrams).toBe(150)
@@ -825,7 +828,7 @@ describe('the officer queue', () => {
   /** Officers print in whatever is on the shelf, so the row has to be able to
       say that the ask and the outcome differed. */
   it('records what was actually printed, leaving the ask alone', async () => {
-    const id = await submit({ material: 'PLA' })
+    const id = await submit()
 
     await patchStatus(id, {
       status: 'DONE',
@@ -841,7 +844,7 @@ describe('the officer queue', () => {
     expect(
       await prisma.printRequest.findUniqueOrThrow({ where: { id } }),
     ).toMatchObject({
-      material: 'PLA',
+      material: 'ABS_LIKE_RESIN',
       printedMaterial: 'PETG',
       printedInfillPattern: 'GYROID',
     })

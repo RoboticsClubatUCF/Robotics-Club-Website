@@ -5,13 +5,14 @@ import { z } from 'zod'
 import { prisma } from '../../core/db.js'
 import { env } from '../../core/env.js'
 import { looksLikePrintModel } from '../../files/files.js'
-import { FileKind, PrintRequestStatus } from '../../generated/prisma/enums.js'
+import { FileKind, PrintProcess, PrintRequestStatus } from '../../generated/prisma/enums.js'
 import { notifyOfficers } from '../../discord/officerNotify.js'
 import {
   MATERIAL_LABEL,
   printSettings,
   settingsColumns,
 } from '../../printing/printSettings.js'
+import { deleteRequests } from '../../printing/printLifecycle.js'
 import { rateLimit } from '../../core/rateLimit.js'
 import { currentTerm } from '../../membership/semester.js'
 import { requireDuesForRoute } from '../../auth/authz.js'
@@ -20,8 +21,11 @@ import { type AuthEnv, originGuard, requireAuth } from '../../auth/session.js'
 /**
  * 3D print requests.
  *
- *   POST   /api/print      -> upload a model (.stl / .step only) + settings
+ *   POST   /api/print      -> a resin print: upload a model (.stl / .step only) + settings
  *   DELETE /api/print/:id  -> withdraw one, while it is still PENDING
+ *
+ * Filament prints are sliced by their owner in the workspace and sent from there
+ * (`printDrafts.ts`), so this route takes resin only.
  *
  * The upload is multipart and buffered, which is why `bodyLimit` runs first — the cap has to
  * reject the body before this process holds it. The file's bytes live only as long as the job
@@ -97,6 +101,11 @@ export const printSelect = {
   printedMaterial: true,
   printedInfillPattern: true,
   printedInfillDensity: true,
+  preset: true,
+  overrides: true,
+  estimatedGrams: true,
+  estimatedSeconds: true,
+  submittedAt: true,
   createdAt: true,
   updatedAt: true,
   project: { select: { id: true, slug: true, title: true } },
@@ -129,13 +138,18 @@ print.post(
       infillDensity: field(body['infillDensity']),
     })
 
+    if (settings.success && settings.data.process === PrintProcess.FDM) {
+      throw new HTTPException(409, {
+        message: 'Filament prints are sliced in the slicer now. Open it from the printing page.',
+      })
+    }
+
     if (!settings.success) {
       throw new HTTPException(400, {
         // One sentence rather than the zod report, which is a debugging aid.
         // Every way to fail this is the same mistake from the member's side:
         // a combination the printers cannot do.
-        message:
-          'Those print settings do not go together. FDM takes PLA or PETG with an infill; resin takes the ABS-like resin and has no infill.',
+        message: 'Resin prints take the ABS-like resin and have no infill.',
       })
     }
 
@@ -207,6 +221,7 @@ print.post(
         ...(projectId ? { project: { connect: { id: projectId } } } : {}),
         termYear: term.year,
         termSeason: term.season,
+        submittedAt: new Date(),
         file: {
           create: {
             kind: FileKind.PRINT_MODEL,
@@ -248,7 +263,7 @@ print.delete(
 
     const request = await prisma.printRequest.findUnique({
       where: { id: c.req.param('id') },
-      select: { id: true, userId: true, status: true, fileId: true },
+      select: { id: true, userId: true, status: true },
     })
 
     if (!request || request.userId !== user.id) {
@@ -263,14 +278,9 @@ print.delete(
       })
     }
 
-    // Withdrawing takes the bytes too: nothing else references the file, and
-    // the whole storage rule is that unneeded models do not sit in the database.
-    await prisma.$transaction([
-      prisma.printRequest.delete({ where: { id: request.id } }),
-      ...(request.fileId
-        ? [prisma.storedFile.deleteMany({ where: { id: request.fileId } })]
-        : []),
-    ])
+    // Withdrawing takes the bytes too: nothing else references them, and the
+    // whole storage rule is that unneeded models do not sit in the database.
+    await prisma.$transaction((tx) => deleteRequests(tx, [request.id]))
 
     return c.json({ deleted: true })
   },
