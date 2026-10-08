@@ -12,9 +12,13 @@ import {
   placementAffine,
 } from '../../lib/slicer/plateTransform'
 import { NumberInput } from './NumberInput'
-import { iconSize, panelHeading, quietButton } from './slicerChrome'
+import { dangerButton, iconSize, panelHeading, quietButton } from './slicerChrome'
 
-const PROBLEM: Record<FitProblem, string> = {
+/** Why a copy won't slice, or overlaps another and would print joined to it. */
+export type PlateWarning = FitProblem | 'overlaps'
+
+const PROBLEM: Record<PlateWarning, string> = {
+  overlaps: 'Overlaps',
   offPlate: 'Off the plate',
   tooTall: 'Too tall',
   noGo: 'In the purge corner',
@@ -42,7 +46,7 @@ export function ObjectPanel({
   models: ApiPlateModel[]
   meshes: MeshMap
   selected: string[]
-  problems: ReadonlyMap<string, FitProblem>
+  problems: ReadonlyMap<string, PlateWarning>
   disabled: boolean
   onSelect: (ids: string[]) => void
   onChange: (id: string, placement: Partial<ApiPlacement>) => void
@@ -74,7 +78,7 @@ export function ObjectPanel({
             type="button"
             onClick={onDelete}
             disabled={disabled || selected.length === 0}
-            className={`${quietButton} px-2.5`}
+            className={`${dangerButton} px-2.5`}
             aria-label="Delete the selected objects"
             title="Delete"
           >

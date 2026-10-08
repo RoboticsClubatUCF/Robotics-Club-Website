@@ -82,8 +82,13 @@ describe('SettingsPanel', () => {
     const onChange = show()
     const walls = screen.getByLabelText('Walls')
     fireEvent.change(walls, { target: { value: '40' } })
-    fireEvent.blur(walls)
+    fireEvent.keyDown(walls, { key: 'Enter' })
     expect(screen.getByRole('alert')).toHaveTextContent('1 to 10')
+    expect(walls).toHaveAttribute('aria-invalid', 'true')
+    // Leaving puts the saved number back rather than showing one the plate doesn't have.
+    fireEvent.blur(walls)
+    expect(walls).toHaveValue(2)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(onChange).not.toHaveBeenCalled()
   })
 

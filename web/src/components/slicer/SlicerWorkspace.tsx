@@ -1,6 +1,6 @@
-import { ChevronLeft, PanelLeft, PanelRight, X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { ChevronLeft, X } from 'lucide-react'
+import { useEffect, useEffectEvent, useId, useRef, useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router'
 import { ApiError } from '../../lib/api/api'
 import type {
   ApiMyProject,
@@ -13,12 +13,14 @@ import { arrange, freeSpot } from '../../lib/slicer/arrange'
 import { primeMesh, useMeshes } from '../../lib/slicer/meshes'
 import { autoOrient, layFlat } from '../../lib/slicer/orient'
 import { boxOn, fitOn, sizeOf } from '../../lib/slicer/plate'
-import { type FitProblem, canonicalQuat } from '../../lib/slicer/plateTransform'
+import { type Box, type FitProblem, canonicalQuat } from '../../lib/slicer/plateTransform'
 import { ACCEPTED_MODELS, MeshError, parseStl } from '../../lib/slicer/stl'
 import { useDraft } from '../../lib/slicer/useDraft'
 import { usePreview } from '../../lib/slicer/usePreview'
+import { useDialogFocus } from '../../lib/useDialogFocus'
 import { ErrorDialog } from '../shared/ErrorDialog'
-import { ObjectPanel } from './ObjectPanel'
+import { FormEyebrow, FormHeading } from '../shared/formChrome'
+import { ObjectPanel, type PlateWarning } from './ObjectPanel'
 import { PlateToolbar } from './PlateToolbar'
 import { type PlateMode, PlateView } from './PlateView'
 import { PreviewView } from './PreviewView'
@@ -35,6 +37,12 @@ const FIT_PROBLEM: Record<FitProblem, string> = {
 
 const IDENTITY = { qx: 0, qy: 0, qz: 0, qw: 1, sx: 1, sy: 1, sz: 1 }
 
+/** How many plate edits Ctrl+Z can step back through. */
+const UNDO_DEPTH = 30
+
+const overlap = (a: Box, b: Box) =>
+  a.min[0] < b.max[0] && b.min[0] < a.max[0] && a.min[1] < b.max[1] && b.min[1] < a.max[1]
+
 function explain(error: unknown, fallback: string): string {
   if (error instanceof ApiError) {
     if (error.status === 0) return `Couldn't reach the server. Try again in a moment.`
@@ -49,6 +57,15 @@ function explain(error: unknown, fallback: string): string {
 const typing = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
   (target.isContentEditable || ['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName))
+
+/**
+ * Where the plate's own keys apply: nothing focused, or focus on the plate, its toolbar or the
+ * object list (`data-shortcuts`). Not on a tab, a link or a setting, where arrows and letters
+ * already mean something, and where a stray A re-arranging the plate would be a surprise.
+ */
+const onPlate = (target: EventTarget | null) =>
+  target === document.body ||
+  (target instanceof Element && target.closest('[data-shortcuts]') !== null)
 
 /**
  * The slicer workspace: Orca's Prepare and Preview, for one build plate.
@@ -69,6 +86,8 @@ export function SlicerWorkspace({
   allowance: ApiPrintAllowance | null
 }) {
   const navigate = useNavigate()
+  const id = useId()
+  const arrived = useLocation().state as { unsubmitted?: boolean } | null
   const plate = useDraft(draftId)
   const { draft, plate: local } = plate
   const models = draft?.models ?? []
@@ -85,18 +104,34 @@ export function SlicerWorkspace({
   const [uploading, setUploading] = useState(false)
   const [slicing, setSlicing] = useState(false)
   const [sending, setSending] = useState<'closed' | 'open' | 'sending'>('closed')
+  // Said once, on arriving from the printing page's EDIT.
+  const [backFromQueue, setBackFromQueue] = useState(arrived?.unsubmitted === true)
+  const history = useRef<ApiPlateObject[][]>([])
 
   const problems = new Map<string, FitProblem>()
+  const boxes = new Map<string, Box>()
   for (const object of objects) {
     const positions = meshes.get(object.modelId)
-    const fit = positions ? fitOn(positions, object, bed) : null
+    if (!positions) continue
+    boxes.set(object.id, boxOn(positions, object))
+    const fit = fitOn(positions, object, bed)
     if (fit) problems.set(object.id, fit)
+  }
+  // Overlapping copies print fused. A warning, not a refusal: footprints are boxes, so an L with a
+  // part in its corner reads as overlapping when it isn't.
+  const warnings = new Map<string, PlateWarning>(problems)
+  const placed = [...boxes.entries()]
+  for (let i = 0; i < placed.length; i++) {
+    for (let j = i + 1; j < placed.length; j++) {
+      if (!overlap(placed[i]![1], placed[j]![1])) continue
+      for (const key of [placed[i]![0], placed[j]![0]]) if (!warnings.has(key)) warnings.set(key, 'overlaps')
+    }
   }
 
   const slice = draft?.slice ?? null
   const converting = models.some((model) => model.meshState === 'QUEUED' || model.meshState === 'RUNNING')
   const unreadable = models.find((model) => model.meshState === 'FAILED')
-  const sliced = slice?.state === 'READY' && slice.current && !plate.saving
+  const sliced = slice?.state === 'READY' && slice.current && !plate.unsaved
   const slicingNow = slice?.state === 'QUEUED' || slice?.state === 'RUNNING'
   const editable = !draft || draft.status === 'DRAFT'
 
@@ -115,8 +150,54 @@ export function SlicerWorkspace({
   }, [slice])
 
   const setObjects = (next: ApiPlateObject[]) => {
+    history.current = [...history.current.slice(-(UNDO_DEPTH - 1)), objects]
     plate.edit({ objects: next })
   }
+
+  const undo = () => {
+    const previous = history.current.pop()
+    if (!previous) return
+    plate.edit({ objects: previous })
+    setSelected((current) => current.filter((key) => previous.some((object) => object.id === key)))
+  }
+
+  // A different plate starts with nothing to undo.
+  useEffect(() => {
+    history.current = []
+  }, [draftId])
+
+  // A STEP lands in the middle of the plate because its shape isn't known until the worker meshes
+  // it. Once it is, a copy sitting on top of another part moves to the nearest free spot.
+  const meshing = useRef(new Set<string>())
+  const waiting = models
+    .filter((model) => model.meshState !== 'READY')
+    .map((model) => model.id)
+    .join(' ')
+  const placeMeshed = useEffectEvent(() => {
+    const ready = [...meshing.current].filter((modelId) => meshes.has(modelId))
+    if (ready.length === 0) return
+    let next = objects
+    for (const modelId of ready) {
+      meshing.current.delete(modelId)
+      const positions = meshes.get(modelId)!
+      for (const object of next.filter((o) => o.modelId === modelId)) {
+        const mine = boxOn(positions, object)
+        const others = next.flatMap((o) => {
+          const other = o.id === object.id ? undefined : meshes.get(o.modelId)
+          return other ? [boxOn(other, o)] : []
+        })
+        if (!others.some((box) => overlap(box, mine))) continue
+        const spot = freeSpot(others, sizeOf(positions, object), bed)
+        next = next.map((o) => (o.id === object.id ? { ...o, ...spot } : o))
+      }
+    }
+    if (next !== objects && editable) plate.edit({ objects: next })
+  })
+  useEffect(() => {
+    for (const modelId of waiting.split(' ')) if (modelId) meshing.current.add(modelId)
+    placeMeshed()
+  }, [meshes, waiting])
+
   const change = (id: string, placement: Partial<ApiPlacement>) => {
     setObjects(objects.map((object) => (object.id === id ? { ...object, ...placement } : object)))
   }
@@ -244,13 +325,23 @@ export function SlicerWorkspace({
     }
   }
 
-  // Shortcuts, as in Orca. Never while typing or with a dialog open.
+  // Shortcuts, as in Orca. Never while typing, with a dialog or drawer open, or away from the plate.
   const keys = useRef<(event: KeyboardEvent) => void>(() => undefined)
   useEffect(() => {
     keys.current = (event: KeyboardEvent) => {
-      if (typing(event.target) || problem || sending !== 'closed' || tab !== 'prepare' || !editable) return
+      if (event.defaultPrevented || typing(event.target)) return
+      if (problem || sending !== 'closed' || drawer || tab !== 'prepare' || !editable) return
+      if (event.key === 'Escape') {
+        setSelected([])
+        setMode('move')
+        return
+      }
+      if (!onPlate(event.target)) return
       const ctrl = event.ctrlKey || event.metaKey
-      if ((event.key === 'Delete' || event.key === 'Backspace') && selected.length > 0) {
+      if (ctrl && event.key.toLowerCase() === 'z') {
+        event.preventDefault()
+        undo()
+      } else if ((event.key === 'Delete' || event.key === 'Backspace') && selected.length > 0) {
         event.preventDefault()
         remove()
       } else if (ctrl && event.key.toLowerCase() === 'd' && selected.length > 0) {
@@ -259,9 +350,6 @@ export function SlicerWorkspace({
       } else if (ctrl && event.key.toLowerCase() === 'a') {
         event.preventDefault()
         setSelected(objects.map((object) => object.id))
-      } else if (event.key === 'Escape') {
-        setSelected([])
-        setMode('move')
       } else if (event.key.startsWith('Arrow') && selected.length > 0) {
         event.preventDefault()
         const step = event.shiftKey ? 10 : 1
@@ -286,6 +374,7 @@ export function SlicerWorkspace({
   }, [])
 
   const placementWarning = [...problems.entries()][0]
+  const overlapping = [...warnings.values()].filter((w) => w === 'overlaps').length
   const sliceBlocked = !draft
     ? 'Add a model first.'
     : !editable
@@ -306,7 +395,10 @@ export function SlicerWorkspace({
     <button
       type="button"
       role="tab"
+      id={`${id}-tab-${key}`}
       aria-selected={tab === key}
+      aria-controls={`${id}-panel`}
+      tabIndex={tab === key ? 0 : -1}
       onClick={() => {
         setTab(key)
       }}
@@ -317,6 +409,15 @@ export function SlicerWorkspace({
       {label}
     </button>
   )
+
+  const notice = plate.notice
+    ? { text: plate.notice, dismiss: plate.clearNotice }
+    : backFromQueue
+      ? {
+          text: `Taken back from the queue. Send it again when you're done, or it expires like any draft.`,
+          dismiss: () => setBackFromQueue(false),
+        }
+      : null
 
   const drawerClass = (which: 'settings' | 'objects') =>
     `bg-base-100 border-rule min-h-0 overflow-y-auto ${
@@ -334,12 +435,23 @@ export function SlicerWorkspace({
         >
           <ChevronLeft className={iconSize} aria-hidden="true" /> PRINTING
         </Link>
-        <div role="tablist" aria-label="Workspace" className="flex">
+        <div
+          role="tablist"
+          aria-label="Workspace"
+          className="flex"
+          onKeyDown={(event) => {
+            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+            event.preventDefault()
+            const next = tab === 'prepare' ? 'preview' : 'prepare'
+            setTab(next)
+            document.getElementById(`${id}-tab-${next}`)?.focus()
+          }}
+        >
           {tabButton('prepare', 'PREPARE')}
           {tabButton('preview', 'PREVIEW')}
         </div>
         <div className="order-last flex min-w-0 basis-full items-center gap-2 wide:order-none wide:basis-auto wide:flex-1">
-          <SliceSummary draft={draft} workerOnline={workspace.workerOnline} dirty={plate.saving} />
+          <SliceSummary draft={draft} workerOnline={workspace.workerOnline} dirty={plate.unsaved} />
           {plate.saving && <span className="text-faint shrink-0 font-mono text-[10px] tracking-[0.12em]">SAVING…</span>}
         </div>
         <span className="ml-auto flex items-center gap-2 wide:ml-0">
@@ -367,20 +479,30 @@ export function SlicerWorkspace({
         </span>
       </header>
 
-      {(plate.notice || !editable || (sliceBlocked && objects.length > 0)) && (
+      {(notice || !editable || (sliceBlocked && objects.length > 0) || overlapping > 0) && (
         <div role="status" className="border-rule bg-wash flex items-start justify-between gap-3 border-b px-4 py-2 text-[12.5px] leading-[1.5]">
-          <span className={plate.notice ? 'text-base-content' : 'text-dim'}>
-            {plate.notice ??
-              (!editable
-                ? 'This plate has been sent. Take it back from the printing page to change it.'
-                : sliceBlocked)}
+          <span className={notice ? 'text-base-content' : 'text-dim'}>
+            {notice ? (
+              notice.text
+            ) : !editable ? (
+              <>
+                This plate has been sent.{' '}
+                <Link to="/dashboard/print" className="text-primary underline underline-offset-2">
+                  Take it back from the printing page
+                </Link>{' '}
+                to change it.
+              </>
+            ) : (
+              (sliceBlocked ??
+              `${String(overlapping)} objects overlap and would print joined. Spread them out or press Arrange.`)
+            )}
           </span>
-          {plate.notice && (
+          {notice && (
             <button
               type="button"
-              onClick={plate.clearNotice}
+              onClick={notice.dismiss}
               aria-label="Dismiss"
-              className="text-dim hover:text-base-content -m-1 inline-flex size-8 shrink-0 cursor-pointer items-center justify-center"
+              className="text-dim hover:text-base-content -m-1 inline-flex size-11 shrink-0 cursor-pointer items-center justify-center wide:size-8"
             >
               <X className={iconSize} aria-hidden="true" />
             </button>
@@ -389,8 +511,7 @@ export function SlicerWorkspace({
       )}
 
       <div className="relative flex min-h-0 flex-1">
-        <aside aria-label="Print settings" className={drawerClass('settings')}>
-          <DrawerClose open={drawer === 'settings'} onClose={() => setDrawer(null)} />
+        <Drawer label="Print settings" open={drawer === 'settings'} className={drawerClass('settings')} onClose={() => setDrawer(null)}>
           <SettingsPanel
             profiles={workspace.profiles}
             settings={local}
@@ -399,9 +520,16 @@ export function SlicerWorkspace({
               plate.edit(settings)
             }}
           />
-        </aside>
+        </Drawer>
 
-        <section aria-label={tab === 'prepare' ? 'Build plate' : 'Sliced preview'} className="relative min-w-0 flex-1">
+        <section
+          id={`${id}-panel`}
+          role="tabpanel"
+          aria-labelledby={`${id}-tab-${tab}`}
+          data-shortcuts
+          inert={drawer !== null}
+          className="relative min-w-0 flex-1"
+        >
           {tab === 'prepare' ? (
             <>
               <PlateView
@@ -442,7 +570,7 @@ export function SlicerWorkspace({
               )}
               {mode === 'flat' && editable && (
                 <p className="border-rule bg-base-100/90 absolute top-3 right-3 left-16 border px-3 py-1.5 text-[12px] wide:top-auto wide:right-auto wide:bottom-3 wide:left-1/2 wide:-translate-x-1/2">
-                  Click a face of the selected object to put it on the bed.
+                  Click or tap a face of the selected object to put it on the bed.
                 </p>
               )}
             </>
@@ -450,31 +578,30 @@ export function SlicerWorkspace({
             <PreviewPane preview={preview} bed={bed} sliced={sliced} failure={slice?.previewFailure ?? null} />
           )}
 
-          <span className="absolute top-3 left-3 flex flex-col gap-1 wide:hidden">
-            <button type="button" onClick={() => setDrawer('settings')} className={`${quietButton} bg-base-100 px-2.5`} aria-label="Open the print settings">
-              <PanelLeft className={iconSize} aria-hidden="true" />
+          <span className="absolute top-3 left-3 flex gap-1.5 wide:hidden">
+            <button type="button" onClick={() => setDrawer('settings')} className={`${quietButton} bg-base-100`}>
+              SETTINGS
             </button>
-            <button type="button" onClick={() => setDrawer('objects')} className={`${quietButton} bg-base-100 px-2.5`} aria-label="Open the object list">
-              <PanelRight className={iconSize} aria-hidden="true" />
+            <button type="button" onClick={() => setDrawer('objects')} className={`${quietButton} bg-base-100`}>
+              OBJECTS · {objects.length}
             </button>
           </span>
         </section>
 
-        <aside aria-label="Objects" className={drawerClass('objects')}>
-          <DrawerClose open={drawer === 'objects'} onClose={() => setDrawer(null)} />
+        <Drawer label="Objects" open={drawer === 'objects'} className={drawerClass('objects')} onClose={() => setDrawer(null)} shortcuts>
           <ObjectPanel
             objects={objects}
             models={models}
             meshes={meshes}
             selected={selected}
-            problems={problems}
+            problems={warnings}
             disabled={!editable}
             onSelect={setSelected}
             onChange={change}
             onCopy={copy}
             onDelete={remove}
           />
-        </aside>
+        </Drawer>
       </div>
 
       {problem && (
@@ -508,11 +635,11 @@ function Unavailable({ load, onRetry }: { load: 'loading' | 'missing' | 'failed'
   }
   return (
     <div className="px-page py-9 wide:py-12">
-      <p className="text-faint mb-3 font-mono text-[11px] font-medium tracking-[0.18em]">/ 3D PRINTING · SLICER</p>
-      <h1 className="mb-4 text-2xl font-bold">{load === 'missing' ? 'No such plate.' : `The plate didn't load.`}</h1>
+      <FormEyebrow>/ 3D PRINTING · SLICER</FormEyebrow>
+      <FormHeading>{load === 'missing' ? 'No such plate.' : `The plate didn't load.`}</FormHeading>
       <p className="text-dim mb-4 max-w-[42rem] text-sm leading-[1.7]">
         {load === 'missing'
-          ? 'It may have been sent, discarded or expired.'
+          ? 'It may have been discarded or expired.'
           : `We couldn't reach the server. Try again in a moment.`}
       </p>
       <span className="flex gap-2">
@@ -529,13 +656,65 @@ function Unavailable({ load, onRetry }: { load: 'loading' | 'missing' | 'failed'
   )
 }
 
-function DrawerClose({ open, onClose }: { open: boolean; onClose: () => void }) {
-  if (!open) return null
+/**
+ * A side column: always shown at `wide`, a drawer over the plate below it. Open as a drawer it
+ * holds focus like a dialog (`useDialogFocus`): focus starts on Close, Tab stays inside, Escape
+ * closes it and focus goes back to the button that opened it.
+ */
+function Drawer({
+  label,
+  open,
+  className,
+  shortcuts = false,
+  onClose,
+  children,
+}: {
+  label: string
+  open: boolean
+  className: string
+  shortcuts?: boolean
+  onClose: () => void
+  children: React.ReactNode
+}) {
+  // A drawer left open while the window widens past the breakpoint would trap focus in a column.
+  useEffect(() => {
+    if (!open || typeof matchMedia !== 'function') return
+    const wide = matchMedia('(min-width: 56.25rem)')
+    const close = () => {
+      if (wide.matches) onClose()
+    }
+    close()
+    wide.addEventListener('change', close)
+    return () => {
+      wide.removeEventListener('change', close)
+    }
+  }, [open, onClose])
+
   return (
-    <div className="flex justify-end p-1 wide:hidden">
-      <button type="button" onClick={onClose} aria-label="Close" className="text-dim hover:text-base-content inline-flex size-11 cursor-pointer items-center justify-center">
-        <X className={iconSize} aria-hidden="true" />
-      </button>
+    <aside aria-label={label} className={className} data-shortcuts={shortcuts || undefined}>
+      {open ? <DrawerFocus onClose={onClose}>{children}</DrawerFocus> : children}
+    </aside>
+  )
+}
+
+function DrawerFocus({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
+  const panel = useRef<HTMLDivElement>(null)
+  const close = useRef<HTMLButtonElement>(null)
+  useDialogFocus(panel, close, onClose)
+  return (
+    <div ref={panel} role="dialog" aria-modal="true" className="contents">
+      <div className="flex justify-end p-1">
+        <button
+          ref={close}
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="text-dim hover:text-base-content inline-flex size-11 cursor-pointer items-center justify-center focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        >
+          <X className={iconSize} aria-hidden="true" />
+        </button>
+      </div>
+      {children}
     </div>
   )
 }

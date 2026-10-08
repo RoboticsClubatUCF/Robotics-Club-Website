@@ -128,6 +128,7 @@ function PreviewCanvas({
       ) : (
         <canvas
           ref={canvas}
+          role="img"
           aria-label={`Sliced plate, layer ${String(top + 1)} of ${String(preview.layers.length)}`}
           className="block h-full w-full touch-none"
         />
@@ -148,36 +149,49 @@ function Legend({
   // Read for its re-render: the swatches follow the theme.
   useTheme()
   const colors = themeColors()
+  // Shut to begin with on a phone, where it would cover the plate.
+  const [open, setOpen] = useState(
+    () => typeof window.matchMedia !== 'function' || window.matchMedia('(min-width: 56.25rem)').matches,
+  )
   return (
-    <ul
-      aria-label="Path types"
-      className="border-rule bg-base-100/90 absolute top-3 right-3 border p-1.5 backdrop-blur-sm wide:top-auto wide:right-auto wide:bottom-3 wide:left-3"
-    >
-      {ROLES.filter((role) => preview.roles[role].positions.length > 0).map((role) => {
-        const shown = !hidden.has(role)
-        return (
-          <li key={role}>
-            <button
-              type="button"
-              aria-pressed={shown}
-              onClick={() => {
-                onToggle(role)
-              }}
-              className={`flex min-h-9 w-full cursor-pointer items-center gap-2 px-2 text-left text-[12px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary wide:min-h-7 ${
-                shown ? 'text-base-content' : 'text-faint line-through'
-              }`}
-            >
-              <span
-                aria-hidden="true"
-                className="border-rule inline-block size-2.5 shrink-0 border"
-                style={{ backgroundColor: shown ? `#${colors.roles[role].getHexString()}` : 'transparent' }}
-              />
-              {ROLE_LABEL[role]}
-            </button>
-          </li>
-        )
-      })}
-    </ul>
+    <div className="border-rule bg-base-100/90 absolute top-3 right-3 border backdrop-blur-sm wide:top-auto wide:right-auto wide:bottom-3 wide:left-3">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => {
+          setOpen(!open)
+        }}
+        className="text-faint hover:text-base-content flex min-h-11 w-full cursor-pointer items-center px-3 font-mono text-[10px] tracking-[0.14em] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary wide:min-h-7"
+      >
+        {open ? 'HIDE PATHS' : 'PATHS'}
+      </button>
+      <ul aria-label="Path types" hidden={!open} className="p-1.5 pt-0">
+        {ROLES.filter((role) => preview.roles[role].positions.length > 0).map((role) => {
+          const shown = !hidden.has(role)
+          return (
+            <li key={role}>
+              <button
+                type="button"
+                aria-pressed={shown}
+                onClick={() => {
+                  onToggle(role)
+                }}
+                className={`flex min-h-11 w-full cursor-pointer items-center gap-2 px-2 text-left text-[12px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary wide:min-h-7 ${
+                  shown ? 'text-base-content' : 'text-faint line-through'
+                }`}
+              >
+                <span
+                  aria-hidden="true"
+                  className="border-rule inline-block size-2.5 shrink-0 border"
+                  style={{ backgroundColor: shown ? `#${colors.roles[role].getHexString()}` : 'transparent' }}
+                />
+                {ROLE_LABEL[role]}
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
   )
 }
 

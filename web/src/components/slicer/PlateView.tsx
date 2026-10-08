@@ -365,6 +365,7 @@ export function PlateView(props: Props) {
       ) : (
         <canvas
           ref={canvas}
+          role="img"
           aria-label={`Build plate with ${String(count)} ${count === 1 ? 'object' : 'objects'}. Use the object panel to move them with a keyboard.`}
           className={`block h-full w-full touch-none ${props.mode === 'flat' ? 'cursor-crosshair' : ''}`}
         />

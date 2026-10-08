@@ -45,7 +45,12 @@ export function SliceSummary({
   }
 
   return (
-    <p role="status" aria-live="polite" className={`min-w-0 truncate font-mono text-[11px] tracking-[0.06em] ${tone}`} title={text}>
+    <p
+      role="status"
+      aria-live="polite"
+      className={`min-w-0 font-mono text-[11px] leading-snug tracking-[0.06em] wide:truncate ${tone}`}
+      title={text}
+    >
       {text}
     </p>
   )

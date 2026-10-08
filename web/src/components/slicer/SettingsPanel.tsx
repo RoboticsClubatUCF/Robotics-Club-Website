@@ -98,7 +98,8 @@ export function SettingsPanel({
           ))}
         </select>
         <p id={`${id}-process-about`} className="text-faint mt-1.5 text-[12px] leading-[1.5]">
-          {preset.description}. {preset.name}.
+          {preset.description[0]!.toUpperCase()}
+          {preset.description.slice(1)}.
         </p>
       </section>
 

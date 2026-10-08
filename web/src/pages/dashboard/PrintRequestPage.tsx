@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useOutletContext } from 'react-router'
 import { DuesLocked } from '../../components/dashboard/DuesLocked'
 import { ClaimFree } from '../../components/dashboard/ClaimFree'
 import { MembersOnly } from '../../components/dashboard/MembersOnly'
+import { ConfirmDialog } from '../../components/shared/ConfirmDialog'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
 import { accessLock } from '../../lib/dues/dues'
 import {
@@ -28,9 +29,9 @@ import {
   MAX_QUANTITY,
   PRESET_LABEL,
   actualSettings,
-  countLabel,
   grams,
   materialsFor,
+  plateCount,
   settingsLine,
   slicedLine,
 } from '../../lib/printing'
@@ -297,9 +298,9 @@ function Filament({
 }) {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
+  const [discarding, setDiscarding] = useState<ApiDraftSummary | null>(null)
 
   const discard = (draft: ApiDraftSummary) => {
-    if (!window.confirm(`Discard the plate ${draft.fileName}? Its models go with it.`)) return
     setBusy(true)
     setMessage('')
     deleteJson(`/print/drafts/${draft.id}`)
@@ -309,6 +310,7 @@ function Filament({
       })
       .finally(() => {
         setBusy(false)
+        setDiscarding(null)
       })
   }
 
@@ -346,9 +348,9 @@ function Filament({
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">
                     {draft.fileName}
-                    {countLabel(draft.quantity) && (
+                    {plateCount(draft) && (
                       <span className="text-primary ml-2 font-mono text-[11px] font-semibold">
-                        {countLabel(draft.quantity)}
+                        {plateCount(draft)}
                       </span>
                     )}
                   </span>
@@ -357,10 +359,10 @@ function Filament({
                     {expiresIn(draft.expiresAt)}
                   </span>
                 </span>
-                <span className="flex gap-3">
+                <span className="flex gap-4">
                   <Link
                     to={`/dashboard/print/slicer/${draft.id}`}
-                    className="text-primary hover:text-base-content font-mono text-[10px] font-semibold tracking-[0.14em]"
+                    className="text-primary hover:text-base-content -mx-2 inline-flex min-h-11 items-center px-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary wide:min-h-6 font-mono text-[10px] font-semibold tracking-[0.14em]"
                   >
                     OPEN
                   </Link>
@@ -368,9 +370,9 @@ function Filament({
                     type="button"
                     disabled={busy}
                     onClick={() => {
-                      discard(draft)
+                      setDiscarding(draft)
                     }}
-                    className="text-faint hover:text-error cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50"
+                    className="text-faint hover:text-error -mx-2 inline-flex min-h-11 items-center px-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary wide:min-h-6 cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50"
                   >
                     DISCARD
                   </button>
@@ -384,6 +386,22 @@ function Filament({
         <p role="status" className="text-error mt-2 text-[12px]">
           {message}
         </p>
+      )}
+
+      {discarding && (
+        <ConfirmDialog
+          title={`Discard ${discarding.fileName}?`}
+          confirmLabel="DISCARD IT"
+          busy={busy}
+          onConfirm={() => {
+            discard(discarding)
+          }}
+          onDismiss={() => {
+            setDiscarding(null)
+          }}
+        >
+          <p>The plate and every model on it are deleted. This can't be undone.</p>
+        </ConfirmDialog>
       )}
     </FormPanel>
   )
@@ -595,15 +613,21 @@ function MyRequests({
 }) {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
+  const [asking, setAsking] = useState<{ act: 'edit' | 'withdraw'; request: ApiPrintRequest } | null>(
+    null,
+  )
   const navigate = useNavigate()
 
   const edit = (request: ApiPrintRequest) => {
     setBusy(true)
     setMessage('')
     postJson(`/print/${request.id}/unsubmit`, {})
-      .then(() => navigate(`/dashboard/print/slicer/${request.id}`))
+      .then(() =>
+        navigate(`/dashboard/print/slicer/${request.id}`, { state: { unsubmitted: true } }),
+      )
       .catch(async (error: unknown) => {
         setMessage(explain(error))
+        setAsking(null)
         await reload()
       })
       .finally(() => {
@@ -612,8 +636,6 @@ function MyRequests({
   }
 
   const withdraw = (request: ApiPrintRequest) => {
-    if (!window.confirm(`Withdraw the request for ${request.fileName}?`)) return
-
     setBusy(true)
     setMessage('')
     deleteJson(`/print/${request.id}`)
@@ -623,6 +645,7 @@ function MyRequests({
       })
       .finally(() => {
         setBusy(false)
+        setAsking(null)
       })
   }
 
@@ -657,8 +680,12 @@ function MyRequests({
                 key={request.id}
                 request={request}
                 busy={busy}
-                onEdit={edit}
-                onWithdraw={withdraw}
+                onEdit={(chosen) => {
+                  setAsking({ act: 'edit', request: chosen })
+                }}
+                onWithdraw={(chosen) => {
+                  setAsking({ act: 'withdraw', request: chosen })
+                }}
               />
             ))}
           </ul>
@@ -667,6 +694,41 @@ function MyRequests({
       <p role="status" className="text-error mt-2 min-h-4 text-[12px]">
         {message}
       </p>
+
+      {asking?.act === 'edit' && (
+        <ConfirmDialog
+          title={`Take ${asking.request.fileName} back to the slicer?`}
+          confirmLabel="EDIT IT"
+          tone="primary"
+          busy={busy}
+          onConfirm={() => {
+            edit(asking.request)
+          }}
+          onDismiss={() => {
+            setAsking(null)
+          }}
+        >
+          <p>
+            It leaves the queue and goes back to being a draft. Slice it and send it again when
+            it's ready.
+          </p>
+        </ConfirmDialog>
+      )}
+      {asking?.act === 'withdraw' && (
+        <ConfirmDialog
+          title={`Withdraw ${asking.request.fileName}?`}
+          confirmLabel="WITHDRAW IT"
+          busy={busy}
+          onConfirm={() => {
+            withdraw(asking.request)
+          }}
+          onDismiss={() => {
+            setAsking(null)
+          }}
+        >
+          <p>It leaves the queue and its files are deleted.</p>
+        </ConfirmDialog>
+      )}
     </FormPanel>
   )
 }
@@ -695,9 +757,9 @@ function RequestRow({
           </span>
           {/* Only when it is not one — "×1" on every row is noise on all of
               them to make the rare one legible. */}
-          {countLabel(request.quantity) && (
+          {plateCount(request) && (
             <span className="text-primary shrink-0 font-mono text-[11px] font-semibold">
-              {countLabel(request.quantity)}
+              {plateCount(request)}
             </span>
           )}
         </span>
@@ -745,7 +807,7 @@ function RequestRow({
       )}
 
       {request.status === 'PENDING' && (
-        <span className="mt-2 flex gap-4">
+        <span className="mt-1 flex gap-4 wide:mt-2">
           {/* A sliced plate can be taken back into the slicer until an officer starts it. */}
           {sliced && (
             <button
@@ -754,7 +816,7 @@ function RequestRow({
               onClick={() => {
                 onEdit(request)
               }}
-              className="text-primary hover:text-base-content cursor-pointer font-mono text-[10px] font-semibold tracking-[0.14em] transition-colors duration-200 disabled:opacity-50"
+              className="text-primary hover:text-base-content -mx-2 inline-flex min-h-11 items-center px-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary wide:min-h-6 cursor-pointer font-mono text-[10px] font-semibold tracking-[0.14em] transition-colors duration-200 disabled:opacity-50"
             >
               EDIT
             </button>
@@ -765,7 +827,7 @@ function RequestRow({
             onClick={() => {
               onWithdraw(request)
             }}
-            className="text-faint hover:text-error cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50"
+            className="text-faint hover:text-error -mx-2 inline-flex min-h-11 items-center px-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary wide:min-h-6 cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50"
           >
             WITHDRAW
           </button>

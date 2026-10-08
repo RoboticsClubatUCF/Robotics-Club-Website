@@ -66,9 +66,9 @@ export function PlateToolbar({
     <div
       role="toolbar"
       aria-label="Plate tools"
-      // Along the bottom on a phone, where a thumb is and where it can scroll on its own; centred
-      // above the plate at `wide`, as in Orca.
-      className="border-rule bg-base-100/90 absolute right-3 bottom-3 left-3 flex items-center gap-0.5 overflow-x-auto border p-1 backdrop-blur-sm wide:right-auto wide:bottom-auto wide:top-3 wide:left-1/2 wide:-translate-x-1/2 wide:overflow-visible"
+      // Along the bottom on a phone, where a thumb is, wrapping to a second row; centred above
+      // the plate at `wide`, as in Orca.
+      className="border-rule bg-base-100/90 absolute right-3 bottom-3 left-3 flex flex-wrap items-center justify-center gap-0.5 border p-1 backdrop-blur-sm wide:right-auto wide:bottom-auto wide:top-3 wide:left-1/2 wide:-translate-x-1/2 wide:flex-nowrap"
     >
       <input
         ref={input}

@@ -932,7 +932,7 @@ printDrafts.post(
     })
 
     const forWhom = sent.project ? `for ${sent.project.title}` : 'personal'
-    const copies = sent.quantity > 1 ? ` ×${String(sent.quantity)}` : ''
+    const copies = sent.quantity > 1 ? ` (${String(sent.quantity)} objects)` : ''
     const preset = sent.preset ? manifest.presets[sent.preset].label : ''
     const grams =
       sent.estimatedGrams === null

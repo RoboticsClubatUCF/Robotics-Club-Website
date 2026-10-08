@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { smallField } from './slicerChrome'
 
 /**
@@ -28,16 +28,29 @@ export function NumberInput({
   disabled?: boolean
   onCommit: (value: number) => void
 }) {
+  const id = useId()
   const [typed, setTyped] = useState<string | null>(null)
   const [wrong, setWrong] = useState(false)
   const places = Math.max(0, Math.ceil(-Math.log10(step)))
   const shown = Number(value.toFixed(places))
 
-  const commit = () => {
+  const valid = (text: string) => {
+    const parsed = Number(text)
+    return text.trim() !== '' && Number.isFinite(parsed) && parsed >= min && parsed <= max
+  }
+
+  const commit = (leaving: boolean) => {
     if (typed === null) return
     const parsed = Number(typed)
-    if (typed.trim() === '' || !Number.isFinite(parsed) || parsed < min || parsed > max) {
-      setWrong(true)
+    if (!valid(typed)) {
+      // On Enter it says why and keeps what was typed; on leaving, the box goes back to what's
+      // saved, so the screen never shows a number the plate doesn't have.
+      if (leaving) {
+        setTyped(null)
+        setWrong(false)
+      } else {
+        setWrong(true)
+      }
       return
     }
     setWrong(false)
@@ -61,20 +74,22 @@ export function NumberInput({
           disabled={disabled}
           aria-label={name}
           aria-invalid={wrong || undefined}
-          title={wrong ? `${String(min)} to ${String(max)}` : undefined}
+          aria-describedby={wrong ? `${id}-range` : undefined}
           onChange={(event) => {
             setTyped(event.target.value)
             setWrong(false)
           }}
-          onBlur={commit}
+          onBlur={() => {
+            commit(true)
+          }}
           onKeyDown={(event) => {
-            if (event.key === 'Enter') commit()
+            if (event.key === 'Enter') commit(false)
             if (event.key === 'Escape') {
               setTyped(null)
               setWrong(false)
             }
           }}
-          className={`${smallField} ${unit ? 'pr-7' : ''} ${wrong ? 'border-error' : ''}`}
+          className={`${smallField} ${unit ? 'pr-7' : ''} ${wrong ? 'border-error' : 'border-rule'}`}
         />
         {unit && (
           <span aria-hidden="true" className="text-faint pointer-events-none absolute right-2 font-mono text-[10px]">
@@ -82,6 +97,11 @@ export function NumberInput({
           </span>
         )}
       </span>
+      {wrong && (
+        <span id={`${id}-range`} role="alert" className="text-error mt-0.5 block font-mono text-[10px]">
+          {min} to {max}
+        </span>
+      )}
     </label>
   )
 }

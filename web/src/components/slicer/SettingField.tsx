@@ -34,7 +34,7 @@ export function SettingField({
 
   return (
     <div
-      className={`grid grid-cols-[minmax(0,1fr)_6.75rem_1.75rem] items-center gap-2 border-l-2 py-1.5 pr-1 pl-2.5 ${
+      className={`grid grid-cols-[minmax(0,1fr)_6.75rem_2.75rem] items-center gap-x-2 border-l-2 py-1.5 pr-1 pl-2.5 wide:grid-cols-[minmax(0,1fr)_6.75rem_1.75rem] ${
         changed ? 'border-primary bg-primary/5' : 'border-transparent'
       }`}
     >
@@ -53,7 +53,7 @@ export function SettingField({
           disabled={disabled}
           title={`Back to the preset's ${displayValue(def, presetValue)}`}
           aria-label={`Reset ${def.label} to the preset's ${displayValue(def, presetValue)}`}
-          className="text-primary hover:text-base-content inline-flex size-7 cursor-pointer items-center justify-center focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-40"
+          className="text-primary hover:text-base-content inline-flex size-11 cursor-pointer items-center justify-center focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-40 wide:size-7"
         >
           <RotateCcw className={iconSize} aria-hidden="true" />
         </button>
@@ -135,11 +135,17 @@ function NumberControl({
   const unit = def.kind === 'percent' ? '%' : def.kind === 'float' ? def.unit : (def.unit ?? '')
   const step = def.kind === 'float' ? def.step : 1
 
-  const commit = () => {
+  const commit = (leaving: boolean) => {
     if (typed === null) return
     const value = checkValue(def, Number(typed))
     if (typed.trim() === '' || value === undefined) {
-      setWrong(true)
+      // Kept with the reason on Enter; put back to what's saved on leaving the field.
+      if (leaving) {
+        setTyped(null)
+        setWrong(false)
+      } else {
+        setWrong(true)
+      }
       return
     }
     setWrong(false)
@@ -164,15 +170,17 @@ function NumberControl({
           setTyped(event.target.value)
           setWrong(false)
         }}
-        onBlur={commit}
+        onBlur={() => {
+          commit(true)
+        }}
         onKeyDown={(event) => {
-          if (event.key === 'Enter') commit()
+          if (event.key === 'Enter') commit(false)
           if (event.key === 'Escape') {
             setTyped(null)
             setWrong(false)
           }
         }}
-        className={`${smallField} ${unit ? 'pr-8' : ''} ${wrong ? 'border-error' : ''}`}
+        className={`${smallField} ${unit ? 'pr-8' : ''} ${wrong ? 'border-error' : 'border-rule'}`}
       />
       {unit && (
         <span aria-hidden="true" className="text-faint pointer-events-none absolute right-2 font-mono text-[11px]">
@@ -183,7 +191,7 @@ function NumberControl({
         <span
           id={`${id}-range`}
           role="alert"
-          className="text-error absolute top-full right-0 z-10 mt-0.5 whitespace-nowrap font-mono text-[10px]"
+          className="text-error bg-base-100 border-error absolute top-full right-0 z-10 mt-0.5 border px-1.5 py-0.5 whitespace-nowrap font-mono text-[10px]"
         >
           {def.min} to {def.max}
         </span>

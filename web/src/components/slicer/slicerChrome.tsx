@@ -4,7 +4,7 @@
  */
 
 const actionBase =
-  'btn h-auto min-h-0 cursor-pointer px-4 py-2 text-[11px] font-semibold tracking-[0.04em] disabled:opacity-50'
+  'btn h-auto min-h-11 cursor-pointer px-4 py-2 text-[11px] font-semibold tracking-[0.04em] disabled:opacity-50 wide:min-h-0'
 
 /** The one gold action in view: SLICE PLATE until the plate is sliced, then PRINT. */
 export const loudButton = `${actionBase} btn-primary btn-cta`
@@ -22,10 +22,12 @@ export const toolButtonOn = 'border-primary bg-primary/10 text-primary'
 export const panelHeading =
   'text-faint font-mono text-[10px] font-medium tracking-[0.16em]'
 
+/** Without a border colour: each field says `border-rule` or `border-error` for itself, since
+    the two in one class list leave the rule winning. */
 export const smallField =
-  'input input-sm border-rule bg-base-200 h-8 min-h-8 w-full px-2 font-mono text-[12px]'
+  'input input-sm bg-base-200 h-11 min-h-11 w-full px-2 font-mono text-[12px] wide:h-8 wide:min-h-8'
 
 export const smallSelect =
-  'select select-sm border-rule bg-base-200 h-8 min-h-8 w-full text-[12px]'
+  'select select-sm border-rule bg-base-200 h-11 min-h-11 w-full text-[12px] wide:h-8 wide:min-h-8'
 
 export const iconSize = 'size-4 shrink-0'

@@ -70,13 +70,15 @@ export function useDraft(id: string | undefined) {
   const [draft, setDraft] = useState<ApiDraft | null>(null)
   const [plate, setPlate] = useState<Plate>(DEFAULT_PLATE)
   const [saving, setSaving] = useState(false)
+  // True from the first unsent edit until the server has it: the debounce counts, so PRINT can't
+  // send a slice the member has just changed the plate under.
+  const [unsaved, setUnsaved] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
 
   // The draft every call goes to: the one in the address, or the one the first upload just made.
   const target = useRef(id)
   const revision = useRef(0)
   const pending = useRef<Edit | null>(null)
-  const inFlight = useRef<Promise<void> | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   /** Takes the server's word for everything, unless edits are still waiting to be sent. */
@@ -112,18 +114,21 @@ export function useDraft(id: string | undefined) {
     void reload()
   }, [id, reload])
 
-  const send = useCallback(async (): Promise<void> => {
+  /** One save. False when it failed and the edit is still waiting. */
+  const send = useCallback(async (): Promise<boolean> => {
     const current = target.current
-    if (!current || !pending.current) return
+    if (!current || !pending.current) return true
     const body = { revision: revision.current, ...pending.current }
     pending.current = null
     setSaving(true)
     try {
       adopt(await patchJson<ApiDraft>(`/print/drafts/${current}`, body))
+      return true
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
         setNotice('This plate was changed in another tab. It has been reloaded as it is now.')
         await reload()
+        return true
       } else {
         // Put the edit back so the next save carries it, under anything made since.
         const { revision: _seen, ...unsent } = body
@@ -134,27 +139,33 @@ export function useDraft(id: string | undefined) {
             ? error.detail
             : `Couldn't save the last change. It'll be tried again with the next one.`,
         )
+        return false
       }
     } finally {
       setSaving(false)
     }
   }, [adopt, reload])
 
-  /** Sends whatever is waiting and resolves once the plate on the server matches this one. */
+  /**
+   * Sends whatever is waiting and resolves once the plate on the server matches this one, or
+   * throws if a save fails, so SLICE and SUBMIT never go out against an older plate. A failed
+   * save is tried again with the next edit, not in a loop.
+   */
+  const inFlight = useRef<Promise<boolean> | null>(null)
   const flush = useCallback(async (): Promise<void> => {
     if (timer.current) {
       clearTimeout(timer.current)
       timer.current = null
     }
     while (inFlight.current || pending.current) {
-      if (inFlight.current) {
-        await inFlight.current
-        continue
-      }
-      inFlight.current = send().finally(() => {
-        inFlight.current = null
-      })
+      const running =
+        inFlight.current ??
+        (inFlight.current = send().finally(() => {
+          inFlight.current = null
+        }))
+      if (!(await running)) throw new Error(`the plate couldn't be saved`)
     }
+    setUnsaved(false)
   }, [send])
 
   const edit = useCallback(
@@ -162,9 +173,12 @@ export function useDraft(id: string | undefined) {
       setPlate((current) => ({ ...current, ...change }))
       if (!target.current) return
       pending.current = { ...pending.current, ...change }
+      setUnsaved(true)
       if (timer.current) clearTimeout(timer.current)
       timer.current = setTimeout(() => {
-        void flush()
+        flush().catch(() => {
+          // The notice says so; the next edit tries again.
+        })
       }, SAVE_DELAY)
     },
     [flush],
@@ -200,7 +214,7 @@ export function useDraft(id: string | undefined) {
   // A tab closed with an edit waiting still sends it.
   useEffect(() => {
     const leave = () => {
-      if (pending.current) void flush()
+      if (pending.current) flush().catch(() => undefined)
     }
     window.addEventListener('pagehide', leave)
     return () => {
@@ -273,6 +287,7 @@ export function useDraft(id: string | undefined) {
     submit,
     discard,
     saving,
+    unsaved,
     notice,
     clearNotice: () => {
       setNotice(null)

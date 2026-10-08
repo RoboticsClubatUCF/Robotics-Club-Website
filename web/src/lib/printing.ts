@@ -202,6 +202,17 @@ export const grams = (value: number): string => `${value} g`
 export const countLabel = (quantity: number): string | null =>
   quantity > 1 ? `×${String(quantity)}` : null
 
+/**
+ * The count beside a request's name. A sliced plate's is objects on the plate, which can be
+ * different models, so "×3" would read as three copies of the one file named.
+ */
+export const plateCount = (request: { quantity: number; preset: PrintPreset | null }): string | null =>
+  request.preset === null
+    ? countLabel(request.quantity)
+    : request.quantity > 1
+      ? `${String(request.quantity)} objects`
+      : null
+
 /** The most of one thing somebody can ask for, matching the server's cap. */
 export const MAX_QUANTITY = 50
 

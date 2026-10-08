@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import { Outlet } from 'react-router'
+import { Outlet, useLocation } from 'react-router'
 import { SiteNav } from './SiteNav'
 import { SiteFooter } from './SiteFooter'
 
@@ -24,6 +24,9 @@ import { SiteFooter } from './SiteFooter'
  */
 export function SiteLayout() {
   const mainRef = useRef<HTMLElement>(null)
+  // The slicer fills the window under the nav, the way a desktop slicer does; a footer below it
+  // made the page scroll and slid the workspace's own bar under the nav.
+  const workspace = useLocation().pathname.startsWith('/dashboard/print/slicer')
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -48,7 +51,7 @@ export function SiteLayout() {
       <main id="main" ref={mainRef} tabIndex={-1} className="flex-1 outline-none">
         <Outlet />
       </main>
-      <SiteFooter />
+      {!workspace && <SiteFooter />}
     </div>
   )
 }

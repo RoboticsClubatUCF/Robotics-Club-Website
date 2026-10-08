@@ -35,11 +35,11 @@ import {
   INFILL_PATTERNS,
   actionPhrase,
   actualSettings,
-  countLabel,
   grams,
   hasInfill,
   isCancel,
   materialsFor,
+  plateCount,
   settingsLine,
   slicedLine,
 } from '../../lib/printing'
@@ -630,9 +630,9 @@ function QueueRow({
           {/* Next to the filename rather than down in the settings line: it
               changes how the job is sliced, so it has to be seen before the
               file is opened. Absent when it is one. */}
-          {countLabel(request.quantity) && (
+          {plateCount(request) && (
             <span className="text-primary shrink-0 font-mono text-[12px] font-semibold">
-              {countLabel(request.quantity)}
+              {plateCount(request)}
             </span>
           )}
         </span>

@@ -67,13 +67,20 @@ function cssColor(name: string, fallback: string): { color: Color; alpha: number
 
 export function themeColors(): ThemeColors {
   const grid = cssColor('--color-rule', '#333333')
+  const background = cssColor('--color-base-100', '#0b0b0b').color
+  // `dim` and `faint` are the ink at partial opacity; three.js has no alpha on a line or a solid,
+  // so they're mixed over the page colour here, or both come out as full ink.
+  const over = (name: string, fallback: string) => {
+    const { color, alpha } = cssColor(name, fallback)
+    return background.clone().lerp(color, alpha)
+  }
   return {
-    background: cssColor('--color-base-100', '#0b0b0b').color,
+    background,
     bed: cssColor('--color-base-200', '#101010').color,
     grid: grid.color,
     gridAlpha: Math.max(0.15, grid.alpha),
-    edge: cssColor('--color-faint', '#777777').color,
-    model: cssColor('--color-dim', '#999999').color,
+    edge: over('--color-faint', '#777777'),
+    model: over('--color-dim', '#999999'),
     selected: cssColor('--color-primary', '#ffc904').color,
     problem: cssColor('--color-error', '#f2604a').color,
     noGo: cssColor('--color-warning', '#f0a83b').color,
@@ -81,11 +88,11 @@ export function themeColors(): ThemeColors {
     roles: {
       outerWall: cssColor('--color-primary', '#ffc904').color,
       // Not warning: in the light theme it's within a shade of the gold.
-      innerWall: cssColor('--color-dim', '#999999').color,
+      innerWall: over('--color-dim', '#999999'),
       sparseInfill: cssColor('--color-info', '#4aa8f0').color,
       solidInfill: cssColor('--color-error', '#f2604a').color,
       support: cssColor('--color-success', '#3ec27a').color,
-      other: cssColor('--color-faint', '#777777').color,
+      other: cssColor('--color-info', '#4aa8f0').color.clone().lerp(background, 0.6),
     },
   }
 }
@@ -206,6 +213,12 @@ export function createStage(canvas: HTMLCanvasElement, host: HTMLElement, bed: B
   orbit.screenSpacePanning = true
   frameBed(camera, orbit, bed)
 
+  // Until somebody moves the camera, it backs off on a narrow screen so the whole bed fits across.
+  let framed = true
+  orbit.addEventListener('start', () => {
+    framed = false
+  })
+
   let frame = 0
   const render = () => {
     if (frame) return
@@ -222,6 +235,12 @@ export function createStage(canvas: HTMLCanvasElement, host: HTMLElement, bed: B
     renderer.setSize(clientWidth, clientHeight, false)
     camera.aspect = clientWidth / clientHeight
     camera.updateProjectionMatrix()
+    if (framed) {
+      frameBed(camera, orbit, bed)
+      const back = Math.max(1, 1.25 / camera.aspect)
+      camera.position.sub(orbit.target).multiplyScalar(back).add(orbit.target)
+      orbit.update()
+    }
     render()
   }
   const observer = new ResizeObserver(resize)

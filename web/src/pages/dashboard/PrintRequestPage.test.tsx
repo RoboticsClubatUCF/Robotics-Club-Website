@@ -281,16 +281,17 @@ describe('PrintRequestPage', () => {
       }),
     )
     vi.stubGlobal('fetch', fetchStub)
-    vi.stubGlobal('confirm', vi.fn(() => true))
 
     renderPage()
 
     expect(await screen.findByText('rover-bracket.stl')).toBeInTheDocument()
-    expect(screen.getByText('×3')).toBeInTheDocument()
+    expect(screen.getByText('3 objects')).toBeInTheDocument()
     expect(screen.getByText(/PETG · Q-S · Sliced · Goes in 30 hours/i)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'OPEN' })).toHaveAttribute('href', '/dashboard/print/slicer/d1')
 
     fireEvent.click(screen.getByRole('button', { name: 'DISCARD' }))
+    expect(fetchStub.mock.calls.some((call) => call[1]?.method === 'DELETE')).toBe(false)
+    fireEvent.click(await screen.findByRole('button', { name: 'DISCARD IT' }))
     await waitFor(() => {
       expect(
         fetchStub.mock.calls.some(
@@ -341,6 +342,7 @@ describe('PrintRequestPage', () => {
     expect(screen.getByText(/About 37 g, 1 h 1 min/)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'EDIT' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'EDIT IT' }))
     await waitFor(() => {
       expect(
         fetchStub.mock.calls.some(
