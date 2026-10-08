@@ -10,6 +10,7 @@ import type {
   ApiSlicerWorkspace,
 } from '../../lib/api/api'
 import { arrange, freeSpot } from '../../lib/slicer/arrange'
+import { restingFaces } from '../../lib/slicer/faces'
 import { primeMesh, useMeshes } from '../../lib/slicer/meshes'
 import { autoOrient, layFlat } from '../../lib/slicer/orient'
 import { boxOn, fitOn, sizeOf } from '../../lib/slicer/plate'
@@ -360,8 +361,22 @@ export function SlicerWorkspace({
   const flatten = (id: string, normal: [number, number, number]) => {
     const object = objects.find((o) => o.id === id)
     if (!object) return
+    // The mode stays, as Orca's does, so another face can be tried.
     change(id, canonicalQuat(layFlat(object, normal)))
-    setMode('move')
+  }
+
+  /** What LAY ON FACE is waiting for: an object, a face, or a turn it can't make. */
+  const flatHint = () => {
+    if (selected.length === 0) return 'Click or tap an object to see the faces it can lie on.'
+    const faces = objects
+      .filter((object) => selected.includes(object.id))
+      .reduce((sum, object) => {
+        const positions = meshes.get(object.modelId)
+        return sum + (positions ? restingFaces(positions).length : 0)
+      }, 0)
+    return faces === 0
+      ? 'No flat face to lie on. Turn it with ROTATE instead.'
+      : 'Click or tap a highlighted face to put it down on the bed.'
   }
 
   const runSlice = async () => {
@@ -641,8 +656,8 @@ export function SlicerWorkspace({
                 />
               )}
               {mode === 'flat' && editable && (
-                <p className="border-rule bg-base-100/90 absolute top-3 right-3 left-16 border px-3 py-1.5 text-[12px] wide:top-auto wide:right-auto wide:bottom-3 wide:left-1/2 wide:-translate-x-1/2">
-                  Click or tap a face of the selected object to put it on the bed.
+                <p className="border-rule bg-base-100/90 absolute top-16 right-3 left-3 border px-3 py-1.5 text-[12px] wide:top-auto wide:right-auto wide:bottom-3 wide:left-1/2 wide:-translate-x-1/2">
+                  {flatHint()}
                 </p>
               )}
             </>
