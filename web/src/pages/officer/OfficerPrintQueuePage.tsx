@@ -25,6 +25,8 @@ import { FilterChips } from '../../components/shared/FilterChips'
 import { STATUS_TONE, dateAndTime, fileSize } from '../../lib/format/formats'
 import type { StatusTone } from '../../lib/format/formats'
 import { storedFileUrl } from '../../lib/media/storedFiles'
+import { apiBaseUrl } from '../../lib/api/api'
+import { chargedGrams, duration } from '../../lib/slicer/estimate'
 import { ConfirmDialog } from '../../components/shared/ConfirmDialog'
 import { ErrorDialog } from '../../components/shared/ErrorDialog'
 import {
@@ -39,6 +41,7 @@ import {
   isCancel,
   materialsFor,
   settingsLine,
+  slicedLine,
 } from '../../lib/printing'
 
 /**
@@ -260,11 +263,13 @@ export function OfficerPrintQueuePage() {
     // Only when it actually differs. Sending the ask back unchanged would fill
     // the `printed*` columns on every job and lose "was this changed?".
     const asked = actualSettings(request)
+    // A plate its owner sliced is their spec; a change at the printer goes in the note.
     const corrected =
-      draft.process !== asked.process ||
+      request.preset === null &&
+      (draft.process !== asked.process ||
       draft.material !== asked.material ||
       draft.infillPattern !== asked.infillPattern ||
-      draft.infillDensity !== asked.infillDensity
+      draft.infillDensity !== asked.infillDensity)
 
     setBusy(true)
     setPending(null)
@@ -318,7 +323,10 @@ export function OfficerPrintQueuePage() {
     draft: Draft,
     { pressed, grams }: Origin,
   ) => {
-    const gramsUsed = draft.gramsUsed.trim() === '' ? null : Number(draft.gramsUsed)
+    const typed = draft.gramsUsed.trim() === '' ? null : Number(draft.gramsUsed)
+    // Left empty on a sliced plate, the server charges Orca's estimate; so does this check.
+    const gramsUsed =
+      typed ?? (request.estimatedGrams === null ? null : chargedGrams(request.estimatedGrams))
 
     if (status === 'DONE' && request.allowance && gramsUsed === null) {
       // Said here rather than let through to the 400, because the officer is
@@ -530,7 +538,10 @@ function SettleDialog({
       )}
 
       <p>
-        This deletes the uploaded model. The record of the request stays.
+        {request.preset === null
+          ? 'This deletes the uploaded model.'
+          : 'This deletes the models and the sliced file.'}{' '}
+        The record of the request stays.
       </p>
 
       {!done && (
@@ -568,7 +579,14 @@ function QueueRow({
   // truth and the `printed*` columns stay null.
   const [draft, setDraft] = useState<Draft>({
     officerNote: request.officerNote ?? '',
-    gramsUsed: request.gramsUsed === null ? '' : String(request.gramsUsed),
+    // A sliced plate's box starts on Orca's estimate, rounded up: MARK DONE with nothing typed
+    // charges exactly that, and the officer can still change it.
+    gramsUsed:
+      request.gramsUsed !== null
+        ? String(request.gramsUsed)
+        : request.estimatedGrams !== null
+          ? String(chargedGrams(request.estimatedGrams))
+          : '',
     process: asked.process,
     material: asked.material,
     infillPattern: asked.infillPattern,
@@ -589,7 +607,13 @@ function QueueRow({
 
   const label = STATUS_LABEL[request.status]
   const settled = request.status === 'DONE' || request.status === 'REJECTED'
-  const typed = draft.gramsUsed.trim() === '' ? null : Number(draft.gramsUsed)
+  const sliced = request.preset !== null
+  const typed =
+    draft.gramsUsed.trim() === ''
+      ? request.estimatedGrams === null
+        ? null
+        : chargedGrams(request.estimatedGrams)
+      : Number(draft.gramsUsed)
   const over =
     request.allowance && typed !== null
       ? typed - request.allowance.remainingGrams
@@ -623,11 +647,19 @@ function QueueRow({
         {request.user.fullName}
         {request.user.discordUsername && ` · @${request.user.discordUsername}`}
         {' · '}
-        {fileSize(request.fileSize)} · {dateAndTime(request.createdAt)}
+        {fileSize(request.fileSize)} · {dateAndTime(request.submittedAt ?? request.createdAt)}
       </p>
 
       <p className="text-dim mt-1.5 font-mono text-[10px] font-medium tracking-[0.12em] uppercase">
-        {settingsLine(request)}
+        {sliced ? slicedLine(request) : settingsLine(request)}
+        {sliced && request.estimatedGrams !== null && (
+          <>
+            {' · '}
+            <span className="text-base-content">
+              {duration(request.estimatedSeconds)}, {request.estimatedGrams.toFixed(1)} g
+            </span>
+          </>
+        )}
         {' · '}
         {/* The word that decides whether anything is deducted. Spelled out
             rather than left as an absence. */}
@@ -669,7 +701,7 @@ function QueueRow({
           {asked.changed && ` Printed as ${settingsLine(asked)}.`}{' '}
           {/* Said plainly, because "where is my file" is the question this
               answers before it is asked. */}
-          The model was deleted with it.
+          {sliced ? 'The models and the sliced file were deleted with it.' : 'The model was deleted with it.'}
           {request.officerNote && ` — ${request.officerNote}`}
         </p>
       ) : (
@@ -682,6 +714,8 @@ function QueueRow({
           )}
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
+            {!sliced && (
+              <>
             <span className="text-faint font-mono text-[10px] tracking-[0.14em]">
               PRINTED AS
             </span>
@@ -764,6 +798,9 @@ function QueueRow({
               </>
             )}
 
+              </>
+            )}
+
             <label className="flex items-center gap-1.5">
               <span className="text-faint font-mono text-[10px] tracking-[0.14em]">
                 USED
@@ -784,6 +821,12 @@ function QueueRow({
                 disabled={busy}
               />
             </label>
+            {/* The exact figure, beside the rounded one in the box. */}
+            {request.estimatedGrams !== null && (
+              <span className="text-faint font-mono text-[10px] tracking-[0.12em]">
+                ORCA: {request.estimatedGrams.toFixed(1)} G
+              </span>
+            )}
           </div>
 
           {/* Before the press, not after the 409. The server checks it again
@@ -797,13 +840,23 @@ function QueueRow({
           )}
 
           <div className="mt-3 flex flex-wrap items-center gap-2.5">
-            {request.fileId && (
+            {sliced && request.sliceFile ? (
+              // The plate as its owner sliced it, profiles and settings inside, for desktop Orca.
               <a
-                href={storedFileUrl(request.fileId)}
+                href={`${apiBaseUrl}/api/officer/print/${request.id}/slice-file`}
                 className={`${quietButton} shrink-0`}
               >
-                DOWNLOAD
+                DOWNLOAD .3MF
               </a>
+            ) : (
+              request.fileId && (
+                <a
+                  href={storedFileUrl(request.fileId)}
+                  className={`${quietButton} shrink-0`}
+                >
+                  DOWNLOAD
+                </a>
+              )
             )}
 
             <input

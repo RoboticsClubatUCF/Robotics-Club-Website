@@ -60,11 +60,17 @@ const item = (over: Partial<ApiPrintQueueItem> = {}): ApiPrintQueueItem => ({
   printedInfillDensity: null,
   gramsUsed: null,
   project: null,
+  preset: null,
+  overrides: null,
+  estimatedGrams: null,
+  estimatedSeconds: null,
+  submittedAt: null,
   createdAt: '2026-09-01T12:00:00.000Z',
   updatedAt: '2026-09-01T12:00:00.000Z',
   user: { fullName: 'Rowan Chen', email: null, discordUsername: null },
   decidedBy: null,
   allowance: allowance(),
+  sliceFile: null,
   ...over,
 })
 
@@ -940,5 +946,76 @@ describe('the gate', () => {
     expect(
       await screen.findByText(/this desk belongs to the officers/i),
     ).toBeInTheDocument()
+  })
+})
+
+/**
+ * A plate its owner sliced: the officer downloads the .3mf, and the grams come from Orca.
+ *
+ * The box starts on the estimate rounded up, so MARK DONE with nothing typed charges exactly what
+ * the server would; the officer can still change it. The settings are the owner's spec, so the
+ * correction controls aren't there to send a `printed` the server would refuse.
+ */
+describe('a sliced plate', () => {
+  const plate = (over: Partial<ApiPrintQueueItem> = {}) =>
+    item({
+      preset: 'QS',
+      overrides: { wall_loops: 4 },
+      infillPattern: null,
+      infillDensity: null,
+      estimatedGrams: 36.2,
+      estimatedSeconds: 8_040,
+      sliceFile: { layers: 100, filamentMeters: 12.1 },
+      fileId: null,
+      status: 'PRINTING',
+      startedAt: '2026-09-01T13:00:00.000Z',
+      ...over,
+    })
+
+  it('offers the .3mf, its settings and Orca’s estimate, and no corrections', async () => {
+    vi.stubGlobal('fetch', stubFetch({ '/officer/print-queue': [plate()] }))
+    renderPage()
+    await screen.findByText('bracket.stl')
+
+    expect(screen.getByRole('link', { name: 'DOWNLOAD .3MF' })).toHaveAttribute(
+      'href',
+      expect.stringContaining('/api/officer/print/r1/slice-file'),
+    )
+    expect(screen.getByText(/PLA · Q-S · Walls 4/)).toBeInTheDocument()
+    expect(screen.getByText('2 h 14 min, 36.2 g')).toBeInTheDocument()
+    expect(screen.queryByText('PRINTED AS')).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/grams used for bracket\.stl/i)).toHaveValue(37)
+    expect(screen.getByText('ORCA: 36.2 G')).toBeInTheDocument()
+  })
+
+  it('charges the rounded-up estimate when MARK DONE is pressed with nothing changed', async () => {
+    const stub = stubFetch({ '/officer/print-queue': [plate()], '/officer/print/r1': plate({ status: 'DONE' }) })
+    vi.stubGlobal('fetch', stub)
+    renderPage()
+    await screen.findByText('bracket.stl')
+
+    press(/^mark done$/i)
+    agree(/mark done/i)
+
+    await waitFor(() => {
+      expect(sent(stub)).toMatchObject({ status: 'DONE', gramsUsed: 37 })
+    })
+    expect(sent(stub)).not.toHaveProperty('printed')
+  })
+
+  it('takes the officer’s figure instead, and lets an empty box mean the estimate', async () => {
+    const stub = stubFetch({ '/officer/print-queue': [plate()], '/officer/print/r1': plate({ status: 'DONE' }) })
+    vi.stubGlobal('fetch', stub)
+    renderPage()
+    await screen.findByText('bracket.stl')
+
+    typeGrams('')
+    press(/^mark done$/i)
+    // No "how much did it take?" refusal: the server charges the estimate.
+    agree(/mark done/i)
+    await waitFor(() => {
+      expect(sent(stub)).toMatchObject({ status: 'DONE' })
+    })
+    expect(sent(stub)).not.toHaveProperty('gramsUsed')
   })
 })

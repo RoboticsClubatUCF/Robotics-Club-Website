@@ -51,6 +51,11 @@ const request = (over: Partial<ApiPrintRequest> = {}): ApiPrintRequest => ({
   printedInfillDensity: null,
   gramsUsed: null,
   project: null,
+  preset: null,
+  overrides: null,
+  estimatedGrams: null,
+  estimatedSeconds: null,
+  submittedAt: null,
   createdAt: '2026-08-01T12:00:00.000Z',
   updatedAt: '2026-08-01T12:00:00.000Z',
   ...over,
@@ -77,8 +82,17 @@ const allowance = (
 const pageData = (over: Record<string, unknown> = {}) => ({
   '/me/print-requests': [],
   '/me/print-allowance': allowance(),
+  '/print/drafts': [],
   ...over,
 })
+
+/** The page links into the slicer, so it needs a router around it. */
+const renderPage = () =>
+  render(
+    <MemoryRouter>
+      <PrintRequestPage />
+    </MemoryRouter>,
+  )
 
 /** A file the browser would hand the form. Contents are never read here. */
 const modelFile = (name: string) =>
@@ -127,7 +141,7 @@ describe('PrintRequestPage', () => {
       ),
     )
 
-    render(<PrintRequestPage />)
+    renderPage()
 
     expect(await screen.findByText('bracket.stl')).toBeInTheDocument()
     expect(screen.getByText('gear.step')).toBeInTheDocument()
@@ -138,7 +152,7 @@ describe('PrintRequestPage', () => {
   it('says so when there is nothing yet rather than rendering an empty box', async () => {
     vi.stubGlobal('fetch', stubFetch(pageData()))
 
-    render(<PrintRequestPage />)
+    renderPage()
 
     expect(await screen.findByText(/nothing yet/i)).toBeInTheDocument()
   })
@@ -147,7 +161,7 @@ describe('PrintRequestPage', () => {
     const fetchStub = stubFetch(pageData())
     vi.stubGlobal('fetch', fetchStub)
 
-    render(<PrintRequestPage />)
+    renderPage()
     await screen.findByText(/nothing yet/i)
 
     const before = fetchStub.mock.calls.length
@@ -163,13 +177,13 @@ describe('PrintRequestPage', () => {
     const fetchStub = stubFetch(pageData({ '/print': request() }))
     vi.stubGlobal('fetch', fetchStub)
 
-    render(<PrintRequestPage />)
+    renderPage()
     await screen.findByText(/nothing yet/i)
 
     attach('bracket.stl')
     send()
 
-    expect(await screen.findByText(/it's in your list below/i)).toBeInTheDocument()
+    expect(await screen.findByText(/it's in your list/i)).toBeInTheDocument()
 
     const upload = fetchStub.mock.calls.find((call) => call[1]?.method === 'POST')!
     expect(urlOf(upload[0])).toContain('/print')
@@ -179,15 +193,12 @@ describe('PrintRequestPage', () => {
     expect(bodyOf(upload[1])).toBeUndefined()
     expect(upload[1]?.headers).toBeUndefined()
 
-    // The settings ride along with it, defaulted to the everyday print —
-    // 15% infill, one of it.
-    expect(sentFields(fetchStub)).toMatchObject({
-      process: 'FDM',
-      material: 'PLA',
-      infillPattern: 'GRID',
-      infillDensity: '15',
-      quantity: '1',
-    })
+    // A resin print, the one kind this form takes, and no infill fields at all: the server
+    // refuses a resin request carrying them.
+    const fields = sentFields(fetchStub)
+    expect(fields).toMatchObject({ process: 'SLA', material: 'ABS_LIKE_RESIN', quantity: '1' })
+    expect(fields.infillPattern).toBeUndefined()
+    expect(fields.infillDensity).toBeUndefined()
   })
 
   /**
@@ -204,14 +215,14 @@ describe('PrintRequestPage', () => {
     )
     vi.stubGlobal('fetch', fetchStub)
 
-    render(<PrintRequestPage />)
+    renderPage()
     await screen.findByText('bracket.stl')
 
     fireEvent.change(screen.getByLabelText(/how many/i), { target: { value: '4' } })
     attach('bracket.stl')
     send()
 
-    await screen.findByText(/it's in your list below/i)
+    await screen.findByText(/it's in your list/i)
     expect(sentFields(fetchStub).quantity).toBe('4')
     expect(screen.getByText('×4')).toBeInTheDocument()
   })
@@ -221,7 +232,7 @@ describe('PrintRequestPage', () => {
   it('does not label a request for a single item', async () => {
     vi.stubGlobal('fetch', stubFetch(pageData({ '/me/print-requests': [request()] })))
 
-    render(<PrintRequestPage />)
+    renderPage()
     await screen.findByText('bracket.stl')
 
     expect(screen.queryByText('×1')).not.toBeInTheDocument()
@@ -230,63 +241,119 @@ describe('PrintRequestPage', () => {
   it('offers special requests as prose, now the fields have taken the rest', async () => {
     vi.stubGlobal('fetch', stubFetch(pageData()))
 
-    render(<PrintRequestPage />)
+    renderPage()
     await screen.findByText(/nothing yet/i)
 
     expect(screen.getByLabelText(/special requests/i)).toBeInTheDocument()
   })
 
-  /**
-   * The pairing rule as the member meets it. Resin has one material and no infill at all, so
-   * choosing it has to take those controls away — and, more importantly, take the fields out of
-   * the body, since the server refuses a resin request carrying infill.
-   */
-  it('drops the infill controls and fields when the resin printer is chosen', async () => {
-    const fetchStub = stubFetch(pageData({ '/print': request() }))
-    vi.stubGlobal('fetch', fetchStub)
-
-    render(<PrintRequestPage />)
-    await screen.findByText(/nothing yet/i)
-
-    expect(screen.getByLabelText(/infill pattern/i)).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('radio', { name: /resin/i }))
-
-    expect(screen.queryByLabelText(/infill pattern/i)).not.toBeInTheDocument()
-    expect(screen.queryByLabelText(/infill density/i)).not.toBeInTheDocument()
-
-    attach('bracket.stl')
-    send()
-    await screen.findByText(/it's in your list below/i)
-
-    const fields = sentFields(fetchStub)
-    expect(fields).toMatchObject({ process: 'SLA', material: 'ABS_LIKE_RESIN' })
-    expect(fields.infillPattern).toBeUndefined()
-    expect(fields.infillDensity).toBeUndefined()
-  })
-
-  it('offers only the materials the chosen printer takes', async () => {
+  /** Filament goes through the slicer, so the form has no printer choice or infill to offer. */
+  it('takes resin only, and sends filament to the slicer', async () => {
     vi.stubGlobal('fetch', stubFetch(pageData()))
 
-    render(<PrintRequestPage />)
+    renderPage()
     await screen.findByText(/nothing yet/i)
 
-    const material = () => screen.getByLabelText(/^material$/i)
-    expect([...(material() as HTMLSelectElement).options].map((o) => o.value)).toEqual(
-      ['PLA', 'PETG'],
+    expect(screen.queryByRole('radio', { name: /resin/i })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/infill pattern/i)).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /open the slicer/i })).toHaveAttribute(
+      'href',
+      '/dashboard/print/slicer',
     )
+  })
 
-    fireEvent.click(screen.getByRole('radio', { name: /resin/i }))
-
-    expect([...(material() as HTMLSelectElement).options].map((o) => o.value)).toEqual(
-      ['ABS_LIKE_RESIN'],
+  it('lists drafts with when they go, and opens or discards one', async () => {
+    const fetchStub = stubFetch(
+      pageData({
+        '/print/drafts': [
+          {
+            id: 'd1',
+            fileName: 'rover-bracket.stl',
+            quantity: 3,
+            material: 'PETG',
+            preset: 'QS',
+            createdAt: '2026-08-01T12:00:00.000Z',
+            draftActiveAt: '2026-08-01T12:00:00.000Z',
+            sliceState: 'READY',
+            expiresAt: new Date(Date.now() + 30 * 3_600_000).toISOString(),
+          },
+        ],
+      }),
     )
+    vi.stubGlobal('fetch', fetchStub)
+    vi.stubGlobal('confirm', vi.fn(() => true))
+
+    renderPage()
+
+    expect(await screen.findByText('rover-bracket.stl')).toBeInTheDocument()
+    expect(screen.getByText('×3')).toBeInTheDocument()
+    expect(screen.getByText(/PETG · Q-S · Sliced · Goes in 30 hours/i)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'OPEN' })).toHaveAttribute('href', '/dashboard/print/slicer/d1')
+
+    fireEvent.click(screen.getByRole('button', { name: 'DISCARD' }))
+    await waitFor(() => {
+      expect(
+        fetchStub.mock.calls.some(
+          (call) => call[1]?.method === 'DELETE' && urlOf(call[0]).includes('/print/drafts/d1'),
+        ),
+      ).toBe(true)
+    })
+  })
+
+  it('says so when the drafts could not be loaded', async () => {
+    const routes = pageData()
+    const fetchStub = vi.fn((input: string | URL | Request, init?: RequestInit) =>
+      urlOf(input).includes('/print/drafts')
+        ? Promise.resolve(new Response('{}', { status: 500 }))
+        : stubFetch(routes)(input, init),
+    )
+    vi.stubGlobal('fetch', fetchStub)
+
+    renderPage()
+
+    expect(await screen.findByText(/couldn't load your drafts/i)).toBeInTheDocument()
+  })
+
+  /** A sliced plate reads as its preset and what was changed, with Orca's estimate. */
+  it('shows a sliced plate with its settings and estimate, and offers EDIT while it waits', async () => {
+    const fetchStub = stubFetch(
+      pageData({
+        '/me/print-requests': [
+          request({
+            id: 'p1',
+            fileName: 'plate.stl',
+            preset: 'Q',
+            overrides: { wall_loops: 4 },
+            estimatedGrams: 36.2,
+            estimatedSeconds: 3_660,
+            infillPattern: null,
+            infillDensity: null,
+          }),
+        ],
+        '/unsubmit': { id: 'p1', status: 'DRAFT' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchStub)
+
+    renderPage()
+
+    expect(await screen.findByText(/PLA · Q · Walls 4/)).toBeInTheDocument()
+    expect(screen.getByText(/About 37 g, 1 h 1 min/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'EDIT' }))
+    await waitFor(() => {
+      expect(
+        fetchStub.mock.calls.some(
+          (call) => call[1]?.method === 'POST' && urlOf(call[0]).includes('/print/p1/unsubmit'),
+        ),
+      ).toBe(true)
+    })
   })
 
   it('explains a rate limit differently from a rejection', async () => {
     vi.stubGlobal('fetch', stubFetchStatus(429, {}))
 
-    render(<PrintRequestPage />)
+    renderPage()
     await waitFor(() => {
       expect(screen.getByText(/couldn't load your requests/i)).toBeInTheDocument()
     })
@@ -305,7 +372,7 @@ describe('PrintRequestPage', () => {
       }),
     )
 
-    render(<PrintRequestPage />)
+    renderPage()
     attach('bracket.stl')
     send()
 
@@ -318,7 +385,7 @@ describe('PrintRequestPage', () => {
     vi.stubGlobal('fetch', stubFetchNetworkError())
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
 
-    render(<PrintRequestPage />)
+    renderPage()
     attach('bracket.stl')
     send()
 
@@ -347,7 +414,7 @@ describe('PrintRequestPage', () => {
       ),
     )
 
-    render(<PrintRequestPage />)
+    renderPage()
 
     expect(await screen.findByText('bracket.stl')).toBeInTheDocument()
     expect(screen.getByText('DONE')).toBeInTheDocument()
@@ -361,7 +428,7 @@ describe('PrintRequestPage', () => {
   it('offers withdraw only while a request is still waiting', async () => {
     vi.stubGlobal('fetch', stubFetch(pageData({ '/me/print-requests': [request()] })))
 
-    render(<PrintRequestPage />)
+    renderPage()
     await screen.findByText('bracket.stl')
 
     expect(screen.getByRole('button', { name: /withdraw/i })).toBeInTheDocument()
@@ -386,7 +453,7 @@ describe('PrintRequestPage', () => {
       ),
     )
 
-    render(<PrintRequestPage />)
+    renderPage()
 
     expect(await screen.findByText(/asked for .*PLA/i)).toBeInTheDocument()
   })
@@ -407,7 +474,7 @@ describe('the material allowance', () => {
       ),
     )
 
-    render(<PrintRequestPage />)
+    renderPage()
 
     expect(await screen.findByText(/320 g of 500 g used/i)).toBeInTheDocument()
     // Exact: the "of 500 g used" line above contains other gram figures, and a
@@ -431,7 +498,7 @@ describe('the material allowance', () => {
       ),
     )
 
-    render(<PrintRequestPage />)
+    renderPage()
 
     expect(await screen.findByText(/past your allowance/i)).toBeInTheDocument()
     // The overage as a positive number: "-20 g left" would read as a bug.
@@ -441,7 +508,7 @@ describe('the material allowance', () => {
   it('names the inappropriate-print rule before anything is uploaded', async () => {
     vi.stubGlobal('fetch', stubFetch(pageData()))
 
-    render(<PrintRequestPage />)
+    renderPage()
 
     expect(
       await screen.findByText(/officers decline anything against club/i),
@@ -584,7 +651,7 @@ describe('when dues have lapsed', () => {
     fireEvent.change(picker, { target: { value: 'p1' } })
     attach('bracket.stl')
     send()
-    await screen.findByText(/it's in your list below/i)
+    await screen.findByText(/it's in your list/i)
 
     expect(sentFields(fetchStub).projectId).toBe('p1')
   })

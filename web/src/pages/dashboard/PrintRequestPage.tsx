@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { useOutletContext } from 'react-router'
+import { Link, useLocation, useNavigate, useOutletContext } from 'react-router'
 import { DuesLocked } from '../../components/dashboard/DuesLocked'
 import { ClaimFree } from '../../components/dashboard/ClaimFree'
 import { MembersOnly } from '../../components/dashboard/MembersOnly'
@@ -11,37 +11,37 @@ import {
   FormPanel,
   fieldClass,
   labelClass,
+  secondaryClass,
   submitClass,
 } from '../../components/shared/formChrome'
-import { ApiError, deleteJson, getJson, postForm } from '../../lib/api/api'
+import { ApiError, deleteJson, getJson, postForm, postJson } from '../../lib/api/api'
 import type {
+  ApiDraftSummary,
   ApiMyProject,
   ApiPrintAllowance,
   ApiPrintRequest,
-  PrintProcess,
   PrintRequestStatus,
 } from '../../lib/api/api'
 import { STATUS_TONE, fileSize, shortDate } from '../../lib/format/formats'
 import type { StatusTone } from '../../lib/format/formats'
 import {
-  DEFAULT_INFILL_DENSITY,
-  DEFAULT_SETTINGS,
-  INFILL_DENSITIES,
-  INFILL_PATTERNS,
   MAX_QUANTITY,
-  PROCESSES,
+  PRESET_LABEL,
   actualSettings,
   countLabel,
   grams,
-  hasInfill,
   materialsFor,
   settingsLine,
+  slicedLine,
 } from '../../lib/printing'
+import { chargedGrams, duration } from '../../lib/slicer/estimate'
 
 /**
- * The 3D print request form, and the list of what you've asked for.
+ * 3D printing: filament plates you slice yourself, resin prints an officer slices, and the list of
+ * what you've asked for.
  *
- * Three club rules shape this page.
+ * Filament goes through the slicer (`/dashboard/print/slicer`), so this page offers it and lists
+ * the drafts waiting there; the form below takes resin only. Three club rules shape the rest.
  *
  * The file rule: the printers take STL and STEP and nothing else, so the file input says so, this
  * page checks it before uploading, and the server checks the bytes themselves — an extension is a
@@ -125,15 +125,26 @@ function PrintRequestForm({
     'loading',
   )
   const [allowance, setAllowance] = useState<ApiPrintAllowance | null>(null)
+  const [drafts, setDrafts] = useState<ApiDraftSummary[] | null | 'loading'>('loading')
+  // A plate just sent from the slicer, named on arrival.
+  const sent = (useLocation().state as { sent?: string } | null)?.sent
 
   const load = useCallback(async () => {
     // Settled together: submitting a print changes the list, and settling one
     // changes the balance, so a page that reloaded only the list would show a
     // finished job beside a balance that had not noticed it.
-    const [list, balance] = await Promise.allSettled([
+    const [list, balance, mine] = await Promise.allSettled([
       getJson<ApiPrintRequest[]>('/me/print-requests'),
       getJson<ApiPrintAllowance>('/me/print-allowance'),
+      getJson<ApiDraftSummary[]>('/print/drafts'),
     ])
+
+    if (mine.status === 'fulfilled') {
+      setDrafts(mine.value)
+    } else {
+      console.error(mine.reason)
+      setDrafts(null)
+    }
 
     if (list.status === 'fulfilled') {
       setRequests(list.value)
@@ -160,9 +171,16 @@ function PrintRequestForm({
       <FormHeading>Ask for a print.</FormHeading>
 
       <p className="text-dim mb-6 max-w-[42rem] text-sm leading-[1.7] text-pretty">
-        An officer slices it, prints it and records what it took. Ask early —
-        the club's projects are printing too.
+        Slice filament prints yourself and an officer prints the file. Resin
+        prints an officer slices for you. Ask early — the club's projects are
+        printing too.
       </p>
+
+      {sent && (
+        <p role="status" className="text-success mb-5 text-sm">
+          Sent {sent}. It's in your list.
+        </p>
+      )}
 
       {/* Two halves wherever there's room: what you're asking for on one side, what you've already
           asked for on the other. They're the two things somebody opens this page to do and neither
@@ -174,6 +192,7 @@ function PrintRequestForm({
       <div className="grid-fluid items-start gap-5 [--col-min:32rem]">
         <div className="space-y-5">
           <Allowance allowance={allowance} />
+          <Filament drafts={drafts} reload={load} />
           <RequestForm projects={mine} onSent={load} />
         </div>
 
@@ -247,6 +266,130 @@ function Allowance({ allowance }: { allowance: ApiPrintAllowance | null }) {
   )
 }
 
+/** "in 2 days", "in 5 hours", "within the hour". */
+function expiresIn(iso: string, now: number = Date.now()): string {
+  const hours = (new Date(iso).getTime() - now) / 3_600_000
+  if (hours < 1) return 'within the hour'
+  if (hours < 48) return `in ${String(Math.round(hours))} hours`
+  return `in ${String(Math.round(hours / 24))} days`
+}
+
+const SLICE_STATE: Record<NonNullable<ApiDraftSummary['sliceState']> | 'NONE', string> = {
+  NONE: 'Not sliced',
+  QUEUED: 'Waiting to slice',
+  RUNNING: 'Slicing',
+  READY: 'Sliced',
+  FAILED: "Couldn't slice",
+}
+
+/**
+ * Filament: the way into the slicer, and the plates already started there.
+ *
+ * A draft is only its owner's until it's sent, and it goes on its own if left alone, so each
+ * one says when.
+ */
+function Filament({
+  drafts,
+  reload,
+}: {
+  drafts: ApiDraftSummary[] | null | 'loading'
+  reload: () => Promise<void>
+}) {
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('')
+
+  const discard = (draft: ApiDraftSummary) => {
+    if (!window.confirm(`Discard the plate ${draft.fileName}? Its models go with it.`)) return
+    setBusy(true)
+    setMessage('')
+    deleteJson(`/print/drafts/${draft.id}`)
+      .then(reload)
+      .catch((error: unknown) => {
+        setMessage(explain(error))
+      })
+      .finally(() => {
+        setBusy(false)
+      })
+  }
+
+  return (
+    <FormPanel>
+      <p className="text-faint mb-2 font-mono text-[10px] font-medium tracking-[0.16em]">
+        FILAMENT — SLICE IT YOURSELF
+      </p>
+      <p className="text-dim mb-4 text-[13px] leading-[1.6] text-pretty">
+        Put your models on the plate, choose PLA or PETG and how it prints, and slice it. The
+        officer prints the file you sliced.
+      </p>
+      <Link to="/dashboard/print/slicer" className={`${submitClass} inline-flex items-center justify-center`}>
+        OPEN THE SLICER
+      </Link>
+
+      {drafts === 'loading' && (
+        <div aria-busy="true" className="mt-5 space-y-2">
+          <div className="bg-base-300 h-4 w-1/2 animate-pulse rounded-[2px]" />
+        </div>
+      )}
+      {drafts === null && (
+        <p className="text-dim mt-5 text-[13px] leading-[1.6]">
+          We couldn't load your drafts just now.
+        </p>
+      )}
+      {Array.isArray(drafts) && drafts.length > 0 && (
+        <div className="mt-5">
+          <p className="text-faint mb-1 font-mono text-[10px] font-medium tracking-[0.16em]">
+            MY DRAFTS
+          </p>
+          <ul className="divide-rule divide-y">
+            {drafts.map((draft) => (
+              <li key={draft.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">
+                    {draft.fileName}
+                    {countLabel(draft.quantity) && (
+                      <span className="text-primary ml-2 font-mono text-[11px] font-semibold">
+                        {countLabel(draft.quantity)}
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-faint block font-mono text-[10px] tracking-[0.12em] uppercase">
+                    {draft.material} · {PRESET_LABEL[draft.preset]} · {SLICE_STATE[draft.sliceState ?? 'NONE']} · Goes{' '}
+                    {expiresIn(draft.expiresAt)}
+                  </span>
+                </span>
+                <span className="flex gap-3">
+                  <Link
+                    to={`/dashboard/print/slicer/${draft.id}`}
+                    className="text-primary hover:text-base-content font-mono text-[10px] font-semibold tracking-[0.14em]"
+                  >
+                    OPEN
+                  </Link>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => {
+                      discard(draft)
+                    }}
+                    className="text-faint hover:text-error cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50"
+                  >
+                    DISCARD
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {message && (
+        <p role="status" className="text-error mt-2 text-[12px]">
+          {message}
+        </p>
+      )}
+    </FormPanel>
+  )
+}
+
+/** The resin form. Filament goes through the slicer above. */
 function RequestForm({
   projects,
   onSent,
@@ -256,18 +399,12 @@ function RequestForm({
 }) {
   const id = useId()
   const [state, setState] = useState<FormState>({ status: 'idle' })
-  // The one setting the rest of the form depends on, so it is the one piece of
-  // state here — everything else is uncontrolled and read at submit. Resin has
-  // no infill and a different material, and both have to follow this.
-  const [process, setProcess] = useState<PrintProcess>(DEFAULT_SETTINGS.process)
   // The file comes off the input rather than out of `new FormData(form)`, unlike every other form
   // here. The body is built by hand anyway so the request says exactly what it sends, and a file
   // input needs its `value` cleared explicitly — `form.reset()` alone leaves the filename sitting
   // under a form that has already been sent.
   const fileInput = useRef<HTMLInputElement>(null)
-
-  const materials = materialsFor(process)
-  const infill = hasInfill(process)
+  const resin = materialsFor('SLA')[0]!
 
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -293,20 +430,9 @@ function RequestForm({
     const fields = new FormData(form)
     const body = new FormData()
     body.append('file', file)
-    body.append('process', process)
-
-    // Only what this process actually has. Sending an empty infill on a resin
-    // print would be sending a field the server is right to refuse.
-    for (const key of infill
-      ? [
-          'material',
-          'infillPattern',
-          'infillDensity',
-          'quantity',
-          'projectId',
-          'notes',
-        ]
-      : ['material', 'quantity', 'projectId', 'notes']) {
+    body.append('process', 'SLA')
+    body.append('material', resin.value)
+    for (const key of ['quantity', 'projectId', 'notes']) {
       const value = fields.get(key)
       if (typeof value === 'string' && value.trim()) body.append(key, value.trim())
     }
@@ -316,7 +442,6 @@ function RequestForm({
       .then(async () => {
         form.reset()
         if (fileInput.current) fileInput.current.value = ''
-        setProcess(DEFAULT_SETTINGS.process)
         setState({ status: 'sent' })
         await onSent()
       })
@@ -331,6 +456,13 @@ function RequestForm({
   return (
     <FormPanel>
       <form onSubmit={submit}>
+        <p className="text-faint mb-2 font-mono text-[10px] font-medium tracking-[0.16em]">
+          RESIN — AN OFFICER SLICES IT
+        </p>
+        <p className="text-dim mb-5 text-[13px] leading-[1.6] text-pretty">
+          Fine detail and smooth faces, in {resin.label}. Slower, and worth it for small parts.
+        </p>
+
         <div className="mb-5">
           <label htmlFor={`${id}-file`} className={labelClass}>
             THE MODEL — STL OR STEP
@@ -347,153 +479,33 @@ function RequestForm({
           />
         </div>
 
-        {/* The whole card is the target rather than a radio dot beside it —
-            the same reasoning as the dues plan picker. */}
-        <fieldset className="mb-5" aria-label="Which printer">
-          <legend className={labelClass}>WHICH PRINTER</legend>
-          <div className="grid-fluid gap-3 [--col-min:15rem]">
-            {PROCESSES.map((option) => (
-              <label
-                key={option.value}
-                className={`flex cursor-pointer flex-col border p-4 transition-colors duration-200 ${
-                  process === option.value
-                    ? 'border-primary bg-primary/5'
-                    : 'border-rule bg-base-200 hover:border-base-content/25'
-                } ${sending ? 'cursor-not-allowed opacity-60' : ''}`}
-              >
-                <span className="flex items-start justify-between gap-3">
-                  <span className="font-mono text-[10px] font-medium tracking-[0.16em]">
-                    {option.label}
-                  </span>
-                  <input
-                    type="radio"
-                    name="process"
-                    value={option.value}
-                    checked={process === option.value}
-                    disabled={sending}
-                    onChange={() => {
-                      setProcess(option.value)
-                    }}
-                    className="radio radio-sm border-rule checked:bg-primary checked:text-primary-content mt-0.5 shrink-0"
-                  />
-                </span>
-                <span className="text-dim mt-2 block text-[13px] leading-[1.5] text-pretty">
-                  {option.blurb}
-                </span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-
-        <div className="grid-fluid mb-5 gap-4 [--col-min:14rem]">
-          <div>
-            <label htmlFor={`${id}-material`} className={labelClass}>
-              MATERIAL
-            </label>
-            <select
-              id={`${id}-material`}
-              name="material"
-              // Keyed on the process so switching printers resets the choice
-              // rather than leaving a material the new one cannot take
-              // selected in a box that no longer offers it.
-              key={process}
-              defaultValue={materials[0]?.value}
-              disabled={sending}
-              className={select}
-            >
-              {materials.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <p className="text-faint mt-1.5 text-[12px] leading-[1.5]">
-              {materials.length === 1
-                ? 'The one resin the club stocks.'
-                : materials[0]?.blurb}
-            </p>
-          </div>
-
-          {/* Its own field rather than a sentence in the notes, because it is
-              the one thing in there an officer has to act on — they slice four
-              of something differently from one. */}
-          <div>
-            <label htmlFor={`${id}-quantity`} className={labelClass}>
-              HOW MANY
-            </label>
-            <input
-              id={`${id}-quantity`}
-              name="quantity"
-              type="number"
-              min={1}
-              max={MAX_QUANTITY}
-              step={1}
-              inputMode="numeric"
-              defaultValue={1}
-              disabled={sending}
-              className={`${fieldClass} text-sm`}
-            />
-            <p className="text-faint mt-1.5 text-[12px] leading-[1.5]">
-              Up to {MAX_QUANTITY}. More than that, ask an officer first.
-            </p>
-          </div>
+        {/* Its own field rather than a sentence in the notes, because it is
+            the one thing in there an officer has to act on — they slice four
+            of something differently from one. */}
+        <div className="mb-5">
+          <label htmlFor={`${id}-quantity`} className={labelClass}>
+            HOW MANY
+          </label>
+          <input
+            id={`${id}-quantity`}
+            name="quantity"
+            type="number"
+            min={1}
+            max={MAX_QUANTITY}
+            step={1}
+            inputMode="numeric"
+            defaultValue={1}
+            disabled={sending}
+            className={`${fieldClass} text-sm`}
+          />
+          <p className="text-faint mt-1.5 text-[12px] leading-[1.5]">
+            Up to {MAX_QUANTITY}. More than that, ask an officer first.
+          </p>
         </div>
 
-        {/* Absent on resin rather than disabled: a greyed-out infill box
-            invites somebody to wonder what they did wrong, and resin prints
-            genuinely have no infill to set. */}
-        {infill && (
-          <div className="grid-fluid mb-5 gap-4 [--col-min:14rem]">
-            <div>
-              <label htmlFor={`${id}-pattern`} className={labelClass}>
-                INFILL PATTERN
-              </label>
-              <select
-                id={`${id}-pattern`}
-                name="infillPattern"
-                defaultValue={DEFAULT_SETTINGS.infillPattern}
-                disabled={sending}
-                className={select}
-              >
-                {INFILL_PATTERNS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label htmlFor={`${id}-density`} className={labelClass}>
-                INFILL DENSITY
-              </label>
-              <select
-                id={`${id}-density`}
-                name="infillDensity"
-                defaultValue={String(DEFAULT_SETTINGS.infillDensity)}
-                disabled={sending}
-                className={select}
-              >
-                {INFILL_DENSITIES.map((density) => (
-                  <option key={density} value={density}>
-                    {density}%
-                    {density === 0
-                      ? ' — hollow'
-                      : density === DEFAULT_INFILL_DENSITY
-                        ? ' — the usual'
-                        : density === 100
-                          ? ' — solid'
-                          : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        )}
-
-        {/* On its own line rather than beside the material: this is the field
-            that decides whether the print costs anybody anything, and its
-            helper sentence is the one worth having room for. */}
+        {/* On its own line: this is the field that decides whether the print
+            costs anybody anything, and its helper sentence is the one worth
+            having room for. */}
         <div className="mb-5">
           <label htmlFor={`${id}-project`} className={labelClass}>
             WHAT IT IS FOR
@@ -515,7 +527,7 @@ function RequestForm({
           <p className="text-faint mt-1.5 text-[12px] leading-[1.5]">
             {projects.length === 0
               ? 'Join a project and it appears here.'
-              : 'A project print is not counted against your 500 g.'}
+              : 'A project print is not counted against your allowance.'}
           </p>
         </div>
 
@@ -529,12 +541,14 @@ function RequestForm({
             rows={2}
             maxLength={1000}
             disabled={sending}
-            placeholder="Black if there is any. No supports on the printed face."
+            placeholder="Hollow it if you can. Supports off the front face."
             className="textarea border-rule bg-base-200 w-full text-sm"
           />
         </div>
 
-        <button type="submit" disabled={sending} className={submitClass}>
+        {/* Outlined: OPEN THE SLICER above is the page's one gold action, and filament is
+            most of what the club prints. */}
+        <button type="submit" disabled={sending} className={`${secondaryClass} w-full`}>
           {sending ? 'SENDING…' : 'SEND THE REQUEST'}
         </button>
 
@@ -544,7 +558,7 @@ function RequestForm({
           )}
           {state.status === 'sent' && (
             <span className="text-success">
-              Sent. It's in your list below.
+              Sent. It's in your list.
             </span>
           )}
         </p>
@@ -581,6 +595,21 @@ function MyRequests({
 }) {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
+  const navigate = useNavigate()
+
+  const edit = (request: ApiPrintRequest) => {
+    setBusy(true)
+    setMessage('')
+    postJson(`/print/${request.id}/unsubmit`, {})
+      .then(() => navigate(`/dashboard/print/slicer/${request.id}`))
+      .catch(async (error: unknown) => {
+        setMessage(explain(error))
+        await reload()
+      })
+      .finally(() => {
+        setBusy(false)
+      })
+  }
 
   const withdraw = (request: ApiPrintRequest) => {
     if (!window.confirm(`Withdraw the request for ${request.fileName}?`)) return
@@ -628,6 +657,7 @@ function MyRequests({
                 key={request.id}
                 request={request}
                 busy={busy}
+                onEdit={edit}
                 onWithdraw={withdraw}
               />
             ))}
@@ -644,14 +674,17 @@ function MyRequests({
 function RequestRow({
   request,
   busy,
+  onEdit,
   onWithdraw,
 }: {
   request: ApiPrintRequest
   busy: boolean
+  onEdit: (request: ApiPrintRequest) => void
   onWithdraw: (request: ApiPrintRequest) => void
 }) {
   const label = STATUS_LABEL[request.status]
   const actual = actualSettings(request)
+  const sliced = request.preset !== null
 
   return (
     <li className="py-3">
@@ -676,16 +709,19 @@ function RequestRow({
       </div>
 
       <p className="text-faint mt-0.5 font-mono text-[10px] font-medium tracking-[0.12em] uppercase">
-        {settingsLine(actual)}
+        {sliced ? slicedLine(request) : settingsLine(actual)}
         {' · '}
         {request.project ? request.project.title : 'Personal'}
         {/* Only once there is a figure: a pending row saying "0 g" would read
             as a print that cost nothing rather than one not yet printed. */}
-        {request.gramsUsed !== null && ` · ${grams(request.gramsUsed)}`}
+        {request.gramsUsed !== null
+          ? ` · ${grams(request.gramsUsed)}`
+          : request.estimatedGrams !== null &&
+            ` · About ${grams(chargedGrams(request.estimatedGrams))}, ${duration(request.estimatedSeconds)}`}
       </p>
 
       <p className="text-faint mt-0.5 font-mono text-[10px] font-medium tracking-[0.12em] uppercase">
-        {fileSize(request.fileSize)} · Sent {shortDate(request.createdAt)}
+        {fileSize(request.fileSize)} · Sent {shortDate(request.submittedAt ?? request.createdAt)}
       </p>
 
       {/* Said plainly, because "why is this PETG" is a question worth
@@ -709,16 +745,31 @@ function RequestRow({
       )}
 
       {request.status === 'PENDING' && (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => {
-            onWithdraw(request)
-          }}
-          className="text-faint hover:text-error mt-2 cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50"
-        >
-          WITHDRAW
-        </button>
+        <span className="mt-2 flex gap-4">
+          {/* A sliced plate can be taken back into the slicer until an officer starts it. */}
+          {sliced && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                onEdit(request)
+              }}
+              className="text-primary hover:text-base-content cursor-pointer font-mono text-[10px] font-semibold tracking-[0.14em] transition-colors duration-200 disabled:opacity-50"
+            >
+              EDIT
+            </button>
+          )}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              onWithdraw(request)
+            }}
+            className="text-faint hover:text-error cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50"
+          >
+            WITHDRAW
+          </button>
+        </span>
       )}
     </li>
   )
