@@ -1,6 +1,7 @@
 import {
   AmbientLight,
   BufferGeometry,
+  CanvasTexture,
   Color,
   DirectionalLight,
   DoubleSide,
@@ -12,6 +13,7 @@ import {
   MeshBasicMaterial,
   PerspectiveCamera,
   PlaneGeometry,
+  SRGBColorSpace,
   Scene,
   WebGLRenderer,
 } from 'three'
@@ -117,6 +119,37 @@ export function webglAvailable(): boolean {
   }
 }
 
+/**
+ * FRONT, lying on the plate just past its front edge, the way a real plate carries the printer's
+ * name there, so a turned view still says which side faces the door. Null without a 2D canvas.
+ */
+function frontLabel(colors: ThemeColors): Mesh | null {
+  const canvas = document.createElement('canvas')
+  canvas.width = 640
+  canvas.height = 128
+  const context = canvas.getContext('2d')
+  if (!context) return null
+  const font = getComputedStyle(document.documentElement).getPropertyValue('--font-mono').trim()
+  context.font = `600 96px ${font || 'monospace'}`
+  context.fillStyle = `#${colors.text.getHexString()}`
+  context.textBaseline = 'middle'
+  // Spaced out by hand, as the site's mono labels are; `letterSpacing` isn't everywhere yet.
+  const letters = ['F', 'R', 'O', 'N', 'T']
+  const gap = 26
+  const width = letters.reduce((sum, letter) => sum + context.measureText(letter).width, 0) + gap * (letters.length - 1)
+  let x = (canvas.width - width) / 2
+  for (const letter of letters) {
+    context.fillText(letter, x, canvas.height / 2)
+    x += context.measureText(letter).width + gap
+  }
+  const texture = new CanvasTexture(canvas)
+  texture.colorSpace = SRGBColorSpace
+  return new Mesh(
+    new PlaneGeometry(85, 17),
+    new MeshBasicMaterial({ map: texture, transparent: true, opacity: 0.75, depthWrite: false }),
+  )
+}
+
 /** The plate: its surface, a 10 mm grid, the edge, and the purge corner nothing may sit in. */
 export function makeBed(bed: Bed, colors: ThemeColors): Group {
   const group = new Group()
@@ -152,6 +185,12 @@ export function makeBed(bed: Bed, colors: ThemeColors): Group {
     ),
   )
   group.add(new LineSegments(edge, new LineBasicMaterial({ color: colors.edge })))
+
+  const label = frontLabel(colors)
+  if (label) {
+    label.position.set(bed.width / 2, -12, 0)
+    group.add(label)
+  }
 
   if (bed.exclude) {
     const { minX, minY, maxX, maxY } = bed.exclude
@@ -271,8 +310,12 @@ export function disposeTree(group: Group): void {
   group.traverse((node) => {
     const holder = node as Partial<Mesh>
     holder.geometry?.dispose()
-    const material = holder.material
-    if (Array.isArray(material)) material.forEach((m) => m.dispose())
-    else material?.dispose()
+    const materials = holder.material === undefined ? [] : [holder.material].flat()
+    for (const material of materials) {
+      // A label's canvas texture goes with it.
+      const { map } = material as Partial<MeshBasicMaterial>
+      map?.dispose()
+      material.dispose()
+    }
   })
 }
