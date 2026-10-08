@@ -214,9 +214,33 @@ function DashboardShell({ user }: { user: ApiUser }) {
    * not annoy the people who would.
    */
   const asking = surveyPrompt(membership)
+  /**
+   * The slicer gets the whole width, the way a slicer does: no rail, no gutter. It keeps the
+   * gate and the context, and the site's nav above it is the way back. No survey prompt over a
+   * plate somebody is in the middle of arranging, either.
+   */
+  const workspace = location.pathname.startsWith('/dashboard/print/slicer')
   const promptable =
+    !workspace &&
     !location.pathname.startsWith('/dashboard/survey') &&
     !location.pathname.startsWith('/dashboard/profile')
+  const context = {
+    user,
+    projects,
+    reloadProjects,
+    membership,
+    reloadMembership,
+  } satisfies DashboardContext
+
+  if (workspace) {
+    return (
+      <div data-skip-target tabIndex={-1} className="min-w-0 outline-none">
+        <Suspense fallback={<div aria-busy="true" className="h-[calc(100dvh-var(--spacing-nav))]" />}>
+          <Outlet context={context} />
+        </Suspense>
+      </div>
+    )
+  }
 
   return (
     <div className="wide:grid wide:grid-cols-[15rem_1fr]">
@@ -249,17 +273,7 @@ function DashboardShell({ user }: { user: ApiUser }) {
               own skeletons — a second spinner would be two loading states for one
               navigation. `aria-busy` rather than `role="status"`: nothing to announce. */}
           <Suspense fallback={<div aria-busy="true" className="min-h-[60vh]" />}>
-            <Outlet
-              context={
-                {
-                  user,
-                  projects,
-                  reloadProjects,
-                  membership,
-                  reloadMembership,
-                } satisfies DashboardContext
-              }
-            />
+            <Outlet context={context} />
           </Suspense>
         </div>
       </div>

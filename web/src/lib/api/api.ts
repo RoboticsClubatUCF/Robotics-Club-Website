@@ -822,8 +822,139 @@ export type ApiPrintRequest = {
       the budget rule: personal prints come out of the allowance, project ones
       are uncapped. */
   project: { id: string; slug: string; title: string } | null
+  /** A filament plate its owner sliced: the club preset and the settings they
+      changed. Null on resin and on filament requests from before the slicer. */
+  preset: PrintPreset | null
+  overrides: Record<string, number | boolean | string> | null
+  /** Orca's figures for the plate that was sent. MARK DONE charges the grams,
+      rounded up, unless the officer gives another figure. */
+  estimatedGrams: number | null
+  estimatedSeconds: number | null
+  /** When it joined the queue. */
+  submittedAt: string | null
   createdAt: string
   updatedAt: string
+}
+
+/** The club's filament process presets. */
+export type PrintPreset = 'STANDARD' | 'Q' | 'QS'
+
+/** Where a slicer job is: meshing a STEP upload, or slicing a plate. */
+export type SlicerJobState = 'QUEUED' | 'RUNNING' | 'READY' | 'FAILED'
+
+/** Where one copy sits: centre on the plate in mm, a unit quaternion, scale per axis. */
+export type ApiPlacement = {
+  x: number
+  y: number
+  qx: number
+  qy: number
+  qz: number
+  qw: number
+  sx: number
+  sy: number
+  sz: number
+}
+
+export type ApiPlateObject = ApiPlacement & {
+  /** Chosen by the workspace when it adds the copy. */
+  id: string
+  modelId: string
+  name: string
+}
+
+export type ApiPlateModel = {
+  id: string
+  fileName: string
+  fileSize: number
+  /** READY from the start for an STL; a STEP waits for the worker to mesh it. */
+  meshState: SlicerJobState
+  meshFailure: string | null
+  triangles: number | null
+}
+
+export type ApiDraftSlice = {
+  state: SlicerJobState
+  /** Whether it was sliced from the plate as it stands now. */
+  current: boolean
+  failure: string | null
+  /** Whether pressing SLICE again could help. */
+  retryable: boolean
+  estimatedGrams: number | null
+  estimatedSeconds: number | null
+  filamentMeters: number | null
+  layerCount: number | null
+  hasPreview: boolean
+  previewFailure: string | null
+  requestedAt: string
+}
+
+/** A filament plate in the workspace, from `GET /api/print/drafts/:id`. */
+export type ApiDraft = {
+  id: string
+  status: 'DRAFT' | PrintRequestStatus
+  /** Every edit names it; a stale one gets a 409. */
+  revision: number
+  material: 'PLA' | 'PETG'
+  preset: PrintPreset
+  overrides: Record<string, number | boolean | string>
+  fileName: string
+  notes: string | null
+  projectId: string | null
+  createdAt: string
+  draftActiveAt: string | null
+  submittedAt: string | null
+  startedAt: string | null
+  expiresAt: string | null
+  models: ApiPlateModel[]
+  objects: ApiPlateObject[]
+  slice: ApiDraftSlice | null
+}
+
+/** One line of "my drafts", from `GET /api/print/drafts`. */
+export type ApiDraftSummary = {
+  id: string
+  fileName: string
+  quantity: number
+  material: 'PLA' | 'PETG'
+  preset: PrintPreset
+  createdAt: string
+  draftActiveAt: string | null
+  sliceState: SlicerJobState | null
+  expiresAt: string
+}
+
+export type ApiSlicerPreset = {
+  key: PrintPreset
+  label: string
+  /** Orca's name for it, which an officer sees in desktop Orca. */
+  name: string
+  description: string
+  /** The preset's own value for every setting a member can change. */
+  values: Record<string, number | boolean | string>
+}
+
+/** What the workspace needs to draw the printer and its choices, `GET /api/print/workspace`. */
+export type ApiSlicerWorkspace = {
+  profiles: {
+    printer: { name: string; model: string; nozzle: number; bedType: string }
+    bed: {
+      width: number
+      depth: number
+      height: number
+      exclude: { minX: number; minY: number; maxX: number; maxY: number } | null
+    }
+    layerHeight: { min: number; max: number }
+    presets: ApiSlicerPreset[]
+    materials: { key: 'PLA' | 'PETG'; name: string }[]
+  }
+  workerOnline: boolean
+  limits: {
+    drafts: number
+    models: number
+    objects: number
+    fileMb: number
+    slicesPerHour: number
+  }
 }
 
 /**
@@ -855,6 +986,8 @@ export type ApiPrintQueueItem = ApiPrintRequest & {
       those are uncapped, and a balance beside one would invite weighing it against
       a budget it doesn't come out of. */
   allowance: ApiPrintAllowance | null
+  /** A sliced plate's .3mf is ready to download, or null when there isn't one. */
+  sliceFile: { layers: number | null; filamentMeters: number | null } | null
 }
 
 /**

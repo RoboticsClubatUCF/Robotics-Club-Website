@@ -20,10 +20,12 @@
     "@stripe/stripe-js": "^9.13.0",
     "@tailwindcss/vite": "^4.3.3",
     "daisyui": "^5.7.14",
+    "lucide-react": "^1.52.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router": "^8.3.0",
-    "tailwindcss": "^4.3.3"
+    "tailwindcss": "^4.3.3",
+    "three": "^0.186.1"
   },
   "devDependencies": {
     "@babel/core": "^7.29.7",
@@ -34,6 +36,7 @@
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
+    "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "^6.0.4",
     "babel-plugin-react-compiler": "^1.0.0",
     "jsdom": "^29.1.1",

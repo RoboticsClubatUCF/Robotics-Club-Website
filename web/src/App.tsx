@@ -84,6 +84,10 @@ const PastProjectsPage = lazy(async () => ({
 const PrintRequestPage = lazy(async () => ({
   default: (await import('./pages/dashboard/PrintRequestPage')).PrintRequestPage,
 }))
+// Its own chunk, apart from the rest of the dashboard: it's the only page carrying three.js.
+const PrintSlicerPage = lazy(async () => ({
+  default: (await import('./pages/dashboard/PrintSlicerPage')).PrintSlicerPage,
+}))
 const ProfilePage = lazy(async () => ({
   default: (await import('./pages/dashboard/ProfilePage')).ProfilePage,
 }))
@@ -146,6 +150,9 @@ function App() {
                   every member reading their own. */}
               <Route path="tasks" element={<TasksPage />} />
               <Route path="print" element={<PrintRequestPage />} />
+              {/* A new plate, and one being worked on. The layout drops its rail for both. */}
+              <Route path="print/slicer" element={<PrintSlicerPage />} />
+              <Route path="print/slicer/:id" element={<PrintSlicerPage />} />
               <Route path="equipment" element={<EquipmentPage />} />
               {/* Under `/dashboard` rather than `/dashboard/officer`, unlike every other
                   `/ MANAGE` row: project leads open this one too, and `officer` in a URL

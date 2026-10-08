@@ -1,0 +1,136 @@
+{
+  "valid": [
+    {
+      "input": {},
+      "stored": {},
+      "orca": {}
+    },
+    {
+      "input": {
+        "layer_height": 0.16,
+        "wall_loops": 4,
+        "sparse_infill_density": 25
+      },
+      "stored": {
+        "layer_height": 0.16,
+        "wall_loops": 4,
+        "sparse_infill_density": 25
+      },
+      "orca": {
+        "layer_height": "0.16",
+        "wall_loops": "4",
+        "sparse_infill_density": "25%"
+      }
+    },
+    {
+      "input": {
+        "layer_height": 0.12000000001,
+        "top_shell_thickness": 1.04
+      },
+      "stored": {
+        "layer_height": 0.12,
+        "top_shell_thickness": 1
+      },
+      "orca": {
+        "layer_height": "0.12",
+        "top_shell_thickness": "1"
+      }
+    },
+    {
+      "input": {
+        "enable_support": false,
+        "support_type": "normal(auto)",
+        "support_threshold_angle": 45
+      },
+      "stored": {
+        "enable_support": false,
+        "support_type": "normal(auto)",
+        "support_threshold_angle": 45
+      },
+      "orca": {
+        "enable_support": "0",
+        "support_type": "normal(auto)",
+        "support_threshold_angle": "45"
+      }
+    },
+    {
+      "input": {
+        "sparse_infill_pattern": "gyroid",
+        "ironing_type": "no ironing",
+        "brim_type": "outer_only",
+        "brim_width": 3.5
+      },
+      "stored": {
+        "sparse_infill_pattern": "gyroid",
+        "ironing_type": "no ironing",
+        "brim_type": "outer_only",
+        "brim_width": 3.5
+      },
+      "orca": {
+        "sparse_infill_pattern": "gyroid",
+        "ironing_type": "no ironing",
+        "brim_type": "outer_only",
+        "brim_width": "3.5"
+      }
+    },
+    {
+      "input": {
+        "spiral_mode": true,
+        "fuzzy_skin": "external",
+        "raft_layers": 0,
+        "skirt_loops": 2
+      },
+      "stored": {
+        "spiral_mode": true,
+        "fuzzy_skin": "external",
+        "raft_layers": 0,
+        "skirt_loops": 2
+      },
+      "orca": {
+        "spiral_mode": "1",
+        "fuzzy_skin": "external",
+        "raft_layers": "0",
+        "skirt_loops": "2"
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "layer_height": 0.05
+    },
+    {
+      "layer_height": 0.3
+    },
+    {
+      "wall_loops": 0
+    },
+    {
+      "wall_loops": 2.5
+    },
+    {
+      "sparse_infill_density": 101
+    },
+    {
+      "sparse_infill_pattern": "tpmsd"
+    },
+    {
+      "support_type": "tree(manual)"
+    },
+    {
+      "enable_support": "1"
+    },
+    {
+      "nozzle_temperature": 250
+    },
+    {
+      "outer_wall_speed": 500
+    },
+    {
+      "brim_width": -1
+    },
+    {
+      "wall_loops": 2,
+      "layer_height": null
+    }
+  ]
+}

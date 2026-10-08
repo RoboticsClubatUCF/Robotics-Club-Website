@@ -2,9 +2,11 @@ import type {
   ApiPrintRequest,
   InfillPattern,
   PrintMaterial,
+  PrintPreset,
   PrintProcess,
   PrintRequestStatus,
 } from './api/api'
+import { overridesLine } from './slicer/processSettings'
 
 /**
  * What the printers will do, in the words the club uses for it.
@@ -202,3 +204,26 @@ export const countLabel = (quantity: number): string | null =>
 
 /** The most of one thing somebody can ask for, matching the server's cap. */
 export const MAX_QUANTITY = 50
+
+/** The club's filament presets as the workspace names them. */
+export const PRESET_LABEL: Record<PrintPreset, string> = {
+  STANDARD: 'Standard',
+  Q: 'Q',
+  QS: 'Q-S',
+}
+
+/**
+ * A plate its owner sliced, in one line: material, preset, and what they changed from it.
+ * "PLA · Q-S · Walls 4 · Infill density 25%".
+ */
+export function slicedLine(request: {
+  material: PrintMaterial
+  preset: PrintPreset | null
+  overrides: Record<string, number | boolean | string> | null
+}): string {
+  const parts = [MATERIAL_LABEL[request.material]]
+  if (request.preset) parts.push(PRESET_LABEL[request.preset])
+  const changed = overridesLine(request.overrides)
+  if (changed) parts.push(changed)
+  return parts.join(' · ')
+}
