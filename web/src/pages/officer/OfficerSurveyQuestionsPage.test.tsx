@@ -61,6 +61,7 @@ const context = (
       canActivate: false,
       surveyPending: false,
       surveyPromptDismissed: false,
+      slicerTrained: true,
     },
     ...over,
   } as DashboardContext['membership'],
@@ -489,6 +490,7 @@ describe('OfficerSurveyQuestionsPage', () => {
           canActivate: false,
           surveyPending: false,
           surveyPromptDismissed: false,
+          slicerTrained: true,
         },
       }),
     )

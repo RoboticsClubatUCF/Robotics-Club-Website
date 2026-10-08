@@ -113,13 +113,21 @@ export function PrintRequestPage() {
 
   if (lock === 'dues') return <DuesLocked eyebrow="/ 3D PRINTING" />
 
-  return <PrintRequestForm projects={dashboard?.projects} />
+  return (
+    <PrintRequestForm
+      projects={dashboard?.projects}
+      // Unknown until the standing loads, and unknown locks nothing, as with dues.
+      trained={dashboard?.membership.status !== 'ready' || dashboard.membership.data.slicerTrained}
+    />
+  )
 }
 
 function PrintRequestForm({
   projects,
+  trained,
 }: {
   projects: DashboardContext['projects'] | undefined
+  trained: boolean
 }) {
   const [requests, setRequests] = useState<ApiPrintRequest[] | null | 'loading'>(
     'loading',
@@ -192,11 +200,11 @@ function PrintRequestForm({
       <div className="grid-fluid items-start gap-5 [--col-min:32rem]">
         <div className="space-y-5">
           <Allowance allowance={allowance} />
-          <Filament drafts={drafts} reload={load} />
+          <Filament drafts={drafts} reload={load} trained={trained} />
           <RequestForm projects={mine} onSent={load} />
         </div>
 
-        <MyRequests requests={requests} reload={load} />
+        <MyRequests requests={requests} reload={load} trained={trained} />
       </div>
     </>
   )
@@ -291,9 +299,12 @@ const SLICE_STATE: Record<NonNullable<ApiDraftSummary['sliceState']> | 'NONE', s
 function Filament({
   drafts,
   reload,
+  trained,
 }: {
   drafts: ApiDraftSummary[] | null | 'loading'
   reload: () => Promise<void>
+  /** The slicer needs its training first; until then this offers the training instead. */
+  trained: boolean
 }) {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
@@ -318,13 +329,27 @@ function Filament({
       <p className="text-faint mb-2 font-mono text-[10px] font-medium tracking-[0.16em]">
         FILAMENT — SLICE IT YOURSELF
       </p>
-      <p className="text-dim mb-4 text-[13px] leading-[1.6] text-pretty">
-        Put your models on the plate, choose PLA or PETG and how it prints, and slice it. The
-        officer prints the file you sliced.
-      </p>
-      <Link to="/dashboard/print/slicer" className={`${submitClass} inline-flex items-center justify-center`}>
-        OPEN THE SLICER
-      </Link>
+      {trained ? (
+        <>
+          <p className="text-dim mb-4 text-[13px] leading-[1.6] text-pretty">
+            Put your models on the plate, choose PLA or PETG and how it prints, and slice it. The
+            officer prints the file you sliced.
+          </p>
+          <Link to="/dashboard/print/slicer" className={`${submitClass} inline-flex items-center justify-center`}>
+            OPEN THE SLICER
+          </Link>
+        </>
+      ) : (
+        <>
+          <p className="text-dim mb-4 text-[13px] leading-[1.6] text-pretty">
+            You slice filament prints yourself. The slicer opens once you&rsquo;ve done its
+            training.
+          </p>
+          <Link to="/dashboard/profile/training" className={`${submitClass} inline-flex items-center justify-center`}>
+            START THE SLICER TRAINING
+          </Link>
+        </>
+      )}
 
       {drafts === 'loading' && (
         <div aria-busy="true" className="mt-5 space-y-2">
@@ -365,12 +390,14 @@ function Filament({
                   </span>
                 </span>
                 <span className="flex gap-4">
-                  <Link
-                    to={`/dashboard/print/slicer/${draft.id}`}
-                    className="text-primary hover:text-base-content -mx-2 inline-flex min-h-11 items-center px-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary wide:min-h-6 font-mono text-[10px] font-semibold tracking-[0.14em]"
-                  >
-                    OPEN
-                  </Link>
+                  {trained && (
+                    <Link
+                      to={`/dashboard/print/slicer/${draft.id}`}
+                      className="text-primary hover:text-base-content -mx-2 inline-flex min-h-11 items-center px-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary wide:min-h-6 font-mono text-[10px] font-semibold tracking-[0.14em]"
+                    >
+                      OPEN
+                    </Link>
+                  )}
                   <button
                     type="button"
                     disabled={busy}
@@ -612,9 +639,12 @@ function Conduct() {
 function MyRequests({
   requests,
   reload,
+  trained,
 }: {
   requests: ApiPrintRequest[] | null | 'loading'
   reload: () => Promise<void>
+  /** EDIT takes a plate back to the slicer, so it waits for the training too. */
+  trained: boolean
 }) {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
@@ -685,6 +715,7 @@ function MyRequests({
                 key={request.id}
                 request={request}
                 busy={busy}
+                editable={trained}
                 onEdit={(chosen) => {
                   setAsking({ act: 'edit', request: chosen })
                 }}
@@ -741,11 +772,14 @@ function MyRequests({
 function RequestRow({
   request,
   busy,
+  editable,
   onEdit,
   onWithdraw,
 }: {
   request: ApiPrintRequest
   busy: boolean
+  /** The slicer is open to this member, so a sliced plate can go back into it. */
+  editable: boolean
   onEdit: (request: ApiPrintRequest) => void
   onWithdraw: (request: ApiPrintRequest) => void
 }) {
@@ -814,7 +848,7 @@ function RequestRow({
       {request.status === 'PENDING' && (
         <span className="mt-1 flex gap-4 wide:mt-2">
           {/* A sliced plate can be taken back into the slicer until an officer starts it. */}
-          {sliced && (
+          {sliced && editable && (
             <button
               type="button"
               disabled={busy}

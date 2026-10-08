@@ -113,6 +113,23 @@ export const requireDuesForRoute: MiddlewareHandler<AuthEnv> = async (
   await next()
 }
 
+export const SLICER_UNTRAINED = 'Finish the slicer training on your profile page first.'
+
+/**
+ * The slicer's own gate, after the dues one: a plate can't be made, changed, sliced, sent or taken
+ * back from the queue until the member has finished the training on the profile page. No exemption
+ * for officers or admins. Reading and discarding drafts aren't gated.
+ */
+export const requireSlicerTraining: MiddlewareHandler<AuthEnv> = async (
+  c,
+  next,
+) => {
+  if (c.get('user').slicerTrainedAt === null) {
+    throw new HTTPException(403, { message: SLICER_UNTRAINED })
+  }
+  await next()
+}
+
 /**
  * There used to be a second, stricter gate here, and it's gone on purpose.
  *

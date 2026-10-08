@@ -34,6 +34,26 @@ export type DraftLoad =
   | { status: 'failed' }
   | { status: 'ready' }
 
+/**
+ * What the workspace needs from a plate. `useDraft` is the real one; the slicer training's
+ * practice plate (`lib/training/usePracticePlate.ts`) keeps the same shape in the browser.
+ */
+export interface PlateSource {
+  load: DraftLoad
+  draft: ApiDraft | null
+  plate: Plate
+  edit: (change: Edit) => void
+  preview: (objectId: string, placement: Partial<ApiPlacement>) => void
+  reload: () => Promise<void>
+  addModel: (file: File, object: { id: string } & ApiPlacement) => Promise<ApiDraft>
+  slice: () => Promise<void>
+  submit: (details: { projectId: string | null; notes: string }) => Promise<{ fileName: string }>
+  saving: boolean
+  unsaved: boolean
+  notice: string | null
+  clearNotice: () => void
+}
+
 const SAVE_DELAY = 400
 const POLL_EVERY = 1_500
 
@@ -52,7 +72,10 @@ export const working = (draft: ApiDraft | null): boolean =>
     draft.slice?.state === 'RUNNING' ||
     draft.models.some((model) => model.meshState === 'QUEUED' || model.meshState === 'RUNNING'))
 
-export function useDraft(id: string | undefined, fresh: PlateChoice) {
+export function useDraft(id: string | undefined, fresh: PlateChoice): PlateSource & {
+  flush: () => Promise<void>
+  discard: () => Promise<void>
+} {
   const [load, setLoad] = useState<DraftLoad>(id ? { status: 'loading' } : { status: 'ready' })
   const [draft, setDraft] = useState<ApiDraft | null>(null)
   const [plate, setPlate] = useState<Plate>(() => ({ ...fresh, overrides: {}, objects: [] }))

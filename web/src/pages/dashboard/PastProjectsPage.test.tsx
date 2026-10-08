@@ -101,6 +101,7 @@ const context = (projects: DashboardContext['projects']): DashboardContext => ({
       canActivate: false,
       surveyPending: false,
       surveyPromptDismissed: false,
+      slicerTrained: true,
     },
   },
   reloadMembership: () => Promise.resolve(),

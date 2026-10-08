@@ -94,6 +94,10 @@ const PrintSlicerPage = lazy(async () => ({
 const ProfilePage = lazy(async () => ({
   default: (await import('./pages/dashboard/ProfilePage')).ProfilePage,
 }))
+// The slicer training runs the workspace on a practice plate, so it carries three.js as well.
+const SlicerTrainingPage = lazy(async () => ({
+  default: (await import('./pages/dashboard/SlicerTrainingPage')).SlicerTrainingPage,
+}))
 const ProjectDashboardPage = lazy(async () => ({
   default: (await import('./pages/dashboard/ProjectDashboardPage')).ProjectDashboardPage,
 }))
@@ -144,6 +148,8 @@ function App() {
             <Route path="dashboard" element={<DashboardLayout />}>
               <Route index element={<DashboardPage />} />
               <Route path="profile" element={<ProfilePage />} />
+              {/* Reached from the profile page. The layout drops its rail for it, as for the slicer. */}
+              <Route path="profile/training" element={<SlicerTrainingPage />} />
               {/* Ahead of dues in the rail as well as in the gate: this is the one page
                   nothing can lock. */}
               <Route path="survey" element={<MemberSurveyPage />} />

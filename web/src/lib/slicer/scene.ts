@@ -216,10 +216,32 @@ export function makeBed(bed: Bed, colors: ThemeColors): Group {
   return group
 }
 
-/** Looking at the plate from the front, a little above, the way Orca opens. */
-export function frameBed(camera: PerspectiveCamera, controls: OrbitControls, bed: Bed): void {
-  camera.position.set(bed.width / 2, -bed.depth * 1.05, bed.height * 1.3)
-  controls.target.set(bed.width / 2, bed.depth / 2, 0)
+/** A box to look at instead of the whole bed, in plate millimetres. */
+export interface Focus {
+  min: [number, number, number]
+  max: [number, number, number]
+}
+
+/** Where the camera is and what it's turning about, in plate millimetres. */
+export interface CameraView {
+  position: [number, number, number]
+  target: [number, number, number]
+}
+
+/**
+ * Looking at the plate from the front, a little above, the way Orca opens; or at `focus` from the
+ * same side, close enough to fill the view.
+ */
+export function frameBed(camera: PerspectiveCamera, controls: OrbitControls, bed: Bed, focus?: Focus): void {
+  if (focus) {
+    const centre = [0, 1, 2].map((axis) => (focus.min[axis]! + focus.max[axis]!) / 2) as [number, number, number]
+    const size = Math.max(...[0, 1, 2].map((axis) => focus.max[axis]! - focus.min[axis]!), 10)
+    camera.position.set(centre[0], centre[1] - size * 1.55, centre[2] + size * 1.3)
+    controls.target.set(...centre)
+  } else {
+    camera.position.set(bed.width / 2, -bed.depth * 1.05, bed.height * 1.3)
+    controls.target.set(bed.width / 2, bed.depth / 2, 0)
+  }
   controls.update()
 }
 
@@ -230,6 +252,8 @@ export interface Stage {
   orbit: OrbitControls
   /** Draws on the next frame; calls in between coalesce. Nothing animates on its own. */
   render: () => void
+  /** Back to the view it opened with. */
+  reset: () => void
   dispose: () => void
 }
 
@@ -237,7 +261,7 @@ export interface Stage {
  * The renderer, camera, orbit controls and lights both views use, sized to `host` and redrawn
  * only when something changes. Null where WebGL isn't available.
  */
-export function createStage(canvas: HTMLCanvasElement, host: HTMLElement, bed: Bed): Stage | null {
+export function createStage(canvas: HTMLCanvasElement, host: HTMLElement, bed: Bed, focus?: Focus): Stage | null {
   const renderer = createRenderer(canvas)
   if (!renderer) return null
 
@@ -254,7 +278,7 @@ export function createStage(canvas: HTMLCanvasElement, host: HTMLElement, bed: B
   const orbit = new OrbitControls(camera, canvas)
   orbit.enableDamping = false
   orbit.screenSpacePanning = true
-  frameBed(camera, orbit, bed)
+  frameBed(camera, orbit, bed, focus)
 
   // Until somebody moves the camera, it backs off on a narrow screen so the whole bed fits across.
   let framed = true
@@ -279,7 +303,7 @@ export function createStage(canvas: HTMLCanvasElement, host: HTMLElement, bed: B
     camera.aspect = clientWidth / clientHeight
     camera.updateProjectionMatrix()
     if (framed) {
-      frameBed(camera, orbit, bed)
+      frameBed(camera, orbit, bed, focus)
       const back = Math.max(1, 1.25 / camera.aspect)
       camera.position.sub(orbit.target).multiplyScalar(back).add(orbit.target)
       orbit.update()
@@ -296,6 +320,11 @@ export function createStage(canvas: HTMLCanvasElement, host: HTMLElement, bed: B
     camera,
     orbit,
     render,
+    reset: () => {
+      framed = true
+      resize()
+      orbit.dispatchEvent({ type: 'change' })
+    },
     dispose: () => {
       cancelAnimationFrame(frame)
       observer.disconnect()

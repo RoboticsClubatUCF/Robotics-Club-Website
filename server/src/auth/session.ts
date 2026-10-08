@@ -35,6 +35,7 @@ export interface SessionUser {
   duesPaidThrough: Date | null
   surveyCompletedAt: Date | null
   surveyPromptDismissedAt: Date | null
+  slicerTrainedAt: Date | null
 }
 
 /** The Hono variables `requireAuth` and `optionalAuth` set. */
@@ -70,6 +71,8 @@ const userSelect = {
   // changes twice in a member's life.
   surveyCompletedAt: true,
   surveyPromptDismissedAt: true,
+  // The slicer's gate, read off this row like the dues date.
+  slicerTrainedAt: true,
 } as const
 
 const DAY_MS = 24 * 60 * 60 * 1000

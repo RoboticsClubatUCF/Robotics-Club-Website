@@ -135,7 +135,7 @@ const draft = (over: Partial<ApiDraft> = {}): ApiDraft => ({
   ...over,
 })
 
-const context = (): DashboardContext => ({
+const context = (trained = true): DashboardContext => ({
   user: {
     id: 'u1',
     fullName: 'Rowan Test',
@@ -164,16 +164,17 @@ const context = (): DashboardContext => ({
       canActivate: false,
       surveyPending: false,
       surveyPromptDismissed: false,
+      slicerTrained: trained,
     },
   },
   reloadMembership: () => Promise.resolve(),
 })
 
-const renderAt = (path: string) =>
+const renderAt = (path: string, trained = true) =>
   render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
-        <Route element={<Outlet context={context()} />}>
+        <Route element={<Outlet context={context(trained)} />}>
           <Route path="/dashboard/print/slicer" element={<PrintSlicerPage />} />
           <Route path="/dashboard/print/slicer/:id" element={<PrintSlicerPage />} />
           <Route path="/dashboard/print" element={<p>the printing page</p>} />
@@ -184,6 +185,28 @@ const renderAt = (path: string) =>
 
 afterEach(() => {
   vi.unstubAllGlobals()
+})
+
+describe('the training', () => {
+  it('sends somebody who hasn’t done it to the training, and asks the server nothing', () => {
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
+    renderAt('/dashboard/print/slicer', false)
+
+    expect(screen.getByRole('heading', { name: 'Do the slicer training first.' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'START THE TRAINING' })).toHaveAttribute('href', '/dashboard/profile/training')
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('says what the server said when it refuses anyway', async () => {
+    const said = 'Finish the slicer training on your profile page first.'
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(new Response(JSON.stringify({ error: said }), { status: 403 }))),
+    )
+    renderAt('/dashboard/print/slicer')
+    expect(await screen.findByText(said)).toBeInTheDocument()
+  })
 })
 
 describe('loading', () => {

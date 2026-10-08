@@ -4,6 +4,7 @@ import { ClaimFree } from '../../components/dashboard/ClaimFree'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
 import { DuesLocked } from '../../components/dashboard/DuesLocked'
 import { MembersOnly } from '../../components/dashboard/MembersOnly'
+import { TrainingNeeded } from '../../components/dashboard/TrainingNeeded'
 import { SlicerWorkspace } from '../../components/slicer/SlicerWorkspace'
 import { FormEyebrow, FormHeading, FormPage, FormPanel } from '../../components/shared/formChrome'
 import { ApiError, getJson } from '../../lib/api/api'
@@ -24,6 +25,10 @@ export function PrintSlicerPage() {
   if (lock === 'claim') return <Padded><ClaimFree eyebrow="/ 3D PRINTING" thing="The printers" /></Padded>
   if (lock === 'newcomer') return <Padded><MembersOnly eyebrow="/ 3D PRINTING" thing="The printers" /></Padded>
   if (lock === 'dues') return <Padded><DuesLocked eyebrow="/ 3D PRINTING" /></Padded>
+  // Like the dues lock, nothing is locked until the standing has loaded; the server refuses anyway.
+  if (dashboard?.membership.status === 'ready' && !dashboard.membership.data.slicerTrained) {
+    return <Padded><TrainingNeeded eyebrow="/ 3D PRINTING · SLICER" /></Padded>
+  }
 
   return <Slicer projects={dashboard?.projects} />
 }
@@ -53,8 +58,9 @@ function Slicer({ projects }: { projects: DashboardContext['projects'] | undefin
         setLoad({
           status: 'failed',
           message:
-            // The server says which: no printers set up yet, or the slicer is down.
-            error instanceof ApiError && error.status === 503
+            // The server says which: no printers set up yet, the slicer is down, or the training
+            // isn't done.
+            error instanceof ApiError && (error.status === 503 || error.status === 403)
               ? (error.detail ?? 'The slicer is unavailable right now. Try again later.')
               : `We couldn't reach the server. Try again in a moment.`,
         })

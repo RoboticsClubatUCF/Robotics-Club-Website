@@ -9,6 +9,7 @@ import { ProfileLinkPanel } from '../../components/profile/ProfileLinkPanel'
 import { ProfilePasswordPanel } from '../../components/profile/ProfilePasswordPanel'
 import { ProfilePhotoPanel } from '../../components/profile/ProfilePhotoPanel'
 import { ProfileSurveyPanel } from '../../components/profile/ProfileSurveyPanel'
+import { ProfileTrainingPanel } from '../../components/profile/ProfileTrainingPanel'
 import {
   PanelFact,
   noteClass,
@@ -49,7 +50,7 @@ import type { ApiState } from '../../lib/api/useApi'
  * leave.
  */
 export function ProfilePage() {
-  const { user } = useOutletContext<DashboardContext>()
+  const { user, membership } = useOutletContext<DashboardContext>()
   const { signOut } = useSession()
   const navigate = useNavigate()
 
@@ -166,6 +167,10 @@ export function ProfilePage() {
             when you signed up.
           </p>
         </FormPanel>
+
+        {/* Second, before the account loads: it reads the standing the dashboard already has,
+            and it's the one panel here that holds something up elsewhere. */}
+        <ProfileTrainingPanel userId={user.id} membership={membership} />
 
         {account.status === 'loading' && (
           <div aria-busy="true" className="space-y-5">

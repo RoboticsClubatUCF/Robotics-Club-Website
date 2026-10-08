@@ -1757,6 +1757,8 @@ export type ApiMembership = {
    * hide the survey.
    */
   surveyPromptDismissed: boolean
+  /** They've finished the slicer training on the profile page, which the slicer needs. */
+  slicerTrained: boolean
 }
 
 /** One purchasable plan, priced and dated by the server. Never by this code. */

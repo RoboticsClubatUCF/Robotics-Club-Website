@@ -9,7 +9,8 @@ export type PreviewLoad =
   | { status: 'failed'; message: string }
   | { status: 'ready'; preview: Preview }
 
-async function decode(bytes: ArrayBuffer): Promise<Preview> {
+/** Unpacks a preview file, in a Web Worker where there is one. */
+export async function decodePreview(bytes: ArrayBuffer): Promise<Preview> {
   if (typeof Worker === 'undefined') return parsePreview(await gunzip(new Uint8Array(bytes)))
   const worker = new Worker(new URL('./previewWorker.ts', import.meta.url), { type: 'module' })
   try {
@@ -48,7 +49,7 @@ export function usePreview(draftId: string | undefined, slice: ApiDraftSlice | n
     })
       .then(async (response) => {
         if (!response.ok) throw new Error(String(response.status))
-        const preview = await decode(await response.arrayBuffer())
+        const preview = await decodePreview(await response.arrayBuffer())
         if (!controller.signal.aborted) setLoad({ status: 'ready', preview })
       })
       .catch(() => {

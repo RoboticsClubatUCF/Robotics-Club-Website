@@ -111,7 +111,7 @@ const wireCoverage = (coverage: Coverage) => ({
 const wireMembership = (
   user: Pick<
     SessionUser,
-    'role' | 'surveyCompletedAt' | 'surveyPromptDismissedAt'
+    'role' | 'surveyCompletedAt' | 'surveyPromptDismissedAt' | 'slicerTrainedAt'
   >,
   standing: MembershipStanding,
 ) => ({
@@ -146,6 +146,12 @@ const wireMembership = (
    * the nag, not the survey.
    */
   surveyPromptDismissed: user.surveyPromptDismissedAt !== null,
+  /**
+   * They've finished the slicer training, which the slicer's routes require. Here for the
+   * survey flags' reason: the printing page and the slicer lock on it without a fetch of
+   * their own.
+   */
+  slicerTrained: user.slicerTrainedAt !== null,
 })
 
 // ------------------------------------------------------------------ status

@@ -123,6 +123,7 @@ const context = (
       canActivate: false,
       surveyPending: false,
       surveyPromptDismissed: false,
+      slicerTrained: true,
     },
   },
   reloadMembership: () => Promise.resolve(),

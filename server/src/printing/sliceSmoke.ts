@@ -19,74 +19,15 @@ import { env } from '../core/env.js'
 import { FAILURES, OrcaRunner, type SliceFailure, orcaVersion } from './orcaRunner.js'
 import { type Placement, placedBox, placementAffine } from './plateTransform.js'
 import type { ProcessOverrides } from './processSettings.js'
-import {
-  type FilamentInfo,
-  type PrinterInfo,
-  type ProcessInfo,
-  ProfileError,
-  StockProfiles,
-  readPresetFile,
-  resolvePreset,
-  sha256,
-} from './profileResolve.js'
+import { CLUB_BUNDLES, type FILAMENTS, type PROCESSES, clubProfiles, presetsIn } from './clubProfiles.js'
+import { ProfileError, StockProfiles, resolvePreset, sha256 } from './profileResolve.js'
 import { testSlice } from './profileWork.js'
-import type { LoadedProfile, SliceProfiles } from './profiles.js'
+import type { SliceProfiles } from './profiles.js'
 import type { ClaimedSlice, SliceOutput } from './sliceJobs.js'
 import { meshStepInChild } from './stepMesh.js'
 import { parseStl } from './stl.js'
 
 const fixtures = fileURLToPath(new URL('../../orca/fixtures/', import.meta.url))
-const sources = fileURLToPath(new URL('../../orca/source/', import.meta.url))
-
-const PROCESSES = {
-  STANDARD: 'process/0.20mm, 0.4 nozzle, Line, T-Support.json',
-  Q: 'process/0.20mm, Q, 0.4 nozzle, Line, T-Support.json',
-  QS: 'process/0.20mm, Q-S, 0.4 nozzle, Line, T-Support.json',
-} as const
-
-const FILAMENTS = {
-  PLA: ['Generic PLA.orca_filament', 'System/Elegoo Rapid PLA.json'],
-  PETG: ['Elegoo Rapid PETG.orca_filament', 'ECC/Elegoo RAPID PETG Optimized.json'],
-} as const
-
-async function presetsIn(bundle: string) {
-  return readPresetFile(bundle, new Uint8Array(await readFile(join(sources, bundle))))
-}
-
-async function entry(bundle: string, name: string) {
-  const preset = (await presetsIn(bundle)).find((p) => p.entry === name)
-  if (!preset) throw new Error(`${bundle} has no ${name}`)
-  return preset
-}
-
-function asLoaded<Info>(name: string, resolved: { text: string; info: Info }): LoadedProfile<Info> {
-  return { id: name, name, text: resolved.text, info: resolved.info }
-}
-
-/** The club's exports, resolved the way the worker resolves an upload. */
-async function clubProfiles(stock: StockProfiles) {
-  const cc1 = await entry('CC1.orca_printer', 'printer/CC1.json')
-  const printer = await resolvePreset(cc1.text, 'PRINTER', stock)
-  if (printer.kind !== 'PRINTER') throw new Error('CC1 is not a printer')
-  const machine = asLoaded<PrinterInfo>(cc1.name, printer)
-
-  const processes = {} as Record<keyof typeof PROCESSES, LoadedProfile<ProcessInfo>>
-  for (const [key, path] of Object.entries(PROCESSES)) {
-    const preset = await entry('CC1.orca_printer', path)
-    const resolved = await resolvePreset(preset.text, 'PROCESS', stock, { name: cc1.name, info: printer.info })
-    if (resolved.kind !== 'PROCESS') throw new Error(`${path} is not a process`)
-    processes[key as keyof typeof PROCESSES] = asLoaded(preset.name, resolved)
-  }
-
-  const filaments = {} as Record<keyof typeof FILAMENTS, LoadedProfile<FilamentInfo>>
-  for (const [key, [bundle, path]] of Object.entries(FILAMENTS)) {
-    const preset = await entry(bundle, path)
-    const resolved = await resolvePreset(preset.text, 'FILAMENT', stock)
-    if (resolved.kind !== 'FILAMENT') throw new Error(`${path} is not a filament`)
-    filaments[key as keyof typeof FILAMENTS] = asLoaded(preset.name, resolved)
-  }
-  return { printer: machine, processes, filaments }
-}
 
 /** A box whose raw coordinates start at `origin`, so placement has to recentre it. */
 function box(
@@ -174,7 +115,7 @@ async function main() {
 
   // Every preset in the club's bundles flattens, not just the ones offered.
   let flattened = 0
-  for (const bundle of ['CC1.orca_printer', 'Generic PLA.orca_filament', 'Elegoo Rapid PETG.orca_filament']) {
+  for (const bundle of CLUB_BUNDLES) {
     const presets = await presetsIn(bundle)
     const cc1 = presets.find((p) => p.kind === 'PRINTER')
     const printer = cc1 ? await resolvePreset(cc1.text, 'PRINTER', stock) : null

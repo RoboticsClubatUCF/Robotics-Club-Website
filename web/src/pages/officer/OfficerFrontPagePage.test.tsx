@@ -83,6 +83,7 @@ const context = (
       canActivate: false,
       surveyPending: false,
       surveyPromptDismissed: false,
+      slicerTrained: true,
     },
     ...over,
   } as DashboardContext['membership'],
@@ -454,6 +455,7 @@ describe('OfficerFrontPagePage', () => {
           canActivate: false,
           surveyPending: false,
           surveyPromptDismissed: false,
+          slicerTrained: true,
         },
       } as Partial<DashboardContext['membership']>),
     )

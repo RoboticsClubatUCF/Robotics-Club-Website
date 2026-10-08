@@ -194,6 +194,11 @@ model User {
   /// who changes their mind. Cleared by answering, so the row never claims somebody declined a
   /// survey they went on to fill in.
   surveyPromptDismissedAt   DateTime? @map("survey_prompt_dismissed_at")
+  /// When they finished the slicer training on the profile page, or null. The slicer's routes
+  /// refuse until it's set (`requireSlicerTraining`), officers included. The training's tasks and
+  /// questions are checked in the browser; this only records that someone got to the end. Never
+  /// cleared, and on the session for the same reason as the survey columns.
+  slicerTrainedAt           DateTime? @map("slicer_trained_at")
   createdAt                 DateTime  @default(now()) @map("created_at")
   updatedAt                 DateTime  @updatedAt @map("updated_at")
 

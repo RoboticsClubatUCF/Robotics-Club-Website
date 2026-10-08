@@ -217,9 +217,12 @@ function DashboardShell({ user }: { user: ApiUser }) {
   /**
    * The slicer gets the whole width, the way a slicer does: no rail, no gutter. It keeps the
    * gate and the context, and the site's nav above it is the way back. No survey prompt over a
-   * plate somebody is in the middle of arranging, either.
+   * plate somebody is in the middle of arranging, either. The slicer training is the slicer on a
+   * practice plate, so it gets the same.
    */
-  const workspace = location.pathname.startsWith('/dashboard/print/slicer')
+  const workspace =
+    location.pathname.startsWith('/dashboard/print/slicer') ||
+    location.pathname.startsWith('/dashboard/profile/training')
   const promptable =
     !workspace &&
     !location.pathname.startsWith('/dashboard/survey') &&

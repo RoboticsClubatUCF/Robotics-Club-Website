@@ -46,6 +46,7 @@ const PREFIX = 'test-draft-'
 const email = (name: string) => `${PREFIX}${name}@ucf.edu`
 const PAID_UP = new Date('2035-12-31T23:59:59')
 const SURVEYED = new Date('2035-09-01T00:00:00')
+const TRAINED = new Date('2035-09-02T00:00:00')
 const WORKER = `${PREFIX}worker`
 
 const limits = {
@@ -167,6 +168,7 @@ beforeEach(async () => {
         role,
         duesPaidThrough: PAID_UP,
         surveyCompletedAt: SURVEYED,
+        slicerTrainedAt: TRAINED,
       },
     })
   const [member, other, officer] = await Promise.all([
@@ -445,6 +447,58 @@ describe('the workspace', () => {
     expect(printer.processes.map((process) => process.label)).toEqual(['Standard'])
     expect(body.profiles.printers.some((p) => p.id === ids.otherPrinter)).toBe(false)
     expect(body.profiles.filaments.some((f) => f.id === ids.tpu)).toBe(false)
+  })
+})
+
+describe('the training gate', () => {
+  const untrain = () =>
+    prisma.user.update({ where: { id: memberId }, data: { slicerTrainedAt: null } })
+
+  it('keeps the slicer shut until the training is finished, officers included', async () => {
+    const draft = await newDraft()
+    await untrain()
+    await prisma.user.update({
+      where: { email: email('officer') },
+      data: { slicerTrainedAt: null },
+    })
+    const refused = [
+      await app.request('/api/print/workspace', { headers: { cookie: memberCookie } }),
+      await app.request('/api/print/workspace', { headers: { cookie: officerCookie } }),
+      await createDraft(),
+      await send('PATCH', `/api/print/drafts/${draft.id}`, { revision: draft.revision, overrides: {} }),
+      await slice(draft),
+      await send('POST', `/api/print/drafts/${draft.id}/submit`, { revision: draft.revision }),
+      await send('POST', `/api/print/${draft.id}/unsubmit`, {}),
+    ]
+    for (const response of refused) {
+      expect(response.status).toBe(403)
+      expect(((await response.json()) as { error: string }).error).toMatch(/slicer training/)
+    }
+    // Reading and throwing away a plate already made still work.
+    expect((await app.request('/api/print/drafts', { headers: { cookie: memberCookie } })).status).toBe(200)
+    expect(
+      (await app.request(`/api/print/drafts/${draft.id}`, { method: 'DELETE', headers: { cookie: memberCookie } }))
+        .status,
+    ).toBe(200)
+  })
+
+  it('records the training once, without dues, and opens the slicer', async () => {
+    await untrain()
+    await prisma.user.update({ where: { id: memberId }, data: { duesPaidThrough: null } })
+    const first = await send('POST', '/api/print/training', {})
+    expect(first.status).toBe(200)
+    const { trainedAt } = (await first.json()) as { trainedAt: string }
+    expect(Date.now() - new Date(trainedAt).getTime()).toBeLessThan(60_000)
+    const again = (await (await send('POST', '/api/print/training', {})).json()) as { trainedAt: string }
+    expect(again.trainedAt).toBe(trainedAt)
+
+    const status = (await (
+      await app.request('/api/dues/status', { headers: { cookie: memberCookie } })
+    ).json()) as { membership: { slicerTrained: boolean } }
+    expect(status.membership.slicerTrained).toBe(true)
+
+    await prisma.user.update({ where: { id: memberId }, data: { duesPaidThrough: PAID_UP } })
+    expect((await createDraft()).status).toBe(201)
   })
 })
 

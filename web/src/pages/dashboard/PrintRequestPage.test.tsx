@@ -567,6 +567,7 @@ const context = (
     paidThrough?: string | null
     /** A free window is running and unclaimed — the third lock reason. */
     canActivate?: boolean
+    slicerTrained?: boolean
   } = {},
 ): DashboardContext => ({
   user: {
@@ -603,6 +604,7 @@ const context = (
       // now. Every lock asserted below is the dues lock.
       surveyPending: false,
       surveyPromptDismissed: false,
+      slicerTrained: over.slicerTrained ?? true,
     },
   },
   reloadMembership: () => Promise.resolve(),
@@ -626,6 +628,65 @@ const renderIn = (dashboard: DashboardContext) =>
  * than the form — and, because the gate is a wrapper, the page underneath never mounts and never
  * fires the requests the server would only refuse. That absence is the second assertion here.
  */
+describe('before the slicer training', () => {
+  it('offers the training where the slicer would be, and keeps the resin form', async () => {
+    vi.stubGlobal('fetch', stubFetch(pageData()))
+    renderIn(context(true, [], { slicerTrained: false }))
+
+    expect(await screen.findByRole('link', { name: 'START THE SLICER TRAINING' })).toHaveAttribute(
+      'href',
+      '/dashboard/profile/training',
+    )
+    expect(screen.queryByRole('link', { name: 'OPEN THE SLICER' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /send the request/i })).toBeInTheDocument()
+  })
+
+  it('offers no way back into the slicer for a waiting plate or a draft', async () => {
+    vi.stubGlobal(
+      'fetch',
+      stubFetch(
+        pageData({
+          '/me/print-requests': [
+            request({
+              status: 'PENDING',
+              slicedWith: { printer: 'CC1', process: 'Standard', filament: 'PLA' },
+              overrides: {},
+            }),
+          ],
+          '/print/drafts': [
+            {
+              id: 'd1',
+              fileName: 'bracket.stl',
+              quantity: 1,
+              slicedWith: { printer: 'CC1', process: 'Standard', filament: 'PLA' },
+              createdAt: '2026-09-01T12:00:00.000Z',
+              draftActiveAt: '2026-09-01T12:00:00.000Z',
+              sliceState: null,
+              missing: null,
+              expiresAt: '2099-01-01T00:00:00.000Z',
+            },
+          ],
+        }),
+      ),
+    )
+    renderIn(context(true, [], { slicerTrained: false }))
+
+    expect(await screen.findAllByText('bracket.stl')).toHaveLength(2)
+    expect(screen.queryByRole('link', { name: 'OPEN' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'DISCARD' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'EDIT' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'WITHDRAW' })).toBeInTheDocument()
+  })
+
+  it('opens the slicer once it’s done', async () => {
+    vi.stubGlobal('fetch', stubFetch(pageData()))
+    renderIn(context(true))
+
+    expect(await screen.findByRole('link', { name: 'OPEN THE SLICER' })).toHaveAttribute('href', '/dashboard/print/slicer')
+    expect(screen.queryByRole('link', { name: 'START THE SLICER TRAINING' })).not.toBeInTheDocument()
+  })
+})
+
 describe('when dues have lapsed', () => {
   it('shows the notice instead of the form, and asks the server nothing', async () => {
     const stub = stubFetch({})

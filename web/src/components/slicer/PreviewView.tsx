@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import type { Group } from 'three'
 import {
   type Extrusions,
@@ -12,6 +12,7 @@ import { gramsByRole, roleGrams } from '../../lib/slicer/estimate'
 import { ROLES, ROLE_LABEL, type Preview, type Role } from '../../lib/slicer/preview'
 import type { Bed } from '../../lib/slicer/plateTransform'
 import {
+  type Focus,
   type Stage,
   createStage,
   disposeTree,
@@ -19,6 +20,7 @@ import {
   themeColors,
 } from '../../lib/slicer/scene'
 import { useTheme } from '../../lib/theme'
+import { ResetView } from './ResetView'
 
 /**
  * The sliced plate, layer by layer: Orca's own toolpaths at their real width and layer height,
@@ -29,21 +31,38 @@ export function PreviewView({
   bed,
   preview,
   grams,
+  focus,
+  legend,
+  onExplore,
 }: {
   bed: Bed
   preview: Preview
   /** Orca's estimate for the slice this preview is of. */
   grams: number | null
+  /** Opens looking at this rather than the whole bed. */
+  focus?: Focus
+  /** Whether PATHS starts open; by default, open at `wide` only. */
+  legend?: boolean
+  /** The slider moved or a kind of path was hidden: for the slicer training. */
+  onExplore?: (layers: { top: number; count: number; hidden: Role[] }) => void
 }) {
   const last = preview.layers.length - 1
   const [top, setTop] = useState(last)
   const [hidden, setHidden] = useState<ReadonlySet<Role>>(new Set())
 
+  const report = useEffectEvent(() => {
+    onExplore?.({ top, count: preview.layers.length, hidden: [...hidden] })
+  })
+  useEffect(() => {
+    report()
+  }, [top, hidden, preview])
+
   return (
     <div className="absolute inset-0 flex">
       <div className="relative min-w-0 flex-1">
-        <PreviewCanvas bed={bed} preview={preview} top={top} hidden={hidden} />
+        <PreviewCanvas bed={bed} preview={preview} top={top} hidden={hidden} focus={focus} />
         <Legend
+          initiallyOpen={legend}
           hidden={hidden}
           preview={preview}
           grams={grams}
@@ -65,11 +84,13 @@ function PreviewCanvas({
   preview,
   top,
   hidden,
+  focus,
 }: {
   bed: Bed
   preview: Preview
   top: number
   hidden: ReadonlySet<Role>
+  focus?: Focus
 }) {
   const host = useRef<HTMLDivElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
@@ -81,7 +102,7 @@ function PreviewCanvas({
 
   useEffect(() => {
     if (!canvas.current || !host.current) return
-    const made = createStage(canvas.current, host.current, bed)
+    const made = createStage(canvas.current, host.current, bed, focus)
     if (!made) {
       setFailed(true)
       return
@@ -112,7 +133,8 @@ function PreviewCanvas({
       made.dispose()
       stage.current = null
     }
-  }, [bed, preview])
+    // `focus` has to be a stable object, or the view is rebuilt on every render.
+  }, [bed, preview, focus])
 
   useEffect(() => {
     const made = stage.current
@@ -147,23 +169,28 @@ function PreviewCanvas({
           </p>
         </div>
       ) : (
-        <canvas
-          ref={canvas}
-          role="img"
-          aria-label={`Sliced plate, layer ${String(top + 1)} of ${String(preview.layers.length)}`}
-          className="block h-full w-full touch-none"
-        />
+        <>
+          <canvas
+            ref={canvas}
+            role="img"
+            aria-label={`Sliced plate, layer ${String(top + 1)} of ${String(preview.layers.length)}`}
+            className="block h-full w-full touch-none"
+          />
+          <ResetView onReset={() => stage.current?.reset()} />
+        </>
       )}
     </div>
   )
 }
 
 function Legend({
+  initiallyOpen,
   preview,
   grams,
   hidden,
   onToggle,
 }: {
+  initiallyOpen: boolean | undefined
   preview: Preview
   grams: number | null
   hidden: ReadonlySet<Role>
@@ -175,7 +202,9 @@ function Legend({
   const shares = gramsByRole(preview.filament, grams)
   // Shut to begin with on a phone, where it would cover the plate.
   const [open, setOpen] = useState(
-    () => typeof window.matchMedia !== 'function' || window.matchMedia('(min-width: 56.25rem)').matches,
+    () =>
+      initiallyOpen ??
+      (typeof window.matchMedia !== 'function' || window.matchMedia('(min-width: 56.25rem)').matches),
   )
   // On a phone it sits under the workspace's SETTINGS and OBJECTS buttons, which it's too wide to
   // pass beside.

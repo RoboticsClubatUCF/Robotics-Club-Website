@@ -49,6 +49,7 @@ const duesStatus = (over: Partial<ApiMembership> = {}) => ({
     canActivate: false,
     surveyPending: false,
     surveyPromptDismissed: false,
+    slicerTrained: true,
     ...over,
   },
   plans: [],
@@ -866,6 +867,7 @@ describe('the survey prompt', () => {
         '/dues/status': duesStatus({
           surveyPending: true,
           surveyPromptDismissed: true,
+          slicerTrained: true,
         }),
         '/me/projects': [],
       }),

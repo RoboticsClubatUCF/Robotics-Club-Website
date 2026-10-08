@@ -52,6 +52,7 @@ const membershipWith = (
     canActivate: false,
     surveyPending: false,
     surveyPromptDismissed: false,
+    slicerTrained: true,
     ...fields,
   },
 })

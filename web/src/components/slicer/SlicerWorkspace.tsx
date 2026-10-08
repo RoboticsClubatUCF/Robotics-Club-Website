@@ -1,5 +1,5 @@
 import { ChevronLeft, X } from 'lucide-react'
-import { useEffect, useEffectEvent, useId, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useEffectEvent, useId, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
 import { ApiError } from '../../lib/api/api'
 import type {
@@ -18,8 +18,10 @@ import { choiceProblem, defaultChoice, printerOf } from '../../lib/slicer/profil
 import { boxOn, fitOn, sizeOf } from '../../lib/slicer/plate'
 import { type Box, type FitProblem, canonicalQuat } from '../../lib/slicer/plateTransform'
 import { ACCEPTED_MODELS, MeshError, parseStl } from '../../lib/slicer/stl'
-import { useDraft } from '../../lib/slicer/useDraft'
-import { usePreview } from '../../lib/slicer/usePreview'
+import type { Role } from '../../lib/slicer/preview'
+import type { CameraView } from '../../lib/slicer/scene'
+import { type PlateSource, useDraft } from '../../lib/slicer/useDraft'
+import { type PreviewLoad, usePreview } from '../../lib/slicer/usePreview'
 import { useDialogFocus } from '../../lib/useDialogFocus'
 import { ErrorDialog } from '../shared/ErrorDialog'
 import { FormEyebrow, FormHeading } from '../shared/formChrome'
@@ -90,12 +92,9 @@ const onPlate = (target: EventTarget | null) =>
   target.closest(CONTROL) === null
 
 /**
- * The slicer workspace: Orca's Prepare and Preview, for one build plate.
- *
- * Settings on the left, the plate in the middle, its objects on the right; on a phone the two
- * columns open as drawers over the plate. SLICE PLATE sends the plate to the slicer worker, and
- * REQUEST PRINT sends the sliced plate to the officers once it's current. Nothing here talks to a
- * printer: an officer prints it.
+ * The slicer workspace for one of the member's plates: the plate saved as they work, its slice
+ * and preview from the worker. The view is `WorkspaceView`, which the slicer training also runs
+ * on a practice plate.
  */
 export function SlicerWorkspace({
   draftId,
@@ -109,13 +108,88 @@ export function SlicerWorkspace({
   allowance: ApiPrintAllowance | null
 }) {
   const navigate = useNavigate()
-  const id = useId()
   const arrived = useLocation().state as { unsubmitted?: boolean } | null
   const plate = useDraft(draftId, defaultChoice(workspace.profiles))
+  const preview = usePreview(plate.draft?.id, plate.draft?.slice ?? null)
+  return (
+    <WorkspaceView
+      plateKey={draftId}
+      plate={plate}
+      preview={preview}
+      workspace={workspace}
+      projects={projects}
+      allowance={allowance}
+      fromQueue={arrived?.unsubmitted === true}
+      onCreated={(id) => {
+        void navigate(`/dashboard/print/slicer/${id}`, { replace: true })
+      }}
+      onSent={(fileName) => {
+        void navigate('/dashboard/print', { state: { sent: fileName } })
+      }}
+    />
+  )
+}
+
+/** What the slicer training watches to tell when a practice task is done. */
+export interface WorkspaceWatch {
+  onState?: (state: { selected: string[]; mode: PlateMode; tab: 'prepare' | 'preview' }) => void
+  onCamera?: (view: CameraView) => void
+  onLayers?: (layers: { top: number; count: number; hidden: Role[] }) => void
+}
+
+const PRINTING_LINK = (
+  <Link
+    to="/dashboard/print"
+    className="text-dim hover:text-base-content inline-flex min-h-11 items-center gap-1 font-mono text-[11px] font-semibold tracking-[0.12em] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary wide:min-h-9"
+  >
+    <ChevronLeft className={iconSize} aria-hidden="true" /> PRINTING
+  </Link>
+)
+
+/**
+ * The slicer workspace: Orca's Prepare and Preview, for one build plate.
+ *
+ * Settings on the left, the plate in the middle, its objects on the right; on a phone the two
+ * columns open as drawers over the plate. SLICE PLATE sends the plate to the slicer worker, and
+ * REQUEST PRINT sends the sliced plate to the officers once it's current. Nothing here talks to a
+ * printer: an officer prints it.
+ */
+export function WorkspaceView({
+  plateKey,
+  plate,
+  preview,
+  workspace,
+  projects,
+  allowance,
+  fromQueue = false,
+  onCreated,
+  onSent,
+  back = PRINTING_LINK,
+  watch,
+  className = 'h-[calc(100dvh-var(--spacing-nav))] min-h-[30rem]',
+}: {
+  /** The plate's id, or undefined before its first upload. A new key starts undo over. */
+  plateKey: string | undefined
+  plate: PlateSource
+  preview: PreviewLoad
+  workspace: ApiSlicerWorkspace
+  projects: ApiMyProject[]
+  allowance: ApiPrintAllowance | null
+  /** Arrived from the printing page's EDIT, which is said once. */
+  fromQueue?: boolean
+  /** The first upload made the draft. */
+  onCreated?: (id: string) => void
+  onSent: (fileName: string) => void
+  /** The way out at the left of the top bar; null for none. */
+  back?: ReactNode
+  watch?: WorkspaceWatch
+  /** The workspace's height. */
+  className?: string
+}) {
+  const id = useId()
   const { draft, plate: local } = plate
   const models = draft?.models ?? []
   const { meshes } = useMeshes(models)
-  const preview = usePreview(draft?.id, draft?.slice ?? null)
   // A plate whose printer was deleted is still drawn, on the first printer's bed, until it picks one.
   const bed = (printerOf(workspace.profiles, local.printerId) ?? workspace.profiles.printers[0]!).bed
   const objects = local.objects
@@ -129,7 +203,7 @@ export function SlicerWorkspace({
   const [slicing, setSlicing] = useState(false)
   const [sending, setSending] = useState<'closed' | 'open' | 'sending'>('closed')
   // Said once, on arriving from the printing page's EDIT.
-  const [backFromQueue, setBackFromQueue] = useState(arrived?.unsubmitted === true)
+  const [backFromQueue, setBackFromQueue] = useState(fromQueue)
   // Plates to step back to and forward to again, newest last.
   const history = useRef<{ back: ApiPlateObject[][]; forward: ApiPlateObject[][] }>({
     back: [],
@@ -219,7 +293,14 @@ export function SlicerWorkspace({
   // A different plate starts with nothing to undo.
   useEffect(() => {
     history.current = { back: [], forward: [] }
-  }, [draftId])
+  }, [plateKey])
+
+  const report = useEffectEvent(() => {
+    watch?.onState?.({ selected, mode, tab })
+  })
+  useEffect(() => {
+    report()
+  }, [selected, mode, tab])
 
   // A STEP lands in the middle of the plate because its shape isn't known until the worker meshes
   // it. Once it is, a copy sitting on top of another part moves to the nearest free spot.
@@ -298,7 +379,7 @@ export function SlicerWorkspace({
           primeMesh(placed.modelId, positions)
           taken.push(boxOn(positions, placed))
         }
-        if (!draftId) void navigate(`/dashboard/print/slicer/${next.id}`, { replace: true })
+        if (!plateKey) onCreated?.(next.id)
         setSelected([object.id])
       }
     } catch (error) {
@@ -400,7 +481,9 @@ export function SlicerWorkspace({
     setSending('sending')
     try {
       const sent = await plate.submit(details)
-      void navigate('/dashboard/print', { state: { sent: sent.fileName } })
+      // The real workspace has navigated away by now; the practice one stays on the plate.
+      setSending('closed')
+      onSent(sent.fileName)
     } catch (error) {
       setSending('closed')
       setProblem({ title: `The plate wasn't sent`, message: explain(error, `It didn't go through. Try again in a moment.`) })
@@ -516,14 +599,9 @@ export function SlicerWorkspace({
     } wide:shrink-0`
 
   return (
-    <div className="flex h-[calc(100dvh-var(--spacing-nav))] min-h-[30rem] flex-col">
+    <div className={`flex flex-col ${className}`}>
       <header className="border-rule bg-base-100 flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-3 py-1.5">
-        <Link
-          to="/dashboard/print"
-          className="text-dim hover:text-base-content inline-flex min-h-11 items-center gap-1 font-mono text-[11px] font-semibold tracking-[0.12em] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary wide:min-h-9"
-        >
-          <ChevronLeft className={iconSize} aria-hidden="true" /> PRINTING
-        </Link>
+        {back}
         <div
           role="tablist"
           aria-label="Workspace"
@@ -638,6 +716,7 @@ export function SlicerWorkspace({
                 onDrag={editable ? drag : () => undefined}
                 onCommit={editable ? change : () => undefined}
                 onLayFlat={editable ? flatten : () => undefined}
+                onView={watch?.onCamera}
               />
               {editable && (
                 <PlateToolbar
@@ -676,6 +755,7 @@ export function SlicerWorkspace({
               sliced={sliced}
               grams={slice?.estimatedGrams ?? null}
               failure={slice?.previewFailure ?? null}
+              onExplore={watch?.onLayers}
             />
           )}
 
@@ -867,15 +947,19 @@ function PreviewPane({
   sliced,
   grams,
   failure,
+  onExplore,
 }: {
-  preview: ReturnType<typeof usePreview>
+  preview: PreviewLoad
   bed: ApiBed
   sliced: boolean
   grams: number | null
   /** Why a sliced plate has no preview, in the worker's words. */
   failure: string | null
+  onExplore?: WorkspaceWatch['onLayers']
 }) {
-  if (preview.status === 'ready') return <PreviewView bed={bed} preview={preview.preview} grams={grams} />
+  if (preview.status === 'ready') {
+    return <PreviewView bed={bed} preview={preview.preview} grams={grams} onExplore={onExplore} />
+  }
   const text =
     preview.status === 'loading'
       ? 'Loading the sliced layers…'

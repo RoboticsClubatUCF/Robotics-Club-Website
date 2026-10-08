@@ -40,6 +40,7 @@ const membership = (over: Partial<ApiMembership> = {}): ApiMembership => ({
   canActivate: false,
   surveyPending: false,
   surveyPromptDismissed: false,
+  slicerTrained: true,
   ...over,
 })
 

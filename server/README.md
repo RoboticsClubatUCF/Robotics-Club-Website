@@ -285,13 +285,14 @@ public block in `src/app.ts`, so no shared-cache headers reach them.
 | `GET /api/me/print-allowance` | Grams left this term, computed |
 | `GET /api/me/loans` | Borrowed and requested items |
 | `POST /api/print` · `DELETE /api/print/:id` | Current dues. A resin print: multipart `.stl`/`.step`, size-capped and sniffed; an FDM body is a 409 (filament goes through the slicer). `quantity` 1 to 50; `projectId` needs a real membership. Withdrawing deletes every file the request holds |
-| `GET /api/print/workspace` | Current dues. The offered printers (bed, processes and each process's own values), the filaments with the printers they fit, limits, and whether a slicer worker is up. 503 while no printer or filament is offered |
-| `GET /api/print/drafts` · `POST /api/print/drafts` | My drafts; a new draft from its first upload (multipart `file`, `settings` JSON, `object` placement JSON). `PRINT_DRAFT_MAX` each |
+| `GET /api/print/workspace` | Current dues and the slicer training. The offered printers (bed, processes and each process's own values), the filaments with the printers they fit, limits, and whether a slicer worker is up. 503 while no printer or filament is offered |
+| `GET /api/print/drafts` · `POST /api/print/drafts` | My drafts; a new draft from its first upload, which needs the slicer training (multipart `file`, `settings` JSON, `object` placement JSON). `PRINT_DRAFT_MAX` each |
 | `GET /api/print/drafts/:id` · `PATCH` · `DELETE` | The plate: models, copies, profile ids and labels, settings, `revision`, slice state. `PATCH { revision, printerId?, processId?, filamentId?, overrides?, objects? }` replaces the copies; a stale revision is a 409, and so is a profile that's hidden, gone, still being resolved, or doesn't fit the printer. An edit only checks the profiles it changes |
 | `POST /api/print/drafts/:id/models` | Multipart: add a model and one copy, naming the revision. A STEP waits for the worker to mesh it |
 | `POST /api/print/drafts/:id/slice` | `{ revision }`. Queues the plate for the worker, or reuses a slice of the identical plate. 503 with no worker; 409 unless all three profiles are usable; `PRINT_SLICES_PER_HOUR`, one plate slicing per member |
 | `GET /api/print/drafts/:id/preview` · `GET /api/print/models/:id/mesh` | The gzipped layer preview and a model's STL, for the owner (and officers once sent). `no-store` |
 | `POST /api/print/drafts/:id/submit` · `POST /api/print/:id/unsubmit` | Send a plate whose slice is current (`{ revision, projectId?, notes? }`); copies Orca's estimate onto the request. Unsubmit takes a waiting plate back to a draft |
+| `POST /api/print/training` | Signed in, no dues needed. Records the slicer training as finished (`slicerTrainedAt`, once). The workspace read and making, editing, slicing, sending or unsubmitting a plate answer 403 until it's set; reading and discarding drafts don't |
 | `GET /api/equipment` | Current dues. The catalogue with live `available` counts and `maxLoanDays` |
 | `POST /api/equipment/:id/loans` · `POST /api/equipment/loans/:id/cancel` | One open loan per person per item. `requestedDueAt` required; a future `startAt` makes a booking; capped at `maxLoanDays` |
 

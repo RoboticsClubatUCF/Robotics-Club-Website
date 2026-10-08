@@ -3,7 +3,7 @@ import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
-import { isOfficer, requireDuesForRoute } from '../../auth/authz.js'
+import { isOfficer, requireDuesForRoute, requireSlicerTraining } from '../../auth/authz.js'
 import { type AuthEnv, originGuard, requireAuth } from '../../auth/session.js'
 import { prisma } from '../../core/db.js'
 import { env } from '../../core/env.js'
@@ -55,6 +55,7 @@ import { printSelect } from './print.js'
  *   DELETE /api/print/drafts/:id            -> discard it
  *   POST   /api/print/:id/unsubmit          -> take a waiting plate back to edit
  *   GET    /api/print/models/:id/mesh       -> a model's mesh, for the workspace
+ *   POST   /api/print/training              -> the slicer training is finished
  *
  * A draft is a `PrintRequest` in DRAFT: private, charging nothing, expiring on its own. Every
  * edit, SLICE and SUBMIT names the revision it saw, so a stale tab gets a 409 rather than
@@ -67,6 +68,10 @@ import { printSelect } from './print.js'
  *
  * The per-member limits are checked under that member's advisory lock, so two tabs can't both
  * slip under one.
+ *
+ * Everything that makes, changes, slices or sends a plate also needs the slicer training
+ * (`requireSlicerTraining`), which the profile page runs. Its practice happens in the browser
+ * and touches none of these routes.
  */
 export const printDrafts = new Hono<AuthEnv>()
 
@@ -426,7 +431,7 @@ async function myDraft(tx: Tx, id: string, userId: string) {
   return draft
 }
 
-printDrafts.get('/workspace', requireAuth, requireDuesForRoute, async (c) => {
+printDrafts.get('/workspace', requireAuth, requireDuesForRoute, requireSlicerTraining, async (c) => {
   const profiles = await workspaceProfiles()
   if (profiles.printers.length === 0 || profiles.filaments.length === 0) {
     throw new HTTPException(503, {
@@ -444,6 +449,23 @@ printDrafts.get('/workspace', requireAuth, requireDuesForRoute, async (c) => {
       slicesPerHour: env.PRINT_SLICES_PER_HOUR,
     },
   })
+})
+
+/**
+ * Records the slicer training as finished. Not dues-gated: anyone signed in can do it ahead of
+ * paying. Filtered on the null so doing it again doesn't move the date.
+ */
+printDrafts.post('/training', originGuard, requireAuth, edits, async (c) => {
+  const user = c.get('user')
+  await prisma.user.updateMany({
+    where: { id: user.id, slicerTrainedAt: null },
+    data: { slicerTrainedAt: new Date() },
+  })
+  const { slicerTrainedAt } = await prisma.user.findUniqueOrThrow({
+    where: { id: user.id },
+    select: { slicerTrainedAt: true },
+  })
+  return c.json({ trainedAt: slicerTrainedAt?.toISOString() ?? null })
 })
 
 printDrafts.get('/drafts', requireAuth, requireDuesForRoute, async (c) => {
@@ -483,6 +505,7 @@ printDrafts.post(
   originGuard,
   requireAuth,
   requireDuesForRoute,
+  requireSlicerTraining,
   uploadLimit,
   uploads,
   async (c) => {
@@ -560,6 +583,7 @@ printDrafts.post(
   originGuard,
   requireAuth,
   requireDuesForRoute,
+  requireSlicerTraining,
   uploadLimit,
   uploads,
   async (c) => {
@@ -623,6 +647,7 @@ printDrafts.patch(
   originGuard,
   requireAuth,
   requireDuesForRoute,
+  requireSlicerTraining,
   edits,
   validate('json', draftEdit),
   async (c) => {
@@ -717,6 +742,7 @@ printDrafts.post(
   originGuard,
   requireAuth,
   requireDuesForRoute,
+  requireSlicerTraining,
   edits,
   validate('json', revision),
   async (c) => {
@@ -934,6 +960,7 @@ printDrafts.post(
   originGuard,
   requireAuth,
   requireDuesForRoute,
+  requireSlicerTraining,
   submissions,
   validate('json', submitBody),
   async (c) => {
@@ -1032,6 +1059,8 @@ printDrafts.post(
   originGuard,
   requireAuth,
   requireDuesForRoute,
+  // A plate taken back is only any use in the slicer, and it leaves the queue.
+  requireSlicerTraining,
   edits,
   async (c) => {
     const user = c.get('user')

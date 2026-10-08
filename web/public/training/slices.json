@@ -1,0 +1,320 @@
+{
+  "orca": "2.4.2",
+  "printer": "CC1",
+  "process": "0.20mm, 0.4 nozzle, Line, T-Support",
+  "slices": {
+    "mushroom-up-none": {
+      "part": "mushroom",
+      "at": [
+        128,
+        128
+      ],
+      "overrides": {
+        "enable_support": false
+      },
+      "filament": "Elegoo Rapid PLA",
+      "grams": 2.92,
+      "seconds": 563,
+      "meters": 0.98,
+      "layers": 95,
+      "preview": "slices/mushroom-up-none.rcpv"
+    },
+    "mushroom-up-normal": {
+      "part": "mushroom",
+      "at": [
+        128,
+        128
+      ],
+      "overrides": {
+        "enable_support": true,
+        "support_type": "normal(auto)"
+      },
+      "filament": "Elegoo Rapid PLA",
+      "grams": 5.65,
+      "seconds": 739,
+      "meters": 1.89,
+      "layers": 143,
+      "preview": "slices/mushroom-up-normal.rcpv"
+    },
+    "mushroom-up-tree": {
+      "part": "mushroom",
+      "at": [
+        128,
+        128
+      ],
+      "overrides": {
+        "enable_support": true,
+        "support_type": "tree(auto)"
+      },
+      "filament": "Elegoo Rapid PLA",
+      "grams": 4.45,
+      "seconds": 955,
+      "meters": 1.49,
+      "layers": 95,
+      "preview": "slices/mushroom-up-tree.rcpv"
+    },
+    "mushroom-down": {
+      "part": "mushroom",
+      "at": [
+        128,
+        128
+      ],
+      "overrides": {
+        "enable_support": true,
+        "support_type": "tree(auto)"
+      },
+      "filament": "Elegoo Rapid PLA",
+      "grams": 2.94,
+      "seconds": 559,
+      "meters": 0.99,
+      "layers": 95,
+      "preview": "slices/mushroom-down.rcpv"
+    },
+    "mushroom-up-none-brim": {
+      "part": "mushroom",
+      "at": [
+        128,
+        128
+      ],
+      "overrides": {
+        "enable_support": false,
+        "brim_type": "outer_only",
+        "brim_width": 5
+      },
+      "filament": "Elegoo Rapid PLA",
+      "grams": 2.98,
+      "seconds": 574,
+      "meters": 1,
+      "layers": 95,
+      "preview": "slices/mushroom-up-none-brim.rcpv"
+    },
+    "mushroom-up-normal-brim": {
+      "part": "mushroom",
+      "at": [
+        128,
+        128
+      ],
+      "overrides": {
+        "enable_support": true,
+        "support_type": "normal(auto)",
+        "brim_type": "outer_only",
+        "brim_width": 5
+      },
+      "filament": "Elegoo Rapid PLA",
+      "grams": 5.65,
+      "seconds": 739,
+      "meters": 1.89,
+      "layers": 143,
+      "preview": "slices/mushroom-up-normal-brim.rcpv"
+    },
+    "mushroom-up-tree-brim": {
+      "part": "mushroom",
+      "at": [
+        128,
+        128
+      ],
+      "overrides": {
+        "enable_support": true,
+        "support_type": "tree(auto)",
+        "brim_type": "outer_only",
+        "brim_width": 5
+      },
+      "filament": "Elegoo Rapid PLA",
+      "grams": 4.46,
+      "seconds": 961,
+      "meters": 1.5,
+      "layers": 95,
+      "preview": "slices/mushroom-up-tree-brim.rcpv"
+    },
+    "mushroom-down-brim": {
+      "part": "mushroom",
+      "at": [
+        128,
+        128
+      ],
+      "overrides": {
+        "enable_support": true,
+        "support_type": "tree(auto)",
+        "brim_type": "outer_only",
+        "brim_width": 5
+      },
+      "filament": "Elegoo Rapid PLA",
+      "grams": 3.06,
+      "seconds": 578,
+      "meters": 1.03,
+      "layers": 95,
+      "preview": "slices/mushroom-down-brim.rcpv"
+    },
+    "tower-none": {
+      "part": "tower",
+      "at": [
+        128,
+        128
+      ],
+      "overrides": {},
+      "filament": "Elegoo Rapid PLA",
+      "grams": 1.93,
+      "seconds": 1329,
+      "meters": 0.65,
+      "layers": 300,
+      "preview": "slices/tower-none.rcpv"
+    },
+    "tower-brim": {
+      "part": "tower",
+      "at": [
+        128,
+        128
+      ],
+      "overrides": {
+        "brim_type": "outer_only",
+        "brim_width": 5
+      },
+      "filament": "Elegoo Rapid PLA",
+      "grams": 1.97,
+      "seconds": 1338,
+      "meters": 0.66,
+      "layers": 300,
+      "preview": "slices/tower-brim.rcpv"
+    },
+    "block-standard": {
+      "part": "block",
+      "at": [
+        128,
+        128
+      ],
+      "overrides": {},
+      "filament": "Elegoo Rapid PLA",
+      "grams": 4.76,
+      "seconds": 467,
+      "meters": 1.6,
+      "layers": 60,
+      "preview": "slices/block-standard.rcpv"
+    },
+    "block-infill-40": {
+      "part": "block",
+      "at": [
+        128,
+        128
+      ],
+      "overrides": {
+        "sparse_infill_density": 40
+      },
+      "filament": "Elegoo Rapid PLA",
+      "grams": 7.28,
+      "seconds": 657,
+      "meters": 2.44,
+      "layers": 60,
+      "preview": "slices/block-infill-40.rcpv"
+    },
+    "block-gyroid": {
+      "part": "block",
+      "at": [
+        128,
+        128
+      ],
+      "overrides": {
+        "sparse_infill_pattern": "gyroid"
+      },
+      "filament": "Elegoo Rapid PLA",
+      "grams": 4.71,
+      "seconds": 567,
+      "meters": 1.58,
+      "layers": 60,
+      "preview": "slices/block-gyroid.rcpv"
+    },
+    "block-walls-5": {
+      "part": "block",
+      "at": [
+        128,
+        128
+      ],
+      "overrides": {
+        "wall_loops": 5
+      },
+      "filament": "Elegoo Rapid PLA",
+      "grams": 6.1,
+      "seconds": 557,
+      "meters": 2.05,
+      "layers": 60,
+      "preview": "slices/block-walls-5.rcpv"
+    },
+    "block-infill-0": {
+      "part": "block",
+      "at": [
+        128,
+        128
+      ],
+      "overrides": {
+        "sparse_infill_density": 0
+      },
+      "filament": "Elegoo Rapid PLA",
+      "grams": 3.07,
+      "seconds": 430,
+      "meters": 1.03,
+      "layers": 60,
+      "preview": null
+    },
+    "block-infill-100": {
+      "part": "block",
+      "at": [
+        128,
+        128
+      ],
+      "overrides": {
+        "sparse_infill_density": 100
+      },
+      "filament": "Elegoo Rapid PLA",
+      "grams": 13.16,
+      "seconds": 1131,
+      "meters": 4.41,
+      "layers": 60,
+      "preview": null
+    },
+    "block-layer-0.12": {
+      "part": "block",
+      "at": [
+        128,
+        128
+      ],
+      "overrides": {
+        "layer_height": 0.12
+      },
+      "filament": "Elegoo Rapid PLA",
+      "grams": 4.99,
+      "seconds": 690,
+      "meters": 1.67,
+      "layers": 99,
+      "preview": null
+    },
+    "block-layer-0.28": {
+      "part": "block",
+      "at": [
+        128,
+        128
+      ],
+      "overrides": {
+        "layer_height": 0.28
+      },
+      "filament": "Elegoo Rapid PLA",
+      "grams": 5.06,
+      "seconds": 446,
+      "meters": 1.7,
+      "layers": 43,
+      "preview": null
+    },
+    "block-petg": {
+      "part": "block",
+      "at": [
+        128,
+        128
+      ],
+      "overrides": {},
+      "filament": "Elegoo RAPID PETG Optimized",
+      "grams": 4.9,
+      "seconds": 401,
+      "meters": 1.58,
+      "layers": 60,
+      "preview": null
+    }
+  }
+}

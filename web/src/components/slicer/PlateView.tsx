@@ -32,6 +32,7 @@ import {
   placementAffine,
 } from '../../lib/slicer/plateTransform'
 import {
+  type CameraView,
   type Stage,
   type ThemeColors,
   createStage,
@@ -40,6 +41,7 @@ import {
   themeColors,
 } from '../../lib/slicer/scene'
 import { useTheme } from '../../lib/theme'
+import { ResetView } from './ResetView'
 
 export type PlateMode = 'move' | 'rotate' | 'scale' | 'flat'
 
@@ -57,6 +59,8 @@ interface Props {
   onCommit: (id: string, placement: Partial<ApiPlacement>) => void
   /** A face picked in LAY ON FACE, as a direction on the plate. */
   onLayFlat: (id: string, normal: [number, number, number]) => void
+  /** The camera moved. */
+  onView?: (view: CameraView) => void
 }
 
 interface Scene3d {
@@ -176,6 +180,14 @@ export function PlateView(props: Props) {
       const clamp = (value: number) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.abs(value)))
       return { sx: clamp(proxy.scale.x), sy: clamp(proxy.scale.y), sz: clamp(proxy.scale.z) }
     }
+    const view = () => {
+      const { position } = stage.camera
+      const { target } = stage.orbit
+      latest.current.onView?.({ position: [position.x, position.y, position.z], target: [target.x, target.y, target.z] })
+    }
+    stage.orbit.addEventListener('change', view)
+    view()
+
     gizmo.addEventListener('change', stage.render)
     gizmo.addEventListener('objectChange', () => {
       const id = latest.current.selected[0]
@@ -310,6 +322,7 @@ export function PlateView(props: Props) {
     element.addEventListener('pointerleave', onLeave)
 
     return () => {
+      stage.orbit.removeEventListener('change', view)
       element.removeEventListener('pointerdown', onDown)
       element.removeEventListener('pointermove', onMove)
       element.removeEventListener('pointerup', onUp)
@@ -502,13 +515,17 @@ export function PlateView(props: Props) {
           </p>
         </div>
       ) : (
-        <canvas
-          ref={canvas}
-          role="img"
-          aria-label={`Build plate with ${String(count)} ${count === 1 ? 'object' : 'objects'}. Use the object panel to move them with a keyboard.`}
-          className={`block h-full w-full touch-none ${props.mode === 'flat' ? 'cursor-crosshair' : ''}`}
-        />
+        <>
+          <canvas
+            ref={canvas}
+            role="img"
+            aria-label={`Build plate with ${String(count)} ${count === 1 ? 'object' : 'objects'}. Use the object panel to move them with a keyboard.`}
+            className={`block h-full w-full touch-none ${props.mode === 'flat' ? 'cursor-crosshair' : ''}`}
+          />
+          <ResetView onReset={() => three.current?.stage.reset()} />
+        </>
       )}
     </div>
   )
 }
+
