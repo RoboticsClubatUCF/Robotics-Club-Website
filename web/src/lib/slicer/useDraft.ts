@@ -70,8 +70,8 @@ export function useDraft(id: string | undefined) {
   const [draft, setDraft] = useState<ApiDraft | null>(null)
   const [plate, setPlate] = useState<Plate>(DEFAULT_PLATE)
   const [saving, setSaving] = useState(false)
-  // True from the first unsent edit until the server has it: the debounce counts, so PRINT can't
-  // send a slice the member has just changed the plate under.
+  // True from the first unsent edit until the server has it: the debounce counts, so REQUEST
+  // PRINT can't send a slice the member has just changed the plate under.
   const [unsaved, setUnsaved] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
 

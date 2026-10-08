@@ -2,7 +2,7 @@ import type { ApiDraft } from '../../lib/api/api'
 import { duration } from '../../lib/slicer/estimate'
 
 /**
- * Where the plate is with the slicer, in one line beside SLICE and PRINT: not sliced, waiting,
+ * Where the plate is with the slicer, in one line beside SLICE PLATE and REQUEST PRINT: not sliced, waiting,
  * slicing, sliced (with Orca's time and material), out of date, or why it failed.
  */
 export function SliceSummary({

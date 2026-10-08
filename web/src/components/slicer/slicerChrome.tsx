@@ -6,7 +6,7 @@
 const actionBase =
   'btn h-auto min-h-11 cursor-pointer px-4 py-2 text-[11px] font-semibold tracking-[0.04em] disabled:opacity-50 wide:min-h-0'
 
-/** The one gold action in view: SLICE PLATE until the plate is sliced, then PRINT. */
+/** The one gold action in view: SLICE PLATE until the plate is sliced, then REQUEST PRINT. */
 export const loudButton = `${actionBase} btn-primary btn-cta`
 
 export const quietButton = `${actionBase} btn-outline border-base-content/28 text-base-content hover:border-base-content hover:bg-base-content/6 hover:text-base-content`

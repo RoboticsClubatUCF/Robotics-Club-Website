@@ -15,7 +15,7 @@ import { bodyOf, stubFetch, urlOf } from '../../test/stubFetch'
 
 /**
  * The slicer workspace, with the 3D views stood in for: jsdom has no WebGL, and what's under test
- * is the page around them — loading, the plate's state, SLICE and PRINT, and what the server is
+ * is the page around them — loading, the plate's state, SLICE PLATE and REQUEST PRINT, and what the server is
  * sent. The views' maths has its own tests in `lib/slicer`.
  */
 
@@ -206,7 +206,7 @@ describe('a new plate', () => {
 
     expect(await screen.findByText(/drop an stl or step file here/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'SLICE PLATE' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'PRINT' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'REQUEST PRINT' })).toBeDisabled()
     expect(screen.getByText('CC1')).toBeInTheDocument()
   })
 })
@@ -319,7 +319,7 @@ describe('a plate in progress', () => {
 })
 
 describe('a sliced plate', () => {
-  it('shows Orca’s estimate and makes PRINT the next step', async () => {
+  it('shows Orca’s estimate and makes REQUEST PRINT the next step', async () => {
     vi.stubGlobal(
       'fetch',
       stubFetch({ '/print/workspace': workspace(), '/me/print-allowance': allowance, '/print/drafts/d1': draft({ slice: readySlice() }) }),
@@ -327,7 +327,7 @@ describe('a sliced plate', () => {
     renderAt('/dashboard/print/slicer/d1')
 
     expect(await screen.findByText(/2 h 14 min · 36.2 g · 12.10 m/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'PRINT' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'REQUEST PRINT' })).toBeEnabled()
   })
 
   it('warns before sending a personal print past the allowance, then sends it', async () => {
@@ -340,7 +340,7 @@ describe('a sliced plate', () => {
     vi.stubGlobal('fetch', fetchStub)
     renderAt('/dashboard/print/slicer/d1')
 
-    fireEvent.click(await screen.findByRole('button', { name: 'PRINT' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'REQUEST PRINT' }))
     const dialog = screen.getByRole('dialog')
     expect(within(dialog).getByText(/17 g past what you have left/i)).toBeInTheDocument()
 
@@ -359,7 +359,7 @@ describe('a sliced plate', () => {
     )
     renderAt('/dashboard/print/slicer/d1')
     expect(await screen.findByText(/plate changed since it was sliced/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'PRINT' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'REQUEST PRINT' })).toBeDisabled()
   })
 
   it('explains a missing preview in the worker’s words', async () => {

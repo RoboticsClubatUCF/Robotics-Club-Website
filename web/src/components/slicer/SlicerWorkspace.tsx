@@ -92,7 +92,8 @@ const onPlate = (target: EventTarget | null) =>
  *
  * Settings on the left, the plate in the middle, its objects on the right; on a phone the two
  * columns open as drawers over the plate. SLICE PLATE sends the plate to the slicer worker, and
- * PRINT sends the sliced plate to the officers once it's current.
+ * REQUEST PRINT sends the sliced plate to the officers once it's current. Nothing here talks to a
+ * printer: an officer prints it.
  */
 export function SlicerWorkspace({
   draftId,
@@ -555,7 +556,7 @@ export function SlicerWorkspace({
             disabled={!editable || !sliced}
             className={sliced ? loudButton : quietButton}
           >
-            PRINT
+            REQUEST PRINT
           </button>
         </span>
       </header>
