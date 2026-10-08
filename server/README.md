@@ -281,10 +281,17 @@ public block in `src/app.ts`, so no shared-cache headers reach them.
 | `GET /api/me/projects` | Memberships with rank, team and a `current` term flag |
 | `GET /api/me/events` | `?from= &to=`. Published events, this member's projects' unpublished ones, visible meetings, and task deadlines they opted into (`task:` ids) |
 | `GET /api/me/tasks` | `?scope=mine\|managed\|all &status=open\|all &limit=`. `open` means not `DONE` or `CANCELED` |
-| `GET /api/me/print-requests` | Newest first; `fileId` null once settled |
+| `GET /api/me/print-requests` | Newest first, drafts left out; `fileId` null once settled |
 | `GET /api/me/print-allowance` | Grams left this term, computed |
 | `GET /api/me/loans` | Borrowed and requested items |
-| `POST /api/print` · `DELETE /api/print/:id` | Current dues. Multipart `.stl`/`.step`, size-capped and sniffed. FDM or SLA settings; `quantity` 1 to 50; `projectId` needs a real membership |
+| `POST /api/print` · `DELETE /api/print/:id` | Current dues. A resin print: multipart `.stl`/`.step`, size-capped and sniffed; an FDM body is a 409 (filament goes through the slicer). `quantity` 1 to 50; `projectId` needs a real membership. Withdrawing deletes every file the request holds |
+| `GET /api/print/workspace` | Current dues. The approved printer, bed, presets with their own values, filaments, limits, and whether a slicer worker is up |
+| `GET /api/print/drafts` · `POST /api/print/drafts` | My drafts; a new draft from its first upload (multipart `file`, `settings` JSON, `object` placement JSON). `PRINT_DRAFT_MAX` each |
+| `GET /api/print/drafts/:id` · `PATCH` · `DELETE` | The plate: models, copies, settings, `revision`, slice state. `PATCH { revision, material?, preset?, overrides?, objects? }` replaces the copies; a stale revision is a 409 |
+| `POST /api/print/drafts/:id/models` | Multipart: add a model and one copy, naming the revision. A STEP waits for the worker to mesh it |
+| `POST /api/print/drafts/:id/slice` | `{ revision }`. Queues the plate for the worker, or reuses a slice of the identical plate. 503 with no worker; `PRINT_SLICES_PER_HOUR`, one plate slicing per member |
+| `GET /api/print/drafts/:id/preview` · `GET /api/print/models/:id/mesh` | The gzipped layer preview and a model's STL, for the owner (and officers once sent). `no-store` |
+| `POST /api/print/drafts/:id/submit` · `POST /api/print/:id/unsubmit` | Send a plate whose slice is current (`{ revision, projectId?, notes? }`); copies Orca's estimate onto the request. Unsubmit takes a waiting plate back to a draft |
 | `GET /api/equipment` | Current dues. The catalogue with live `available` counts and `maxLoanDays` |
 | `POST /api/equipment/:id/loans` · `POST /api/equipment/loans/:id/cancel` | One open loan per person per item. `requestedDueAt` required; a future `startAt` makes a booking; capped at `maxLoanDays` |
 
@@ -342,7 +349,8 @@ All officer-only (`requireOfficer`, which includes the dues check).
 | `PUT` / `DELETE /api/officer/sponsors/tiers/:tier` | Upsert a tier's price sheet. An omitted `blurb` clears it. The row existing is the publication |
 | `PUT /api/officer/sponsors/sheet` | `{ footnotes }`; empty string clears |
 | `POST /api/officer/sponsors/in-kind` · `PATCH`/`DELETE /in-kind/:id` · `PATCH /in-kind/order` | Max six. Full list for reorder. Registered before `/:id` |
-| `GET /api/officer/print-queue?status=&all=` · `PATCH /api/officer/print/:id` | `all=1` returns every status. Settling deletes the model. `gramsUsed` required for a personal `DONE`; `overAllowance` to exceed the cap. Moving to `PRINTING` stamps `startedAt` |
+| `GET /api/officer/print-queue?status=&all=` · `PATCH /api/officer/print/:id` | Drafts never appear. `all=1` returns every status. Settling deletes every file the request holds. On a sliced plate `DONE` charges `ceil(estimatedGrams)` unless `gramsUsed` is sent, and `printed` is refused; otherwise `gramsUsed` is required for a personal `DONE`. `overAllowance` to exceed the cap. Moving to `PRINTING` stamps `startedAt` |
+| `GET /api/officer/print/:id/slice-file` | The sliced plate's `.3mf`, for desktop OrcaSlicer |
 | `GET`/`POST /api/officer/equipment` · `PATCH /api/officer/equipment/:id` | `maxLoanDays` defaults to 7 on create; PATCH has no defaults. Names unique case-insensitively |
 | `DELETE /api/officer/equipment/:id` | Deletes the item and its loans. Refused while a unit is out. Retiring is the reversible option |
 | `GET /api/officer/loans?status=&all=` · `PATCH /api/officer/loans/:id` | Availability re-checked in the transaction. No `REQUESTED` → `CHECKED_OUT`. `dueAt` defaults to the member's date or the item's cap |
@@ -367,8 +375,11 @@ Uploads are `bytea` rows served from `/api/files/<id>`. An image column holding
 that prefix is an upload and gets cleaned up; anything else is an external URL
 and is never touched.
 
-- A print model is deleted when its request is settled (`DONE` or `REJECTED`),
-  in the same transaction. The request keeps its name, size and outcome.
+- A request's files (a resin model, a plate's models and STEP meshes, its
+  `.3mf` and preview) are deleted when it's settled, withdrawn, discarded or
+  expired, in the same transaction (`src/printing/printLifecycle.ts`). The
+  request keeps its name, size and outcome. `.3mf` and preview files are never
+  served from `/api/files`.
 - A replaced image is deleted immediately, including when swapped for an
   external URL.
 - Cascades delete rows, not bytes. Nothing in Postgres knows `/api/files/...` is
@@ -382,10 +393,11 @@ prints; project prints are uncapped. The balance is never stored:
 `src/printing/printAllowance.ts` sums `grams_used` on the member's `DONE`,
 project-less requests for the term.
 
-- The term is stamped when the request is made.
+- The term is stamped when the request is sent.
 - It uses `currentTerm`, so summer counts as a term.
-- Only the officer route writes `grams_used`: required for a personal `DONE`,
-  refused on a decline.
+- Only the officer route writes `grams_used`. On a sliced plate it defaults to
+  Orca's estimate rounded up; otherwise it's required for a personal `DONE`.
+  It's refused on a decline.
 - Exceeding the cap needs `overAllowance: true`, and the balance can go
   negative.
 - Billing a print to a project needs a real membership row; officers get no
@@ -582,7 +594,10 @@ src/
 ├── email/            mail.ts (Postmark), emails.ts (HTML)
 ├── lab/              labStatus.ts (sign, curfew, sweep), labInteraction.ts
 ├── membership/       semester.ts, membershipSweep.ts
-├── printing/         printAllowance.ts, printSettings.ts
+├── printing/         printAllowance.ts, printSettings.ts, printLifecycle.ts, and the
+│                     slicer: processSettings.ts, plateTransform.ts, sliceJobs.ts,
+│                     orcaRunner.ts, orcaProject.ts, sliceArchive.ts, gcodePreview.ts
+├── worker.ts         the slicer worker's process (orca/Dockerfile)
 ├── equipment/        loanWindow.ts, equipmentReminder.ts
 ├── projects/         meetings.ts, projectMeeting.ts, projectTerm.ts, projectLead.ts
 ├── files/            files.ts: stored bytes and when they're deleted
@@ -594,7 +609,7 @@ src/
 | --- | --- | --- |
 | `routes/public/` | anyone | `content.ts`, `forms.ts`, `files.ts`, `lab.ts` |
 | `routes/account/` | someone managing their own account | `auth.ts`, `signup.ts`, `account.ts` |
-| `routes/member/` | signed-in members, behind the dues gate (`survey.ts` excepted) | `me.ts`, `dues.ts`, `survey.ts`, `print.ts`, `equipment.ts` |
+| `routes/member/` | signed-in members, behind the dues gate (`survey.ts` excepted) | `me.ts`, `dues.ts`, `survey.ts`, `print.ts`, `printDrafts.ts`, `equipment.ts` |
 | `routes/projects/` | project members and leads | `projectManage.ts`, `tasks.ts`, `eventManage.ts` |
 | `routes/officer/` | officers | `officer.ts`, `surveyAdmin.ts`, `heroSlides.ts`, `frontPage.ts`, `sponsorsAdmin.ts`, `aboutPage.ts`, `officerArchive.ts` |
 | `routes/webhooks/` | Stripe and Discord, by signature | `stripeWebhook.ts`, `discordInteractions.ts` |

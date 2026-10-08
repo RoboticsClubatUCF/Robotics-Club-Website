@@ -176,11 +176,17 @@ runs as root and never hits the check.
   member with the dashboard open holds an `index.html` naming the previous
   build's chunks.
 - `index.html` syncs last, after the chunks it references.
-- Every compose call names both profiles, `app` (postgres, migrate, api) and
-  `web` (nginx). `web` depends on `api`, so naming one gives
+- Every compose call names both profiles, `app` (postgres, migrate, api, the
+  slicer worker) and `web` (nginx). `web` depends on `api`, so naming one gives
   `service "web" depends on undefined service "api": invalid compose project`.
   The `compose` helper handles this and `classify.test.sh` checks it.
 - Nothing touches the database except migrations. There's no seed on deploy.
+- A `server/**` change rebuilds the slicer worker image too (`server/orca/Dockerfile`:
+  OrcaSlicer 2.4.2 on Ubuntu, about 1.6 GB). The first build downloads Orca;
+  later ones reuse the layers. The worker may use 2 GB of memory and 512 MB of
+  tmpfs scratch, so the box needs that headroom. After each build the agent
+  prunes dangling images carrying the slicer's label, nothing else. The worker
+  reaches only Postgres, on its own internal network, and gets no `.env`.
 
 ## Cloudflare
 
