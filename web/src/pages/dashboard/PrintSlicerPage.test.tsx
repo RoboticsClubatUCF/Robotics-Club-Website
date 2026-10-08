@@ -381,6 +381,27 @@ describe('a sliced plate', () => {
     expect(screen.getByRole('button', { name: 'REQUEST PRINT' })).toBeDisabled()
   })
 
+  it('names a filament an officer has hidden, and holds back REQUEST PRINT', async () => {
+    vi.stubGlobal(
+      'fetch',
+      stubFetch({
+        '/print/workspace': workspace(),
+        '/me/print-allowance': allowance,
+        // Still current by the server's last word: the officer hid it after this tab loaded.
+        '/print/drafts/d1': draft({
+          filamentId: 'silk',
+          slicedWith: { printer: 'CC1', process: 'Standard', filament: 'Silk PLA' },
+          slice: readySlice(),
+        }),
+      }),
+    )
+    renderAt('/dashboard/print/slicer/d1')
+    expect(await screen.findAllByText("Silk PLA isn't offered any more. Pick a filament.")).not.toHaveLength(0)
+    expect(screen.getByRole('button', { name: 'REQUEST PRINT' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'SLICE PLATE' })).toBeDisabled()
+    expect(screen.getByRole('combobox', { name: 'FILAMENT' })).toHaveAttribute('aria-invalid', 'true')
+  })
+
   it('explains a missing preview in the worker’s words', async () => {
     vi.stubGlobal(
       'fetch',

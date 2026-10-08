@@ -63,6 +63,7 @@ export function SettingsPanel({
         ) : (
           <select
             aria-labelledby={`${id}-printer`}
+            aria-invalid={!printer}
             value={printer?.id ?? ''}
             disabled={disabled}
             onChange={(event) => {
@@ -96,6 +97,7 @@ export function SettingsPanel({
         </h2>
         <select
           aria-labelledby={`${id}-filament`}
+          aria-invalid={printer !== undefined && !filament}
           value={filament?.id ?? ''}
           disabled={disabled || !printer}
           onChange={(event) => {
@@ -124,6 +126,7 @@ export function SettingsPanel({
         <select
           aria-labelledby={`${id}-process`}
           aria-describedby={preset ? `${id}-process-about` : undefined}
+          aria-invalid={printer !== undefined && !preset}
           value={preset?.id ?? ''}
           disabled={disabled || !printer}
           onChange={(event) => {

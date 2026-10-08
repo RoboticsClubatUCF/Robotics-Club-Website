@@ -164,7 +164,9 @@ export function SlicerWorkspace({
   const used = models.filter((model) => objects.some((object) => object.modelId === model.id))
   const converting = used.some((model) => model.meshState === 'QUEUED' || model.meshState === 'RUNNING')
   const unreadable = used.find((model) => model.meshState === 'FAILED')
-  const sliced = slice?.state === 'READY' && slice.current && !plate.unsaved
+  // Something an officer has hidden or deleted since, which the member has to pick again.
+  const unchosen = choiceProblem(workspace.profiles, local, draft)
+  const sliced = slice?.state === 'READY' && slice.current && !plate.unsaved && unchosen === null
   const slicingNow = slice?.state === 'QUEUED' || slice?.state === 'RUNNING'
   const editable = !draft || draft.status === 'DRAFT'
 
@@ -460,7 +462,6 @@ export function SlicerWorkspace({
 
   const placementWarning = [...problems.entries()][0]
   const overlapping = [...warnings.values()].filter((w) => w === 'overlaps').length
-  const unchosen = choiceProblem(workspace.profiles, local)
   const sliceBlocked = !draft
     ? 'Add a model first.'
     : !editable

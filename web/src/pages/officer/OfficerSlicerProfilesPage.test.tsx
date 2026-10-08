@@ -175,6 +175,90 @@ describe('OfficerSlicerProfilesPage', () => {
     expect(filaments.getByText('PLA · Generic · for CC1')).toBeInTheDocument()
     expect(filaments.getByText('REFUSED')).toBeInTheDocument()
     expect(filaments.getByText("Orca couldn't slice a test cube with it.")).toBeInTheDocument()
+    // Nothing to hide or offer until it works.
+    expect(filaments.queryByRole('button', { name: 'Hide the TPU filament' })).not.toBeInTheDocument()
+    expect(filaments.getByRole('button', { name: 'Delete the TPU filament' })).toBeInTheDocument()
+  })
+
+  it('asks before hiding a profile drafts use', async () => {
+    const used = desk()
+    used.filaments[0]!.uses = { drafts: 2, sent: 0 }
+    const stub = stubFetch({ '/officer/slicer-profiles': used })
+    vi.stubGlobal('fetch', stub)
+    renderPage()
+    expect(await screen.findByText('Used by 2 drafts.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Hide the PLA filament' }))
+    const dialog = within(screen.getByRole('dialog'))
+    expect(dialog.getByText(/2 drafts use it. They can't be sliced or sent/)).toBeInTheDocument()
+    expect(stub.mock.calls.some(([, init]) => init?.method === 'PATCH')).toBe(false)
+    fireEvent.click(dialog.getByRole('button', { name: 'HIDE IT' }))
+    await waitFor(() => {
+      const call = stub.mock.calls.find(([, init]) => init?.method === 'PATCH')
+      expect(bodyOf(call?.[1])).toEqual({ offered: false })
+    })
+  })
+
+  it('adds processes to the printer they were asked for, and lists only processes', async () => {
+    const contents: ApiProfileFile = {
+      fileName: 'MK4.orca_printer',
+      printer: { id: 'cc1', label: 'CC1' },
+      presets: [
+        { entry: 'printer/MK4.json', kind: 'PRINTER', name: 'MK4', inherits: 'Prusa MK4 0.4 nozzle', existing: null },
+        { entry: 'process/Fine.json', kind: 'PROCESS', name: 'Fine', inherits: '0.15mm SPEED', existing: null },
+        { entry: 'filament/Silk.json', kind: 'FILAMENT', name: 'Silk PLA', inherits: 'Generic PLA', existing: null },
+      ],
+    }
+    const stub = stubFetch({ '/officer/slicer-profiles/inspect': contents, '/officer/slicer-profiles': desk() })
+    vi.stubGlobal('fetch', stub)
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Add processes to the CC1 printer' }))
+    const dialog = within(screen.getByRole('dialog'))
+    expect(dialog.getByRole('heading', { name: 'Add processes to CC1' })).toBeInTheDocument()
+    fireEvent.change(dialog.getByLabelText('FILE'), { target: { files: [new File(['PK'], 'MK4.orca_printer')] } })
+    expect(await dialog.findByRole('checkbox', { name: /Fine/ })).toBeChecked()
+    expect(dialog.queryByRole('radio', { name: /MK4/ })).not.toBeInTheDocument()
+    expect(dialog.queryByRole('checkbox', { name: /Silk PLA/ })).not.toBeInTheDocument()
+    fireEvent.click(dialog.getByRole('button', { name: 'ADD PRESET' }))
+    await waitFor(() => {
+      const call = stub.mock.calls.find(
+        ([input, init]) => init?.method === 'POST' && urlOf(input).endsWith('/officer/slicer-profiles'),
+      )
+      const form = call?.[1]?.body as FormData | undefined
+      expect(form?.get('printerId')).toBe('cc1')
+      expect(JSON.parse(form?.get('entries') as string)).toEqual(['process/Fine.json'])
+    })
+  })
+
+  it('forgets the last file’s ticks when the next one can’t be read', async () => {
+    const contents: ApiProfileFile = {
+      fileName: 'Silk.json',
+      printer: null,
+      presets: [{ entry: 'Silk.json', kind: 'FILAMENT', name: 'Silk PLA', inherits: 'Generic PLA', existing: null }],
+    }
+    let calls = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string | URL | Request) => {
+        const url = urlOf(input)
+        if (url.includes('/inspect')) {
+          calls++
+          return Promise.resolve(
+            calls === 1
+              ? new Response(JSON.stringify(contents), { status: 200 })
+              : new Response(JSON.stringify({ error: "qa-cube.stl isn't readable JSON." }), { status: 400 }),
+          )
+        }
+        return Promise.resolve(new Response(JSON.stringify(desk()), { status: 200 }))
+      }),
+    )
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: /add from an export/i }))
+    const dialog = within(screen.getByRole('dialog'))
+    fireEvent.change(dialog.getByLabelText('FILE'), { target: { files: [new File(['{}'], 'Silk.json')] } })
+    expect(await dialog.findByRole('checkbox', { name: /Silk PLA/ })).toBeChecked()
+    fireEvent.change(dialog.getByLabelText('FILE'), { target: { files: [new File(['x'], 'qa-cube.stl')] } })
+    expect(await dialog.findByRole('alert')).toHaveTextContent("isn't readable JSON")
+    expect(dialog.getByRole('button', { name: 'ADD PRESET' })).toBeDisabled()
   })
 
   it('says when there is nothing yet', async () => {
@@ -194,8 +278,7 @@ describe('OfficerSlicerProfilesPage', () => {
     const stub = stubFetch({ '/officer/slicer-profiles': desk() })
     vi.stubGlobal('fetch', stub)
     renderPage()
-    const filaments = within(await screen.findByRole('region', { name: 'FILAMENTS' }))
-    fireEvent.click(filaments.getAllByRole('button', { name: 'EDIT' })[0]!)
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit the PLA filament' }))
     fireEvent.change(screen.getByLabelText('NAME MEMBERS SEE'), { target: { value: 'Rapid PLA' } })
     fireEvent.click(screen.getByRole('button', { name: 'SAVE' }))
     await waitFor(() => {
@@ -238,7 +321,8 @@ describe('OfficerSlicerProfilesPage', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Delete the CC1 printer' }))
     const dialog = within(screen.getByRole('dialog'))
     expect(dialog.getByText('Its 2 processes go with it.')).toBeInTheDocument()
-    expect(dialog.getByText(/2 drafts and 1 request in the queue use it/)).toBeInTheDocument()
+    expect(dialog.getByText(/2 drafts use it. Their owners will be asked to pick another printer/)).toBeInTheDocument()
+    expect(dialog.getByText('Requests already sent keep their sliced file.')).toBeInTheDocument()
     expect(stub.mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(false)
     fireEvent.click(dialog.getByRole('button', { name: 'DELETE' }))
     await waitFor(() => {

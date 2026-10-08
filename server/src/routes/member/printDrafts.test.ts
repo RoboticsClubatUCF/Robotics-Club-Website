@@ -889,7 +889,17 @@ describe('submitting', () => {
   it('refuses a filament hidden since the slice, the way the spool ran out', async () => {
     const draft = await slicedDraft()
     await prisma.slicerProfile.update({ where: { id: ids.pla }, data: { offered: false } })
+    // The slice stops being current, so nothing offers to send it.
+    expect((await read(draft.id)).slice?.current).toBe(false)
     expect((await submit(draft)).status).toBe(409)
+    const drafts = (await (
+      await app.request('/api/print/drafts', { headers: { cookie: memberCookie } })
+    ).json()) as { id: string; missing: string | null }[]
+    expect(drafts.find((row) => row.id === draft.id)?.missing).toBe('filament')
+
+    await prisma.slicerProfile.update({ where: { id: ids.pla }, data: { offered: true } })
+    expect((await read(draft.id)).slice?.current).toBe(true)
+    expect((await submit(draft)).status).toBe(200)
   })
 
   it('records the labels it was sent under, whatever happens to the profiles after', async () => {

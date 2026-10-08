@@ -1,4 +1,4 @@
-import type { ApiSlicerPrinter, ApiSlicerWorkspace } from '../api/api'
+import type { ApiSlicedWith, ApiSlicerPrinter, ApiSlicerWorkspace } from '../api/api'
 
 /**
  * The printer, process and filament a plate names, and the rules for picking them, which the
@@ -52,13 +52,27 @@ export function onPrinter(profiles: Profiles, choice: PlateChoice, printerId: st
   }
 }
 
-/** The first thing wrong with a plate's choice, in the words the panel shows, or null. */
-export function choiceProblem(profiles: Profiles, choice: PlateChoice): string | null {
-  const printer = printerOf(profiles, choice.printerId)
-  if (!printer) return 'Pick a printer.'
-  if (!printer.processes.some((process) => process.id === choice.processId)) return 'Pick a process.'
-  if (!filamentsFor(profiles, printer.id).some((filament) => filament.id === choice.filamentId)) {
-    return 'Pick a filament.'
+/**
+ * The first thing wrong with a plate's choice, in the words the workspace shows, or null.
+ *
+ * `saved` is the draft as the server has it. While the member hasn't touched a choice, a missing
+ * one was taken away by an officer, and its label (kept in `slicedWith`) says which.
+ */
+export function choiceProblem(
+  profiles: Profiles,
+  choice: PlateChoice,
+  saved?: (PlateChoice & { slicedWith: ApiSlicedWith }) | null,
+): string | null {
+  const gone = (key: keyof ApiSlicedWith, id: keyof PlateChoice) => {
+    const label = saved && saved[id] === choice[id] ? saved.slicedWith[key] : ''
+    return label ? `${label} isn't offered any more. Pick a ${key}.` : `Pick a ${key}.`
   }
-  return null
+  const printer = printerOf(profiles, choice.printerId)
+  if (!printer) return gone('printer', 'printerId')
+  if (!printer.processes.some((process) => process.id === choice.processId)) return gone('process', 'processId')
+  const filament = profiles.filaments.find((f) => f.id === choice.filamentId)
+  if (filament && !filament.printers.includes(printer.id)) {
+    return `${filament.label} isn't made for the ${printer.label}. Pick a filament.`
+  }
+  return filament ? null : gone('filament', 'filamentId')
 }

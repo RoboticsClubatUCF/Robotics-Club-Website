@@ -25,12 +25,13 @@ function explain(error: unknown): string {
 }
 
 /**
- * Adding presets from an Orca export, or replacing one profile with a newer export of it.
+ * Adding presets from an Orca export, adding processes to one printer, or replacing one profile
+ * with a newer export of it.
  *
  * The file is read twice: once to list what's in it (a printer bundle carries the printer, its
  * processes and every filament the officer had), and again with the presets they picked. A preset
- * whose name is already here can only replace that profile, from its own REPLACE, so it can't be
- * picked here.
+ * whose name is already here can only replace that profile, from its own REPLACE FILE, so it can't
+ * be picked here.
  */
 export function ProfileFileDialog({
   mode,
@@ -38,7 +39,7 @@ export function ProfileFileDialog({
   onDone,
   onDismiss,
 }: {
-  mode: { kind: 'add'; printerId?: string } | { kind: 'replace'; profile: ApiDeskProfile }
+  mode: { kind: 'add'; printer?: ApiDeskProfile } | { kind: 'replace'; profile: ApiDeskProfile }
   /** The printers already here, for processes uploaded without theirs. */
   printers: ApiDeskProfile[]
   onDone: (desk: ApiSlicerDesk) => void
@@ -50,24 +51,30 @@ export function ProfileFileDialog({
   const [file, setFile] = useState<File | null>(null)
   const [contents, setContents] = useState<ApiProfileFile | null>(null)
   const [picked, setPicked] = useState<string[]>([])
-  const [printerId, setPrinterId] = useState(mode.kind === 'add' ? (mode.printerId ?? '') : '')
+  const [printerId, setPrinterId] = useState('')
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
 
   useDialogFocus(panelRef, fileRef, onDismiss)
 
   const replacing = mode.kind === 'replace' ? mode.profile : null
-  const presets = (contents?.presets ?? []).filter((preset) => !replacing || preset.kind === replacing.kind)
-  const usable = (preset: (typeof presets)[number]) => replacing !== null || preset.existing === null
+  // Pressed under a printer: only processes, and they go on that printer.
+  const onto = mode.kind === 'add' ? (mode.printer ?? null) : null
+  const only = replacing?.kind ?? (onto ? 'PROCESS' : null)
+  const presets = (contents?.presets ?? []).filter((preset) => !only || preset.kind === only)
+  const usable = (preset: (typeof presets)[number]) =>
+    preset.existing === null || (replacing !== null && preset.existing.id === replacing.id)
 
   const read = async (chosen: File) => {
     setFile(chosen)
     setContents(null)
+    setPicked([])
     setProblem(null)
     setBusy(true)
     try {
       const form = new FormData()
       form.append('file', chosen)
+      if (onto) form.append('printerId', onto.id)
       const found = await postForm<ApiProfileFile>('/officer/slicer-profiles/inspect', form)
       setContents(found)
       const of = (kind: SlicerProfileKind) => found.presets.filter((p) => p.kind === kind)
@@ -75,6 +82,9 @@ export function ProfileFileDialog({
         const same = of(replacing.kind)
         setPicked(same.length === 1 ? [same[0]!.entry] : [])
         if (same.length === 0) setProblem(`That file has no ${NOUN[replacing.kind]} in it.`)
+      } else if (onto) {
+        setPicked(of('PROCESS').filter((p) => p.existing === null).map((p) => p.entry))
+        if (of('PROCESS').length === 0) setProblem('That file has no processes in it.')
       } else if (found.presets.length === 1) {
         setPicked(found.presets.filter((p) => p.existing === null).map((p) => p.entry))
       } else {
@@ -104,7 +114,7 @@ export function ProfileFileDialog({
 
   const pickedOf = (kind: SlicerProfileKind) =>
     picked.filter((entry) => presets.find((p) => p.entry === entry)?.kind === kind)
-  const needsPrinter = !replacing && pickedOf('PROCESS').length > 0 && pickedOf('PRINTER').length === 0
+  const needsPrinter = !replacing && !onto && pickedOf('PROCESS').length > 0 && pickedOf('PRINTER').length === 0
 
   const send = async () => {
     if (!file || picked.length === 0) return
@@ -123,7 +133,8 @@ export function ProfileFileDialog({
         desk = await postForm<ApiSlicerDesk>(`/officer/slicer-profiles/${replacing.id}/replace`, form)
       } else {
         form.append('entries', JSON.stringify(picked))
-        if (needsPrinter) form.append('printerId', printerId)
+        if (onto) form.append('printerId', onto.id)
+        else if (needsPrinter) form.append('printerId', printerId)
         desk = await postForm<ApiSlicerDesk>('/officer/slicer-profiles', form)
       }
       onDone(desk)
@@ -133,7 +144,11 @@ export function ProfileFileDialog({
     }
   }
 
-  const title = replacing ? `Replace ${replacing.label}` : 'Add from an Orca export'
+  const title = replacing
+    ? `Replace ${replacing.label}`
+    : onto
+      ? `Add processes to ${onto.label}`
+      : 'Add from an Orca export'
   const action = replacing
     ? 'REPLACE'
     : picked.length > 1
@@ -159,7 +174,9 @@ export function ProfileFileDialog({
           <p className="text-dim mb-4 text-sm leading-[1.6] text-pretty">
             {replacing
               ? `Export it again from desktop Orca. Plates sliced with the old one will need slicing again.`
-              : `A printer bundle, a filament bundle, or a preset's .json, from desktop Orca's File › Export.`}
+              : onto
+                ? `From a printer bundle or a process's .json. Only its processes are added, to this printer.`
+                : `A printer bundle, a filament bundle, or a preset's .json, from desktop Orca's File › Export.`}
           </p>
 
           <label htmlFor={`${id}-file`} className={labelClass}>
@@ -214,7 +231,7 @@ export function ProfileFileDialog({
                               <span className="block text-sm break-words">{preset.name}</span>
                               <span className="text-faint block text-[11.5px] leading-[1.5] break-words">
                                 {taken
-                                  ? `Already here as ${preset.existing!.label}. Use REPLACE on it instead.`
+                                  ? `Already here as ${preset.existing!.label}. Use REPLACE FILE on it instead.`
                                   : preset.inherits
                                     ? `Based on ${preset.inherits}`
                                     : 'Not based on a stock preset'}
@@ -258,6 +275,10 @@ export function ProfileFileDialog({
                 </select>
               )}
             </div>
+          )}
+
+          {contents && !problem && picked.length === 0 && presets.some(usable) && (
+            <p className="text-faint mt-4 text-[12.5px] leading-[1.5]">Tick what to add.</p>
           )}
 
           {problem && (

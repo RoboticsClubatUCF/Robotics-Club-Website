@@ -13,7 +13,7 @@ import { ApiError, deleteJson, getJson, patchJson } from '../../lib/api/api'
 import type { ApiDeskProfile, ApiSlicerDesk } from '../../lib/api/api'
 import { isOfficer } from '../../lib/auth/session'
 import { duesLocked } from '../../lib/dues/dues'
-import { NOUN, checking, usesLine } from '../../lib/slicer/profileDesk'
+import { NOUN, checking } from '../../lib/slicer/profileDesk'
 
 /**
  * The printers, processes and filaments members slice with.
@@ -30,9 +30,10 @@ const POLL_EVERY = 2_000
 type Load = { status: 'loading' } | { status: 'failed' } | { status: 'ready'; desk: ApiSlicerDesk }
 
 type Dialog =
-  | { kind: 'add'; printerId?: string }
+  | { kind: 'add'; printer?: ApiDeskProfile }
   | { kind: 'replace'; profile: ApiDeskProfile }
   | { kind: 'delete'; profile: ApiDeskProfile }
+  | { kind: 'hide'; profile: ApiDeskProfile }
 
 function explain(error: unknown): string {
   if (error instanceof ApiError) {
@@ -48,7 +49,11 @@ export function OfficerSlicerProfilesPage() {
   const [load, setLoad] = useState<Load>({ status: 'loading' })
   const [dialog, setDialog] = useState<Dialog | null>(null)
   const [busy, setBusy] = useState(false)
-  const [problem, setProblem] = useState<{ title: string; message: string } | null>(null)
+  const [problem, setProblem] = useState<{
+    title: string
+    message: string
+    returnTo: HTMLElement | null
+  } | null>(null)
 
   const allowed = !duesLocked(membership, user.role) && isOfficer(user.role)
 
@@ -92,12 +97,14 @@ export function OfficerSlicerProfilesPage() {
 
   /** Runs one write and shows the desk it answers with, or why it didn't go through. */
   const write = async (title: string, run: () => Promise<ApiSlicerDesk>): Promise<boolean> => {
+    // Whatever was pressed gets focus back when the error is dismissed.
+    const pressed = document.activeElement instanceof HTMLElement ? document.activeElement : null
     setBusy(true)
     try {
       setLoad({ status: 'ready', desk: await run() })
       return true
     } catch (error) {
-      setProblem({ title, message: explain(error) })
+      setProblem({ title, message: explain(error), returnTo: pressed })
       if (error instanceof ApiError && (error.status === 404 || error.status === 409)) void fetchDesk()
       return false
     } finally {
@@ -115,12 +122,22 @@ export function OfficerSlicerProfilesPage() {
     return desk.printers.find((printer) => printer.processes.some((p) => p.id === profile.id))?.processes ?? []
   }
 
+  const setOffered = (profile: ApiDeskProfile, offered: boolean) =>
+    write(`Couldn't ${offered ? 'offer' : 'hide'} ${profile.label}`, () =>
+      patchJson<ApiSlicerDesk>(`/officer/slicer-profiles/${profile.id}`, { offered }),
+    )
+
   const actions: ProfileActions = {
     busy,
     onSave: (profile, change) =>
       write(`Couldn't save ${profile.label}`, () =>
         patchJson<ApiSlicerDesk>(`/officer/slicer-profiles/${profile.id}`, change),
       ),
+    onToggle: (profile) => {
+      // Hiding strands the drafts that use it, so that one asks first.
+      if (profile.offered && profile.uses.drafts > 0) setDialog({ kind: 'hide', profile })
+      else void setOffered(profile, !profile.offered)
+    },
     onReplace: (profile) => {
       setDialog({ kind: 'replace', profile })
     },
@@ -131,16 +148,18 @@ export function OfficerSlicerProfilesPage() {
       const ids = siblings(profile).map((p) => p.id)
       const from = ids.indexOf(profile.id)
       const to = from + by
-      if (from < 0 || to < 0 || to >= ids.length) return
+      if (from < 0 || to < 0 || to >= ids.length) return Promise.resolve(false)
       ;[ids[from], ids[to]] = [ids[to]!, ids[from]!]
-      void write(`Couldn't move ${profile.label}`, () =>
+      return write(`Couldn't move ${profile.label}`, () =>
         patchJson<ApiSlicerDesk>('/officer/slicer-profiles/order', { ids }),
       )
     },
   }
 
   const deleting = dialog?.kind === 'delete' ? dialog.profile : null
-  const users = deleting ? usesLine(deleting.uses) : null
+  const hiding = dialog?.kind === 'hide' ? dialog.profile : null
+  const draftsLine = (drafts: number) =>
+    `${drafts === 1 ? '1 draft uses' : `${String(drafts)} drafts use`} it.`
   const deletingProcesses =
     deleting?.kind === 'PRINTER' ? (desk?.printers.find((p) => p.id === deleting.id)?.processes.length ?? 0) : 0
 
@@ -154,12 +173,17 @@ export function OfficerSlicerProfilesPage() {
           Members slice with what's offered here. Upload what desktop Orca exports; the slicer
           checks each preset with a test cube before anyone can pick it.
         </p>
+        <p className="text-faint -mt-1 w-full text-[12.5px] leading-[1.6] text-pretty">
+          Members see each list in this order. A new plate starts on the first printer, its first
+          process and the first filament made for it.
+        </p>
         <button
           type="button"
           className={loudButton}
-          disabled={!desk || busy}
+          disabled={!desk}
+          aria-disabled={busy}
           onClick={() => {
-            setDialog({ kind: 'add' })
+            if (!busy) setDialog({ kind: 'add' })
           }}
         >
           ADD FROM AN EXPORT
@@ -180,13 +204,21 @@ export function OfficerSlicerProfilesPage() {
       )}
 
       {load.status === 'loading' && (
-        <FormPanel>
-          <div aria-busy="true" className="space-y-2.5">
-            <div className="bg-base-300 h-4 w-1/3 animate-pulse rounded-[2px]" />
-            <div className="bg-base-300 h-3 w-1/2 animate-pulse rounded-[2px]" />
-            <div className="bg-base-300 h-3 w-2/5 animate-pulse rounded-[2px]" />
-          </div>
-        </FormPanel>
+        <div aria-busy="true" className="grid-fluid gap-5 [--col-min:30rem]">
+          {['w-1/3', 'w-1/4'].map((width) => (
+            <div key={width}>
+              <div className="bg-base-300 mb-2 h-3 w-24 animate-pulse rounded-[2px]" />
+              <FormPanel>
+                <div className="space-y-2.5">
+                  <div className={`bg-base-300 h-4 animate-pulse rounded-[2px] ${width}`} />
+                  <div className="bg-base-300 h-3 w-1/2 animate-pulse rounded-[2px]" />
+                  <div className="bg-base-300 h-3 w-2/5 animate-pulse rounded-[2px]" />
+                  <div className="bg-base-300 mt-4 h-8 w-64 max-w-full animate-pulse rounded-[2px]" />
+                </div>
+              </FormPanel>
+            </div>
+          ))}
+        </div>
       )}
 
       {load.status === 'failed' && (
@@ -252,9 +284,10 @@ export function OfficerSlicerProfilesPage() {
                         <button
                           type="button"
                           className={`${quietButton} mt-3`}
-                          disabled={busy}
+                          aria-disabled={busy}
+                          aria-label={`Add processes to the ${printer.label} printer`}
                           onClick={() => {
-                            setDialog({ kind: 'add', printerId: printer.id })
+                            if (!busy) setDialog({ kind: 'add', printer })
                           }}
                         >
                           ADD PROCESSES
@@ -329,18 +362,43 @@ export function OfficerSlicerProfilesPage() {
               Its {deletingProcesses === 1 ? 'process goes' : `${String(deletingProcesses)} processes go`} with it.
             </p>
           )}
+          {deleting.uses.drafts > 0 && (
+            <p>
+              {draftsLine(deleting.uses.drafts)} Their owners will be asked to pick another{' '}
+              {NOUN[deleting.kind]}.
+            </p>
+          )}
+          {deleting.uses.sent > 0 && <p>Requests already sent keep their sliced file.</p>}
+          <p>HIDE keeps it here for later instead.</p>
+        </ConfirmDialog>
+      )}
+
+      {hiding && (
+        <ConfirmDialog
+          title={`Hide the ${hiding.label} ${NOUN[hiding.kind]}?`}
+          confirmLabel="HIDE IT"
+          tone="primary"
+          busy={busy}
+          onConfirm={() => {
+            setDialog(null)
+            void setOffered(hiding, false)
+          }}
+          onDismiss={() => {
+            setDialog(null)
+          }}
+        >
           <p>
-            {users
-              ? `${users.charAt(0).toUpperCase()}${users.slice(1)} ${deleting.uses.drafts + deleting.uses.sent === 1 ? 'uses' : 'use'} it. Drafts will ask for another; a sent request keeps its sliced file.`
-              : 'Nothing uses it right now.'}{' '}
-            To stop members picking it but keep it, HIDE it instead.
+            {draftsLine(hiding.uses.drafts)} They can't be sliced or sent until it's offered again or
+            their owners pick another {NOUN[hiding.kind]}.
           </p>
+          <p>Nobody can pick it for a new plate.</p>
         </ConfirmDialog>
       )}
 
       {problem && (
         <ErrorDialog
           title={problem.title}
+          returnTo={problem.returnTo}
           onDismiss={() => {
             setProblem(null)
           }}

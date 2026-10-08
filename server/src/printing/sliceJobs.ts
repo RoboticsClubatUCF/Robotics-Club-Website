@@ -96,7 +96,8 @@ const asBytes = (bytes: Uint8Array): Uint8Array<ArrayBuffer> =>
 
 /**
  * The plate as it stands, read inside the caller's transaction. Scalars only. Null while a profile
- * is missing or being resolved again, so no slice is current until it's back.
+ * is missing, hidden or being resolved again, so no slice is current until it's back: a hidden
+ * filament is usually an empty spool, and the plate shouldn't look ready to send.
  */
 export async function currentSpec(tx: Tx, requestId: string): Promise<PlateSpec | null> {
   const request = await tx.printRequest.findUnique({
@@ -115,7 +116,7 @@ export async function currentSpec(tx: Tx, requestId: string): Promise<PlateSpec 
   ]
   if (!request || ids.some((id) => !id)) return null
   const profiles = await tx.slicerProfile.findMany({
-    where: { id: { in: ids as string[] }, state: SlicerJobState.READY },
+    where: { id: { in: ids as string[] }, state: SlicerJobState.READY, offered: true },
     select: { id: true, sha256: true },
   })
   const ref = (id: string | null) => {

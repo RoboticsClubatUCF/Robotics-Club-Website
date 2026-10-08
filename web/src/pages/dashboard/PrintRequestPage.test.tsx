@@ -262,6 +262,32 @@ describe('PrintRequestPage', () => {
     )
   })
 
+  it('says which choice to make again on a draft whose filament an officer took away', async () => {
+    vi.stubGlobal(
+      'fetch',
+      stubFetch(
+        pageData({
+          '/print/drafts': [
+            {
+              id: 'd2',
+              fileName: 'gear.stl',
+              quantity: 1,
+              slicedWith: { printer: 'CC1', process: 'Standard', filament: 'Silk PLA' },
+              createdAt: '2026-08-01T12:00:00.000Z',
+              draftActiveAt: '2026-08-01T12:00:00.000Z',
+              sliceState: 'READY',
+              missing: 'filament',
+              expiresAt: new Date(Date.now() + 30 * 3_600_000).toISOString(),
+            },
+          ],
+        }),
+      ),
+    )
+    renderPage()
+    expect(await screen.findByText('PICK A FILAMENT')).toBeInTheDocument()
+    expect(screen.queryByText(/· Sliced ·/i)).not.toBeInTheDocument()
+  })
+
   it('lists drafts with when they go, and opens or discards one', async () => {
     const fetchStub = stubFetch(
       pageData({
@@ -274,6 +300,7 @@ describe('PrintRequestPage', () => {
             createdAt: '2026-08-01T12:00:00.000Z',
             draftActiveAt: '2026-08-01T12:00:00.000Z',
             sliceState: 'READY',
+            missing: null,
             expiresAt: new Date(Date.now() + 30 * 3_600_000).toISOString(),
           },
         ],

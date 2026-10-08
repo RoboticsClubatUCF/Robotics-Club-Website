@@ -60,6 +60,24 @@ describe('picking profiles', () => {
     expect(choiceProblem(profiles, defaultChoice(profiles))).toBeNull()
     expect(choiceProblem(profiles, { printerId: null, processId: null, filamentId: null })).toBe('Pick a printer.')
     expect(choiceProblem(profiles, { printerId: 'cc1', processId: 'mk4-q', filamentId: 'pla' })).toBe('Pick a process.')
-    expect(choiceProblem(profiles, { printerId: 'cc1', processId: 'cc1-q', filamentId: 'tpu' })).toBe('Pick a filament.')
+    expect(choiceProblem(profiles, { printerId: 'cc1', processId: 'cc1-q', filamentId: 'tpu' })).toBe(
+      "tpu isn't made for the cc1. Pick a filament.",
+    )
+  })
+
+  it('names a profile an officer took away, by the label the plate was saved with', () => {
+    const saved = {
+      printerId: 'cc1',
+      processId: 'cc1-q',
+      filamentId: null,
+      slicedWith: { printer: 'CC1', process: 'Q', filament: 'Silk PLA' },
+    }
+    expect(choiceProblem(profiles, { printerId: 'cc1', processId: 'cc1-q', filamentId: null }, saved)).toBe(
+      "Silk PLA isn't offered any more. Pick a filament.",
+    )
+    // A hidden one keeps its id on the plate but isn't offered.
+    expect(
+      choiceProblem(profiles, { printerId: 'cc1', processId: 'cc1-q', filamentId: 'hidden' }, { ...saved, filamentId: 'hidden' }),
+    ).toBe("Silk PLA isn't offered any more. Pick a filament.")
   })
 })

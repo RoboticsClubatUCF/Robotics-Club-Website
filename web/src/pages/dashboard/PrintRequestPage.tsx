@@ -354,7 +354,13 @@ function Filament({
                     )}
                   </span>
                   <span className="text-faint block font-mono text-[10px] tracking-[0.12em] uppercase">
-                    {draft.slicedWith.filament} · {draft.slicedWith.process} · {SLICE_STATE[draft.sliceState ?? 'NONE']} · Goes{' '}
+                    {draft.slicedWith.filament} · {draft.slicedWith.process} ·{' '}
+                    {draft.missing ? (
+                      <span className="text-warning">PICK A {draft.missing.toUpperCase()}</span>
+                    ) : (
+                      SLICE_STATE[draft.sliceState ?? 'NONE']
+                    )}{' '}
+                    · Goes{' '}
                     {expiresIn(draft.expiresAt)}
                   </span>
                 </span>

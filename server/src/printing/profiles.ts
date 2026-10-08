@@ -238,6 +238,20 @@ export const slicedWith = z.object({
   filament: z.string(),
 })
 
+/** Which of a plate's profiles a member has to pick again, first one first, or null. */
+export function missingChoice(
+  profiles: WorkspaceProfiles,
+  choice: PlateChoice,
+): 'printer' | 'process' | 'filament' | null {
+  const printer = profiles.printers.find((p) => p.id === choice.printerId)
+  if (!printer) return 'printer'
+  if (!printer.processes.some((p) => p.id === choice.processId)) return 'process'
+  const fits = profiles.filaments.some(
+    (f) => f.id === choice.filamentId && f.printers.includes(printer.id),
+  )
+  return fits ? null : 'filament'
+}
+
 /** What a new plate starts with: the first offered printer, its first process, and the first filament that fits. */
 export function defaultChoice(profiles: WorkspaceProfiles): PlateChoice | null {
   const printer = profiles.printers[0]

@@ -924,6 +924,8 @@ export type ApiDraftSummary = {
   createdAt: string
   draftActiveAt: string | null
   sliceState: SlicerJobState | null
+  /** A profile an officer deleted or hid since, which the member has to pick again. */
+  missing: 'printer' | 'process' | 'filament' | null
   expiresAt: string
 }
 

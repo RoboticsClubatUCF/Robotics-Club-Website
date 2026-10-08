@@ -239,6 +239,8 @@ slicerProfiles.post(
   async (c) => {
     const body = await c.req.parseBody()
     const { fileName, presets } = await readUpload(body['file'])
+    // Processes being added to a printer on the desk are matched against that printer's.
+    const target = typeof body['printerId'] === 'string' && body['printerId'] !== '' ? body['printerId'] : null
     const existing = await prisma.slicerProfile.findMany({
       where: { name: { in: presets.map((preset) => preset.name) } },
       select: { id: true, kind: true, name: true, label: true, printerId: true },
@@ -246,9 +248,14 @@ slicerProfiles.post(
     // A bundle for a printer that's already here: its processes go on that printer, so they're
     // matched against its processes, and the desk offers it as where they go.
     const bundled = presets.find((preset) => preset.kind === 'PRINTER')
-    const printer = bundled
-      ? (existing.find((row) => row.kind === SlicerProfileKind.PRINTER && row.name === bundled.name) ?? null)
-      : null
+    const printer = target
+      ? await prisma.slicerProfile.findFirst({
+          where: { id: target, kind: SlicerProfileKind.PRINTER },
+          select: { id: true, label: true },
+        })
+      : bundled
+        ? (existing.find((row) => row.kind === SlicerProfileKind.PRINTER && row.name === bundled.name) ?? null)
+        : null
     const found = (preset: UploadedPreset) => {
       const row = existing.find(
         (candidate) =>

@@ -32,6 +32,7 @@ import {
   type PlateChoice,
   checkChoice,
   choiceLabels,
+  missingChoice,
   slicedWith,
   workspaceProfiles,
 } from '../../printing/profiles.js'
@@ -454,15 +455,24 @@ printDrafts.get('/drafts', requireAuth, requireDuesForRoute, async (c) => {
       fileName: true,
       quantity: true,
       slicedWith: true,
+      printerProfileId: true,
+      processProfileId: true,
+      filamentProfileId: true,
       createdAt: true,
       draftActiveAt: true,
       slice: { select: { state: true } },
     },
   })
+  const offered = await workspaceProfiles()
   return c.json(
-    drafts.map(({ slice, ...draft }) => ({
+    drafts.map(({ slice, printerProfileId, processProfileId, filamentProfileId, ...draft }) => ({
       ...draft,
       sliceState: slice?.state ?? null,
+      // An officer deleted or hid one of its profiles; the list says which to pick again.
+      missing: missingChoice(
+        offered,
+        choiceOf({ printerProfileId, processProfileId, filamentProfileId }),
+      ),
       expiresAt: draftExpiry(draft),
     })),
   )

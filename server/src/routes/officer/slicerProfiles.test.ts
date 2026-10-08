@@ -175,6 +175,17 @@ describe('uploading', () => {
     expect(existing('Fine')).toBeNull()
   })
 
+  it('matches processes against the printer they are being added to', async () => {
+    await addBundle({ entries: JSON.stringify(['printer/CC1.json', 'process/Fine.json']) })
+    const printer = await prisma.slicerProfile.findFirstOrThrow({ where: { name: `${PREFIX}CC1` } })
+    const other = printerBundle('MK4', ['Fine', 'Standard'], [])
+    const response = await post('/inspect', fileForm(other, 'MK4.orca_printer', { printerId: printer.id }))
+    const body = (await response.json()) as { printer: { id: string } | null; presets: { name: string; existing: unknown }[] }
+    expect(body.printer?.id).toBe(printer.id)
+    expect(body.presets.find((p) => p.name === `${PREFIX}Fine`)?.existing).not.toBeNull()
+    expect(body.presets.find((p) => p.name === `${PREFIX}Standard`)?.existing).toBeNull()
+  })
+
   it('adds a printer with its processes and a filament, queued for the worker', async () => {
     const response = await addBundle({ entries: ALL })
     expect(response.status).toBe(201)

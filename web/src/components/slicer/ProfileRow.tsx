@@ -1,28 +1,27 @@
-import { useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { ApiDeskProfile, ApiSlicerDesk } from '../../lib/api/api'
 import { STATUS_TONE, shortDate } from '../../lib/format/formats'
-import { NOUN, profileFacts, profileState, unreachable } from '../../lib/slicer/profileDesk'
+import { NOUN, profileFacts, profileState, unreachable, usesLine } from '../../lib/slicer/profileDesk'
 import { fieldClass, labelClass } from '../shared/formChrome'
-
-const actionBase =
-  'btn h-auto min-h-11 cursor-pointer px-3 py-1.5 text-[10.5px] font-semibold tracking-[0.06em] disabled:opacity-50 wide:min-h-0'
-const quiet = `${actionBase} btn-outline border-base-content/28 text-base-content hover:border-base-content hover:bg-base-content/6 hover:text-base-content`
-const danger = `${actionBase} btn-outline border-error/40 text-error hover:border-error hover:bg-error/10 hover:text-error`
-const save = `${actionBase} btn-primary btn-cta`
+import { smallDangerButton, smallLoudButton, smallQuietButton } from './slicerChrome'
 
 export interface ProfileActions {
   busy: boolean
-  onSave: (profile: ApiDeskProfile, change: { label?: string; description?: string | null; offered?: boolean }) => Promise<boolean>
+  onSave: (profile: ApiDeskProfile, change: { label?: string; description?: string | null }) => Promise<boolean>
+  onToggle: (profile: ApiDeskProfile) => void
   onReplace: (profile: ApiDeskProfile) => void
   onDelete: (profile: ApiDeskProfile) => void
-  onMove: (profile: ApiDeskProfile, by: -1 | 1) => void
+  onMove: (profile: ApiDeskProfile, by: -1 | 1) => Promise<boolean>
 }
 
 /**
  * One printer, process or filament on the profiles desk: what it is, whether members can pick it,
- * and what can be done to it. The label and description edit in place; the file is replaced
- * through the same dialog that adds one.
+ * what uses it, and what can be done to it. The label and description edit in place; the file is
+ * replaced through the same dialog that adds one.
+ *
+ * Buttons say `aria-disabled` rather than `disabled` while a write is out: a disabled button
+ * drops keyboard focus to the page, and an officer pressing ↓ twice would lose their place.
  */
 export function ProfileRow({
   profile,
@@ -44,44 +43,82 @@ export function ProfileRow({
   const [editing, setEditing] = useState(false)
   const [label, setLabel] = useState(profile.label)
   const [description, setDescription] = useState(profile.description ?? '')
+  const editButton = useRef<HTMLButtonElement>(null)
+  const up = useRef<HTMLButtonElement>(null)
+  const down = useRef<HTMLButtonElement>(null)
   const state = profileState(profile)
   const facts = profileFacts(profile, desk)
   const blocked = unreachable(profile, desk)
+  const used = usesLine(profile.uses)
   const noun = NOUN[profile.kind]
   const resolving = profile.state === 'QUEUED' || profile.state === 'RUNNING'
+  const busy = actions.busy
 
   const startEditing = () => {
     setLabel(profile.label)
     setDescription(profile.description ?? '')
     setEditing(true)
+    requestAnimationFrame(() => document.getElementById(`${id}-label`)?.focus())
+  }
+
+  const stopEditing = () => {
+    setEditing(false)
+    requestAnimationFrame(() => editButton.current?.focus())
+  }
+
+  const move = (by: -1 | 1) => {
+    if (busy) return
+    void actions.onMove(profile, by).then(() => {
+      // The row has moved; keep focus on its arrow, or the other one once it reaches an end.
+      requestAnimationFrame(() => {
+        const pressed = by === -1 ? up.current : down.current
+        const other = by === -1 ? down.current : up.current
+        ;(pressed?.disabled ? other : pressed)?.focus()
+      })
+    })
+  }
+
+  const unless = (run: () => void) => () => {
+    if (!busy) run()
   }
 
   return (
     <div className="py-4 first:pt-0 last:pb-0">
-      <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
+      <div className="flex items-start gap-x-4 gap-y-2">
         <div className="min-w-0 flex-1">
           <p className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-            <span className="text-base-content text-[15px] font-semibold break-words">{profile.label}</span>
-            <span className={`font-mono text-[10px] font-semibold tracking-[0.14em] ${STATUS_TONE[state.tone]}`}>
+            <span className="text-base-content min-w-0 text-[15px] font-semibold [overflow-wrap:anywhere]">
+              {profile.label}
+            </span>
+            <span
+              aria-live="polite"
+              className={`font-mono text-[10px] font-semibold tracking-[0.14em] ${STATUS_TONE[state.tone]}`}
+            >
               {state.text}
             </span>
           </p>
           {profile.label !== profile.name && (
-            <p className="text-faint text-[12px] break-words">{profile.name}</p>
+            <p className="text-faint text-[12px] [overflow-wrap:anywhere]">{profile.name}</p>
           )}
-          {facts && <p className="text-dim mt-0.5 text-[12.5px] leading-[1.5] break-words">{facts}</p>}
+          {facts && <p className="text-dim mt-0.5 text-[12.5px] leading-[1.5] [overflow-wrap:anywhere]">{facts}</p>}
           {profile.description && !editing && (
-            <p className="text-dim mt-1 text-[12.5px] leading-[1.5] break-words">{profile.description}</p>
+            <p className="text-dim mt-1 text-[12.5px] leading-[1.5] [overflow-wrap:anywhere]">{profile.description}</p>
           )}
           {resolving && (
             <p className="text-faint mt-1 text-[12px] leading-[1.5]">
               The slicer is reading it and slicing a test cube with it.
+              {profile.offered ? ' Members can pick it once that works.' : ''}
             </p>
           )}
           {profile.state === 'FAILED' && profile.failure && (
-            <p className="text-error mt-1 text-[12.5px] leading-[1.5] break-words">{profile.failure}</p>
+            <p className="text-error mt-1 text-[12.5px] leading-[1.5] [overflow-wrap:anywhere]">{profile.failure}</p>
           )}
           {blocked && <p className="text-warning mt-1 text-[12.5px] leading-[1.5]">{blocked}</p>}
+          {used && (
+            <p className="text-dim mt-1 text-[12px] leading-[1.5]">
+              Used by {used}.
+            </p>
+          )}
           {profile.state === 'READY' && profile.kind !== 'PRINTER' && (
             <p className="text-faint mt-1 text-[11.5px] leading-[1.5]">
               {profile.testedWith
@@ -89,7 +126,7 @@ export function ProfileRow({
                 : `Not test-sliced yet: there's nothing to slice it with.`}
             </p>
           )}
-          <p className="text-faint mt-1 text-[11.5px] leading-[1.5] break-words">
+          <p className="text-faint mt-1 text-[11.5px] leading-[1.5] [overflow-wrap:anywhere]">
             {profile.sourceFile}
             {profile.uploadedBy ? ` · ${profile.uploadedBy}` : ''} · {shortDate(profile.updatedAt)}
           </p>
@@ -97,23 +134,27 @@ export function ProfileRow({
 
         <div className="flex shrink-0 gap-1.5">
           <button
+            ref={up}
             type="button"
-            className={quiet}
-            disabled={actions.busy || first}
+            className={smallQuietButton}
+            disabled={first}
+            aria-disabled={busy}
             aria-label={`Move ${profile.label} up`}
             onClick={() => {
-              actions.onMove(profile, -1)
+              move(-1)
             }}
           >
             <span aria-hidden="true">↑</span>
           </button>
           <button
+            ref={down}
             type="button"
-            className={quiet}
-            disabled={actions.busy || last}
+            className={smallQuietButton}
+            disabled={last}
+            aria-disabled={busy}
             aria-label={`Move ${profile.label} down`}
             onClick={() => {
-              actions.onMove(profile, 1)
+              move(1)
             }}
           >
             <span aria-hidden="true">↓</span>
@@ -124,12 +165,19 @@ export function ProfileRow({
       {editing ? (
         <form
           className="mt-3 grid max-w-[32rem] grid-cols-1 gap-3"
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              event.preventDefault()
+              stopEditing()
+            }
+          }}
           onSubmit={(event) => {
             event.preventDefault()
+            if (busy || label.trim() === '') return
             void actions
               .onSave(profile, { label: label.trim(), description: description.trim() || null })
               .then((saved) => {
-                if (saved) setEditing(false)
+                if (saved) stopEditing()
               })
           }}
         >
@@ -164,54 +212,59 @@ export function ProfileRow({
             />
           </div>
           <div className="flex flex-wrap gap-2">
-            <button type="submit" className={save} disabled={actions.busy || label.trim() === ''}>
+            <button type="submit" className={smallLoudButton} aria-disabled={busy || label.trim() === ''}>
               SAVE
             </button>
-            <button
-              type="button"
-              className={quiet}
-              onClick={() => {
-                setEditing(false)
-              }}
-            >
+            <button type="button" className={smallQuietButton} onClick={stopEditing}>
               CANCEL
             </button>
           </div>
         </form>
       ) : (
         <div className="mt-3 flex flex-wrap gap-2">
-          <button type="button" className={quiet} disabled={actions.busy} onClick={startEditing}>
+          <button
+            ref={editButton}
+            type="button"
+            className={smallQuietButton}
+            aria-disabled={busy}
+            aria-label={`Edit the ${profile.label} ${noun}`}
+            onClick={unless(startEditing)}
+          >
             EDIT
           </button>
           <button
             type="button"
-            className={quiet}
-            disabled={actions.busy}
-            onClick={() => {
+            className={smallQuietButton}
+            aria-disabled={busy}
+            aria-label={`Replace the ${profile.label} ${noun}'s file`}
+            onClick={unless(() => {
               actions.onReplace(profile)
-            }}
+            })}
           >
             REPLACE FILE
           </button>
+          {/* Only once it works: hiding or offering a profile members can't use yet means nothing. */}
+          {profile.state === 'READY' && (
+            <button
+              type="button"
+              className={smallQuietButton}
+              aria-disabled={busy}
+              aria-label={`${profile.offered ? 'Hide' : 'Offer'} the ${profile.label} ${noun}`}
+              onClick={unless(() => {
+                actions.onToggle(profile)
+              })}
+            >
+              {profile.offered ? 'HIDE' : 'OFFER'}
+            </button>
+          )}
           <button
             type="button"
-            className={quiet}
-            disabled={actions.busy}
-            aria-label={`${profile.offered ? 'Hide' : 'Offer'} the ${profile.label} ${noun}`}
-            onClick={() => {
-              void actions.onSave(profile, { offered: !profile.offered })
-            }}
-          >
-            {profile.offered ? 'HIDE' : 'OFFER'}
-          </button>
-          <button
-            type="button"
-            className={danger}
-            disabled={actions.busy}
+            className={smallDangerButton}
+            aria-disabled={busy}
             aria-label={`Delete the ${profile.label} ${noun}`}
-            onClick={() => {
+            onClick={unless(() => {
               actions.onDelete(profile)
-            }}
+            })}
           >
             DELETE
           </button>
