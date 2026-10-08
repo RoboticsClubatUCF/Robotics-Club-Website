@@ -6,15 +6,14 @@
  * and writes rows. It refuses to start unless Orca's version and every approved profile match
  * `orca/profiles/manifest.json`, so a worker can't slice with settings the API didn't promise.
  */
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { hostname, tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { prisma } from './core/db.js'
 import { env } from './core/env.js'
 import { OrcaRunner, orcaVersion } from './printing/orcaRunner.js'
 import { loadApprovedProfiles, profilesDir, sliceManifest } from './printing/profiles.js'
-import { runProcess } from './printing/runProcess.js'
+import { meshStepInChild } from './printing/stepMesh.js'
 import {
   type ClaimedMesh,
   type ClaimedSlice,
@@ -31,7 +30,6 @@ import {
 } from './printing/sliceJobs.js'
 import { MeshError, parseStl } from './printing/stl.js'
 
-const STEP_CLI = fileURLToPath(new URL('./printing/stepMeshCli.ts', import.meta.url))
 const BEAT_MS = 20_000
 const IDLE_MS = 2_000
 
@@ -161,39 +159,21 @@ async function runMesh(job: ClaimedMesh) {
       await failMesh(job.id, job.leaseToken, 'The upload was removed before it could be converted.')
       return
     }
-    const source = join(dir, 'in.step')
-    const target = join(dir, 'out.stl')
-    await writeFile(source, file.data)
-
-    const run = await runProcess(process.execPath, [...process.execArgv, STEP_CLI, source, target], {
-      cwd: dir,
-      env: { PATH: process.env['PATH'] ?? '/usr/bin:/bin', HOME: dir, TMPDIR: dir },
-      timeoutMs: env.SLICER_TIMEOUT_SECONDS * 1000,
-      signal: controller.signal,
-    })
+    const meshed = await meshStepInChild(
+      new Uint8Array(file.data),
+      dir,
+      env.SLICER_TIMEOUT_SECONDS * 1000,
+      controller.signal,
+    )
     if (controller.signal.aborted) return
-
-    let reply: { triangles?: number; error?: string } = {}
-    try {
-      reply = JSON.parse(run.stdout.trim().split('\n').at(-1) ?? '{}') as typeof reply
-    } catch {
-      // Reported below as a failure to convert.
-    }
-    if (run.code !== 0 || !reply.triangles) {
-      console.warn(`slicer: mesh ${job.id}: exit ${String(run.code)} ${run.stderr.slice(-1000)}`)
-      await failMesh(
-        job.id,
-        job.leaseToken,
-        run.timedOut
-          ? 'This STEP file took too long to convert. Export it as STL and upload that.'
-          : (reply.error ?? "This STEP file couldn't be converted. Export it as STL and upload that."),
-      )
+    if (!meshed.ok) {
+      console.warn(`slicer: mesh ${job.id}: ${meshed.detail}`)
+      await failMesh(job.id, job.leaseToken, meshed.failure)
       return
     }
 
-    const stl = new Uint8Array(await readFile(target))
     const name = `${job.fileName.replace(/\.(step|stp)$/i, '')}.stl`
-    await publishMesh(job.id, job.leaseToken, stl, name, reply.triangles)
+    await publishMesh(job.id, job.leaseToken, meshed.stl, name, meshed.triangles)
   } catch (error) {
     console.error(`slicer: mesh ${job.id} failed`, error)
     await failMesh(job.id, job.leaseToken, "This STEP file couldn't be converted.").catch(

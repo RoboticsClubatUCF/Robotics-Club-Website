@@ -753,7 +753,7 @@ officer.get('/print/:id/slice-file', requireAuth, requireOfficer, async (c) => {
   })
   if (!file) throw new HTTPException(404, { message: 'This request has no sliced plate.' })
 
-  const name = `${request.user.fullName} - ${request.fileName.replace(/\.(stl|step|stp)$/i, '')}`
+  const name = `${request.user.fullName} - ${request.fileName.replace(/\.(stl|step|stp)/gi, '')}`
     .replace(/[^\w .()-]+/g, '')
     .trim()
     .slice(0, 120)

@@ -124,6 +124,8 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-rccf}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-rccf}?schema=public
       DATABASE_POOL_MAX: 3
+      # Read by nothing the worker does; passed so the env check's https warning stays quiet.
+      SITE_URL: ${SITE_URL:-}
       SLICER_TIMEOUT_SECONDS: ${SLICER_TIMEOUT_SECONDS:-300}
       PRINT_PLATE_MAX_TRIANGLES: ${PRINT_PLATE_MAX_TRIANGLES:-5000000}
       PRINT_PREVIEW_MAX_MB: ${PRINT_PREVIEW_MAX_MB:-8}

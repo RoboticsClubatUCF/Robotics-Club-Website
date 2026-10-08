@@ -8,7 +8,7 @@
  * job. Exits non-zero if any plate doesn't come out as expected. With `SMOKE_OUT=<dir>` mounted
  * writable, each sliced plate's `.3mf` and preview are saved there to open in desktop Orca.
  */
-import { readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -19,7 +19,8 @@ import { type Placement, placedBox, placementAffine } from './plateTransform.js'
 import { loadApprovedProfiles, sliceManifest } from './profiles.js'
 import type { ProcessOverrides } from './processSettings.js'
 import type { ClaimedSlice, PlateSpec, SliceOutput } from './sliceJobs.js'
-import { meshStep } from './stepMesh.js'
+import { meshStepInChild } from './stepMesh.js'
+import { parseStl } from './stl.js'
 
 const fixtures = fileURLToPath(new URL('../../orca/fixtures/', import.meta.url))
 
@@ -90,12 +91,24 @@ async function main() {
   }
   const runner = new OrcaRunner(profiles, scratch, version)
 
+  // The STEP goes through the child process the worker uses, not an in-process call.
+  const stepDir = join(scratch, 'smoke-step')
+  await mkdir(stepDir, { recursive: true, mode: 0o700 })
+  const step = await meshStepInChild(
+    new Uint8Array(await readFile(join(fixtures, 'cube.step'))),
+    stepDir,
+    env.SLICER_TIMEOUT_SECONDS * 1000,
+  )
+  await rm(stepDir, { recursive: true, force: true })
+  if (!step.ok) throw new Error(`the STEP fixture didn't mesh: ${step.failure} ${step.detail}`)
+  console.log(`ok   STEP meshed in a child process: ${String(step.triangles)} triangles`)
+
   const meshes = new Map<string, Float32Array>([
     ['cube', box(20, 20, 20, [100, 100, 50])],
     ['bar', box(60, 10, 8)],
     ['tower', box(20, 20, 60)],
     ['cylinder', cylinder(15, 10)],
-    ['step', await meshStep(new Uint8Array(await readFile(join(fixtures, 'cube.step'))))],
+    ['step', parseStl(step.stl)],
   ])
 
   const turn45 = { qz: Math.sin(Math.PI / 8), qw: Math.cos(Math.PI / 8) }
