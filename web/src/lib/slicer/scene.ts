@@ -121,9 +121,11 @@ export function webglAvailable(): boolean {
 export function makeBed(bed: Bed, colors: ThemeColors): Group {
   const group = new Group()
 
+  // Drawn from above only: orbited underneath, the grid stays and the parts' undersides show
+  // through, as in Orca.
   const surface = new Mesh(
     new PlaneGeometry(bed.width, bed.depth),
-    new MeshBasicMaterial({ color: colors.bed, side: DoubleSide }),
+    new MeshBasicMaterial({ color: colors.bed }),
   )
   surface.position.set(bed.width / 2, bed.depth / 2, -0.05)
   surface.name = 'bed'
@@ -177,7 +179,6 @@ export function makeBed(bed: Bed, colors: ThemeColors): Group {
 
 /** Looking at the plate from the front, a little above, the way Orca opens. */
 export function frameBed(camera: PerspectiveCamera, controls: OrbitControls, bed: Bed): void {
-  camera.up.set(0, 0, 1)
   camera.position.set(bed.width / 2, -bed.depth * 1.05, bed.height * 1.3)
   controls.target.set(bed.width / 2, bed.depth / 2, 0)
   controls.update()
@@ -208,6 +209,9 @@ export function createStage(canvas: HTMLCanvasElement, host: HTMLElement, bed: B
   scene.add(sun)
 
   const camera = new PerspectiveCamera(40, 1, 1, 5_000)
+  // Z is up on the plate, as in Orca. OrbitControls reads the up axis once, when it's made, so
+  // this comes first; set afterwards, it orbits about Y and tilting jams the view side-on.
+  camera.up.set(0, 0, 1)
   const orbit = new OrbitControls(camera, canvas)
   orbit.enableDamping = false
   orbit.screenSpacePanning = true
