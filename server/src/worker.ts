@@ -1,10 +1,11 @@
 /**
  * The slicer worker: its own process in its own container (`orca/Dockerfile`), beside the API.
  *
- * It claims jobs from Postgres, one at a time: STEP uploads to mesh first, since a plate can't
- * slice until they're done, then plates to slice. Nothing reaches it over the network; it reads
- * and writes rows. It refuses to start unless Orca's version and every approved profile match
- * `orca/profiles/manifest.json`, so a worker can't slice with settings the API didn't promise.
+ * It claims jobs from Postgres, one at a time: officers' profile uploads first, since nothing can
+ * slice with one until it's resolved, then STEP uploads to mesh, then plates to slice. Nothing
+ * reaches it over the network; it reads and writes rows. Every profile it slices with is one it
+ * resolved itself, against this Orca's stock profiles, and a job whose profiles changed after
+ * SLICE was pressed is refused.
  */
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { hostname, tmpdir } from 'node:os'
@@ -12,7 +13,17 @@ import { join } from 'node:path'
 import { prisma } from './core/db.js'
 import { env } from './core/env.js'
 import { OrcaRunner, orcaVersion } from './printing/orcaRunner.js'
-import { loadApprovedProfiles, profilesDir, sliceManifest } from './printing/profiles.js'
+import {
+  type ClaimedProfile,
+  claimProfile,
+  failProfile,
+  publishProfile,
+  renewProfile,
+  requeueOtherVersions,
+} from './printing/profileJobs.js'
+import { StockProfiles } from './printing/profileResolve.js'
+import { resolveProfile } from './printing/profileWork.js'
+import { loadSliceProfiles } from './printing/profiles.js'
 import { meshStepInChild } from './printing/stepMesh.js'
 import {
   type ClaimedMesh,
@@ -33,41 +44,34 @@ import { MeshError, parseStl } from './printing/stl.js'
 const BEAT_MS = 20_000
 const IDLE_MS = 2_000
 
-const manifest = sliceManifest()
-if (!manifest) {
-  console.error('slicer: no approved profiles, so nothing to slice with')
-  process.exit(1)
-}
-if (profilesDir.includes(';')) {
-  // `--load-settings` splits its argument on semicolons.
-  console.error(`slicer: the profiles path can't contain ";" (${profilesDir})`)
-  process.exit(1)
-}
-const profiles = loadApprovedProfiles(manifest)
-
 const scratch = env.SLICER_SCRATCH_DIR ?? join(tmpdir(), 'rccf-slicer')
+if (scratch.includes(';')) {
+  // `--load-settings` splits its argument on semicolons, and the profiles are written under here.
+  console.error(`slicer: the scratch path can't contain ";" (${scratch})`)
+  process.exit(1)
+}
 await mkdir(scratch, { recursive: true, mode: 0o700 })
 
 const version = await orcaVersion(env.ORCA_BINARY, scratch)
-if (version !== manifest.orcaVersion) {
-  console.error(
-    `slicer: Orca reports ${String(version)}, the profiles were approved for ${manifest.orcaVersion}`,
-  )
+if (!version) {
+  console.error(`slicer: ${env.ORCA_BINARY} didn't say which OrcaSlicer it is`)
   process.exit(1)
 }
+const stock = await StockProfiles.load(env.ORCA_PROFILES_DIR)
 
-const runner = new OrcaRunner(profiles, scratch, version)
+const runner = new OrcaRunner(scratch, version)
 const workerId = hostname()
 let stopping = false
 let current: AbortController | null = null
 
+const requeued = await requeueOtherVersions(version)
 console.log(
-  `slicer: OrcaSlicer ${version}, profiles ${manifest.profileSetHash.slice(0, 12)}`,
+  `slicer: OrcaSlicer ${version}${requeued > 0 ? `, resolving ${String(requeued)} profiles again for it` : ''}`,
 )
 
 async function beat() {
   try {
-    await heartbeat(workerId, version!, manifest!.profileSetHash)
+    await heartbeat(workerId, version!)
     // The container's health check reads this file's age.
     await writeFile(join(scratch, 'heartbeat'), new Date().toISOString())
   } catch (error) {
@@ -126,8 +130,20 @@ async function runSlice(job: ClaimedSlice) {
       meshes.set(model.id, positions)
     }
 
+    const profiles = await loadSliceProfiles(job.spec.profiles, version!)
+    if (!profiles) {
+      await failSlice(
+        job.id,
+        job.leaseToken,
+        'A printer, process or filament on this plate changed. Slice again.',
+        true,
+      )
+      return
+    }
+
     const result = await runner.slice(
       job,
+      profiles,
       meshes,
       started + env.SLICER_TIMEOUT_SECONDS * 1000,
       controller.signal,
@@ -200,9 +216,51 @@ async function runMesh(job: ClaimedMesh) {
   }
 }
 
+async function runProfile(job: ClaimedProfile) {
+  const controller = new AbortController()
+  current = controller
+  const lease = holdLease(() => renewProfile(job.id, job.leaseToken), controller)
+  const started = Date.now()
+  try {
+    const outcome = await resolveProfile(
+      job,
+      stock,
+      runner,
+      started + env.SLICER_TIMEOUT_SECONDS * 1000,
+      controller.signal,
+    )
+    if (controller.signal.aborted) return
+    if ('failure' in outcome) {
+      console.warn(`slicer: profile ${job.name}: ${outcome.failure}`)
+      await failProfile(job.id, job.leaseToken, outcome.failure, version!)
+      return
+    }
+    await publishProfile(job.id, job.leaseToken, { ...outcome, orcaVersion: version! })
+    console.log(
+      `slicer: profile ${job.name} ready in ${String(Math.round((Date.now() - started) / 1000))}s`,
+    )
+  } catch (error) {
+    console.error(`slicer: profile ${job.name} failed`, error)
+    await failProfile(
+      job.id,
+      job.leaseToken,
+      `Something went wrong setting it up. Upload it again, and if it keeps failing, check the slicer's log.`,
+      version!,
+    ).catch(() => undefined)
+  } finally {
+    clearInterval(lease)
+    current = null
+  }
+}
+
 async function loop() {
   while (!stopping) {
     try {
+      const profile = await claimProfile()
+      if (profile) {
+        await runProfile(profile)
+        continue
+      }
       const mesh = await claimMesh()
       if (mesh) {
         await runMesh(mesh)

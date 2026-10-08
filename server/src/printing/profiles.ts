@@ -1,125 +1,295 @@
-import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
+import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
-import type { PrintMaterial, PrintPreset } from '../generated/prisma/enums.js'
+import { prisma } from '../core/db.js'
+import type { Prisma } from '../generated/prisma/client.js'
+import { SlicerJobState, SlicerProfileKind } from '../generated/prisma/enums.js'
+import type { FilamentInfo, PrinterInfo, ProcessInfo } from './profileResolve.js'
+import { fitsPrinter } from './profileResolve.js'
 
 /**
- * The approved Orca profiles in `orca/profiles/`, built by `orca/resolve-profiles.ts`.
+ * The club's slicer profiles, as the API and the worker read them back out of `slicer_profiles`.
  *
- * The API reads the manifest to tell the workspace what the presets are and how big the bed is.
- * The worker also checks every file's hash before it will slice, so a hand-edited profile can't
- * reach the printer.
+ * Officers upload them on the profiles desk (`routes/officer/slicerProfiles.ts`) and the worker
+ * resolves them (`profileResolve.ts`). A member sees only READY, offered ones; a plate names one
+ * printer, one of that printer's processes and a filament that fits the printer, and every route
+ * that changes or slices a plate checks that here.
  */
 
-export const profilesDir = fileURLToPath(new URL('../../orca/profiles/', import.meta.url))
+type Db = Prisma.TransactionClient
 
-const fileEntry = z.object({ file: z.string(), preset: z.string(), sha256: z.string() })
+const exclude = z.object({ minX: z.number(), minY: z.number(), maxX: z.number(), maxY: z.number() })
 
-const manifestPreset = fileEntry.extend({
-  label: z.string(),
-  description: z.string(),
-  values: z.record(z.string(), z.union([z.number(), z.boolean(), z.string()])),
-})
-
-const manifestSchema = z.object({
-  orcaVersion: z.string(),
-  profileSetHash: z.string(),
-  printer: fileEntry.extend({
-    model: z.string(),
-    nozzle: z.number(),
-    bedType: z.string(),
-    bed: z.object({
-      width: z.number(),
-      depth: z.number(),
-      height: z.number(),
-      exclude: z
-        .object({
-          minX: z.number(),
-          minY: z.number(),
-          maxX: z.number(),
-          maxY: z.number(),
-        })
-        .nullable(),
-    }),
-    layerHeight: z.object({ min: z.number(), max: z.number() }),
+export const printerInfo: z.ZodType<PrinterInfo> = z.object({
+  model: z.string(),
+  stockName: z.string(),
+  nozzle: z.number(),
+  bedType: z.string(),
+  bed: z.object({
+    width: z.number(),
+    depth: z.number(),
+    height: z.number(),
+    exclude: exclude.nullable(),
   }),
-  presets: z.object({ STANDARD: manifestPreset, Q: manifestPreset, QS: manifestPreset }),
-  materials: z.object({ PLA: fileEntry, PETG: fileEntry }),
+  layerHeight: z.object({ min: z.number(), max: z.number() }),
 })
 
-export type SliceManifest = z.infer<typeof manifestSchema>
+export const processInfo: z.ZodType<ProcessInfo> = z.object({
+  values: z.record(z.string(), z.union([z.number(), z.boolean(), z.string()])),
+  summary: z.string(),
+  compatiblePrinters: z.array(z.string()),
+})
 
-let cached: SliceManifest | null | undefined
+export const filamentInfo: z.ZodType<FilamentInfo> = z.object({
+  type: z.string(),
+  vendor: z.string(),
+  compatiblePrinters: z.array(z.string()),
+})
 
-/** The manifest, or null when it's missing or unreadable, which turns slicing off. */
-export function sliceManifest(): SliceManifest | null {
-  if (cached !== undefined) return cached
-  try {
-    cached = manifestSchema.parse(
-      JSON.parse(readFileSync(`${profilesDir}manifest.json`, 'utf8')),
-    )
-  } catch (error) {
-    console.error('slicer: the approved profiles manifest could not be read', error)
-    cached = null
-  }
-  return cached
-}
+const profileSelect = {
+  id: true,
+  kind: true,
+  name: true,
+  label: true,
+  description: true,
+  offered: true,
+  state: true,
+  printerId: true,
+  sha256: true,
+  info: true,
+} as const
 
-/** Checked with line endings folded, so a CRLF checkout on Windows still matches. */
-export const profileHash = (text: string): string =>
-  createHash('sha256').update(text.replaceAll('\r\n', '\n')).digest('hex')
+type ProfileRow = Prisma.SlicerProfileGetPayload<{ select: typeof profileSelect }>
 
-export interface ApprovedProfiles {
-  manifest: SliceManifest
-  printer: string
-  presets: Record<PrintPreset, string>
-  materials: Record<Extract<PrintMaterial, 'PLA' | 'PETG'>, string>
-}
+const order = [{ position: 'asc' }, { createdAt: 'asc' }] as const
 
-/** Every profile's text, each checked against its hash. Throws on the first mismatch. */
-export function loadApprovedProfiles(manifest: SliceManifest): ApprovedProfiles {
-  const read = (entry: { file: string; sha256: string }) => {
-    const text = readFileSync(`${profilesDir}${entry.file}`, 'utf8')
-    if (profileHash(text) !== entry.sha256) {
-      throw new Error(`${entry.file} doesn't match the approved profiles manifest`)
-    }
-    return text
-  }
-  return {
-    manifest,
-    printer: read(manifest.printer),
-    presets: {
-      STANDARD: read(manifest.presets.STANDARD),
-      Q: read(manifest.presets.Q),
-      QS: read(manifest.presets.QS),
-    },
-    materials: { PLA: read(manifest.materials.PLA), PETG: read(manifest.materials.PETG) },
-  }
-}
-
-/** What the workspace is told: names and numbers, never file names or hashes. */
-export function workspaceProfiles(manifest: SliceManifest) {
-  const preset = (key: PrintPreset) => ({
-    key,
-    label: manifest.presets[key].label,
-    name: manifest.presets[key].preset,
-    description: manifest.presets[key].description,
-    values: manifest.presets[key].values,
+/** What a member can pick from: printers with their processes, and filaments with the printers they fit. */
+export async function workspaceProfiles(db: Db = prisma) {
+  const rows = await db.slicerProfile.findMany({
+    where: { state: SlicerJobState.READY, offered: true },
+    orderBy: [...order],
+    select: profileSelect,
   })
+
+  const printers = rows.flatMap((row) => {
+    if (row.kind !== SlicerProfileKind.PRINTER) return []
+    const info = printerInfo.safeParse(row.info)
+    if (!info.success) return []
+    const processes = rows.flatMap((process) => {
+      if (process.kind !== SlicerProfileKind.PROCESS || process.printerId !== row.id) return []
+      const values = processInfo.safeParse(process.info)
+      if (!values.success) return []
+      return [
+        {
+          id: process.id,
+          label: process.label,
+          name: process.name,
+          description: process.description ?? values.data.summary,
+          values: values.data.values,
+        },
+      ]
+    })
+    // A printer with nothing to slice it with isn't a choice.
+    if (processes.length === 0) return []
+    return [
+      {
+        id: row.id,
+        label: row.label,
+        name: row.name,
+        description: row.description,
+        model: info.data.model,
+        stockName: info.data.stockName,
+        nozzle: info.data.nozzle,
+        bedType: info.data.bedType,
+        bed: info.data.bed,
+        layerHeight: info.data.layerHeight,
+        processes,
+      },
+    ]
+  })
+
+  const filaments = rows.flatMap((row) => {
+    if (row.kind !== SlicerProfileKind.FILAMENT) return []
+    const info = filamentInfo.safeParse(row.info)
+    if (!info.success) return []
+    const fits = printers
+      .filter((printer) => fitsPrinter(info.data.compatiblePrinters, printer))
+      .map((printer) => printer.id)
+    if (fits.length === 0) return []
+    return [
+      {
+        id: row.id,
+        label: row.label,
+        name: row.name,
+        description: row.description,
+        type: info.data.type,
+        printers: fits,
+      },
+    ]
+  })
+
   return {
-    printer: {
-      name: manifest.printer.preset,
-      model: manifest.printer.model,
-      nozzle: manifest.printer.nozzle,
-      bedType: manifest.printer.bedType,
-    },
-    bed: manifest.printer.bed,
-    layerHeight: manifest.printer.layerHeight,
-    presets: [preset('STANDARD'), preset('Q'), preset('QS')],
-    materials: [
-      { key: 'PLA' as const, name: manifest.materials.PLA.preset },
-      { key: 'PETG' as const, name: manifest.materials.PETG.preset },
-    ],
+    printers: printers.map(({ stockName: _stockName, ...printer }) => printer),
+    filaments,
   }
+}
+
+export type WorkspaceProfiles = Awaited<ReturnType<typeof workspaceProfiles>>
+
+/** The three profiles a plate names. Any can be null: a profile an officer deleted. */
+export interface PlateChoice {
+  printerId: string | null
+  processId: string | null
+  filamentId: string | null
+}
+
+const refuse = (message: string) => new HTTPException(409, { message })
+
+const NOUN = { PRINTER: 'printer', PROCESS: 'process', FILAMENT: 'filament' } as const
+
+function usable(row: ProfileRow | undefined, kind: SlicerProfileKind, id: string | null) {
+  const noun = NOUN[kind]
+  if (!id) return refuse(`Pick a ${noun}.`)
+  if (!row || row.kind !== kind) return refuse(`That ${noun} has been removed. Pick another.`)
+  if (!row.offered) return refuse(`The ${row.label} ${noun} isn't offered any more. Pick another.`)
+  if (row.state !== SlicerJobState.READY) {
+    return refuse(`The ${row.label} ${noun} is being set up. Pick another, or try again in a minute.`)
+  }
+  return null
+}
+
+/**
+ * Checks a plate's profiles and throws a 409 a member can act on. `changed` limits it to what an
+ * edit touches, so a member can still change the process on a plate whose filament an officer has
+ * since hidden; SLICE and SUBMIT check everything.
+ */
+export async function checkChoice(
+  db: Db,
+  choice: PlateChoice,
+  changed: { printer: boolean; process: boolean; filament: boolean } = {
+    printer: true,
+    process: true,
+    filament: true,
+  },
+) {
+  const ids = [choice.printerId, choice.processId, choice.filamentId].filter(
+    (id): id is string => id !== null,
+  )
+  const rows = await db.slicerProfile.findMany({
+    where: { id: { in: ids } },
+    select: profileSelect,
+  })
+  const byId = new Map(rows.map((row) => [row.id, row]))
+  const printer = choice.printerId ? byId.get(choice.printerId) : undefined
+  const process = choice.processId ? byId.get(choice.processId) : undefined
+  const filament = choice.filamentId ? byId.get(choice.filamentId) : undefined
+
+  const problem =
+    (changed.printer && usable(printer, SlicerProfileKind.PRINTER, choice.printerId)) ||
+    (changed.process && usable(process, SlicerProfileKind.PROCESS, choice.processId)) ||
+    (changed.filament && usable(filament, SlicerProfileKind.FILAMENT, choice.filamentId))
+  if (problem) throw problem
+
+  if ((changed.printer || changed.process) && printer && process && process.printerId !== printer.id) {
+    throw refuse(`The ${process.label} process is for another printer. Pick one of this printer's.`)
+  }
+  if ((changed.printer || changed.filament) && printer && filament) {
+    const fits = filamentInfo.safeParse(filament.info)
+    const stock = printerInfo.safeParse(printer.info)
+    if (
+      fits.success &&
+      !fitsPrinter(fits.data.compatiblePrinters, {
+        name: printer.name,
+        stockName: stock.success ? stock.data.stockName : '',
+      })
+    ) {
+      throw refuse(`${filament.label} isn't made for the ${printer.label}. Pick another filament.`)
+    }
+  }
+  return { printer, process, filament }
+}
+
+/** The labels a plate is recorded under, keeping the old one for any profile that's gone. */
+export async function choiceLabels(
+  db: Db,
+  choice: PlateChoice,
+  previous: unknown,
+): Promise<{ printer: string; process: string; filament: string }> {
+  const old = slicedWith.safeParse(previous)
+  const ids = [choice.printerId, choice.processId, choice.filamentId].filter(
+    (id): id is string => id !== null,
+  )
+  const rows = await db.slicerProfile.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, label: true },
+  })
+  const label = (id: string | null, fallback: string | undefined) =>
+    rows.find((row) => row.id === id)?.label ?? fallback ?? ''
+  return {
+    printer: label(choice.printerId, old.data?.printer),
+    process: label(choice.processId, old.data?.process),
+    filament: label(choice.filamentId, old.data?.filament),
+  }
+}
+
+/** `PrintRequest.slicedWith`. */
+export const slicedWith = z.object({
+  printer: z.string(),
+  process: z.string(),
+  filament: z.string(),
+})
+
+/** What a new plate starts with: the first offered printer, its first process, and the first filament that fits. */
+export function defaultChoice(profiles: WorkspaceProfiles): PlateChoice | null {
+  const printer = profiles.printers[0]
+  const process = printer?.processes[0]
+  const filament = profiles.filaments.find((f) => printer && f.printers.includes(printer.id))
+  if (!printer || !process || !filament) return null
+  return { printerId: printer.id, processId: process.id, filamentId: filament.id }
+}
+
+// ------------------------------------------------------------------ the worker's side
+
+export interface LoadedProfile<Info> {
+  id: string
+  name: string
+  text: string
+  info: Info
+}
+
+export interface SliceProfiles {
+  printer: LoadedProfile<PrinterInfo>
+  process: LoadedProfile<ProcessInfo>
+  filament: LoadedProfile<FilamentInfo>
+}
+
+/**
+ * The three profiles a slice job names, exactly as they were when SLICE was pressed: READY,
+ * resolved by this Orca, and with the hashes the job carries. Null when any has changed since.
+ */
+export async function loadSliceProfiles(
+  refs: Record<'printer' | 'process' | 'filament', { id: string; sha256: string }>,
+  orcaVersion: string,
+): Promise<SliceProfiles | null> {
+  const rows = await prisma.slicerProfile.findMany({
+    where: { id: { in: [refs.printer.id, refs.process.id, refs.filament.id] } },
+    select: { id: true, name: true, state: true, sha256: true, resolved: true, info: true, orcaVersion: true },
+  })
+  const load = <Info>(ref: { id: string; sha256: string }, schema: z.ZodType<Info>) => {
+    const row = rows.find((r) => r.id === ref.id)
+    if (
+      !row ||
+      row.state !== SlicerJobState.READY ||
+      row.sha256 !== ref.sha256 ||
+      row.orcaVersion !== orcaVersion ||
+      row.resolved === null
+    ) {
+      return null
+    }
+    const info = schema.safeParse(row.info)
+    return info.success ? { id: row.id, name: row.name, text: row.resolved, info: info.data } : null
+  }
+  const printer = load(refs.printer, printerInfo)
+  const process = load(refs.process, processInfo)
+  const filament = load(refs.filament, filamentInfo)
+  return printer && process && filament ? { printer, process, filament } : null
 }

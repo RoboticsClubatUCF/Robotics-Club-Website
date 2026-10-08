@@ -5,8 +5,8 @@ import { ArchiveError, readSlicedProject } from './sliceArchive.js'
 import { PreviewError, buildPreview } from './gcodePreview.js'
 import { type ProjectHeader, readProjectHeader, writeProject } from './orcaProject.js'
 import { type FitProblem, fitProblem, placementAffine } from './plateTransform.js'
-import { type ApprovedProfiles, profilesDir } from './profiles.js'
-import { MATERIAL_FILES, orcaOverrides } from './processSettings.js'
+import { orcaOverrides } from './processSettings.js'
+import type { SliceProfiles } from './profiles.js'
 import { runProcess } from './runProcess.js'
 import type { ClaimedSlice, SliceOutput } from './sliceJobs.js'
 import { triangleCount, writeBinaryStl } from './stl.js'
@@ -14,7 +14,7 @@ import { triangleCount, writeBinaryStl } from './stl.js'
 /**
  * Running OrcaSlicer 2.4.2's command line for one plate.
  *
- * Two runs. The first loads the approved profiles plus the member's settings onto a small cube
+ * Two runs. The first loads the plate's profiles plus the member's settings onto a small cube
  * and exports a project without slicing: Orca won't slice a project with no settings in it, and
  * given a project and presets together it merges them by its own rules. That project's settings
  * go into the plate's project, which the second run slices with arranging and orienting off, so
@@ -29,12 +29,14 @@ export interface SliceFailure {
   /** Orca crashed rather than refused; worth one more go. */
   transient?: boolean
   detail?: string
+  /** Orca's own error, for an officer testing a profile. Never shown to a member. */
+  orca?: string
 }
 
 export const FAILURES = {
   offPlate: 'Part of the plate hangs off the bed. Move it back on.',
   tooTall: 'Something on the plate is taller than the printer can print.',
-  noGo: "Something sits in the bed's back corner, where the printer purges. Move it out.",
+  noGo: 'Something sits where the printer keeps the bed clear. Move it out.',
   doesntFit:
     "Orca couldn't fit everything on one plate. Spread the copies out or remove some.",
   tooDetailed: 'The plate is too detailed to slice. Use fewer copies or a simpler model.',
@@ -118,7 +120,6 @@ export class OrcaRunner {
   private headers = new Map<string, ProjectHeader>()
 
   constructor(
-    private readonly profiles: ApprovedProfiles,
     private readonly scratchRoot: string,
     readonly version: string,
   ) {}
@@ -172,22 +173,32 @@ export class OrcaRunner {
 
   private async header(
     spec: ClaimedSlice['spec'],
+    profiles: SliceProfiles,
     dirs: Awaited<ReturnType<OrcaRunner['jobDir']>>,
     timeoutMs: number,
     signal?: AbortSignal,
   ): Promise<ProjectHeader | SliceFailure> {
     const overrides = orcaOverrides(spec.overrides)
-    const key = JSON.stringify([spec.material, spec.preset, overrides])
+    const key = JSON.stringify([
+      spec.profiles.printer.sha256,
+      spec.profiles.process.sha256,
+      spec.profiles.filament.sha256,
+      overrides,
+    ])
     const cached = this.headers.get(key)
     if (cached) return cached
 
     const processProfile = {
-      ...(JSON.parse(this.profiles.presets[spec.preset]) as object),
+      ...(JSON.parse(profiles.process.text) as object),
       ...overrides,
     }
     const processFile = join(dirs.header, 'process.json')
+    const printerFile = join(dirs.header, 'printer.json')
+    const filamentFile = join(dirs.header, 'filament.json')
     const cubeFile = join(dirs.header, 'cube.stl')
     await writeFile(processFile, JSON.stringify(processProfile))
+    await writeFile(printerFile, profiles.printer.text)
+    await writeFile(filamentFile, profiles.filament.text)
     await writeFile(cubeFile, cube())
 
     const run = await runProcess(
@@ -196,9 +207,9 @@ export class OrcaRunner {
         '--datadir',
         dirs.data,
         '--load-settings',
-        `${processFile};${join(profilesDir, this.profiles.manifest.printer.file)}`,
+        `${processFile};${printerFile}`,
         '--load-filaments',
-        join(profilesDir, MATERIAL_FILES[spec.material]),
+        filamentFile,
         '--outputdir',
         dirs.header,
         '--arrange',
@@ -218,6 +229,7 @@ export class OrcaRunner {
         retryable: true,
         transient: !result && !run.timedOut,
         detail: `settings run: exit ${String(run.code)}, ${JSON.stringify(result)}\n${run.stderr.slice(-2000)}`,
+        orca: result?.message,
       }
     }
     const header = readProjectHeader(
@@ -230,12 +242,13 @@ export class OrcaRunner {
 
   async slice(
     job: ClaimedSlice,
+    profiles: SliceProfiles,
     meshes: Map<string, Float32Array>,
     deadline: number,
     signal?: AbortSignal,
   ): Promise<SliceOutput | SliceFailure> {
     const { spec } = job
-    const bed = this.profiles.manifest.printer.bed
+    const bed = profiles.printer.info.bed
 
     if (spec.overrides['spiral_mode'] === true && spec.objects.length > 1) {
       return { failure: FAILURES.vase, retryable: false }
@@ -263,7 +276,7 @@ export class OrcaRunner {
     const dirs = await this.jobDir(`job-${job.id}-${job.leaseToken}`)
     try {
       const left = () => Math.max(1_000, deadline - Date.now())
-      const header = await this.header(spec, dirs, left(), signal)
+      const header = await this.header(spec, profiles, dirs, left(), signal)
       if ('failure' in header) return header
 
       const modelOrder = [...new Set(placed.map((object) => object.modelId))]
@@ -303,7 +316,7 @@ export class OrcaRunner {
       const result = await this.orcaResult(dirs.out)
       const supportsOn =
         (spec.overrides['enable_support'] ??
-          this.profiles.manifest.presets[spec.preset].values['enable_support']) === true
+          profiles.process.info.values['enable_support']) === true
       if (run.timedOut) return { failure: FAILURES.tooSlow, retryable: false }
       if (!result) {
         return {
@@ -311,33 +324,35 @@ export class OrcaRunner {
           retryable: true,
           transient: true,
           detail: `slice run crashed: exit ${String(run.code)}\n${run.stderr.slice(-2000)}`,
+          // A bad setting usually crashes Orca rather than being refused, and says which here.
+          orca: /what\(\):\s*(.+)/.exec(run.stderr)?.[1]?.trim(),
         }
       }
       if (run.code !== 0 || result.code !== 0) {
         return {
           ...orcaFailure(result.code, supportsOn),
           detail: `slice run: exit ${String(run.code)}, ${JSON.stringify(result)}`,
+          orca: result.message,
         }
       }
 
       const output = new Uint8Array(await readFile(join(dirs.out, 'rccf.3mf')))
-      const manifest = this.profiles.manifest
       let summary
       try {
         summary = readSlicedProject(output, {
           objects: placed.length,
           meshes: modelOrder.length,
-          printer: manifest.printer.preset,
-          process: manifest.presets[spec.preset].preset,
-          filament: manifest.materials[spec.material].preset,
-          bedType: manifest.printer.bedType,
+          printer: profiles.printer.name,
+          process: profiles.process.name,
+          filament: profiles.filament.name,
+          bedType: profiles.printer.info.bedType,
           overrides: orcaOverrides(spec.overrides),
         })
       } catch (error) {
         if (!(error instanceof ArchiveError)) throw error
         return error.reason === 'doesntFit'
           ? { failure: FAILURES.doesntFit, retryable: false, detail: error.message }
-          : { failure: FAILURES.setup, retryable: true, detail: error.message }
+          : { failure: FAILURES.setup, retryable: true, detail: error.message, orca: error.message }
       }
 
       let preview: Uint8Array | null = null

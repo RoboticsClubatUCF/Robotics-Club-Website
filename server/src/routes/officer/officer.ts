@@ -614,7 +614,7 @@ officer.patch(
         projectId: true,
         termYear: true,
         termSeason: true,
-        preset: true,
+        slicedWith: true,
         estimatedGrams: true,
       },
     })
@@ -624,7 +624,7 @@ officer.patch(
     if (status === PrintRequestStatus.DRAFT) {
       throw new HTTPException(400, { message: 'Only its owner can turn a print back into a draft.' })
     }
-    if (printed && request.preset !== null) {
+    if (printed && request.slicedWith !== null) {
       throw new HTTPException(400, {
         message: 'This plate was sliced by its owner. Say what changed in the note instead.',
       })

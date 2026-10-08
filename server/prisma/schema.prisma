@@ -219,6 +219,7 @@ model User {
   termOverrides     TermOverride[]    @relation("termOverrides")
   labChanges        LabStatus[]       @relation("labChanges")
   documentsAuthored ProjectDocument[] @relation("documentAuthors")
+  slicerProfiles    SlicerProfile[]
 
   @@index([active])
   // The alumni chip on `/members` selects on this alone, and it is a couple of
@@ -1051,11 +1052,12 @@ enum InfillPattern {
   CONCENTRIC
 }
 
-/// The club's filament process presets: the exported Orca presets in `orca/source/`.
-enum PrintPreset {
-  STANDARD
-  Q
-  QS
+/// What an approved slicer profile is. A process belongs to one printer; a filament fits any
+/// printer its `compatible_printers` names, or all of them when it names none.
+enum SlicerProfileKind {
+  PRINTER
+  PROCESS
+  FILAMENT
 }
 
 /// Where a slicer worker job is: meshing a STEP upload, or slicing a plate.
@@ -1141,15 +1143,29 @@ model PrintRequest {
   printedInfillPattern InfillPattern? @map("printed_infill_pattern")
   printedInfillDensity Int?           @map("printed_infill_density")
 
-  /// A sliced filament plate: its models, where each copy sits, and the preset plus the settings
-  /// its owner changed (`printing/processSettings.ts`). The infill columns above stay null on
-  /// these; `overrides` is the spec. Resin and filament requests from before the slicer have no
-  /// preset and keep `fileId`.
-  preset    PrintPreset?
-  overrides Json?
-  models    PrintModel[]
-  objects   PrintObject[]
-  slice     PrintSlice?
+  /// A sliced filament plate: its models, where each copy sits, the printer, process and filament
+  /// profiles it slices with, and the settings its owner changed from the process
+  /// (`printing/processSettings.ts`). The infill columns above stay null on these; `overrides` is
+  /// the spec. `material` stays at its default and means nothing here: the filament profile is
+  /// the material, and officers upload whatever the shelf holds.
+  ///
+  /// The three relations are `SetNull` so an officer can delete a profile a draft uses; the
+  /// workspace then asks for another. `slicedWith` keeps their labels (`{ printer, process,
+  /// filament }`) for the history and the queue, which must still read after a profile is renamed
+  /// or deleted. It's set on every sliced plate and null on everything else, which is how a
+  /// request says it was made in the slicer. Resin and filament requests from before the slicer
+  /// keep `fileId` instead.
+  printerProfileId  String?        @map("printer_profile_id")
+  printerProfile    SlicerProfile? @relation("platePrinter", fields: [printerProfileId], references: [id], onDelete: SetNull)
+  processProfileId  String?        @map("process_profile_id")
+  processProfile    SlicerProfile? @relation("plateProcess", fields: [processProfileId], references: [id], onDelete: SetNull)
+  filamentProfileId String?        @map("filament_profile_id")
+  filamentProfile   SlicerProfile? @relation("plateFilament", fields: [filamentProfileId], references: [id], onDelete: SetNull)
+  slicedWith        Json?          @map("sliced_with")
+  overrides         Json?
+  models            PrintModel[]
+  objects           PrintObject[]
+  slice             PrintSlice?
 
   /// Moves on with every change that would slice differently. Each edit, SLICE and SUBMIT names
   /// the revision it saw, so a stale tab gets a 409 instead of overwriting newer work.
@@ -1297,8 +1313,8 @@ model PrintObject {
 }
 
 /// A plate's slicer job and its one current result. One row per request, never a history:
-/// slicing again replaces the output. A result is only current while `revision` equals the
-/// request's and `profileSetHash` the approved profiles'.
+/// slicing again replaces the output. A result is only current while its `fingerprint` matches
+/// the plate, which covers the three profiles' hashes.
 model PrintSlice {
   id String @id @default(uuid(7))
 
@@ -1308,15 +1324,14 @@ model PrintSlice {
   state SlicerJobState @default(QUEUED)
 
   /// The request revision this job was queued for.
-  revision       Int
+  revision    Int
   /// What the worker slices: the plate and settings as they were when SLICE was pressed
   /// (`plateSpec` in `printing/sliceJobs.ts`). Later edits don't reach a running job.
-  spec           Json
-  /// The plate, the settings and the profile set, hashed. A SLICE whose fingerprint matches a
-  /// READY result reuses it instead of slicing again.
-  fingerprint    String
-  profileSetHash String  @map("profile_set_hash")
-  orcaVersion    String? @map("orca_version")
+  spec        Json
+  /// The plate, the settings and each profile's hash, hashed. A SLICE whose fingerprint matches
+  /// a READY result reuses it instead of slicing again.
+  fingerprint String
+  orcaVersion String? @map("orca_version")
 
   outputFileId   String?     @unique @map("output_file_id")
   outputFile     StoredFile? @relation("sliceOutput", fields: [outputFileId], references: [id], onDelete: SetNull)
@@ -1352,15 +1367,82 @@ model PrintSlice {
 }
 
 /// A slicer worker saying it's alive, every twenty seconds. SLICE is refused unless one was seen
-/// in the last ninety, running the same profiles as the API.
+/// in the last ninety.
 model SlicerWorker {
   /// The container's host name.
-  id             String   @id
-  orcaVersion    String   @map("orca_version")
-  profileSetHash String   @map("profile_set_hash")
-  seenAt         DateTime @map("seen_at")
+  id          String   @id
+  orcaVersion String   @map("orca_version")
+  seenAt      DateTime @map("seen_at")
 
   @@map("slicer_workers")
+}
+
+/// An Orca preset the club slices with, uploaded by an officer from what desktop Orca exports.
+///
+/// The upload is a sparse diff against a stock preset, and only the worker has Orca's stock
+/// profiles, so it's a job like a STEP mesh: QUEUED until the worker flattens it
+/// (`printing/profileResolve.ts`), test-loads it in Orca, and fills in `resolved`, `sha256`,
+/// `info` and `orcaVersion`. Members only see READY ones that are `offered`. A worker running a
+/// different Orca queues every profile again from `source`.
+///
+/// `sha256` is part of every slice's fingerprint, so replacing a profile's file makes the plates
+/// sliced with it slice again; renaming or describing it doesn't.
+model SlicerProfile {
+  id   String            @id @default(uuid(7))
+  kind SlicerProfileKind
+
+  /// The preset's own name, which the `.3mf` carries and desktop Orca shows. One printer or
+  /// filament per name, and one process per name on its printer: desktop Orca matches by name.
+  name        String
+  /// What members pick it by, and an optional line under it. The workspace describes a process
+  /// nobody described from its walls and infill.
+  label       String
+  description String?
+  /// Members can pick it. A hidden one can't be sliced with, even on a draft that chose it.
+  offered     Boolean @default(true)
+  /// Its place in its list. The first offered one is what a new plate starts with.
+  position    Int     @default(0)
+
+  /// A process's printer. Its processes go with it.
+  printerId String?         @map("printer_id")
+  printer   SlicerProfile?  @relation("printerProcesses", fields: [printerId], references: [id], onDelete: Cascade)
+  processes SlicerProfile[] @relation("printerProcesses")
+
+  /// The one preset as exported, and the file and entry it came out of.
+  source     String
+  sourceFile String @map("source_file")
+
+  state       SlicerJobState @default(QUEUED)
+  /// Why the worker refused it, written for the officer who uploaded it.
+  failure     String?
+  /// The flattened preset the worker loads, and its hash.
+  resolved    String?
+  sha256      String?
+  /// What the API reads without opening `resolved`: a printer's bed, a process's values, a
+  /// filament's type and the printers it fits (`printing/profiles.ts`).
+  info        Json?
+  orcaVersion String?        @map("orca_version")
+
+  attempts       Int       @default(0)
+  leaseToken     String?   @map("lease_token")
+  leaseExpiresAt DateTime? @map("lease_expires_at")
+  requestedAt    DateTime  @default(now()) @map("requested_at")
+
+  /// Whoever uploaded the file it holds now.
+  uploadedById String? @map("uploaded_by_id")
+  uploadedBy   User?   @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  platePrinters  PrintRequest[] @relation("platePrinter")
+  plateProcesses PrintRequest[] @relation("plateProcess")
+  plateFilaments PrintRequest[] @relation("plateFilament")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([kind, position])
+  @@index([printerId, position])
+  @@index([state, requestedAt])
+  @@map("slicer_profiles")
 }
 
 // ------------------------------------------------------------------ equipment

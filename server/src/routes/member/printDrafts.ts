@@ -14,7 +14,6 @@ import { looksLikePrintModel } from '../../files/files.js'
 import type { Prisma } from '../../generated/prisma/client.js'
 import {
   FileKind,
-  PrintPreset,
   PrintProcess,
   PrintRequestStatus,
   SlicerJobState,
@@ -28,9 +27,14 @@ import {
   printStorageBytes,
   storageCapBytes,
 } from '../../printing/printLifecycle.js'
-import { MATERIAL_LABEL } from '../../printing/printSettings.js'
 import { processOverrides } from '../../printing/processSettings.js'
-import { sliceManifest, workspaceProfiles } from '../../printing/profiles.js'
+import {
+  type PlateChoice,
+  checkChoice,
+  choiceLabels,
+  slicedWith,
+  workspaceProfiles,
+} from '../../printing/profiles.js'
 import { currentSpec, fingerprintOf, workerOnline } from '../../printing/sliceJobs.js'
 import { MeshError, parseStl } from '../../printing/stl.js'
 import { printSelect } from './print.js'
@@ -38,7 +42,7 @@ import { printSelect } from './print.js'
 /**
  * Filament plates, prepared and sliced by their owner.
  *
- *   GET    /api/print/workspace             -> presets, bed, limits, whether the slicer is up
+ *   GET    /api/print/workspace             -> printers, processes, filaments, limits, whether the slicer is up
  *   GET    /api/print/drafts                -> my drafts
  *   POST   /api/print/drafts                -> first upload: a new draft with one object
  *   GET    /api/print/drafts/:id            -> the plate, its settings and its slice
@@ -55,6 +59,10 @@ import { printSelect } from './print.js'
  * edit, SLICE and SUBMIT names the revision it saw, so a stale tab gets a 409 rather than
  * overwriting newer work. A slice is current while its fingerprint matches the plate; SUBMIT
  * refuses anything else, so what an officer downloads is what the member last saw.
+ *
+ * The printer, process and filament are officers' uploads (`printing/profiles.ts`), and any of
+ * them can be hidden or deleted under a draft. An edit only checks what it changes, so the member
+ * can still fix the rest; SLICE and SUBMIT check all three.
  *
  * The per-member limits are checked under that member's advisory lock, so two tabs can't both
  * slip under one.
@@ -104,17 +112,21 @@ const plateObject = z.object({
   ...placement,
 })
 
+const profileId = z.string().min(1).max(64)
+
 const draftSettings = z.object({
-  material: z.enum(['PLA', 'PETG']),
-  preset: z.enum(PrintPreset),
+  printerId: profileId,
+  processId: profileId,
+  filamentId: profileId,
   overrides: processOverrides,
 })
 
 const revision = z.object({ revision: z.number().int().min(1) })
 
 const draftEdit = revision.extend({
-  material: draftSettings.shape.material.optional(),
-  preset: draftSettings.shape.preset.optional(),
+  printerId: profileId.optional(),
+  processId: profileId.optional(),
+  filamentId: profileId.optional(),
   overrides: processOverrides.optional(),
   objects: z.array(plateObject).max(500).optional(),
 })
@@ -130,13 +142,16 @@ type Tx = Prisma.TransactionClient
 const lockMember = (tx: Tx, userId: string) =>
   tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`print:${userId}`}))`
 
-const manifestOr503 = () => {
-  const manifest = sliceManifest()
-  if (!manifest) {
-    throw new HTTPException(503, { message: 'The slicer is unavailable right now.' })
-  }
-  return manifest
-}
+/** A plate's three profiles, by the columns that hold them. */
+const choiceOf = (request: {
+  printerProfileId: string | null
+  processProfileId: string | null
+  filamentProfileId: string | null
+}): PlateChoice => ({
+  printerId: request.printerProfileId,
+  processId: request.processProfileId,
+  filamentId: request.filamentProfileId,
+})
 
 const notFound = () => new HTTPException(404, { message: 'No such draft.' })
 
@@ -291,8 +306,10 @@ async function draftView(requestId: string) {
       userId: true,
       status: true,
       revision: true,
-      material: true,
-      preset: true,
+      printerProfileId: true,
+      processProfileId: true,
+      filamentProfileId: true,
+      slicedWith: true,
       overrides: true,
       fileName: true,
       notes: true,
@@ -333,7 +350,6 @@ async function draftView(requestId: string) {
         select: {
           state: true,
           fingerprint: true,
-          profileSetHash: true,
           failure: true,
           retryable: true,
           estimatedGrams: true,
@@ -349,14 +365,22 @@ async function draftView(requestId: string) {
   })
   if (!request) throw notFound()
 
-  const manifest = sliceManifest()
   const spec = await currentSpec(prisma, requestId)
-  const fingerprint =
-    manifest && spec ? fingerprintOf(spec, manifest.profileSetHash) : null
-  const { slice, userId: _userId, ...rest } = request
+  const fingerprint = spec ? fingerprintOf(spec) : null
+  const {
+    slice,
+    userId: _userId,
+    printerProfileId,
+    processProfileId,
+    filamentProfileId,
+    ...rest
+  } = request
 
   return {
     ...rest,
+    printerId: printerProfileId,
+    processId: processProfileId,
+    filamentId: filamentProfileId,
     expiresAt:
       request.status === PrintRequestStatus.DRAFT
         ? draftExpiry({
@@ -366,10 +390,7 @@ async function draftView(requestId: string) {
         : null,
     slice: slice && {
       state: slice.state,
-      current:
-        fingerprint !== null &&
-        slice.fingerprint === fingerprint &&
-        slice.profileSetHash === manifest?.profileSetHash,
+      current: fingerprint !== null && slice.fingerprint === fingerprint,
       failure: slice.failure,
       retryable: slice.retryable,
       estimatedGrams: slice.estimatedGrams,
@@ -387,7 +408,16 @@ async function draftView(requestId: string) {
 async function myDraft(tx: Tx, id: string, userId: string) {
   const draft = await tx.printRequest.findUnique({
     where: { id },
-    select: { id: true, userId: true, status: true, revision: true },
+    select: {
+      id: true,
+      userId: true,
+      status: true,
+      revision: true,
+      printerProfileId: true,
+      processProfileId: true,
+      filamentProfileId: true,
+      slicedWith: true,
+    },
   })
   if (!draft || draft.userId !== userId || draft.status !== PrintRequestStatus.DRAFT) {
     throw notFound()
@@ -396,10 +426,15 @@ async function myDraft(tx: Tx, id: string, userId: string) {
 }
 
 printDrafts.get('/workspace', requireAuth, requireDuesForRoute, async (c) => {
-  const manifest = manifestOr503()
+  const profiles = await workspaceProfiles()
+  if (profiles.printers.length === 0 || profiles.filaments.length === 0) {
+    throw new HTTPException(503, {
+      message: `The slicer has no printers or filaments set up yet. Ask an officer.`,
+    })
+  }
   return c.json({
-    profiles: workspaceProfiles(manifest),
-    workerOnline: await workerOnline(manifest.profileSetHash),
+    profiles,
+    workerOnline: await workerOnline(),
     limits: {
       drafts: env.PRINT_DRAFT_MAX,
       models: env.PRINT_PLATE_MAX_MODELS,
@@ -418,8 +453,7 @@ printDrafts.get('/drafts', requireAuth, requireDuesForRoute, async (c) => {
       id: true,
       fileName: true,
       quantity: true,
-      material: true,
-      preset: true,
+      slicedWith: true,
       createdAt: true,
       draftActiveAt: true,
       slice: { select: { state: true } },
@@ -442,7 +476,6 @@ printDrafts.post(
   uploadLimit,
   uploads,
   async (c) => {
-    manifestOr503()
     const user = c.get('user')
     const body = await c.req.parseBody()
     const settings = jsonField(
@@ -450,6 +483,11 @@ printDrafts.post(
       draftSettings,
       `Those slicer settings aren't valid.`,
     )
+    const choice = {
+      printerId: settings.printerId,
+      processId: settings.processId,
+      filamentId: settings.filamentId,
+    }
     const object = jsonField(
       body['object'],
       newObject,
@@ -469,13 +507,16 @@ printDrafts.post(
           message: `You can keep ${String(env.PRINT_DRAFT_MAX)} drafts at once. Discard one first.`,
         })
       }
+      await checkChoice(tx, choice)
       const request = await tx.printRequest.create({
         data: {
           userId: user.id,
           status: PrintRequestStatus.DRAFT,
           process: PrintProcess.FDM,
-          material: settings.material,
-          preset: settings.preset,
+          printerProfileId: choice.printerId,
+          processProfileId: choice.processId,
+          filamentProfileId: choice.filamentId,
+          slicedWith: await choiceLabels(tx, choice, null),
           overrides: settings.overrides,
           fileName: upload.fileName,
           fileSize: upload.bytes.byteLength,
@@ -497,10 +538,10 @@ printDrafts.get('/drafts/:id', requireAuth, requireDuesForRoute, async (c) => {
   const user = c.get('user')
   const draft = await prisma.printRequest.findUnique({
     where: { id: c.req.param('id') },
-    select: { userId: true, preset: true },
+    select: { userId: true, slicedWith: true },
   })
   // Submitted plates read here too, so the workspace can show one as it was sent.
-  if (!draft || draft.userId !== user.id || draft.preset === null) throw notFound()
+  if (!draft || draft.userId !== user.id || draft.slicedWith === null) throw notFound()
   return c.json(await draftView(c.req.param('id')))
 })
 
@@ -623,11 +664,32 @@ printDrafts.patch(
         // is sent, or when another upload needs its room (`deleteUnusedModels`).
       }
 
+      const changed = {
+        printer: edit.printerId !== undefined,
+        process: edit.processId !== undefined,
+        filament: edit.filamentId !== undefined,
+      }
+      let profiles = {}
+      if (changed.printer || changed.process || changed.filament) {
+        const was = choiceOf(draft)
+        const choice = {
+          printerId: edit.printerId ?? was.printerId,
+          processId: edit.processId ?? was.processId,
+          filamentId: edit.filamentId ?? was.filamentId,
+        }
+        await checkChoice(tx, choice, changed)
+        profiles = {
+          printerProfileId: choice.printerId,
+          processProfileId: choice.processId,
+          filamentProfileId: choice.filamentId,
+          slicedWith: await choiceLabels(tx, choice, draft.slicedWith),
+        }
+      }
+
       await tx.printRequest.update({
         where: { id: draft.id },
         data: {
-          ...(edit.material ? { material: edit.material } : {}),
-          ...(edit.preset ? { preset: edit.preset } : {}),
+          ...profiles,
           ...(edit.overrides ? { overrides: edit.overrides } : {}),
           revision: { increment: 1 },
           draftActiveAt: new Date(),
@@ -648,11 +710,10 @@ printDrafts.post(
   edits,
   validate('json', revision),
   async (c) => {
-    const manifest = manifestOr503()
     const user = c.get('user')
     const { revision: seen } = c.req.valid('json')
 
-    if (!(await workerOnline(manifest.profileSetHash))) {
+    if (!(await workerOnline())) {
       throw new HTTPException(503, {
         message:
           'The slicer is offline right now. Your plate is saved; try again in a few minutes.',
@@ -663,6 +724,7 @@ printDrafts.post(
       await lockMember(tx, user.id)
       const draft = await myDraft(tx, c.req.param('id'), user.id)
       if (draft.revision !== seen) throw stale(draft.revision)
+      await checkChoice(tx, choiceOf(draft))
 
       const models = await tx.printModel.findMany({
         where: { requestId: draft.id, objects: { some: {} } },
@@ -708,7 +770,7 @@ printDrafts.post(
         })
       }
 
-      const fingerprint = fingerprintOf(spec, manifest.profileSetHash)
+      const fingerprint = fingerprintOf(spec)
       const existing = await tx.printSlice.findUnique({
         where: { requestId: draft.id },
         select: {
@@ -766,7 +828,6 @@ printDrafts.post(
         revision: draft.revision,
         spec,
         fingerprint,
-        profileSetHash: manifest.profileSetHash,
         orcaVersion: null,
         outputFileId: null,
         previewFileId: null,
@@ -866,7 +927,6 @@ printDrafts.post(
   submissions,
   validate('json', submitBody),
   async (c) => {
-    const manifest = manifestOr503()
     const user = c.get('user')
     const body = c.req.valid('json')
     const projectId = body.projectId ?? null
@@ -890,6 +950,8 @@ printDrafts.post(
       await lockMember(tx, user.id)
       const draft = await myDraft(tx, c.req.param('id'), user.id)
       if (draft.revision !== body.revision) throw stale(draft.revision)
+      // An officer may have hidden the filament since it was sliced: the spool ran out.
+      await checkChoice(tx, choiceOf(draft))
 
       const spec = await currentSpec(tx, draft.id)
       const slice = await tx.printSlice.findUnique({
@@ -897,7 +959,6 @@ printDrafts.post(
         select: {
           state: true,
           fingerprint: true,
-          profileSetHash: true,
           estimatedGrams: true,
           estimatedSeconds: true,
           outputFileId: true,
@@ -907,8 +968,7 @@ printDrafts.post(
         spec !== null &&
         slice?.state === SlicerJobState.READY &&
         slice.outputFileId !== null &&
-        slice.profileSetHash === manifest.profileSetHash &&
-        slice.fingerprint === fingerprintOf(spec, manifest.profileSetHash)
+        slice.fingerprint === fingerprintOf(spec)
       if (!current) {
         throw new HTTPException(409, {
           message: 'Slice the plate again before sending it.',
@@ -928,6 +988,8 @@ printDrafts.post(
           termSeason: term.season,
           estimatedGrams: slice.estimatedGrams,
           estimatedSeconds: slice.estimatedSeconds,
+          // The record keeps the names it was sent under, whatever officers rename later.
+          slicedWith: await choiceLabels(tx, choiceOf(draft), draft.slicedWith),
           projectId,
           notes: body.notes || null,
         },
@@ -937,13 +999,16 @@ printDrafts.post(
 
     const forWhom = sent.project ? `for ${sent.project.title}` : 'personal'
     const copies = sent.quantity > 1 ? ` (${String(sent.quantity)} objects)` : ''
-    const preset = sent.preset ? manifest.presets[sent.preset].label : ''
+    const labels = slicedWith.safeParse(sent.slicedWith)
+    const how = labels.success
+      ? `${labels.data.filament}, ${labels.data.process} on the ${labels.data.printer}`
+      : 'sliced'
     const grams =
       sent.estimatedGrams === null
         ? ''
         : `, about ${String(Math.ceil(sent.estimatedGrams))} g`
     void notifyOfficers(
-      `🖨️ New 3D print from ${user.fullName}: ${sent.fileName}${copies} (${MATERIAL_LABEL[sent.material]}, ${preset}${grams}), ${forWhom}. Queue: ${env.SITE_URL}/dashboard/officer/print`,
+      `🖨️ New 3D print from ${user.fullName}: ${sent.fileName}${copies} (${how}${grams}), ${forWhom}. Queue: ${env.SITE_URL}/dashboard/officer/print`,
     ).catch((error: unknown) => {
       console.error('officer notify failed', error)
     })
@@ -964,9 +1029,9 @@ printDrafts.post(
       await lockMember(tx, user.id)
       const request = await tx.printRequest.findUnique({
         where: { id: c.req.param('id') },
-        select: { id: true, userId: true, status: true, preset: true },
+        select: { id: true, userId: true, status: true, slicedWith: true },
       })
-      if (!request || request.userId !== user.id || request.preset === null) {
+      if (!request || request.userId !== user.id || request.slicedWith === null) {
         throw new HTTPException(404, { message: 'No such print request.' })
       }
       if (request.status !== PrintRequestStatus.PENDING) {

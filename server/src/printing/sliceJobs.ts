@@ -21,10 +21,14 @@ export const MAX_ATTEMPTS = 2
 /** How fresh a worker's heartbeat must be for SLICE to be offered. */
 export const WORKER_FRESH_SECONDS = 90
 
-/** What a slice job is told to slice, frozen when SLICE is pressed. */
+const profileRef = z.object({ id: z.string(), sha256: z.string() })
+
+/**
+ * What a slice job is told to slice, frozen when SLICE is pressed. The profiles go by id and the
+ * hash they had then; the worker refuses a job whose profiles have changed since.
+ */
 export const plateSpec = z.object({
-  material: z.enum(['PLA', 'PETG']),
-  preset: z.enum(['STANDARD', 'Q', 'QS']),
+  profiles: z.object({ printer: profileRef, process: profileRef, filament: profileRef }),
   overrides: processOverrides,
   objects: z
     .array(
@@ -64,15 +68,13 @@ function stable(value: unknown): unknown {
 /**
  * The plate and everything that changes how it slices, hashed. Models are named by their bytes'
  * hash, not their row, so two uploads of one file slice the same. The copies' names are left out:
- * renaming isn't slicing.
+ * renaming isn't slicing, and neither is renaming a profile.
  */
-export function fingerprintOf(spec: PlateSpec, profileSetHash: string): string {
+export function fingerprintOf(spec: PlateSpec): string {
   const sha = new Map(spec.models.map((model) => [model.id, model.sha256]))
   const body = {
-    v: 1,
-    profileSetHash,
-    material: spec.material,
-    preset: spec.preset,
+    v: 2,
+    profiles: spec.profiles,
     overrides: spec.overrides,
     objects: spec.objects.map(({ name: _name, modelId, ...placement }) => ({
       model: sha.get(modelId),
@@ -92,13 +94,38 @@ const asBytes = (bytes: Uint8Array): Uint8Array<ArrayBuffer> =>
     ? (bytes as Uint8Array<ArrayBuffer>)
     : new Uint8Array(bytes)
 
-/** The plate as it stands, read inside the caller's transaction. Scalars only. */
+/**
+ * The plate as it stands, read inside the caller's transaction. Scalars only. Null while a profile
+ * is missing or being resolved again, so no slice is current until it's back.
+ */
 export async function currentSpec(tx: Tx, requestId: string): Promise<PlateSpec | null> {
   const request = await tx.printRequest.findUnique({
     where: { id: requestId },
-    select: { material: true, preset: true, overrides: true },
+    select: {
+      printerProfileId: true,
+      processProfileId: true,
+      filamentProfileId: true,
+      overrides: true,
+    },
   })
-  if (!request?.preset) return null
+  const ids = [
+    request?.printerProfileId,
+    request?.processProfileId,
+    request?.filamentProfileId,
+  ]
+  if (!request || ids.some((id) => !id)) return null
+  const profiles = await tx.slicerProfile.findMany({
+    where: { id: { in: ids as string[] }, state: SlicerJobState.READY },
+    select: { id: true, sha256: true },
+  })
+  const ref = (id: string | null) => {
+    const sha256 = profiles.find((profile) => profile.id === id)?.sha256
+    return id && sha256 ? { id, sha256 } : null
+  }
+  const printer = ref(request.printerProfileId)
+  const process = ref(request.processProfileId)
+  const filament = ref(request.filamentProfileId)
+  if (!printer || !process || !filament) return null
   // Only models with a copy on the plate: one kept for undo slices nothing.
   const models = await tx.printModel.findMany({
     where: { requestId, objects: { some: {} } },
@@ -123,8 +150,7 @@ export async function currentSpec(tx: Tx, requestId: string): Promise<PlateSpec 
     },
   })
   const parsed = plateSpec.safeParse({
-    material: request.material,
-    preset: request.preset,
+    profiles: { printer, process, filament },
     overrides: (request.overrides ?? {}) as ProcessOverrides,
     objects,
     models,
@@ -444,19 +470,18 @@ export async function publishMesh(
   })
 }
 
-export async function heartbeat(id: string, orcaVersion: string, profileSetHash: string) {
+export async function heartbeat(id: string, orcaVersion: string) {
   await prisma.slicerWorker.upsert({
     where: { id },
-    create: { id, orcaVersion, profileSetHash, seenAt: new Date() },
-    update: { orcaVersion, profileSetHash, seenAt: new Date() },
+    create: { id, orcaVersion, seenAt: new Date() },
+    update: { orcaVersion, seenAt: new Date() },
   })
 }
 
-/** Whether a worker running these profiles has been seen recently enough to take a job. */
-export async function workerOnline(profileSetHash: string): Promise<boolean> {
+/** Whether a worker has been seen recently enough to take a job. */
+export async function workerOnline(): Promise<boolean> {
   const worker = await prisma.slicerWorker.findFirst({
     where: {
-      profileSetHash,
       seenAt: { gte: new Date(Date.now() - WORKER_FRESH_SECONDS * 1000) },
     },
     select: { id: true },

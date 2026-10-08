@@ -101,7 +101,7 @@ export const printSelect = {
   printedMaterial: true,
   printedInfillPattern: true,
   printedInfillDensity: true,
-  preset: true,
+  slicedWith: true,
   overrides: true,
   estimatedGrams: true,
   estimatedSeconds: true,

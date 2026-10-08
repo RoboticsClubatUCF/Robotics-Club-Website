@@ -387,8 +387,9 @@ const envSchema = z.object({
 
   /** The worker's whole budget for one job: meshing, Orca, and the preview. */
   SLICER_TIMEOUT_SECONDS: z.coerce.number().int().min(10).max(3_600).default(300),
-  /** Only the worker reads these two. */
+  /** Only the worker reads these three. The stock profiles are what uploads are flattened against. */
   ORCA_BINARY: z.string().min(1).default('/opt/orca/bin/orca-slicer'),
+  ORCA_PROFILES_DIR: z.string().min(1).default('/opt/orca/resources/profiles'),
   SLICER_SCRATCH_DIR: z.string().min(1).optional(),
 
   /**

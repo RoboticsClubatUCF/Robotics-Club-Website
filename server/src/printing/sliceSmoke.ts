@@ -4,8 +4,10 @@
  *   docker run --rm --network none --read-only --tmpfs /tmp --tmpfs /scratch:uid=10001 \
  *     -e DATABASE_URL=postgres://unused rccf-v13-slicer node --import tsx src/printing/sliceSmoke.ts
  *
- * It needs no database: it drives `OrcaRunner` directly, the way the worker does after claiming a
- * job. Exits non-zero if any plate doesn't come out as expected. With `SMOKE_OUT=<dir>` mounted
+ * It needs no database. It resolves the club's own exports in `orca/source/` against the image's
+ * stock profiles, the way the worker resolves an officer's upload, test-slices them the way it
+ * tests one, and then drives `OrcaRunner` directly, the way the worker does after claiming a job.
+ * Exits non-zero if anything doesn't come out as expected. With `SMOKE_OUT=<dir>` mounted
  * writable, each sliced plate's `.3mf` and preview are saved there to open in desktop Orca.
  */
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
@@ -16,13 +18,76 @@ import { gunzipSync } from 'fflate'
 import { env } from '../core/env.js'
 import { FAILURES, OrcaRunner, type SliceFailure, orcaVersion } from './orcaRunner.js'
 import { type Placement, placedBox, placementAffine } from './plateTransform.js'
-import { loadApprovedProfiles, sliceManifest } from './profiles.js'
 import type { ProcessOverrides } from './processSettings.js'
-import type { ClaimedSlice, PlateSpec, SliceOutput } from './sliceJobs.js'
+import {
+  type FilamentInfo,
+  type PrinterInfo,
+  type ProcessInfo,
+  type ProfileKind,
+  ProfileError,
+  StockProfiles,
+  readPresetFile,
+  resolvePreset,
+  sha256,
+} from './profileResolve.js'
+import { testSlice } from './profileWork.js'
+import type { LoadedProfile, SliceProfiles } from './profiles.js'
+import type { ClaimedSlice, SliceOutput } from './sliceJobs.js'
 import { meshStepInChild } from './stepMesh.js'
 import { parseStl } from './stl.js'
 
 const fixtures = fileURLToPath(new URL('../../orca/fixtures/', import.meta.url))
+const sources = fileURLToPath(new URL('../../orca/source/', import.meta.url))
+
+const PROCESSES = {
+  STANDARD: 'process/0.20mm, 0.4 nozzle, Line, T-Support.json',
+  Q: 'process/0.20mm, Q, 0.4 nozzle, Line, T-Support.json',
+  QS: 'process/0.20mm, Q-S, 0.4 nozzle, Line, T-Support.json',
+} as const
+
+const FILAMENTS = {
+  PLA: ['Generic PLA.orca_filament', 'System/Elegoo Rapid PLA.json'],
+  PETG: ['Elegoo Rapid PETG.orca_filament', 'ECC/Elegoo RAPID PETG Optimized.json'],
+} as const
+
+async function presetsIn(bundle: string) {
+  return readPresetFile(bundle, new Uint8Array(await readFile(join(sources, bundle))))
+}
+
+async function entry(bundle: string, name: string) {
+  const preset = (await presetsIn(bundle)).find((p) => p.entry === name)
+  if (!preset) throw new Error(`${bundle} has no ${name}`)
+  return preset
+}
+
+function asLoaded<Info>(name: string, resolved: { text: string; info: Info }): LoadedProfile<Info> {
+  return { id: name, name, text: resolved.text, info: resolved.info }
+}
+
+/** The club's exports, resolved the way the worker resolves an upload. */
+async function clubProfiles(stock: StockProfiles) {
+  const cc1 = await entry('CC1.orca_printer', 'printer/CC1.json')
+  const printer = await resolvePreset(cc1.text, 'PRINTER', stock)
+  if (printer.kind !== 'PRINTER') throw new Error('CC1 is not a printer')
+  const machine = asLoaded<PrinterInfo>(cc1.name, printer)
+
+  const processes = {} as Record<keyof typeof PROCESSES, LoadedProfile<ProcessInfo>>
+  for (const [key, path] of Object.entries(PROCESSES)) {
+    const preset = await entry('CC1.orca_printer', path)
+    const resolved = await resolvePreset(preset.text, 'PROCESS', stock, { name: cc1.name, info: printer.info })
+    if (resolved.kind !== 'PROCESS') throw new Error(`${path} is not a process`)
+    processes[key as keyof typeof PROCESSES] = asLoaded(preset.name, resolved)
+  }
+
+  const filaments = {} as Record<keyof typeof FILAMENTS, LoadedProfile<FilamentInfo>>
+  for (const [key, [bundle, path]] of Object.entries(FILAMENTS)) {
+    const preset = await entry(bundle, path)
+    const resolved = await resolvePreset(preset.text, 'FILAMENT', stock)
+    if (resolved.kind !== 'FILAMENT') throw new Error(`${path} is not a filament`)
+    filaments[key as keyof typeof FILAMENTS] = asLoaded(preset.name, resolved)
+  }
+  return { printer: machine, processes, filaments }
+}
 
 /** A box whose raw coordinates start at `origin`, so placement has to recentre it. */
 function box(
@@ -90,8 +155,8 @@ const at = (x: number, y: number, extra: Partial<Placement> = {}): Placement => 
 
 interface Case {
   name: string
-  material: PlateSpec['material']
-  preset: PlateSpec['preset']
+  material: keyof typeof FILAMENTS
+  preset: keyof typeof PROCESSES
   overrides?: ProcessOverrides
   objects: { model: string; placement: Placement }[]
   /** A refusal this plate must get, or nothing for a plate that must slice. */
@@ -101,17 +166,78 @@ interface Case {
 }
 
 async function main() {
-  const manifest = sliceManifest()
-  if (!manifest) throw new Error('no manifest')
-  const profiles = loadApprovedProfiles(manifest)
   const scratch = env.SLICER_SCRATCH_DIR ?? join(tmpdir(), 'rccf-slicer-smoke')
   const version = await orcaVersion(env.ORCA_BINARY, scratch)
-  if (version !== manifest.orcaVersion) {
-    throw new Error(
-      `Orca is ${String(version)}, the profiles want ${manifest.orcaVersion}`,
-    )
+  if (!version) throw new Error(`${env.ORCA_BINARY} didn't say which OrcaSlicer it is`)
+  const runner = new OrcaRunner(scratch, version)
+  const stock = await StockProfiles.load(env.ORCA_PROFILES_DIR)
+  let failed = 0
+
+  // Every preset in the club's bundles flattens, not just the ones offered.
+  let flattened = 0
+  for (const bundle of ['CC1.orca_printer', 'Generic PLA.orca_filament', 'Elegoo Rapid PETG.orca_filament']) {
+    const presets = await presetsIn(bundle)
+    const cc1 = presets.find((p) => p.kind === 'PRINTER')
+    const printer = cc1 ? await resolvePreset(cc1.text, 'PRINTER', stock) : null
+    for (const preset of presets) {
+      try {
+        await resolvePreset(
+          preset.text,
+          preset.kind as ProfileKind,
+          stock,
+          printer?.kind === 'PRINTER' ? { name: cc1!.name, info: printer.info } : undefined,
+        )
+        flattened++
+      } catch (error) {
+        failed++
+        console.error(`FAIL ${bundle}: ${preset.entry} didn't resolve:`, error)
+      }
+    }
   }
-  const runner = new OrcaRunner(profiles, scratch, version)
+  console.log(`ok   ${String(flattened)} presets in the club's bundles resolve`)
+
+  const club = await clubProfiles(stock)
+  const plate = (material: keyof typeof FILAMENTS, preset: keyof typeof PROCESSES): SliceProfiles => ({
+    printer: club.printer,
+    process: club.processes[preset],
+    filament: club.filaments[material],
+  })
+
+  // The worker's test of an upload: a good one slices, and one Orca can't slice is refused.
+  const deadline = () => Date.now() + env.SLICER_TIMEOUT_SECONDS * 1000
+  const started = Date.now()
+  const good = await testSlice(runner, plate('PETG', 'QS'), deadline())
+  if (good) {
+    failed++
+    console.error(`FAIL the test cube didn't slice with the club's profiles: ${good}`)
+  } else {
+    console.log(`ok   test cube slices (${((Date.now() - started) / 1000).toFixed(1)}s)`)
+  }
+  const broken = JSON.parse(club.processes.STANDARD.text) as Record<string, unknown>
+  broken['layer_height'] = '5'
+  const brokenText = JSON.stringify(broken)
+  const refused = await testSlice(
+    runner,
+    { ...plate('PLA', 'STANDARD'), process: { ...club.processes.STANDARD, id: 'broken', text: brokenText } },
+    deadline(),
+  )
+  if (refused) console.log(`ok   a 5 mm layer height is refused: ${refused}`)
+  else {
+    failed++
+    console.error('FAIL a 5 mm layer height sliced')
+  }
+  try {
+    await resolvePreset(
+      JSON.stringify({ name: 'Nobody', inherits: 'No Such Printer 0.4 nozzle', printer_settings_id: 'Nobody' }),
+      'PRINTER',
+      stock,
+    )
+    failed++
+    console.error('FAIL a printer with an unknown parent resolved')
+  } catch (error) {
+    if (!(error instanceof ProfileError)) throw error
+    console.log(`ok   an unknown parent is refused: ${error.message}`)
+  }
 
   // The STEP goes through the child process the worker uses, not an in-process call.
   const stepDir = join(scratch, 'smoke-step')
@@ -208,7 +334,6 @@ async function main() {
     },
   ]
 
-  let failed = 0
   for (const [index, test] of cases.entries()) {
     const used = [...new Set(test.objects.map((object) => object.model))]
     const job: ClaimedSlice = {
@@ -218,8 +343,11 @@ async function main() {
       leaseToken: 'smoke',
       attempts: 1,
       spec: {
-        material: test.material,
-        preset: test.preset,
+        profiles: {
+          printer: { id: club.printer.id, sha256: sha256(club.printer.text) },
+          process: { id: club.processes[test.preset].id, sha256: sha256(club.processes[test.preset].text) },
+          filament: { id: club.filaments[test.material].id, sha256: sha256(club.filaments[test.material].text) },
+        },
         overrides: test.overrides ?? {},
         models: used.map((id) => ({ id, sha256: id, fileName: `${id}.stl` })),
         objects: test.objects.map((object) => ({
@@ -232,6 +360,7 @@ async function main() {
     const started = Date.now()
     const result: SliceOutput | SliceFailure = await runner.slice(
       job,
+      plate(test.material, test.preset),
       meshes,
       Date.now() + env.SLICER_TIMEOUT_SECONDS * 1000,
     )
@@ -296,7 +425,7 @@ async function main() {
   }
 
   if (failed > 0) {
-    console.error(`${String(failed)} of ${String(cases.length)} plates failed`)
+    console.error(`${String(failed)} checks failed`)
     process.exit(1)
   }
   console.log(`all ${String(cases.length)} plates as expected`)

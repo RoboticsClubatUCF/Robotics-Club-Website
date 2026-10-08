@@ -27,6 +27,7 @@ import { print } from './routes/member/print.js'
 import { printDrafts } from './routes/member/printDrafts.js'
 import { projectManage } from './routes/projects/projectManage.js'
 import { signup } from './routes/account/signup.js'
+import { slicerProfiles } from './routes/officer/slicerProfiles.js'
 import { sponsorsAdmin } from './routes/officer/sponsorsAdmin.js'
 import { stripeWebhook } from './routes/webhooks/stripeWebhook.js'
 import { survey } from './routes/member/survey.js'
@@ -162,6 +163,8 @@ app.route('/api/officer/sponsors', sponsorsAdmin)
 // And once more. The officers desk owns `officer_terms` outright, which is the half of
 // `/officers` no route could write before it.
 app.route('/api/officer/archive', officerArchive)
+// And the printers, processes and filaments the slicer offers, which the worker resolves.
+app.route('/api/officer/slicer-profiles', slicerProfiles)
 app.route('/api/officer', officer)
 // Before `print`, which only owns `/` and `/:id` underneath the same prefix.
 app.route('/api/print', printDrafts)

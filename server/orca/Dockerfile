@@ -4,9 +4,8 @@
 # Built from server/ (`docker build -f orca/Dockerfile .`). The API image stays on Alpine and never
 # contains Orca.
 #
-# Changing the Orca version means changing both ARGs, re-running orca/resolve-profiles.ts against
-# the new release's resources/profiles, and committing what it writes. The worker refuses to start
-# if the binary and the manifest disagree.
+# Changing the Orca version means changing both ARGs. The worker resolves every officer-uploaded
+# profile again against the new release's stock profiles when it starts.
 
 ARG ORCA_VERSION=2.4.2
 ARG ORCA_SHA256=d12fb8c8eac1aecd2dfb6377acd48f994f8fa439ed5292fa532dd82880f029fd
@@ -56,7 +55,8 @@ COPY package.json prisma.config.ts ./
 COPY prisma ./prisma
 COPY src ./src
 COPY --from=deps /app/src/generated ./src/generated
-COPY orca/profiles ./orca/profiles
+# The club's own exports, which the smoke test resolves the way the worker resolves an upload.
+COPY orca/source ./orca/source
 COPY orca/fixtures ./orca/fixtures
 COPY orca/NOTICE.md ./orca/NOTICE.md
 

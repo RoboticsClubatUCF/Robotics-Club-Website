@@ -355,14 +355,3 @@ export function orcaOverrides(overrides: ProcessOverrides): Record<string, strin
   return out
 }
 
-/** The club's process presets, by the name the database stores. */
-export const PRESET_FILES = {
-  STANDARD: 'process-standard.json',
-  Q: 'process-q.json',
-  QS: 'process-qs.json',
-} as const
-
-export const MATERIAL_FILES = {
-  PLA: 'filament-pla.json',
-  PETG: 'filament-petg.json',
-} as const
