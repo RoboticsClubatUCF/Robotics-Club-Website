@@ -1,6 +1,6 @@
 /**
  * Reading the sliced plate's layer preview, which the worker writes from Orca's own G-code
- * (`server/src/printing/gcodePreview.ts` describes the format, "RCPV" 2, and reads 1).
+ * (`server/src/printing/gcodePreview.ts` describes the format, "RCPV" 3, and reads 1 and 2).
  *
  * Decoded into one segment list per role, with each layer's start, so the viewer can show the
  * layers up to one by drawing a count of segments instead of rebuilding anything.
@@ -61,6 +61,8 @@ export interface Preview {
   layers: { z: number; height: number }[]
   segments: number
   bounds: { min: [number, number, number]; max: [number, number, number] }
+  /** Millimetres of filament each role extrudes, or null from a preview older than version 3. */
+  filament: Record<Role, number> | null
   roles: Record<Role, RoleLines>
 }
 
@@ -110,7 +112,7 @@ export function parsePreview(raw: Uint8Array): Preview {
   const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength)
   const magic = String.fromCharCode(raw[0]!, raw[1]!, raw[2]!, raw[3]!)
   const version = raw[4]
-  if (magic !== 'RCPV' || (version !== 1 && version !== 2)) {
+  if (magic !== 'RCPV' || version === undefined || version < 1 || version > 3) {
     throw new PreviewError(`This preview is in a format the page doesn't read.`)
   }
 
@@ -122,8 +124,10 @@ export function parsePreview(raw: Uint8Array): Preview {
     min: [f32(28), f32(32), f32(36)] as [number, number, number],
     max: [f32(40), f32(44), f32(48)] as [number, number, number],
   }
+  const filament =
+    version >= 3 ? (Object.fromEntries(ROLES.map((role, i) => [role, f32(52 + i * 4)])) as Record<Role, number>) : null
 
-  let at = 52
+  let at = version >= 3 ? 76 : 52
   const varint = () => {
     let value = 0
     let shift = 1
@@ -208,5 +212,5 @@ export function parsePreview(raw: Uint8Array): Preview {
     ]),
   ) as Record<Role, RoleLines>
 
-  return { bed, layers, segments, bounds, roles }
+  return { bed, layers, segments, bounds, filament, roles }
 }

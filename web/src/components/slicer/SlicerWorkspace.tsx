@@ -662,7 +662,13 @@ export function SlicerWorkspace({
               )}
             </>
           ) : (
-            <PreviewPane preview={preview} bed={bed} sliced={sliced} failure={slice?.previewFailure ?? null} />
+            <PreviewPane
+              preview={preview}
+              bed={bed}
+              sliced={sliced}
+              grams={slice?.estimatedGrams ?? null}
+              failure={slice?.previewFailure ?? null}
+            />
           )}
 
           <span className="absolute top-3 left-3 flex gap-1.5 wide:hidden">
@@ -851,15 +857,17 @@ function PreviewPane({
   preview,
   bed,
   sliced,
+  grams,
   failure,
 }: {
   preview: ReturnType<typeof usePreview>
   bed: ApiSlicerWorkspace['profiles']['bed']
   sliced: boolean
+  grams: number | null
   /** Why a sliced plate has no preview, in the worker's words. */
   failure: string | null
 }) {
-  if (preview.status === 'ready') return <PreviewView bed={bed} preview={preview.preview} />
+  if (preview.status === 'ready') return <PreviewView bed={bed} preview={preview.preview} grams={grams} />
   const text =
     preview.status === 'loading'
       ? 'Loading the sliced layers…'

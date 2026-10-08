@@ -7,17 +7,18 @@ import { gzipSync } from 'fflate'
  * print. Arcs are cut into chords: the approved process has arc fitting on, and a reader that
  * skips G2/G3 (as three.js's stock loader does) loses most of every curved wall.
  *
- * Format, gzipped, little-endian ("RCPV" 2). `web/src/lib/slicer/preview.ts` reads it.
+ * Format, gzipped, little-endian ("RCPV" 3). `web/src/lib/slicer/preview.ts` reads it.
  *
  *   0   "RCPV", u8 version, 3 reserved bytes
  *   8   f32 bed width, depth, height
  *   20  u32 layer count, u32 segment count
  *   28  f32 extrusion bounds: min x, y, z, max x, y, z
- *   52  per layer: f32 z, f32 height, varint path count;
+ *   52  f32 millimetres of filament each role extrudes, in `ROLES` order
+ *   76  per layer: f32 z, f32 height, varint path count;
  *       per path: u8 role, varint line width in 0.01 mm, varint point count, then zigzag-varint
  *       x/y deltas in 0.01 mm. The delta cursor carries on across paths and layers.
  *
- * Version 1 had no line width; the viewer still reads it.
+ * Version 2 had no filament figures, and version 1 no line width either; the viewer reads both.
  */
 
 export const ROLES = [
@@ -162,6 +163,8 @@ export function buildPreview(
   let z = 0
   let e = 0
   let segments = 0
+  // Every move that extrudes while it travels, which adds up to the G-code's `filament used [mm]`.
+  const filament = ROLES.map(() => 0)
   const bounds = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity]
 
   const endPath = () => {
@@ -282,6 +285,7 @@ export function buildPreview(
       y = ny
       return
     }
+    filament[role]! += de
 
     if (code === 'G2' || code === 'G3') {
       const chords = arcChords(code === 'G2', x, y, nx, ny, body)
@@ -310,7 +314,7 @@ export function buildPreview(
 
   const out = new Bytes()
   for (const c of 'RCPV') out.u8(c.charCodeAt(0))
-  out.u8(2)
+  out.u8(3)
   out.u8(0)
   out.u8(0)
   out.u8(0)
@@ -320,6 +324,7 @@ export function buildPreview(
   out.u32(layers.length)
   out.u32(segments)
   for (const value of bounds) out.f32(Number.isFinite(value) ? value : 0)
+  for (const mm of filament) out.f32(mm)
 
   let cx = 0
   let cy = 0

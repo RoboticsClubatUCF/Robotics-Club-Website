@@ -8,6 +8,7 @@ import {
   setExtrusionColor,
   showSegments,
 } from '../../lib/slicer/extrusions'
+import { gramsByRole, roleGrams } from '../../lib/slicer/estimate'
 import { ROLES, ROLE_LABEL, type Preview, type Role } from '../../lib/slicer/preview'
 import type { Bed } from '../../lib/slicer/plateTransform'
 import {
@@ -21,9 +22,19 @@ import { useTheme } from '../../lib/theme'
 
 /**
  * The sliced plate, layer by layer: Orca's own toolpaths at their real width and layer height,
- * coloured by what they are. The slider picks the top layer shown; the legend hides a kind of path.
+ * coloured by what they are. The slider picks the top layer shown; the legend hides a kind of path
+ * and says how much of the plate's filament each kind takes.
  */
-export function PreviewView({ bed, preview }: { bed: Bed; preview: Preview }) {
+export function PreviewView({
+  bed,
+  preview,
+  grams,
+}: {
+  bed: Bed
+  preview: Preview
+  /** Orca's estimate for the slice this preview is of. */
+  grams: number | null
+}) {
   const last = preview.layers.length - 1
   const [top, setTop] = useState(last)
   const [hidden, setHidden] = useState<ReadonlySet<Role>>(new Set())
@@ -35,6 +46,7 @@ export function PreviewView({ bed, preview }: { bed: Bed; preview: Preview }) {
         <Legend
           hidden={hidden}
           preview={preview}
+          grams={grams}
           onToggle={(role) => {
             const next = new Set(hidden)
             if (next.has(role)) next.delete(role)
@@ -148,22 +160,27 @@ function PreviewCanvas({
 
 function Legend({
   preview,
+  grams,
   hidden,
   onToggle,
 }: {
   preview: Preview
+  grams: number | null
   hidden: ReadonlySet<Role>
   onToggle: (role: Role) => void
 }) {
   // Read for its re-render: the swatches follow the theme.
   useTheme()
   const colors = themeColors()
+  const shares = gramsByRole(preview.filament, grams)
   // Shut to begin with on a phone, where it would cover the plate.
   const [open, setOpen] = useState(
     () => typeof window.matchMedia !== 'function' || window.matchMedia('(min-width: 56.25rem)').matches,
   )
+  // On a phone it sits under the workspace's SETTINGS and OBJECTS buttons, which it's too wide to
+  // pass beside.
   return (
-    <div className="border-rule bg-base-100/90 absolute top-3 right-3 border backdrop-blur-sm wide:top-auto wide:right-auto wide:bottom-3 wide:left-3">
+    <div className="border-rule bg-base-100/90 absolute top-16 right-3 border backdrop-blur-sm wide:top-auto wide:right-auto wide:bottom-3 wide:left-3">
       <button
         type="button"
         aria-expanded={open}
@@ -186,7 +203,7 @@ function Legend({
                   onToggle(role)
                 }}
                 className={`flex min-h-11 w-full cursor-pointer items-center gap-2 px-2 text-left text-[12px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary wide:min-h-7 ${
-                  shown ? 'text-base-content' : 'text-faint line-through'
+                  shown ? 'text-base-content' : 'text-faint'
                 }`}
               >
                 <span
@@ -194,7 +211,15 @@ function Legend({
                   className="border-rule inline-block size-2.5 shrink-0 border"
                   style={{ backgroundColor: shown ? `#${colors.roles[role].getHexString()}` : 'transparent' }}
                 />
-                {ROLE_LABEL[role]}
+                <span className={shown ? undefined : 'line-through'}>{ROLE_LABEL[role]}</span>
+                {shares && (
+                  <>
+                    {' '}
+                    <span className={`ml-auto pl-3 font-mono text-[11px] tabular-nums ${shown ? 'text-dim' : ''}`}>
+                      {roleGrams(shares[role])}
+                    </span>
+                  </>
+                )}
               </button>
             </li>
           )

@@ -64,6 +64,16 @@ describe('parsePreview', () => {
     expect(first('outerWall', 5)[1]).toBeCloseTo(0.2)
   })
 
+  it('reads how much filament each kind of path takes, adding up to Orca’s total', () => {
+    const { filament } = parsePreview(fixture)
+    expect(filament).not.toBeNull()
+    expect(filament!.outerWall).toBeCloseTo(238.5, 0)
+    expect(filament!.sparseInfill).toBeCloseTo(420.6, 0)
+    expect(filament!.support).toBe(0)
+    // The G-code's own "filament used [mm] = 1178.39".
+    expect(ROLES.reduce((sum, role) => sum + filament![role], 0)).toBeCloseTo(1178.39, 1)
+  })
+
   it('still reads version 1, which had no widths', () => {
     // One layer at 0.2 mm holding one outer wall from (0, 0) to (10, 0).
     const raw = new Uint8Array(68)
@@ -78,6 +88,7 @@ describe('parsePreview', () => {
     const preview = parsePreview(raw)
     const segment = Array.from(preview.roles.outerWall.segments.subarray(0, SEGMENT_FLOATS))
     expect(segment).toEqual([0, 0, 10, 0, expect.closeTo(0.2), expect.closeTo(0.42), expect.closeTo(0.2), 0])
+    expect(preview.filament).toBeNull()
   })
 
   it('mitres a path’s turn halfway, and leaves out segments with no length', () => {
@@ -90,7 +101,9 @@ describe('parsePreview', () => {
     view.setFloat32(52, 0.2, true)
     view.setFloat32(56, 0.2, true)
     raw.set([1, 0, 45, 4, 0, 0, 0xd0, 0x0f, 0, 0, 0, 0, 0xd0, 0x0f], 60)
-    const { segments, layerStart } = parsePreview(raw).roles.outerWall
+    const preview = parsePreview(raw)
+    expect(preview.filament).toBeNull()
+    const { segments, layerStart } = preview.roles.outerWall
     expect(layerStart.at(-1)).toBe(2)
     const segment = (s: number) => Array.from(segments.subarray(s * SEGMENT_FLOATS, (s + 1) * SEGMENT_FLOATS))
     // A left turn of 90 degrees: the first segment stops at 45 degrees left of its own direction,

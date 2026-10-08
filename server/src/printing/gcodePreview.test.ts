@@ -9,7 +9,7 @@ const limits = { maxSegments: 1_000_000, maxBytes: 8 * 1024 * 1024 }
 function read(bytes: Uint8Array) {
   const raw = gunzipSync(bytes)
   const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength)
-  let at = 52
+  let at = 76
   const varint = () => {
     let value = 0
     let shift = 1
@@ -52,6 +52,7 @@ function read(bytes: Uint8Array) {
     version: raw[4],
     segments: view.getUint32(24, true),
     bounds: [0, 1, 2, 3, 4, 5].map((i) => view.getFloat32(28 + i * 4, true)),
+    filament: Object.fromEntries(ROLES.map((role, i) => [role, view.getFloat32(52 + i * 4, true)])),
     layers,
   }
 }
@@ -87,7 +88,7 @@ describe('buildPreview', () => {
     expect(preview.segments).toBe(4)
     const decoded = read(preview.bytes)
     expect(decoded.magic).toBe('RCPV')
-    expect(decoded.version).toBe(2)
+    expect(decoded.version).toBe(3)
     expect(decoded.layers[0]!.z).toBeCloseTo(0.2)
     expect(decoded.layers[0]!.paths.map((p) => p.role)).toEqual([
       'outerWall',
@@ -110,6 +111,22 @@ describe('buildPreview', () => {
     expect(decoded.bounds[0]).toBe(10)
     expect(decoded.bounds[3]).toBe(30)
     expect(decoded.bounds[5]).toBeCloseTo(0.4)
+    expect(decoded.filament).toEqual({
+      outerWall: 2,
+      innerWall: 0,
+      sparseInfill: 0.5,
+      solidInfill: 0,
+      support: 0.5,
+      other: 0,
+    })
+  })
+
+  it('counts the filament every extruding move uses, but not a retract or the unretract after it', () => {
+    const moves =
+      ';LAYER_CHANGE\n;Z:0.2\nM83\n;TYPE:Outer wall\nG1 X0 Y0\nG1 X10 Y0 E1\nG1 X10.001 Y0 E0.01\nG1 E-0.8\nG1 X20 Y20\nG1 E0.8\n;TYPE:Inner wall\nG3 X0 Y20 I-10 J0 E1.5\n'
+    const { filament } = read(buildPreview(gcode(moves), bed, limits).bytes)
+    expect(filament['outerWall']).toBeCloseTo(1.01)
+    expect(filament['innerWall']).toBeCloseTo(1.5)
   })
 
   it('starts a new path where the line width changes, without a gap', () => {
@@ -156,7 +173,9 @@ describe('buildPreview', () => {
   it('reads absolute extrusion too', () => {
     const absolute =
       ';LAYER_CHANGE\n;Z:0.2\nM82\nG92 E0\nG1 X0 Y0\nG1 X10 Y0 E1\nG1 X10 Y10 E1\nG1 X0 Y10 E2\n'
-    expect(buildPreview(gcode(absolute), bed, limits).segments).toBe(2)
+    const preview = buildPreview(gcode(absolute), bed, limits)
+    expect(preview.segments).toBe(2)
+    expect(read(preview.bytes).filament['other']).toBe(2)
   })
 
   it('refuses G-code whose layers disagree with its header', () => {
