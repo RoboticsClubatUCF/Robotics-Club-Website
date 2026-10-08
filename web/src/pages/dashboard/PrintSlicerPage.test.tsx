@@ -65,17 +65,27 @@ const values = {
 
 const workspace = (over: Partial<ApiSlicerWorkspace> = {}): ApiSlicerWorkspace => ({
   profiles: {
-    printer: { name: 'CC1', model: 'Elegoo Centauri Carbon', nozzle: 0.4, bedType: 'Textured PEI Plate' },
-    bed: { width: 256, depth: 256, height: 256, exclude: { minX: 246, minY: 0, maxX: 256, maxY: 20 } },
-    layerHeight: { min: 0.08, max: 0.28 },
-    presets: [
-      { key: 'STANDARD', label: 'Standard', name: '0.20mm, 0.4 nozzle, Line, T-Support', description: '2 walls, 15% line', values },
-      { key: 'Q', label: 'Q', name: '0.20mm, Q, 0.4 nozzle, Line, T-Support', description: '3 walls, 10% gyroid', values: { ...values, wall_loops: 3 } },
-      { key: 'QS', label: 'Q-S', name: '0.20mm, Q-S, 0.4 nozzle, Line, T-Support', description: '6 walls, 6% 3d honeycomb', values: { ...values, wall_loops: 6 } },
+    printers: [
+      {
+        id: 'cc1',
+        label: 'CC1',
+        name: 'CC1',
+        description: null,
+        model: 'Elegoo Centauri Carbon',
+        nozzle: 0.4,
+        bedType: 'Textured PEI Plate',
+        bed: { width: 256, depth: 256, height: 256, exclude: { minX: 246, minY: 0, maxX: 256, maxY: 20 } },
+        layerHeight: { min: 0.08, max: 0.28 },
+        processes: [
+          { id: 'std', label: 'Standard', name: '0.20mm, 0.4 nozzle, Line, T-Support', description: '2 walls, 15% line', values },
+          { id: 'q', label: 'Q', name: '0.20mm, Q, 0.4 nozzle, Line, T-Support', description: '3 walls, 10% gyroid', values: { ...values, wall_loops: 3 } },
+          { id: 'qs', label: 'Q-S', name: '0.20mm, Q-S, 0.4 nozzle, Line, T-Support', description: '6 walls, 6% 3d honeycomb', values: { ...values, wall_loops: 6 } },
+        ],
+      },
     ],
-    materials: [
-      { key: 'PLA', name: 'Elegoo Rapid PLA' },
-      { key: 'PETG', name: 'Elegoo RAPID PETG Optimized' },
+    filaments: [
+      { id: 'pla', label: 'PLA', name: 'Elegoo Rapid PLA', description: null, type: 'PLA', printers: ['cc1'] },
+      { id: 'petg', label: 'PETG', name: 'Elegoo RAPID PETG Optimized', description: null, type: 'PETG', printers: ['cc1'] },
     ],
   },
   workerOnline: true,
@@ -104,8 +114,10 @@ const draft = (over: Partial<ApiDraft> = {}): ApiDraft => ({
   id: 'd1',
   status: 'DRAFT',
   revision: 3,
-  material: 'PLA',
-  preset: 'STANDARD',
+  printerId: 'cc1',
+  processId: 'std',
+  filamentId: 'pla',
+  slicedWith: { printer: 'CC1', process: 'Standard', filament: 'PLA' },
   overrides: {},
   fileName: 'bracket.stl',
   notes: null,
@@ -175,11 +187,18 @@ afterEach(() => {
 })
 
 describe('loading', () => {
-  it('says so when the slicer is unavailable', async () => {
+  it('says why when the slicer is unavailable', async () => {
+    const said = 'The slicer has no printers or filaments set up yet. Ask an officer.'
     vi.stubGlobal(
       'fetch',
-      vi.fn(() => Promise.resolve(new Response(JSON.stringify({ error: 'down' }), { status: 503 }))),
+      vi.fn(() => Promise.resolve(new Response(JSON.stringify({ error: said }), { status: 503 }))),
     )
+    renderAt('/dashboard/print/slicer')
+    expect(await screen.findByText(said)).toBeInTheDocument()
+  })
+
+  it('says it is unavailable when the server gives no reason', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response('', { status: 503 }))))
     renderAt('/dashboard/print/slicer')
     expect(await screen.findByText(/slicer is unavailable right now/i)).toBeInTheDocument()
   })
@@ -358,7 +377,7 @@ describe('a sliced plate', () => {
       stubFetch({ '/print/workspace': workspace(), '/me/print-allowance': allowance, '/print/drafts/d1': draft({ slice: readySlice({ current: false }) }) }),
     )
     renderAt('/dashboard/print/slicer/d1')
-    expect(await screen.findByText(/plate changed since it was sliced/i)).toBeInTheDocument()
+    expect(await screen.findByText(/changed since it was sliced/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'REQUEST PRINT' })).toBeDisabled()
   })
 

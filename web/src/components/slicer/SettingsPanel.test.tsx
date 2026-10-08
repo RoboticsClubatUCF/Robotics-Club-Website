@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import type { ApiSlicerWorkspace } from '../../lib/api/api'
+import type { ApiSlicerPrinter, ApiSlicerWorkspace } from '../../lib/api/api'
 import { SettingsPanel } from './SettingsPanel'
 
 const values = {
@@ -30,26 +30,44 @@ const values = {
   fuzzy_skin: 'disabled_fuzzy',
 }
 
-const profiles: ApiSlicerWorkspace['profiles'] = {
-  printer: { name: 'CC1', model: 'Elegoo Centauri Carbon', nozzle: 0.4, bedType: 'Textured PEI Plate' },
+const printer = (id: string, label: string, processes: ApiSlicerPrinter['processes']): ApiSlicerPrinter => ({
+  id,
+  label,
+  name: label,
+  description: null,
+  model: 'Elegoo Centauri Carbon',
+  nozzle: 0.4,
+  bedType: 'Textured PEI Plate',
   bed: { width: 256, depth: 256, height: 256, exclude: null },
   layerHeight: { min: 0.08, max: 0.28 },
-  presets: [
-    { key: 'STANDARD', label: 'Standard', name: 'Standard preset', description: '2 walls, 15% line', values },
-    { key: 'QS', label: 'Q-S', name: 'Q-S preset', description: '6 walls, 6% 3d honeycomb', values: { ...values, wall_loops: 6 } },
-  ],
-  materials: [
-    { key: 'PLA', name: 'Elegoo Rapid PLA' },
-    { key: 'PETG', name: 'Elegoo RAPID PETG Optimized' },
+  processes,
+})
+
+const cc1 = printer('cc1', 'CC1', [
+  { id: 'std', label: 'Standard', name: 'Standard preset', description: '2 walls, 15% line', values },
+  { id: 'qs', label: 'Q-S', name: 'Q-S preset', description: '6 walls, 6% 3d honeycomb', values: { ...values, wall_loops: 6 } },
+])
+
+const profiles: ApiSlicerWorkspace['profiles'] = {
+  printers: [cc1],
+  filaments: [
+    { id: 'pla', label: 'PLA', name: 'Elegoo Rapid PLA', description: 'The default for a reason.', type: 'PLA', printers: ['cc1'] },
+    { id: 'petg', label: 'PETG', name: 'Elegoo RAPID PETG Optimized', description: null, type: 'PETG', printers: ['cc1'] },
   ],
 }
 
-const show = (overrides: Record<string, number | boolean | string> = {}) => {
+const SETTINGS = { printerId: 'cc1', processId: 'std', filamentId: 'pla' }
+
+const show = (
+  overrides: Record<string, number | boolean | string> = {},
+  choice: Partial<typeof SETTINGS> | { [K in keyof typeof SETTINGS]?: string | null } = {},
+  shown = profiles,
+) => {
   const onChange = vi.fn()
   render(
     <SettingsPanel
-      profiles={profiles}
-      settings={{ material: 'PLA', preset: 'STANDARD', overrides }}
+      profiles={shown}
+      settings={{ ...SETTINGS, ...choice, overrides }}
       disabled={false}
       onChange={onChange}
     />,
@@ -100,11 +118,47 @@ describe('SettingsPanel', () => {
     expect(onChange).toHaveBeenCalledWith({ overrides: {} })
   })
 
-  it('switches preset and filament', () => {
+  it('switches process and filament', () => {
     const onChange = show()
-    fireEvent.change(screen.getByRole('combobox', { name: 'PROCESS' }), { target: { value: 'QS' } })
-    expect(onChange).toHaveBeenCalledWith({ preset: 'QS' })
-    fireEvent.change(screen.getByRole('combobox', { name: 'FILAMENT' }), { target: { value: 'PETG' } })
-    expect(onChange).toHaveBeenCalledWith({ material: 'PETG' })
+    fireEvent.change(screen.getByRole('combobox', { name: 'PROCESS' }), { target: { value: 'qs' } })
+    expect(onChange).toHaveBeenCalledWith({ processId: 'qs' })
+    fireEvent.change(screen.getByRole('combobox', { name: 'FILAMENT' }), { target: { value: 'petg' } })
+    expect(onChange).toHaveBeenCalledWith({ filamentId: 'petg' })
+  })
+
+  it('names the one printer rather than offering a choice of one, and says what the filament is for', () => {
+    show()
+    expect(screen.getByText('CC1')).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'PRINTER' })).not.toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'PLA · Elegoo Rapid PLA' })).toBeInTheDocument()
+    expect(screen.getByText('The default for a reason.')).toBeInTheDocument()
+  })
+
+  it('moves to another printer with one of its processes and a filament it takes', () => {
+    const mk4 = printer('mk4', 'MK4', [
+      { id: 'fine', label: 'Fine', name: 'Fine', description: 'Fine.', values },
+      { id: 'mk4-qs', label: 'Q-S', name: 'Q-S', description: 'Q-S.', values },
+    ])
+    const two = {
+      printers: [cc1, mk4],
+      filaments: [
+        { ...profiles.filaments[1]!, printers: ['cc1'] },
+        { id: 'tpu', label: 'TPU', name: 'TPU', description: null, type: 'TPU', printers: ['mk4'] },
+      ],
+    }
+    const onChange = show({}, { processId: 'qs', filamentId: 'petg' }, two)
+    // The filaments on offer are the printer's own.
+    expect(screen.queryByRole('option', { name: 'TPU' })).not.toBeInTheDocument()
+    fireEvent.change(screen.getByRole('combobox', { name: 'PRINTER' }), { target: { value: 'mk4' } })
+    expect(onChange).toHaveBeenCalledWith({ printerId: 'mk4', processId: 'mk4-qs', filamentId: 'tpu' })
+  })
+
+  it('asks for a choice an officer has since deleted, and holds back the settings', () => {
+    show({}, { processId: null, filamentId: 'gone' })
+    expect(screen.getByRole('combobox', { name: 'PROCESS' })).toHaveValue('')
+    expect(screen.getByRole('option', { name: 'Choose a process' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Choose a filament' })).toBeInTheDocument()
+    expect(screen.getByText('Pick a process to change how it prints.')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Walls')).not.toBeInTheDocument()
   })
 })

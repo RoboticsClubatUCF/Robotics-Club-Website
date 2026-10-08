@@ -53,8 +53,9 @@ function Slicer({ projects }: { projects: DashboardContext['projects'] | undefin
         setLoad({
           status: 'failed',
           message:
+            // The server says which: no printers set up yet, or the slicer is down.
             error instanceof ApiError && error.status === 503
-              ? 'The slicer is unavailable right now. Try again later.'
+              ? (error.detail ?? 'The slicer is unavailable right now. Try again later.')
               : `We couldn't reach the server. Try again in a moment.`,
         })
         return

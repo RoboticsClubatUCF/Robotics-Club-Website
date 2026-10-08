@@ -822,9 +822,11 @@ export type ApiPrintRequest = {
       the budget rule: personal prints come out of the allowance, project ones
       are uncapped. */
   project: { id: string; slug: string; title: string } | null
-  /** A filament plate its owner sliced: the club preset and the settings they
-      changed. Null on resin and on filament requests from before the slicer. */
-  preset: PrintPreset | null
+  /** A filament plate its owner sliced: the printer, process and filament it was
+      sent with, by the names they had then, and the settings they changed. Null on
+      resin and on filament requests from before the slicer, which is how a page
+      tells the two apart. */
+  slicedWith: ApiSlicedWith | null
   overrides: Record<string, number | boolean | string> | null
   /** Orca's figures for the plate that was sent. MARK DONE charges the grams,
       rounded up, unless the officer gives another figure. */
@@ -836,8 +838,8 @@ export type ApiPrintRequest = {
   updatedAt: string
 }
 
-/** The club's filament process presets. */
-export type PrintPreset = 'STANDARD' | 'Q' | 'QS'
+/** The profiles a sliced plate names, by label. Kept after a profile is renamed or deleted. */
+export type ApiSlicedWith = { printer: string; process: string; filament: string }
 
 /** Where a slicer job is: meshing a STEP upload, or slicing a plate. */
 export type SlicerJobState = 'QUEUED' | 'RUNNING' | 'READY' | 'FAILED'
@@ -894,8 +896,11 @@ export type ApiDraft = {
   status: 'DRAFT' | PrintRequestStatus
   /** Every edit names it; a stale one gets a 409. */
   revision: number
-  material: 'PLA' | 'PETG'
-  preset: PrintPreset
+  /** Null when an officer deleted the profile since; the workspace asks for another. */
+  printerId: string | null
+  processId: string | null
+  filamentId: string | null
+  slicedWith: ApiSlicedWith
   overrides: Record<string, number | boolean | string>
   fileName: string
   notes: string | null
@@ -915,37 +920,63 @@ export type ApiDraftSummary = {
   id: string
   fileName: string
   quantity: number
-  material: 'PLA' | 'PETG'
-  preset: PrintPreset
+  slicedWith: ApiSlicedWith
   createdAt: string
   draftActiveAt: string | null
   sliceState: SlicerJobState | null
   expiresAt: string
 }
 
-export type ApiSlicerPreset = {
-  key: PrintPreset
+export type ApiBed = {
+  width: number
+  depth: number
+  height: number
+  /** Where the printer keeps the bed clear, the CC1's purge corner say. */
+  exclude: { minX: number; minY: number; maxX: number; maxY: number } | null
+}
+
+/** A process preset on one printer. */
+export type ApiSlicerProcess = {
+  id: string
   label: string
   /** Orca's name for it, which an officer sees in desktop Orca. */
   name: string
+  /** The officer's line, or one made from its walls and infill. */
   description: string
   /** The preset's own value for every setting a member can change. */
   values: Record<string, number | boolean | string>
 }
 
-/** What the workspace needs to draw the printer and its choices, `GET /api/print/workspace`. */
+export type ApiSlicerPrinter = {
+  id: string
+  label: string
+  name: string
+  description: string | null
+  model: string
+  nozzle: number
+  bedType: string
+  bed: ApiBed
+  layerHeight: { min: number; max: number }
+  /** Never empty: a printer with nothing to slice it with isn't offered. */
+  processes: ApiSlicerProcess[]
+}
+
+export type ApiSlicerFilament = {
+  id: string
+  label: string
+  name: string
+  description: string | null
+  /** Orca's filament type, PLA or PETG or TPU. */
+  type: string
+  /** The printers it's made for, by id. */
+  printers: string[]
+}
+
+/** What the workspace needs to draw the printers and the choices, `GET /api/print/workspace`. */
 export type ApiSlicerWorkspace = {
   profiles: {
-    printer: { name: string; model: string; nozzle: number; bedType: string }
-    bed: {
-      width: number
-      depth: number
-      height: number
-      exclude: { minX: number; minY: number; maxX: number; maxY: number } | null
-    }
-    layerHeight: { min: number; max: number }
-    presets: ApiSlicerPreset[]
-    materials: { key: 'PLA' | 'PETG'; name: string }[]
+    printers: ApiSlicerPrinter[]
+    filaments: ApiSlicerFilament[]
   }
   workerOnline: boolean
   limits: {
@@ -1912,4 +1943,56 @@ export type ApiSurveyEditorQuestion = {
   archived: boolean
   answered: number
   options: ApiSurveyEditorOption[]
+}
+
+// ---------------------------------------------------------- slicer profiles
+
+export type SlicerProfileKind = 'PRINTER' | 'PROCESS' | 'FILAMENT'
+
+/** One profile as the profiles desk sees it, `GET /api/officer/slicer-profiles`. */
+export type ApiDeskProfile = {
+  id: string
+  kind: SlicerProfileKind
+  /** The preset's own name, which the `.3mf` carries. */
+  name: string
+  /** What members pick it by. */
+  label: string
+  description: string | null
+  offered: boolean
+  /** QUEUED and RUNNING while the worker resolves and test-slices it. */
+  state: SlicerJobState
+  /** Why the worker refused it, for the officer. */
+  failure: string | null
+  sourceFile: string
+  /** What the worker read out of it, once READY. The shape depends on the kind. */
+  info: Record<string, unknown> | null
+  /** The printer and partner it was test-sliced with, or null if nothing could test it yet. */
+  testedWith: string | null
+  orcaVersion: string | null
+  uploadedBy: string | null
+  updatedAt: string
+  /** Drafts, and requests not yet settled, that name it. */
+  uses: { drafts: number; sent: number }
+}
+
+export type ApiSlicerDesk = {
+  printers: (ApiDeskProfile & { processes: ApiDeskProfile[] })[]
+  /** `fits` is the printers it's made for, by id, or null until it's resolved. */
+  filaments: (ApiDeskProfile & { fits: string[] | null })[]
+  workerOnline: boolean
+  limit: number
+}
+
+/** What's in an uploaded export, from `POST /api/officer/slicer-profiles/inspect`. */
+export type ApiProfileFile = {
+  fileName: string
+  /** The bundle's printer, when it's already here; its processes are matched against it. */
+  printer: { id: string; label: string } | null
+  presets: {
+    entry: string
+    kind: SlicerProfileKind
+    name: string
+    inherits: string
+    existing: { id: string; label: string } | null
+  }[]
 }

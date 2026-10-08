@@ -27,7 +27,6 @@ import { STATUS_TONE, fileSize, shortDate } from '../../lib/format/formats'
 import type { StatusTone } from '../../lib/format/formats'
 import {
   MAX_QUANTITY,
-  PRESET_LABEL,
   actualSettings,
   grams,
   materialsFor,
@@ -355,7 +354,7 @@ function Filament({
                     )}
                   </span>
                   <span className="text-faint block font-mono text-[10px] tracking-[0.12em] uppercase">
-                    {draft.material} · {PRESET_LABEL[draft.preset]} · {SLICE_STATE[draft.sliceState ?? 'NONE']} · Goes{' '}
+                    {draft.slicedWith.filament} · {draft.slicedWith.process} · {SLICE_STATE[draft.sliceState ?? 'NONE']} · Goes{' '}
                     {expiresIn(draft.expiresAt)}
                   </span>
                 </span>
@@ -746,7 +745,7 @@ function RequestRow({
 }) {
   const label = STATUS_LABEL[request.status]
   const actual = actualSettings(request)
-  const sliced = request.preset !== null
+  const sliced = request.slicedWith !== null
 
   return (
     <li className="py-3">

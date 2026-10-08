@@ -3,6 +3,7 @@ import { useEffect, useEffectEvent, useId, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
 import { ApiError } from '../../lib/api/api'
 import type {
+  ApiBed,
   ApiMyProject,
   ApiPlacement,
   ApiPlateObject,
@@ -13,6 +14,7 @@ import { arrange, freeSpot } from '../../lib/slicer/arrange'
 import { restingFaces } from '../../lib/slicer/faces'
 import { primeMesh, useMeshes } from '../../lib/slicer/meshes'
 import { autoOrient, layFlat } from '../../lib/slicer/orient'
+import { choiceProblem, defaultChoice, printerOf } from '../../lib/slicer/profiles'
 import { boxOn, fitOn, sizeOf } from '../../lib/slicer/plate'
 import { type Box, type FitProblem, canonicalQuat } from '../../lib/slicer/plateTransform'
 import { ACCEPTED_MODELS, MeshError, parseStl } from '../../lib/slicer/stl'
@@ -33,7 +35,7 @@ import { iconSize, loudButton, quietButton } from './slicerChrome'
 const FIT_PROBLEM: Record<FitProblem, string> = {
   offPlate: 'hangs off the plate',
   tooTall: 'is taller than the printer can print',
-  noGo: `sits in the purge corner`,
+  noGo: `sits where the printer keeps the bed clear`,
 }
 
 const IDENTITY = { qx: 0, qy: 0, qz: 0, qw: 1, sx: 1, sy: 1, sz: 1 }
@@ -109,12 +111,13 @@ export function SlicerWorkspace({
   const navigate = useNavigate()
   const id = useId()
   const arrived = useLocation().state as { unsubmitted?: boolean } | null
-  const plate = useDraft(draftId)
+  const plate = useDraft(draftId, defaultChoice(workspace.profiles))
   const { draft, plate: local } = plate
   const models = draft?.models ?? []
   const { meshes } = useMeshes(models)
   const preview = usePreview(draft?.id, draft?.slice ?? null)
-  const bed = workspace.profiles.bed
+  // A plate whose printer was deleted is still drawn, on the first printer's bed, until it picks one.
+  const bed = (printerOf(workspace.profiles, local.printerId) ?? workspace.profiles.printers[0]!).bed
   const objects = local.objects
 
   const [tab, setTab] = useState<'prepare' | 'preview'>('prepare')
@@ -457,19 +460,22 @@ export function SlicerWorkspace({
 
   const placementWarning = [...problems.entries()][0]
   const overlapping = [...warnings.values()].filter((w) => w === 'overlaps').length
+  const unchosen = choiceProblem(workspace.profiles, local)
   const sliceBlocked = !draft
     ? 'Add a model first.'
     : !editable
       ? null
       : objects.length === 0
         ? 'Put something on the plate first.'
-        : unreadable
-          ? `${unreadable.fileName} couldn't be read. Remove it to slice the rest.`
-          : converting
-            ? 'A STEP file is still converting.'
-            : placementWarning
-              ? `${objects.find((o) => o.id === placementWarning[0])?.name ?? 'An object'} ${FIT_PROBLEM[placementWarning[1]]}.`
-              : null
+        : unchosen
+          ? unchosen
+          : unreadable
+            ? `${unreadable.fileName} couldn't be read. Remove it to slice the rest.`
+            : converting
+              ? 'A STEP file is still converting.'
+              : placementWarning
+                ? `${objects.find((o) => o.id === placementWarning[0])?.name ?? 'An object'} ${FIT_PROBLEM[placementWarning[1]]}.`
+                : null
 
   if (plate.load.status !== 'ready') return <Unavailable load={plate.load.status} onRetry={() => void plate.reload()} />
 
@@ -862,7 +868,7 @@ function PreviewPane({
   failure,
 }: {
   preview: ReturnType<typeof usePreview>
-  bed: ApiSlicerWorkspace['profiles']['bed']
+  bed: ApiBed
   sliced: boolean
   grams: number | null
   /** Why a sliced plate has no preview, in the worker's words. */

@@ -40,7 +40,7 @@ export function SliceSummary({
     text = slice.failure ?? `The plate couldn't be sliced.`
     tone = 'text-error'
   } else if (!slice.current || dirty) {
-    text = 'The plate changed since it was sliced.'
+    text = 'The plate or its settings changed since it was sliced.'
     tone = 'text-warning'
   } else {
     text = `${duration(slice.estimatedSeconds)} · ${slice.estimatedGrams === null ? '?' : slice.estimatedGrams.toFixed(1)} g${

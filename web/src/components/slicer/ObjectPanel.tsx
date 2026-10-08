@@ -21,7 +21,7 @@ const PROBLEM: Record<PlateWarning, string> = {
   overlaps: 'Overlaps',
   offPlate: 'Off the plate',
   tooTall: 'Too tall',
-  noGo: 'In the purge corner',
+  noGo: 'In the keep-clear area',
 }
 
 const DEG = 180 / Math.PI

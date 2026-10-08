@@ -1,8 +1,8 @@
 import type {
   ApiPrintRequest,
+  ApiSlicedWith,
   InfillPattern,
   PrintMaterial,
-  PrintPreset,
   PrintProcess,
   PrintRequestStatus,
 } from './api/api'
@@ -206,8 +206,11 @@ export const countLabel = (quantity: number): string | null =>
  * The count beside a request's name. A sliced plate's is objects on the plate, which can be
  * different models, so "×3" would read as three copies of the one file named.
  */
-export const plateCount = (request: { quantity: number; preset: PrintPreset | null }): string | null =>
-  request.preset === null
+export const plateCount = (request: {
+  quantity: number
+  slicedWith: ApiSlicedWith | null
+}): string | null =>
+  request.slicedWith === null
     ? countLabel(request.quantity)
     : request.quantity > 1
       ? `${String(request.quantity)} objects`
@@ -216,24 +219,16 @@ export const plateCount = (request: { quantity: number; preset: PrintPreset | nu
 /** The most of one thing somebody can ask for, matching the server's cap. */
 export const MAX_QUANTITY = 50
 
-/** The club's filament presets as the workspace names them. */
-export const PRESET_LABEL: Record<PrintPreset, string> = {
-  STANDARD: 'Standard',
-  Q: 'Q',
-  QS: 'Q-S',
-}
-
 /**
- * A plate its owner sliced, in one line: material, preset, and what they changed from it.
- * "PLA · Q-S · Walls 4 · Infill density 25%".
+ * A plate its owner sliced, in one line: printer, filament, process, and what they changed from
+ * it. "CC1 · PLA · Q-S · Walls 4 · Infill density 25%". The names are the ones it was sent under.
  */
 export function slicedLine(request: {
-  material: PrintMaterial
-  preset: PrintPreset | null
+  slicedWith: ApiSlicedWith | null
   overrides: Record<string, number | boolean | string> | null
 }): string {
-  const parts = [MATERIAL_LABEL[request.material]]
-  if (request.preset) parts.push(PRESET_LABEL[request.preset])
+  const { printer, filament, process } = request.slicedWith ?? { printer: '', filament: '', process: '' }
+  const parts = [printer, filament, process].filter((part) => part !== '')
   const changed = overridesLine(request.overrides)
   if (changed) parts.push(changed)
   return parts.join(' · ')

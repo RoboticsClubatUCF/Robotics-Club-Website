@@ -51,7 +51,7 @@ const request = (over: Partial<ApiPrintRequest> = {}): ApiPrintRequest => ({
   printedInfillDensity: null,
   gramsUsed: null,
   project: null,
-  preset: null,
+  slicedWith: null,
   overrides: null,
   estimatedGrams: null,
   estimatedSeconds: null,
@@ -270,8 +270,7 @@ describe('PrintRequestPage', () => {
             id: 'd1',
             fileName: 'rover-bracket.stl',
             quantity: 3,
-            material: 'PETG',
-            preset: 'QS',
+            slicedWith: { printer: 'CC1', process: 'Q-S', filament: 'PETG' },
             createdAt: '2026-08-01T12:00:00.000Z',
             draftActiveAt: '2026-08-01T12:00:00.000Z',
             sliceState: 'READY',
@@ -315,7 +314,7 @@ describe('PrintRequestPage', () => {
     expect(await screen.findByText(/couldn't load your drafts/i)).toBeInTheDocument()
   })
 
-  /** A sliced plate reads as its preset and what was changed, with Orca's estimate. */
+  /** A sliced plate reads as its printer, filament, process and what was changed, with Orca's estimate. */
   it('shows a sliced plate with its settings and estimate, and offers EDIT while it waits', async () => {
     const fetchStub = stubFetch(
       pageData({
@@ -323,7 +322,7 @@ describe('PrintRequestPage', () => {
           request({
             id: 'p1',
             fileName: 'plate.stl',
-            preset: 'Q',
+            slicedWith: { printer: 'CC1', process: 'Q', filament: 'PLA' },
             overrides: { wall_loops: 4 },
             estimatedGrams: 36.2,
             estimatedSeconds: 3_660,
@@ -338,7 +337,7 @@ describe('PrintRequestPage', () => {
 
     renderPage()
 
-    expect(await screen.findByText(/PLA · Q · Walls 4/)).toBeInTheDocument()
+    expect(await screen.findByText(/CC1 · PLA · Q · Walls 4/)).toBeInTheDocument()
     expect(screen.getByText(/About 37 g, 1 h 1 min/)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'EDIT' }))

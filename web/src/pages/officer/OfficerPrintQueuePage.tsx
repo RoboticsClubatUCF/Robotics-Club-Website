@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { MouseEvent } from 'react'
-import { useOutletContext } from 'react-router'
+import { Link, useOutletContext } from 'react-router'
 import { DuesLocked } from '../../components/dashboard/DuesLocked'
 import { OfficerOnly } from '../../components/dashboard/OfficerOnly'
 import { isOfficer } from '../../lib/auth/session'
@@ -265,7 +265,7 @@ export function OfficerPrintQueuePage() {
     const asked = actualSettings(request)
     // A plate its owner sliced is their spec; a change at the printer goes in the note.
     const corrected =
-      request.preset === null &&
+      request.slicedWith === null &&
       (draft.process !== asked.process ||
       draft.material !== asked.material ||
       draft.infillPattern !== asked.infillPattern ||
@@ -366,6 +366,12 @@ export function OfficerPrintQueuePage() {
     <>
       <FormEyebrow>/ MANAGE · PRINT QUEUE</FormEyebrow>
       <FormHeading>3D print queue.</FormHeading>
+
+      <div className="mb-5">
+        <Link to="/dashboard/officer/print/profiles" className={quietButton}>
+          SLICER PROFILES
+        </Link>
+      </div>
 
       <div className="mb-4">
         <FilterChips
@@ -538,7 +544,7 @@ function SettleDialog({
       )}
 
       <p>
-        {request.preset === null
+        {request.slicedWith === null
           ? 'This deletes the uploaded model.'
           : 'This deletes the models and the sliced file.'}{' '}
         The record of the request stays.
@@ -607,7 +613,7 @@ function QueueRow({
 
   const label = STATUS_LABEL[request.status]
   const settled = request.status === 'DONE' || request.status === 'REJECTED'
-  const sliced = request.preset !== null
+  const sliced = request.slicedWith !== null
   const typed =
     draft.gramsUsed.trim() === ''
       ? request.estimatedGrams === null

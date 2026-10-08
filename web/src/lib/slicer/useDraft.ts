@@ -1,13 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { ApiError, deleteJson, getJson, patchJson, postForm, postJson } from '../api/api'
-import type {
-  ApiDraft,
-  ApiPlacement,
-  ApiPlateObject,
-  ApiPrintRequest,
-  PrintPreset,
-} from '../api/api'
+import type { ApiDraft, ApiPlacement, ApiPlateObject, ApiPrintRequest } from '../api/api'
 import type { ProcessOverrides } from './processSettings'
+import type { PlateChoice } from './profiles'
 
 /**
  * One filament plate in the workspace: what the member sees, saving behind them as they work.
@@ -18,14 +13,12 @@ import type { ProcessOverrides } from './processSettings'
  * silently win. SLICE, adding a model and SUBMIT send anything unsaved first, because each of them
  * names a revision too.
  *
- * Before the first upload there is no draft yet: the settings chosen are held here and go with the
- * file that creates it. From then on every call goes to that draft, even before the address bar
+ * Before the first upload there is no draft yet: the settings chosen are held here, starting from
+ * the workspace's defaults (`fresh`), and go with the file that creates it. From then on every call goes to that draft, even before the address bar
  * has caught up, so a batch of files dropped on an empty plate lands on one draft.
  */
 
-export interface PlateSettings {
-  material: 'PLA' | 'PETG'
-  preset: PrintPreset
+export interface PlateSettings extends PlateChoice {
   overrides: ProcessOverrides
 }
 
@@ -41,19 +34,13 @@ export type DraftLoad =
   | { status: 'failed' }
   | { status: 'ready' }
 
-export const DEFAULT_PLATE: Plate = {
-  material: 'PLA',
-  preset: 'STANDARD',
-  overrides: {},
-  objects: [],
-}
-
 const SAVE_DELAY = 400
 const POLL_EVERY = 1_500
 
 const plateOf = (draft: ApiDraft): Plate => ({
-  material: draft.material,
-  preset: draft.preset,
+  printerId: draft.printerId,
+  processId: draft.processId,
+  filamentId: draft.filamentId,
   overrides: draft.overrides,
   objects: draft.objects,
 })
@@ -65,10 +52,12 @@ export const working = (draft: ApiDraft | null): boolean =>
     draft.slice?.state === 'RUNNING' ||
     draft.models.some((model) => model.meshState === 'QUEUED' || model.meshState === 'RUNNING'))
 
-export function useDraft(id: string | undefined) {
+export function useDraft(id: string | undefined, fresh: PlateChoice) {
   const [load, setLoad] = useState<DraftLoad>(id ? { status: 'loading' } : { status: 'ready' })
   const [draft, setDraft] = useState<ApiDraft | null>(null)
-  const [plate, setPlate] = useState<Plate>(DEFAULT_PLATE)
+  const [plate, setPlate] = useState<Plate>(() => ({ ...fresh, overrides: {}, objects: [] }))
+  // Read when a different plate starts, not a reason to start one.
+  const emptyPlate = useEffectEvent((): Plate => ({ ...fresh, overrides: {}, objects: [] }))
   const [saving, setSaving] = useState(false)
   // True from the first unsent edit until the server has it: the debounce counts, so REQUEST
   // PRINT can't send a slice the member has just changed the plate under.
@@ -109,7 +98,7 @@ export function useDraft(id: string | undefined) {
     revision.current = 0
     pending.current = null
     setDraft(null)
-    setPlate(DEFAULT_PLATE)
+    setPlate(emptyPlate())
     setLoad(id ? { status: 'loading' } : { status: 'ready' })
     void reload()
   }, [id, reload])

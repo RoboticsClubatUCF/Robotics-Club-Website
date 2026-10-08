@@ -60,7 +60,7 @@ const item = (over: Partial<ApiPrintQueueItem> = {}): ApiPrintQueueItem => ({
   printedInfillDensity: null,
   gramsUsed: null,
   project: null,
-  preset: null,
+  slicedWith: null,
   overrides: null,
   estimatedGrams: null,
   estimatedSeconds: null,
@@ -959,7 +959,7 @@ describe('the gate', () => {
 describe('a sliced plate', () => {
   const plate = (over: Partial<ApiPrintQueueItem> = {}) =>
     item({
-      preset: 'QS',
+      slicedWith: { printer: 'CC1', process: 'Q-S', filament: 'PLA' },
       overrides: { wall_loops: 4 },
       infillPattern: null,
       infillDensity: null,
@@ -981,7 +981,7 @@ describe('a sliced plate', () => {
       'href',
       expect.stringContaining('/api/officer/print/r1/slice-file'),
     )
-    expect(screen.getByText(/PLA · Q-S · Walls 4/)).toBeInTheDocument()
+    expect(screen.getByText(/CC1 · PLA · Q-S · Walls 4/)).toBeInTheDocument()
     expect(screen.getByText('2 h 14 min, 36.2 g')).toBeInTheDocument()
     expect(screen.queryByText('PRINTED AS')).not.toBeInTheDocument()
     expect(screen.getByLabelText(/grams used for bracket\.stl/i)).toHaveValue(37)
