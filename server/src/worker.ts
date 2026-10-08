@@ -235,9 +235,10 @@ async function runProfile(job: ClaimedProfile) {
       await failProfile(job.id, job.leaseToken, outcome.failure, version!)
       return
     }
-    await publishProfile(job.id, job.leaseToken, { ...outcome, orcaVersion: version! })
+    // An officer replacing or deleting it meanwhile takes the lease, and this answer goes nowhere.
+    const published = await publishProfile(job.id, job.leaseToken, { ...outcome, orcaVersion: version! })
     console.log(
-      `slicer: profile ${job.name} ready in ${String(Math.round((Date.now() - started) / 1000))}s`,
+      `slicer: profile ${job.name} ${published ? 'ready' : 'superseded'} in ${String(Math.round((Date.now() - started) / 1000))}s`,
     )
   } catch (error) {
     console.error(`slicer: profile ${job.name} failed`, error)

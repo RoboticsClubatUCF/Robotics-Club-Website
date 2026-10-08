@@ -285,11 +285,11 @@ public block in `src/app.ts`, so no shared-cache headers reach them.
 | `GET /api/me/print-allowance` | Grams left this term, computed |
 | `GET /api/me/loans` | Borrowed and requested items |
 | `POST /api/print` · `DELETE /api/print/:id` | Current dues. A resin print: multipart `.stl`/`.step`, size-capped and sniffed; an FDM body is a 409 (filament goes through the slicer). `quantity` 1 to 50; `projectId` needs a real membership. Withdrawing deletes every file the request holds |
-| `GET /api/print/workspace` | Current dues. The approved printer, bed, presets with their own values, filaments, limits, and whether a slicer worker is up |
+| `GET /api/print/workspace` | Current dues. The offered printers (bed, processes and each process's own values), the filaments with the printers they fit, limits, and whether a slicer worker is up. 503 while no printer or filament is offered |
 | `GET /api/print/drafts` · `POST /api/print/drafts` | My drafts; a new draft from its first upload (multipart `file`, `settings` JSON, `object` placement JSON). `PRINT_DRAFT_MAX` each |
-| `GET /api/print/drafts/:id` · `PATCH` · `DELETE` | The plate: models, copies, settings, `revision`, slice state. `PATCH { revision, material?, preset?, overrides?, objects? }` replaces the copies; a stale revision is a 409 |
+| `GET /api/print/drafts/:id` · `PATCH` · `DELETE` | The plate: models, copies, profile ids and labels, settings, `revision`, slice state. `PATCH { revision, printerId?, processId?, filamentId?, overrides?, objects? }` replaces the copies; a stale revision is a 409, and so is a profile that's hidden, gone, still being resolved, or doesn't fit the printer. An edit only checks the profiles it changes |
 | `POST /api/print/drafts/:id/models` | Multipart: add a model and one copy, naming the revision. A STEP waits for the worker to mesh it |
-| `POST /api/print/drafts/:id/slice` | `{ revision }`. Queues the plate for the worker, or reuses a slice of the identical plate. 503 with no worker; `PRINT_SLICES_PER_HOUR`, one plate slicing per member |
+| `POST /api/print/drafts/:id/slice` | `{ revision }`. Queues the plate for the worker, or reuses a slice of the identical plate. 503 with no worker; 409 unless all three profiles are usable; `PRINT_SLICES_PER_HOUR`, one plate slicing per member |
 | `GET /api/print/drafts/:id/preview` · `GET /api/print/models/:id/mesh` | The gzipped layer preview and a model's STL, for the owner (and officers once sent). `no-store` |
 | `POST /api/print/drafts/:id/submit` · `POST /api/print/:id/unsubmit` | Send a plate whose slice is current (`{ revision, projectId?, notes? }`); copies Orca's estimate onto the request. Unsubmit takes a waiting plate back to a draft |
 | `GET /api/equipment` | Current dues. The catalogue with live `available` counts and `maxLoanDays` |
@@ -351,6 +351,11 @@ All officer-only (`requireOfficer`, which includes the dues check).
 | `POST /api/officer/sponsors/in-kind` · `PATCH`/`DELETE /in-kind/:id` · `PATCH /in-kind/order` | Max six. Full list for reorder. Registered before `/:id` |
 | `GET /api/officer/print-queue?status=&all=` · `PATCH /api/officer/print/:id` | Drafts never appear. `all=1` returns every status. Settling deletes every file the request holds. On a sliced plate `DONE` charges `ceil(estimatedGrams)` unless `gramsUsed` is sent, and `printed` is refused; otherwise `gramsUsed` is required for a personal `DONE`. `overAllowance` to exceed the cap. Moving to `PRINTING` stamps `startedAt` |
 | `GET /api/officer/print/:id/slice-file` | The sliced plate's `.3mf`, for desktop OrcaSlicer |
+| `GET /api/officer/slicer-profiles` | Every printer with its processes, and every filament: state, the worker's refusal, what it read out of each, and how many drafts and unsettled requests name it |
+| `POST /api/officer/slicer-profiles/inspect` | Multipart `file`: the presets in an Orca export (`.orca_printer`, `.orca_filament`, a zip, one `.json`). Saves nothing |
+| `POST /api/officer/slicer-profiles` | Multipart `file`, `entries` (JSON list), `printerId` for processes whose printer isn't in the file. Adds them QUEUED for the worker. One printer per upload; names are unique per kind (per printer for a process); `MAX_PROFILES` in all |
+| `PATCH /api/officer/slicer-profiles/:id` · `PATCH .../order` | `{ label?, description?, offered? }`; `{ ids }` is one whole list in its new order |
+| `POST /api/officer/slicer-profiles/:id/replace` · `DELETE .../:id` | A newer export of the same kind (`file`, `entry` when it holds several), queued again; a printer's processes are queued with it. Deleting takes a printer's processes; drafts' columns go null |
 | `GET`/`POST /api/officer/equipment` · `PATCH /api/officer/equipment/:id` | `maxLoanDays` defaults to 7 on create; PATCH has no defaults. Names unique case-insensitively |
 | `DELETE /api/officer/equipment/:id` | Deletes the item and its loans. Refused while a unit is out. Retiring is the reversible option |
 | `GET /api/officer/loans?status=&all=` · `PATCH /api/officer/loans/:id` | Availability re-checked in the transaction. No `REQUESTED` → `CHECKED_OUT`. `dueAt` defaults to the member's date or the item's cap |
@@ -596,7 +601,8 @@ src/
 ├── membership/       semester.ts, membershipSweep.ts
 ├── printing/         printAllowance.ts, printSettings.ts, printLifecycle.ts, and the
 │                     slicer: processSettings.ts, plateTransform.ts, sliceJobs.ts,
-│                     orcaRunner.ts, orcaProject.ts, sliceArchive.ts, gcodePreview.ts
+│                     orcaRunner.ts, orcaProject.ts, sliceArchive.ts, gcodePreview.ts,
+│                     profiles.ts, profileResolve.ts, profileJobs.ts, profileWork.ts
 ├── worker.ts         the slicer worker's process (orca/Dockerfile)
 ├── equipment/        loanWindow.ts, equipmentReminder.ts
 ├── projects/         meetings.ts, projectMeeting.ts, projectTerm.ts, projectLead.ts

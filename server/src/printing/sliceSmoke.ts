@@ -23,7 +23,6 @@ import {
   type FilamentInfo,
   type PrinterInfo,
   type ProcessInfo,
-  type ProfileKind,
   ProfileError,
   StockProfiles,
   readPresetFile,
@@ -183,7 +182,7 @@ async function main() {
       try {
         await resolvePreset(
           preset.text,
-          preset.kind as ProfileKind,
+          preset.kind,
           stock,
           printer?.kind === 'PRINTER' ? { name: cc1!.name, info: printer.info } : undefined,
         )
