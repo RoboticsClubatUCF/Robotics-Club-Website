@@ -50,17 +50,22 @@ export async function deleteRequests(tx: Tx, requestIds: string[]): Promise<void
   await tx.printRequest.deleteMany({ where: { id: { in: requestIds } } })
 }
 
-/** The files of models taken off a draft. */
-export async function deleteModelFiles(tx: Tx, modelIds: string[]): Promise<void> {
-  if (modelIds.length === 0) return
-  const models = await tx.printModel.findMany({
-    where: { id: { in: modelIds } },
-    select: { fileId: true, meshFileId: true },
+/**
+ * Deletes a draft's models that nothing on the plate uses, with their files. A model whose last
+ * copy is taken off waits for this, at send or when the plate needs its room for another upload,
+ * so undo in the workspace can put the copy back.
+ */
+export async function deleteUnusedModels(tx: Tx, requestId: string): Promise<void> {
+  const unused = await tx.printModel.findMany({
+    where: { requestId, objects: { none: {} } },
+    select: { id: true, fileId: true, meshFileId: true },
   })
-  const ids = models
+  if (unused.length === 0) return
+  const files = unused
     .flatMap((row) => [row.fileId, row.meshFileId])
     .filter((id): id is string => id !== null)
-  if (ids.length > 0) await tx.storedFile.deleteMany({ where: { id: { in: ids } } })
+  if (files.length > 0) await tx.storedFile.deleteMany({ where: { id: { in: files } } })
+  await tx.printModel.deleteMany({ where: { id: { in: unused.map((row) => row.id) } } })
 }
 
 /** Bytes held by print files right now, against `PRINT_STORAGE_CAP_MB`. */

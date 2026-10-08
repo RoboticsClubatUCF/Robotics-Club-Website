@@ -22,7 +22,7 @@ import {
 import { currentTerm } from '../../membership/semester.js'
 import { MAX_SCALE, MIN_SCALE, canonicalQuat } from '../../printing/plateTransform.js'
 import {
-  deleteModelFiles,
+  deleteUnusedModels,
   deleteRequests,
   draftExpiry,
   printStorageBytes,
@@ -265,7 +265,7 @@ async function addModel(
 /** What the request reads as in lists and history: the first model, how many more, total size. */
 async function refreshSummary(tx: Tx, requestId: string) {
   const models = await tx.printModel.findMany({
-    where: { requestId },
+    where: { requestId, objects: { some: {} } },
     orderBy: { position: 'asc' },
     select: { fileName: true, fileSize: true },
   })
@@ -529,6 +529,13 @@ printDrafts.post(
       await lockMember(tx, user.id)
       const draft = await myDraft(tx, c.req.param('id'), user.id)
       if (draft.revision !== seen.data) throw stale(draft.revision)
+      // Models kept for undo give up their room once a new one needs it.
+      if (
+        (await tx.printModel.count({ where: { requestId: draft.id } })) >=
+        env.PRINT_PLATE_MAX_MODELS
+      ) {
+        await deleteUnusedModels(tx, draft.id)
+      }
       const models = await tx.printModel.count({ where: { requestId: draft.id } })
       const copies = await tx.printObject.count({ where: { requestId: draft.id } })
       if (models >= env.PRINT_PLATE_MAX_MODELS) {
@@ -612,13 +619,8 @@ printDrafts.patch(
             position,
           })),
         })
-
-        const used = new Set(edit.objects.map((object) => object.modelId))
-        const unused = models.map((model) => model.id).filter((id) => !used.has(id))
-        if (unused.length > 0) {
-          await deleteModelFiles(tx, unused)
-          await tx.printModel.deleteMany({ where: { id: { in: unused } } })
-        }
+        // A model left with no copies stays, so undo can put one back. It goes when the plate
+        // is sent, or when another upload needs its room (`deleteUnusedModels`).
       }
 
       await tx.printRequest.update({
@@ -663,7 +665,7 @@ printDrafts.post(
       if (draft.revision !== seen) throw stale(draft.revision)
 
       const models = await tx.printModel.findMany({
-        where: { requestId: draft.id },
+        where: { requestId: draft.id, objects: { some: {} } },
         select: {
           id: true,
           meshState: true,
@@ -912,6 +914,8 @@ printDrafts.post(
           message: 'Slice the plate again before sending it.',
         })
       }
+      // Undo ends here, so models nothing uses go now rather than sit in the queue.
+      await deleteUnusedModels(tx, draft.id)
 
       return tx.printRequest.update({
         where: { id: draft.id },

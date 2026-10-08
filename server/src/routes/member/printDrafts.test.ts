@@ -435,7 +435,7 @@ describe('editing the plate', () => {
     expect((await read(draft.id)).preset).toBe('Q')
   })
 
-  it('copies share one model, and a model with no copies left goes with its file', async () => {
+  it('copies share one model, and a model with no copies left waits for undo', async () => {
     const draft = await newDraft()
     const model = draft.models[0]!
     const original = draft.objects[0]!
@@ -463,8 +463,49 @@ describe('editing the plate', () => {
       objects: [],
     })
     expect(emptied.status).toBe(200)
-    expect(await prisma.printModel.findUnique({ where: { id: model.id } })).toBeNull()
-    expect(await prisma.storedFile.findUnique({ where: { id: fileId } })).toBeNull()
+    expect(await prisma.storedFile.findUnique({ where: { id: fileId } })).not.toBeNull()
+
+    // Undo: the copy comes back on the model that was kept.
+    const restored = await send('PATCH', `/api/print/drafts/${draft.id}`, {
+      revision: 3,
+      objects: [original],
+    })
+    expect(restored.status).toBe(200)
+    expect(((await restored.json()) as Draft).objects).toHaveLength(1)
+  })
+
+  it('sends a plate without the models nothing on it uses', async () => {
+    const draft = await newDraft()
+    const form = new FormData()
+    form.append('file', new File([cube()], `${PREFIX}second.stl`))
+    form.append('revision', '1')
+    form.append('object', JSON.stringify(placed(60, 60)))
+    const added = (await (
+      await app.request(`/api/print/drafts/${draft.id}/models`, {
+        method: 'POST',
+        body: form,
+        headers: { cookie: memberCookie },
+      })
+    ).json()) as Draft & { fileName: string }
+    const second = added.models[1]!
+    const secondFile = (
+      await prisma.printModel.findUniqueOrThrow({ where: { id: second.id } })
+    ).fileId!
+
+    const kept = (await (
+      await send('PATCH', `/api/print/drafts/${draft.id}`, {
+        revision: 2,
+        objects: [draft.objects[0]!],
+      })
+    ).json()) as Draft & { fileName: string }
+    expect(kept.models).toHaveLength(2)
+    expect(kept.fileName).toBe(`${PREFIX}cube.stl`)
+
+    expect((await slice(kept)).status).toBe(200)
+    await finishSlice(draft.id)
+    expect((await submit(kept)).status).toBe(200)
+    expect(await prisma.printModel.findUnique({ where: { id: second.id } })).toBeNull()
+    expect(await prisma.storedFile.findUnique({ where: { id: secondFile } })).toBeNull()
   })
 
   it('stores only the settings that were changed, and refuses one out of bounds', async () => {

@@ -1217,7 +1217,9 @@ model PrintRequest {
 /// Copies are more `PrintObject` rows on the same model, never another upload. Orca's CLI can't
 /// read STEP, so a STEP upload is meshed once by the worker into `meshFile`, and the browser and
 /// Orca both use that, so they can't disagree about the shape. An STL is its own mesh and
-/// `meshFileId` stays null. Settling deletes the bytes and keeps the row for the history.
+/// `meshFileId` stays null. Settling deletes the bytes and keeps the row for the history. A model
+/// whose copies are all removed stays, unused, until the plate is sent or needs the room, so the
+/// workspace can undo the removal (`deleteUnusedModels`).
 model PrintModel {
   id String @id @default(uuid(7))
 

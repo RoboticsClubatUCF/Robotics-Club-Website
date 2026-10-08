@@ -16,7 +16,12 @@ export function SliceSummary({
   dirty: boolean
 }) {
   const slice = draft?.slice ?? null
-  const converting = draft?.models.some((model) => model.meshState === 'QUEUED' || model.meshState === 'RUNNING')
+  // Only models with a copy on the plate: one kept for undo isn't sliced.
+  const converting = draft?.models.some(
+    (model) =>
+      (model.meshState === 'QUEUED' || model.meshState === 'RUNNING') &&
+      draft.objects.some((object) => object.modelId === model.id),
+  )
 
   let text: string
   let tone = 'text-dim'

@@ -5,6 +5,7 @@ import { PrintSlicerPage } from './PrintSlicerPage'
 import type {
   ApiDraft,
   ApiDraftSlice,
+  ApiPlateObject,
   ApiPrintAllowance,
   ApiSlicerWorkspace,
   ApiTerm,
@@ -259,6 +260,47 @@ describe('a plate in progress', () => {
       const patch = fetchStub.mock.calls.find((c) => c[1]?.method === 'PATCH')
       expect(patch && bodyOf(patch[1])).toEqual({ revision: 3, overrides: { wall_loops: 4 } })
     })
+  })
+
+  it('undoes a move with Ctrl+Z and redoes it with Ctrl+Y', async () => {
+    // A server that keeps what it's sent, so each save comes back as the plate it saved.
+    let saved = draft()
+    const patches: ApiPlateObject[][] = []
+    const routes = { '/print/workspace': workspace(), '/me/print-allowance': allowance }
+    const fetchStub = vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      if (urlOf(input).endsWith('/print/drafts/d1')) {
+        if (init?.method === 'PATCH') {
+          const { objects } = bodyOf(init) as { objects: ApiPlateObject[] }
+          patches.push(objects)
+          saved = { ...saved, objects, revision: saved.revision + 1 }
+        }
+        return Promise.resolve(new Response(JSON.stringify(saved)))
+      }
+      return stubFetch(routes)(input, init)
+    })
+    vi.stubGlobal('fetch', fetchStub)
+    renderAt('/dashboard/print/slicer/d1')
+    await screen.findByText('1 on the plate')
+
+    fireEvent.click(screen.getByRole('button', { name: /bracket/ }))
+    const x = screen.getByLabelText('Position X')
+    fireEvent.change(x, { target: { value: '100' } })
+    fireEvent.keyDown(x, { key: 'Enter' })
+    const lastX = () => patches.at(-1)?.[0]?.x
+    await waitFor(() => {
+      expect(lastX()).toBe(100)
+    })
+
+    // From focus on the page itself rather than a control, where navigation leaves it.
+    fireEvent.keyDown(screen.getByText('CC1'), { key: 'z', ctrlKey: true })
+    await waitFor(() => {
+      expect(lastX()).toBe(128)
+    })
+    fireEvent.keyDown(document.body, { key: 'y', ctrlKey: true })
+    await waitFor(() => {
+      expect(lastX()).toBe(100)
+    })
+    expect(screen.getByLabelText('Position X')).toHaveValue(100)
   })
 
   it('says why a plate can’t be sliced when a model can’t be read', async () => {

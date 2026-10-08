@@ -40,6 +40,20 @@ const IDENTITY = { qx: 0, qy: 0, qz: 0, qw: 1, sx: 1, sy: 1, sz: 1 }
 /** How many plate edits Ctrl+Z can step back through. */
 const UNDO_DEPTH = 30
 
+const PLACEMENT_KEYS = ['x', 'y', 'qx', 'qy', 'qz', 'qw', 'sx', 'sy', 'sz'] as const
+
+/** Whether two plates are the same objects, in the same order, in the same places. */
+const samePlate = (a: ApiPlateObject[], b: ApiPlateObject[]) =>
+  a.length === b.length &&
+  a.every((object, index) => {
+    const other = b[index]!
+    return (
+      object.id === other.id &&
+      object.modelId === other.modelId &&
+      PLACEMENT_KEYS.every((key) => object[key] === other[key])
+    )
+  })
+
 const overlap = (a: Box, b: Box) =>
   a.min[0] < b.max[0] && b.min[0] < a.max[0] && a.min[1] < b.max[1] && b.min[1] < a.max[1]
 
@@ -58,14 +72,19 @@ const typing = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
   (target.isContentEditable || ['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName))
 
+const CONTROL =
+  'a[href], button, input, select, textarea, [role="tab"], [role="slider"], [contenteditable="true"]'
+
 /**
- * Where the plate's own keys apply: nothing focused, or focus on the plate, its toolbar or the
- * object list (`data-shortcuts`). Not on a tab, a link or a setting, where arrows and letters
- * already mean something, and where a stray A re-arranging the plate would be a surprise.
+ * Where the plate's own keys apply: anywhere but a control outside the plate, its toolbar and the
+ * object list (`data-shortcuts`). On a tab, a link or a setting, arrows and letters already mean
+ * something, and a stray A re-arranging the plate would be a surprise. Focus left on the page
+ * itself, where navigation puts it, counts as the plate.
  */
 const onPlate = (target: EventTarget | null) =>
-  target === document.body ||
-  (target instanceof Element && target.closest('[data-shortcuts]') !== null)
+  !(target instanceof Element) ||
+  target.closest('[data-shortcuts]') !== null ||
+  target.closest(CONTROL) === null
 
 /**
  * The slicer workspace: Orca's Prepare and Preview, for one build plate.
@@ -106,7 +125,14 @@ export function SlicerWorkspace({
   const [sending, setSending] = useState<'closed' | 'open' | 'sending'>('closed')
   // Said once, on arriving from the printing page's EDIT.
   const [backFromQueue, setBackFromQueue] = useState(arrived?.unsubmitted === true)
-  const history = useRef<ApiPlateObject[][]>([])
+  // Plates to step back to and forward to again, newest last.
+  const history = useRef<{ back: ApiPlateObject[][]; forward: ApiPlateObject[][] }>({
+    back: [],
+    forward: [],
+  })
+  // A drag moves the plate as it goes (`plate.preview`), so undo takes it back to the plate from
+  // before the drag began, not to its last frame.
+  const beforeDrag = useRef<ApiPlateObject[] | null>(null)
 
   const problems = new Map<string, FitProblem>()
   const boxes = new Map<string, Box>()
@@ -129,8 +155,10 @@ export function SlicerWorkspace({
   }
 
   const slice = draft?.slice ?? null
-  const converting = models.some((model) => model.meshState === 'QUEUED' || model.meshState === 'RUNNING')
-  const unreadable = models.find((model) => model.meshState === 'FAILED')
+  // A model whose copies were all deleted is kept for undo; it doesn't hold up a slice.
+  const used = models.filter((model) => objects.some((object) => object.modelId === model.id))
+  const converting = used.some((model) => model.meshState === 'QUEUED' || model.meshState === 'RUNNING')
+  const unreadable = used.find((model) => model.meshState === 'FAILED')
   const sliced = slice?.state === 'READY' && slice.current && !plate.unsaved
   const slicingNow = slice?.state === 'QUEUED' || slice?.state === 'RUNNING'
   const editable = !draft || draft.status === 'DRAFT'
@@ -149,21 +177,41 @@ export function SlicerWorkspace({
     }
   }, [slice])
 
-  const setObjects = (next: ApiPlateObject[]) => {
-    history.current = [...history.current.slice(-(UNDO_DEPTH - 1)), objects]
+  /** Remembers `before` as a step to undo back to. A new step ends anything there was to redo. */
+  const remember = (before: ApiPlateObject[]) => {
+    history.current = {
+      back: [...history.current.back.slice(-(UNDO_DEPTH - 1)), before],
+      forward: [],
+    }
+  }
+
+  const setObjects = (next: ApiPlateObject[], before = objects) => {
+    if (samePlate(next, before) && samePlate(next, objects)) return
+    if (!samePlate(next, before)) remember(before)
     plate.edit({ objects: next })
   }
 
+  const step = (direction: 'back' | 'forward') => {
+    const { back, forward } = history.current
+    const [from, to] = direction === 'back' ? [back, forward] : [forward, back]
+    // A model kept for undo is deleted once a new upload needs its room; its copies can't return.
+    const known = new Set(models.map((model) => model.id))
+    const target = from.pop()?.filter((object) => known.has(object.modelId))
+    if (!target) return
+    to.push(objects)
+    plate.edit({ objects: target })
+    setSelected((current) => current.filter((key) => target.some((object) => object.id === key)))
+  }
   const undo = () => {
-    const previous = history.current.pop()
-    if (!previous) return
-    plate.edit({ objects: previous })
-    setSelected((current) => current.filter((key) => previous.some((object) => object.id === key)))
+    step('back')
+  }
+  const redo = () => {
+    step('forward')
   }
 
   // A different plate starts with nothing to undo.
   useEffect(() => {
-    history.current = []
+    history.current = { back: [], forward: [] }
   }, [draftId])
 
   // A STEP lands in the middle of the plate because its shape isn't known until the worker meshes
@@ -199,7 +247,17 @@ export function SlicerWorkspace({
   }, [meshes, waiting])
 
   const change = (id: string, placement: Partial<ApiPlacement>) => {
-    setObjects(objects.map((object) => (object.id === id ? { ...object, ...placement } : object)))
+    const before = beforeDrag.current ?? objects
+    beforeDrag.current = null
+    setObjects(
+      objects.map((object) => (object.id === id ? { ...object, ...placement } : object)),
+      before,
+    )
+  }
+
+  const drag = (id: string, placement: Partial<ApiPlacement>) => {
+    beforeDrag.current ??= objects
+    plate.preview(id, placement)
   }
 
   const add = async (files: File[]) => {
@@ -209,6 +267,7 @@ export function SlicerWorkspace({
         const positions = meshes.get(object.modelId)
         return positions ? [boxOn(positions, object)] : []
       })
+      let before = objects
       for (const file of files) {
         const name = file.name.toLowerCase()
         if (!ACCEPTED_MODELS.some((extension) => name.endsWith(extension))) {
@@ -224,6 +283,9 @@ export function SlicerWorkspace({
           : { x: bed.width / 2, y: bed.depth / 2 }
         const object = { id: crypto.randomUUID(), ...IDENTITY, ...spot }
         const next = await plate.addModel(file, object)
+        // Undone, the new copy comes off and its model is kept, as for a deleted one.
+        remember(before)
+        before = next.objects
         const placed = next.objects.find((o) => o.id === object.id)
         if (placed && positions) {
           primeMesh(placed.modelId, positions)
@@ -338,7 +400,11 @@ export function SlicerWorkspace({
       }
       if (!onPlate(event.target)) return
       const ctrl = event.ctrlKey || event.metaKey
-      if (ctrl && event.key.toLowerCase() === 'z') {
+      const key = event.key.toLowerCase()
+      if (ctrl && (key === 'y' || (key === 'z' && event.shiftKey))) {
+        event.preventDefault()
+        redo()
+      } else if (ctrl && key === 'z') {
         event.preventDefault()
         undo()
       } else if ((event.key === 'Delete' || event.key === 'Backspace') && selected.length > 0) {
@@ -528,7 +594,13 @@ export function SlicerWorkspace({
           aria-labelledby={`${id}-tab-${tab}`}
           data-shortcuts
           inert={drawer !== null}
-          className="relative min-w-0 flex-1"
+          // A canvas can't hold focus, so pressing on the plate brings it here; otherwise a
+          // setting changed a moment ago keeps it and swallows Delete and the arrows.
+          tabIndex={-1}
+          onPointerDown={(event) => {
+            if (event.target instanceof HTMLCanvasElement) event.currentTarget.focus({ preventScroll: true })
+          }}
+          className="relative min-w-0 flex-1 outline-none"
         >
           {tab === 'prepare' ? (
             <>
@@ -540,7 +612,7 @@ export function SlicerWorkspace({
                 problems={problems}
                 mode={editable ? mode : 'move'}
                 onSelect={setSelected}
-                onDrag={editable ? plate.preview : () => undefined}
+                onDrag={editable ? drag : () => undefined}
                 onCommit={editable ? change : () => undefined}
                 onLayFlat={editable ? flatten : () => undefined}
               />

@@ -99,8 +99,9 @@ export async function currentSpec(tx: Tx, requestId: string): Promise<PlateSpec 
     select: { material: true, preset: true, overrides: true },
   })
   if (!request?.preset) return null
+  // Only models with a copy on the plate: one kept for undo slices nothing.
   const models = await tx.printModel.findMany({
-    where: { requestId },
+    where: { requestId, objects: { some: {} } },
     orderBy: { position: 'asc' },
     select: { id: true, sha256: true, fileName: true },
   })
