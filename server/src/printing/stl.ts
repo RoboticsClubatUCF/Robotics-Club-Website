@@ -34,14 +34,16 @@ export function parseStl(bytes: Uint8Array): Float32Array {
   for (const match of text.matchAll(/vertex\s+(\S+)\s+(\S+)\s+(\S+)/g)) {
     numbers.push(Number(match[1]), Number(match[2]), Number(match[3]))
   }
-  if (numbers.length % 9 !== 0) throw new MeshError('A facet in the STL is missing a vertex.')
+  if (numbers.length % 9 !== 0)
+    throw new MeshError('A facet in the STL is missing a vertex.')
   return checked(Float32Array.from(numbers))
 }
 
 function checked(positions: Float32Array): Float32Array {
   if (positions.length === 0) throw new MeshError('The STL has no triangles in it.')
   for (const value of positions) {
-    if (!Number.isFinite(value)) throw new MeshError(`The STL has a vertex that isn't a number.`)
+    if (!Number.isFinite(value))
+      throw new MeshError(`The STL has a vertex that isn't a number.`)
   }
   return positions
 }
@@ -74,7 +76,9 @@ function normalOf(p: Float32Array, i: number): [number, number, number] {
 export function writeBinaryStl(positions: Float32Array): Uint8Array {
   const count = triangleCount(positions)
   const order = Array.from({ length: count }, (_, index) => index)
-  const front = order.findIndex((index) => normalOf(positions, index * 9).some((n) => n < 0))
+  const front = order.findIndex((index) =>
+    normalOf(positions, index * 9).some((n) => n < 0),
+  )
   if (front > 0) [order[0], order[front]] = [order[front]!, order[0]!]
 
   const bytes = new Uint8Array(84 + count * 50)
@@ -85,7 +89,8 @@ export function writeBinaryStl(positions: Float32Array): Uint8Array {
     const at = 84 + slot * 50
     const normal = normalOf(positions, triangle * 9)
     for (let j = 0; j < 3; j++) view.setFloat32(at + j * 4, normal[j]!, true)
-    for (let j = 0; j < 9; j++) view.setFloat32(at + 12 + j * 4, positions[triangle * 9 + j]!, true)
+    for (let j = 0; j < 9; j++)
+      view.setFloat32(at + 12 + j * 4, positions[triangle * 9 + j]!, true)
   })
   return bytes
 }
@@ -94,7 +99,10 @@ export function writeBinaryStl(positions: Float32Array): Uint8Array {
  * Shared vertices and an index, with degenerate triangles dropped. Orca reads a project's mesh
  * as given, so an unwelded soup would slice as thousands of separate triangles.
  */
-export function weld(positions: Float32Array): { vertices: Float32Array; indices: Uint32Array } {
+export function weld(positions: Float32Array): {
+  vertices: Float32Array
+  indices: Uint32Array
+} {
   const lookup = new Map<string, number>()
   const vertices: number[] = []
   const indices: number[] = []

@@ -3,16 +3,23 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { strFromU8, unzipSync } from 'fflate'
 import { afterAll, describe, expect, it } from 'vitest'
-import { num, readProjectHeader, transformAttribute, writeProject } from './orcaProject.js'
+import {
+  num,
+  readProjectHeader,
+  transformAttribute,
+  writeProject,
+} from './orcaProject.js'
 import { placementAffine } from './plateTransform.js'
 
 const dir = mkdtempSync(join(tmpdir(), 'rccf-project-'))
 afterAll(() => rmSync(dir, { recursive: true, force: true }))
 
-const fixture = new Uint8Array(readFileSync(new URL('./fixtures/sliced-cube.3mf', import.meta.url)))
+const fixture = new Uint8Array(
+  readFileSync(new URL('./fixtures/sliced-cube.3mf', import.meta.url)),
+)
 const tetra = Float32Array.from([
-  0, 0, 0, 0, 10, 0, 10, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 10, 0, 10, 0, 10, 0,
-  0, 0, 10, 0, 0, 0, 10,
+  0, 0, 0, 0, 10, 0, 10, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 10, 0, 10, 0,
+  10, 0, 0, 0, 10, 0, 0, 0, 10,
 ])
 const place = (x: number, y: number) =>
   placementAffine(tetra, { x, y, qx: 0, qy: 0, qz: 0, qw: 1, sx: 1, sy: 1, sz: 1 })
@@ -40,10 +47,9 @@ describe('writeProject', () => {
     expect(meshIds).toEqual(['1', '2'])
     const wrappers = [...model.matchAll(/<object id="(\d+)"/g)].map((match) => match[1])
     expect(wrappers).toEqual(['3', '4', '5'])
-    const components = [...model.matchAll(/p:path="([^"]+)" objectid="(\d+)"/g)].map((match) => [
-      match[1],
-      match[2],
-    ])
+    const components = [...model.matchAll(/p:path="([^"]+)" objectid="(\d+)"/g)].map(
+      (match) => [match[1], match[2]],
+    )
     expect(components).toEqual([
       ['/3D/Objects/mesh_1.model', '1'],
       ['/3D/Objects/mesh_1.model', '1'],
@@ -55,7 +61,9 @@ describe('writeProject', () => {
     const settings = strFromU8(files['Metadata/model_settings.config']!)
     expect(settings.match(/<model_instance>/g)).toHaveLength(3)
     expect(settings).toContain('value="b &lt;&amp;&gt; #3"')
-    expect(strFromU8(files['Metadata/project_settings.config']!)).toContain('print_settings_id')
+    expect(strFromU8(files['Metadata/project_settings.config']!)).toContain(
+      'print_settings_id',
+    )
   })
 })
 

@@ -31,11 +31,7 @@ import {
 import { MATERIAL_LABEL } from '../../printing/printSettings.js'
 import { processOverrides } from '../../printing/processSettings.js'
 import { sliceManifest, workspaceProfiles } from '../../printing/profiles.js'
-import {
-  currentSpec,
-  fingerprintOf,
-  workerOnline,
-} from '../../printing/sliceJobs.js'
+import { currentSpec, fingerprintOf, workerOnline } from '../../printing/sliceJobs.js'
 import { MeshError, parseStl } from '../../printing/stl.js'
 import { printSelect } from './print.js'
 
@@ -166,7 +162,8 @@ function jsonField<T>(value: unknown, schema: z.ZodType<T>, message: string): T 
   return result.data
 }
 
-const baseName = (fileName: string) => fileName.replace(/\.(stl|step|stp)$/i, '').slice(0, 120)
+const baseName = (fileName: string) =>
+  fileName.replace(/\.(stl|step|stp)$/i, '').slice(0, 120)
 
 interface Upload {
   bytes: Uint8Array<ArrayBuffer>
@@ -183,7 +180,8 @@ async function readUpload(value: unknown): Promise<Upload> {
   }
   const bytes = new Uint8Array(await value.arrayBuffer())
   const fileName = value.name.slice(0, 200)
-  if (!looksLikePrintModel(fileName, bytes)) throw new HTTPException(400, { message: WRONG_KIND })
+  if (!looksLikePrintModel(fileName, bytes))
+    throw new HTTPException(400, { message: WRONG_KIND })
 
   const isStep = /\.(step|stp)$/i.test(fileName)
   let triangles: number | null = null
@@ -191,7 +189,8 @@ async function readUpload(value: unknown): Promise<Upload> {
     try {
       triangles = parseStl(bytes).length / 9
     } catch (error) {
-      if (error instanceof MeshError) throw new HTTPException(400, { message: error.message })
+      if (error instanceof MeshError)
+        throw new HTTPException(400, { message: error.message })
       throw error
     }
   }
@@ -245,8 +244,12 @@ async function addModel(
     },
     select: { id: true },
   })
-  const taken = await tx.printObject.findUnique({ where: { id: object.id }, select: { id: true } })
-  if (taken) throw new HTTPException(409, { message: 'That object id is already in use.' })
+  const taken = await tx.printObject.findUnique({
+    where: { id: object.id },
+    select: { id: true },
+  })
+  if (taken)
+    throw new HTTPException(409, { message: 'That object id is already in use.' })
   await tx.printObject.create({
     data: {
       ...object,
@@ -271,7 +274,8 @@ async function refreshSummary(tx: Tx, requestId: string) {
   await tx.printRequest.update({
     where: { id: requestId },
     data: {
-      fileName: models.length > 1 ? `${first} and ${String(models.length - 1)} more` : first,
+      fileName:
+        models.length > 1 ? `${first} and ${String(models.length - 1)} more` : first,
       fileSize: models.reduce((sum, model) => sum + model.fileSize, 0),
       quantity: Math.max(1, copies),
     },
@@ -347,14 +351,18 @@ async function draftView(requestId: string) {
 
   const manifest = sliceManifest()
   const spec = await currentSpec(prisma, requestId)
-  const fingerprint = manifest && spec ? fingerprintOf(spec, manifest.profileSetHash) : null
+  const fingerprint =
+    manifest && spec ? fingerprintOf(spec, manifest.profileSetHash) : null
   const { slice, userId: _userId, ...rest } = request
 
   return {
     ...rest,
     expiresAt:
       request.status === PrintRequestStatus.DRAFT
-        ? draftExpiry({ createdAt: request.createdAt, draftActiveAt: request.draftActiveAt })
+        ? draftExpiry({
+            createdAt: request.createdAt,
+            draftActiveAt: request.draftActiveAt,
+          })
         : null,
     slice: slice && {
       state: slice.state,
@@ -437,8 +445,16 @@ printDrafts.post(
     manifestOr503()
     const user = c.get('user')
     const body = await c.req.parseBody()
-    const settings = jsonField(body['settings'], draftSettings, `Those slicer settings aren't valid.`)
-    const object = jsonField(body['object'], newObject, 'Say where the model goes on the plate.')
+    const settings = jsonField(
+      body['settings'],
+      draftSettings,
+      `Those slicer settings aren't valid.`,
+    )
+    const object = jsonField(
+      body['object'],
+      newObject,
+      'Say where the model goes on the plate.',
+    )
     const upload = await readUpload(body['file'])
     await checkStorage(upload.bytes.byteLength)
     const term = await currentTerm()
@@ -499,8 +515,13 @@ printDrafts.post(
     const user = c.get('user')
     const body = await c.req.parseBody()
     const seen = z.coerce.number().int().min(1).safeParse(field(body['revision']))
-    if (!seen.success) throw new HTTPException(400, { message: 'Say which revision you saw.' })
-    const object = jsonField(body['object'], newObject, 'Say where the model goes on the plate.')
+    if (!seen.success)
+      throw new HTTPException(400, { message: 'Say which revision you saw.' })
+    const object = jsonField(
+      body['object'],
+      newObject,
+      'Say where the model goes on the plate.',
+    )
     const upload = await readUpload(body['file'])
     await checkStorage(upload.bytes.byteLength)
 
@@ -570,7 +591,9 @@ printDrafts.patch(
         })
         const known = new Set(models.map((model) => model.id))
         if (edit.objects.some((object) => !known.has(object.modelId))) {
-          throw new HTTPException(400, { message: `An object names a model this plate doesn't have.` })
+          throw new HTTPException(400, {
+            message: `An object names a model this plate doesn't have.`,
+          })
         }
         // An id another plate already uses can't be taken over.
         const elsewhere = await tx.printObject.count({
@@ -629,7 +652,8 @@ printDrafts.post(
 
     if (!(await workerOnline(manifest.profileSetHash))) {
       throw new HTTPException(503, {
-        message: 'The slicer is offline right now. Your plate is saved; try again in a few minutes.',
+        message:
+          'The slicer is offline right now. Your plate is saved; try again in a few minutes.',
       })
     }
 
@@ -640,7 +664,13 @@ printDrafts.post(
 
       const models = await tx.printModel.findMany({
         where: { requestId: draft.id },
-        select: { id: true, meshState: true, meshFailure: true, triangles: true, fileName: true },
+        select: {
+          id: true,
+          meshState: true,
+          meshFailure: true,
+          triangles: true,
+          fileName: true,
+        },
       })
       const failed = models.find((model) => model.meshState === SlicerJobState.FAILED)
       if (failed) {
@@ -649,7 +679,9 @@ printDrafts.post(
         })
       }
       if (models.some((model) => model.meshState !== SlicerJobState.READY)) {
-        throw new HTTPException(409, { message: 'A STEP file is still being converted. Give it a moment.' })
+        throw new HTTPException(409, {
+          message: 'A STEP file is still being converted. Give it a moment.',
+        })
       }
 
       const spec = await currentSpec(tx, draft.id)
@@ -658,21 +690,32 @@ printDrafts.post(
       }
       if (spec.overrides['spiral_mode'] === true && spec.objects.length > 1) {
         throw new HTTPException(409, {
-          message: 'Vase mode prints one object at a time. Remove the other copies or turn it off.',
+          message:
+            'Vase mode prints one object at a time. Remove the other copies or turn it off.',
         })
       }
       const triangles = new Map(models.map((model) => [model.id, model.triangles ?? 0]))
-      const placed = spec.objects.reduce((sum, object) => sum + (triangles.get(object.modelId) ?? 0), 0)
+      const placed = spec.objects.reduce(
+        (sum, object) => sum + (triangles.get(object.modelId) ?? 0),
+        0,
+      )
       if (placed > env.PRINT_PLATE_MAX_TRIANGLES) {
         throw new HTTPException(409, {
-          message: 'The plate is too detailed to slice. Use fewer copies or a simpler model.',
+          message:
+            'The plate is too detailed to slice. Use fewer copies or a simpler model.',
         })
       }
 
       const fingerprint = fingerprintOf(spec, manifest.profileSetHash)
       const existing = await tx.printSlice.findUnique({
         where: { requestId: draft.id },
-        select: { fingerprint: true, state: true, retryable: true, outputFileId: true, previewFileId: true },
+        select: {
+          fingerprint: true,
+          state: true,
+          retryable: true,
+          outputFileId: true,
+          previewFileId: true,
+        },
       })
       if (existing?.fingerprint === fingerprint) {
         const reusable =
@@ -681,7 +724,10 @@ printDrafts.post(
           existing.state === SlicerJobState.READY ||
           !existing.retryable
         if (reusable) {
-          await tx.printRequest.update({ where: { id: draft.id }, data: { draftActiveAt: new Date() } })
+          await tx.printRequest.update({
+            where: { id: draft.id },
+            data: { draftActiveAt: new Date() },
+          })
           return
         }
       }
@@ -741,7 +787,10 @@ printDrafts.post(
         create: { requestId: draft.id, ...job },
         update: job,
       })
-      await tx.printRequest.update({ where: { id: draft.id }, data: { draftActiveAt: new Date() } })
+      await tx.printRequest.update({
+        where: { id: draft.id },
+        data: { draftActiveAt: new Date() },
+      })
     })
 
     return c.json(await draftView(c.req.param('id')))
@@ -761,7 +810,10 @@ printDrafts.get('/drafts/:id/preview', requireAuth, async (c) => {
   if (!request || !mayRead) throw notFound()
   const fileId = request.slice?.previewFileId
   const file = fileId
-    ? await prisma.storedFile.findUnique({ where: { id: fileId }, select: { data: true } })
+    ? await prisma.storedFile.findUnique({
+        where: { id: fileId },
+        select: { data: true },
+      })
     : null
   if (!file) throw new HTTPException(404, { message: 'This plate has no preview.' })
 
@@ -791,7 +843,10 @@ printDrafts.get('/models/:id/mesh', requireAuth, async (c) => {
   }
   const fileId = model.meshFileId ?? model.fileId
   const file = fileId
-    ? await prisma.storedFile.findUnique({ where: { id: fileId }, select: { data: true } })
+    ? await prisma.storedFile.findUnique({
+        where: { id: fileId },
+        select: { data: true },
+      })
     : null
   if (!file) throw new HTTPException(404, { message: `This model's file is gone.` })
 
@@ -822,7 +877,9 @@ printDrafts.post(
         select: { projectId: true },
       })
       if (!membership) {
-        throw new HTTPException(403, { message: 'You can only put a print against a project you are on.' })
+        throw new HTTPException(403, {
+          message: 'You can only put a print against a project you are on.',
+        })
       }
     }
     const term = await currentTerm()
@@ -851,7 +908,9 @@ printDrafts.post(
         slice.profileSetHash === manifest.profileSetHash &&
         slice.fingerprint === fingerprintOf(spec, manifest.profileSetHash)
       if (!current) {
-        throw new HTTPException(409, { message: 'Slice the plate again before sending it.' })
+        throw new HTTPException(409, {
+          message: 'Slice the plate again before sending it.',
+        })
       }
 
       return tx.printRequest.update({
@@ -875,7 +934,10 @@ printDrafts.post(
     const forWhom = sent.project ? `for ${sent.project.title}` : 'personal'
     const copies = sent.quantity > 1 ? ` ×${String(sent.quantity)}` : ''
     const preset = sent.preset ? manifest.presets[sent.preset].label : ''
-    const grams = sent.estimatedGrams === null ? '' : `, about ${String(Math.ceil(sent.estimatedGrams))} g`
+    const grams =
+      sent.estimatedGrams === null
+        ? ''
+        : `, about ${String(Math.ceil(sent.estimatedGrams))} g`
     void notifyOfficers(
       `🖨️ New 3D print from ${user.fullName}: ${sent.fileName}${copies} (${MATERIAL_LABEL[sent.material]}, ${preset}${grams}), ${forWhom}. Queue: ${env.SITE_URL}/dashboard/officer/print`,
     ).catch((error: unknown) => {
@@ -886,50 +948,64 @@ printDrafts.post(
   },
 )
 
-printDrafts.post('/:id/unsubmit', originGuard, requireAuth, requireDuesForRoute, edits, async (c) => {
-  const user = c.get('user')
-  await prisma.$transaction(async (tx) => {
-    await lockMember(tx, user.id)
-    const request = await tx.printRequest.findUnique({
-      where: { id: c.req.param('id') },
-      select: { id: true, userId: true, status: true, preset: true },
-    })
-    if (!request || request.userId !== user.id || request.preset === null) {
-      throw new HTTPException(404, { message: 'No such print request.' })
-    }
-    if (request.status !== PrintRequestStatus.PENDING) {
-      throw new HTTPException(409, {
-        message: 'This print is already being handled. Talk to the officer on it.',
+printDrafts.post(
+  '/:id/unsubmit',
+  originGuard,
+  requireAuth,
+  requireDuesForRoute,
+  edits,
+  async (c) => {
+    const user = c.get('user')
+    await prisma.$transaction(async (tx) => {
+      await lockMember(tx, user.id)
+      const request = await tx.printRequest.findUnique({
+        where: { id: c.req.param('id') },
+        select: { id: true, userId: true, status: true, preset: true },
       })
-    }
-    const drafts = await tx.printRequest.count({
-      where: { userId: user.id, status: PrintRequestStatus.DRAFT },
-    })
-    if (drafts >= env.PRINT_DRAFT_MAX) {
-      throw new HTTPException(409, {
-        message: `You can keep ${String(env.PRINT_DRAFT_MAX)} drafts at once. Discard one first.`,
+      if (!request || request.userId !== user.id || request.preset === null) {
+        throw new HTTPException(404, { message: 'No such print request.' })
+      }
+      if (request.status !== PrintRequestStatus.PENDING) {
+        throw new HTTPException(409, {
+          message: 'This print is already being handled. Talk to the officer on it.',
+        })
+      }
+      const drafts = await tx.printRequest.count({
+        where: { userId: user.id, status: PrintRequestStatus.DRAFT },
       })
-    }
-    await tx.printRequest.update({
-      where: { id: request.id },
-      data: {
-        status: PrintRequestStatus.DRAFT,
-        submittedAt: null,
-        draftActiveAt: new Date(),
-        estimatedGrams: null,
-        estimatedSeconds: null,
-        revision: { increment: 1 },
-      },
+      if (drafts >= env.PRINT_DRAFT_MAX) {
+        throw new HTTPException(409, {
+          message: `You can keep ${String(env.PRINT_DRAFT_MAX)} drafts at once. Discard one first.`,
+        })
+      }
+      await tx.printRequest.update({
+        where: { id: request.id },
+        data: {
+          status: PrintRequestStatus.DRAFT,
+          submittedAt: null,
+          draftActiveAt: new Date(),
+          estimatedGrams: null,
+          estimatedSeconds: null,
+          revision: { increment: 1 },
+        },
+      })
     })
-  })
-  return c.json(await draftView(c.req.param('id')))
-})
+    return c.json(await draftView(c.req.param('id')))
+  },
+)
 
-printDrafts.delete('/drafts/:id', originGuard, requireAuth, requireDuesForRoute, edits, async (c) => {
-  const user = c.get('user')
-  await prisma.$transaction(async (tx) => {
-    const draft = await myDraft(tx, c.req.param('id'), user.id)
-    await deleteRequests(tx, [draft.id])
-  })
-  return c.json({ deleted: true })
-})
+printDrafts.delete(
+  '/drafts/:id',
+  originGuard,
+  requireAuth,
+  requireDuesForRoute,
+  edits,
+  async (c) => {
+    const user = c.get('user')
+    await prisma.$transaction(async (tx) => {
+      const draft = await myDraft(tx, c.req.param('id'), user.id)
+      await deleteRequests(tx, [draft.id])
+    })
+    return c.json({ deleted: true })
+  },
+)

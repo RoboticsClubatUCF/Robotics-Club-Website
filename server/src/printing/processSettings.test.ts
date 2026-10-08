@@ -1,11 +1,24 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { PROCESS_SETTINGS, fromOrca, orcaOverrides, processOverrides, toOrca } from './processSettings.js'
+import {
+  PROCESS_SETTINGS,
+  fromOrca,
+  orcaOverrides,
+  processOverrides,
+  toOrca,
+} from './processSettings.js'
 
 const vectors = JSON.parse(
-  readFileSync(new URL('./fixtures/processSettings.vectors.json', import.meta.url), 'utf8'),
+  readFileSync(
+    new URL('./fixtures/processSettings.vectors.json', import.meta.url),
+    'utf8',
+  ),
 ) as {
-  valid: { input: Record<string, unknown>; stored: Record<string, unknown>; orca: Record<string, string> }[]
+  valid: {
+    input: Record<string, unknown>
+    stored: Record<string, unknown>
+    orca: Record<string, string>
+  }[]
   invalid: Record<string, unknown>[]
 }
 

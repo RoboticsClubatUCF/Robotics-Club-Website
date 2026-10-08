@@ -138,13 +138,17 @@ function vendorArg(): string {
   const at = process.argv.indexOf('--vendor')
   const dir = at === -1 ? undefined : process.argv[at + 1]
   if (!dir) {
-    console.error('usage: tsx orca/resolve-profiles.ts --vendor <orca>/resources/profiles')
+    console.error(
+      'usage: tsx orca/resolve-profiles.ts --vendor <orca>/resources/profiles',
+    )
     process.exit(2)
   }
   return dir
 }
 
-async function readBundleEntry(source: Source): Promise<{ profile: Profile; sha: string }> {
+async function readBundleEntry(
+  source: Source,
+): Promise<{ profile: Profile; sha: string }> {
   const zip = unzipSync(new Uint8Array(await readFile(join(sourceDir, source.bundle))))
   const bytes = zip[source.entry]
   if (!bytes) throw new Error(`${source.bundle} has no ${source.entry}`)
@@ -262,8 +266,9 @@ function describe(values: Record<string, unknown>): string {
   const pattern = settingDef('sparse_infill_pattern')
   const label =
     pattern?.kind === 'choice'
-      ? (pattern.choices.find((choice) => choice.value === values['sparse_infill_pattern'])
-          ?.label ?? String(values['sparse_infill_pattern']))
+      ? (pattern.choices.find(
+          (choice) => choice.value === values['sparse_infill_pattern'],
+        )?.label ?? String(values['sparse_infill_pattern']))
       : ''
   return `${String(values['wall_loops'])} walls, ${String(values['sparse_infill_density'])}% ${label.toLowerCase()}`
 }
@@ -271,7 +276,9 @@ function describe(values: Record<string, unknown>): string {
 async function main() {
   const vendor = vendorArg()
   const index = await vendorIndex(vendor)
-  const vendorMeta = JSON.parse(await readFile(join(vendor, 'Elegoo.json'), 'utf8')) as Profile
+  const vendorMeta = JSON.parse(
+    await readFile(join(vendor, 'Elegoo.json'), 'utf8'),
+  ) as Profile
 
   const written: { file: string; sha256: string }[] = []
   const sources: unknown[] = []
@@ -331,7 +338,10 @@ async function main() {
   }
 
   const profileSetHash = sha256(
-    [ORCA_VERSION, ...written.map(({ file, sha256: hash }) => `${file}:${hash}`).sort()].join('\n'),
+    [
+      ORCA_VERSION,
+      ...written.map(({ file, sha256: hash }) => `${file}:${hash}`).sort(),
+    ].join('\n'),
   )
 
   const manifest = {
@@ -371,7 +381,9 @@ async function main() {
   }
 
   await writeFile(join(outDir, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`)
-  console.log(`wrote ${String(written.length)} profiles, set ${profileSetHash.slice(0, 12)}`)
+  console.log(
+    `wrote ${String(written.length)} profiles, set ${profileSetHash.slice(0, 12)}`,
+  )
 }
 
 await main()

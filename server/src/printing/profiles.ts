@@ -34,7 +34,12 @@ const manifestSchema = z.object({
       depth: z.number(),
       height: z.number(),
       exclude: z
-        .object({ minX: z.number(), minY: z.number(), maxX: z.number(), maxY: z.number() })
+        .object({
+          minX: z.number(),
+          minY: z.number(),
+          maxX: z.number(),
+          maxY: z.number(),
+        })
         .nullable(),
     }),
     layerHeight: z.object({ min: z.number(), max: z.number() }),

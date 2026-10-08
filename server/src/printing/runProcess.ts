@@ -21,7 +21,12 @@ const TAIL = 64 * 1024
 export function runProcess(
   command: string,
   args: string[],
-  options: { cwd: string; env: NodeJS.ProcessEnv; timeoutMs: number; signal?: AbortSignal },
+  options: {
+    cwd: string
+    env: NodeJS.ProcessEnv
+    timeoutMs: number
+    signal?: AbortSignal
+  },
 ): Promise<RunResult> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
@@ -34,7 +39,8 @@ export function runProcess(
     let stdout = ''
     let stderr = ''
     let timedOut = false
-    const keep = (current: string, chunk: Buffer) => (current + chunk.toString()).slice(-TAIL)
+    const keep = (current: string, chunk: Buffer) =>
+      (current + chunk.toString()).slice(-TAIL)
     child.stdout.on('data', (chunk: Buffer) => (stdout = keep(stdout, chunk)))
     child.stderr.on('data', (chunk: Buffer) => (stderr = keep(stderr, chunk)))
 

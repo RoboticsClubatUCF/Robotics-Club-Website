@@ -61,12 +61,16 @@ export async function meshStepInChild(
   const target = join(dir, 'out.stl')
   await writeFile(source, bytes)
 
-  const run = await runProcess(process.execPath, [...process.execArgv, STEP_CLI, source, target], {
-    cwd: process.cwd(),
-    env: { PATH: process.env['PATH'] ?? '/usr/bin:/bin', HOME: dir, TMPDIR: dir },
-    timeoutMs,
-    signal,
-  })
+  const run = await runProcess(
+    process.execPath,
+    [...process.execArgv, STEP_CLI, source, target],
+    {
+      cwd: process.cwd(),
+      env: { PATH: process.env['PATH'] ?? '/usr/bin:/bin', HOME: dir, TMPDIR: dir },
+      timeoutMs,
+      signal,
+    },
+  )
 
   let reply: { triangles?: number; error?: string } = {}
   try {
@@ -79,9 +83,14 @@ export async function meshStepInChild(
       ok: false,
       failure: run.timedOut
         ? 'This STEP file took too long to convert. Export it as STL and upload that.'
-        : (reply.error ?? `This STEP file couldn't be converted. Export it as STL and upload that.`),
+        : (reply.error ??
+          `This STEP file couldn't be converted. Export it as STL and upload that.`),
       detail: `exit ${String(run.code)} ${run.stderr.slice(-1000)}`,
     }
   }
-  return { ok: true, stl: new Uint8Array(await readFile(target)), triangles: reply.triangles }
+  return {
+    ok: true,
+    stl: new Uint8Array(await readFile(target)),
+    triangles: reply.triangles,
+  }
 }

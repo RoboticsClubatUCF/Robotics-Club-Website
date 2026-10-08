@@ -61,7 +61,9 @@ const workerId = hostname()
 let stopping = false
 let current: AbortController | null = null
 
-console.log(`slicer: OrcaSlicer ${version}, profiles ${manifest.profileSetHash.slice(0, 12)}`)
+console.log(
+  `slicer: OrcaSlicer ${version}, profiles ${manifest.profileSetHash.slice(0, 12)}`,
+)
 
 async function beat() {
   try {
@@ -93,7 +95,10 @@ async function meshBytes(modelId: string): Promise<Float32Array | null> {
   })
   const fileId = model?.meshFileId ?? model?.fileId
   if (!fileId) return null
-  const file = await prisma.storedFile.findUnique({ where: { id: fileId }, select: { data: true } })
+  const file = await prisma.storedFile.findUnique({
+    where: { id: fileId },
+    select: { data: true },
+  })
   return file ? parseStl(new Uint8Array(file.data)) : null
 }
 
@@ -110,7 +115,12 @@ async function runSlice(job: ClaimedSlice) {
         throw error
       })
       if (!positions) {
-        await failSlice(job.id, job.leaseToken, 'A model on this plate changed. Slice again.', true)
+        await failSlice(
+          job.id,
+          job.leaseToken,
+          'A model on this plate changed. Slice again.',
+          true,
+        )
         return
       }
       meshes.set(model.id, positions)
@@ -156,7 +166,11 @@ async function runMesh(job: ClaimedMesh) {
       select: { data: true },
     })
     if (!file) {
-      await failMesh(job.id, job.leaseToken, 'The upload was removed before it could be converted.')
+      await failMesh(
+        job.id,
+        job.leaseToken,
+        'The upload was removed before it could be converted.',
+      )
       return
     }
     const meshed = await meshStepInChild(

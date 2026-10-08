@@ -2,9 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { MeshError, parseStl, weld, writeBinaryStl } from './stl.js'
 
 const tetra = Float32Array.from([
-  0, 0, 0, 0, 10, 0, 10, 0, 0,
-  0, 0, 0, 10, 0, 0, 0, 0, 10,
-  0, 0, 0, 0, 0, 10, 0, 10, 0,
+  0, 0, 0, 0, 10, 0, 10, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 10, 0, 10, 0,
   10, 0, 0, 0, 10, 0, 0, 0, 10,
 ])
 
@@ -15,7 +13,9 @@ describe('stl', () => {
 
   it('reads ASCII STL', () => {
     const text = `solid t\nfacet normal 0 0 -1\nouter loop\nvertex 0 0 0\nvertex 0 1 0\nvertex 1 0 0\nendloop\nendfacet\nendsolid t\n`
-    expect(Array.from(parseStl(new TextEncoder().encode(text)))).toEqual([0, 0, 0, 0, 1, 0, 1, 0, 0])
+    expect(Array.from(parseStl(new TextEncoder().encode(text)))).toEqual([
+      0, 0, 0, 0, 1, 0, 1, 0, 0,
+    ])
   })
 
   it('reads a binary file whose header starts with "solid"', () => {
@@ -31,7 +31,9 @@ describe('stl', () => {
   })
 
   it('refuses an empty file', () => {
-    expect(() => parseStl(new TextEncoder().encode('solid empty\nendsolid empty\n'))).toThrow(MeshError)
+    expect(() =>
+      parseStl(new TextEncoder().encode('solid empty\nendsolid empty\n')),
+    ).toThrow(MeshError)
   })
 
   it('welds shared corners and drops flat triangles', () => {

@@ -13,14 +13,32 @@ import {
 interface Vector {
   name: string
   mesh: number[]
-  placement: { x: number; y: number; qx: number; qy: number; qz: number; qw: number; sx: number; sy: number; sz: number }
+  placement: {
+    x: number
+    y: number
+    qx: number
+    qy: number
+    qz: number
+    qw: number
+    sx: number
+    sy: number
+    sz: number
+  }
   expected: { m: number[]; t: number[]; min: number[]; max: number[]; fit: string | null }
 }
 
 const vectors = JSON.parse(
-  readFileSync(new URL('./fixtures/plateTransform.vectors.json', import.meta.url), 'utf8'),
+  readFileSync(
+    new URL('./fixtures/plateTransform.vectors.json', import.meta.url),
+    'utf8',
+  ),
 ) as {
-  bed: { width: number; depth: number; height: number; exclude: { minX: number; minY: number; maxX: number; maxY: number } }
+  bed: {
+    width: number
+    depth: number
+    height: number
+    exclude: { minX: number; minY: number; maxX: number; maxY: number }
+  }
   cases: Vector[]
 }
 
@@ -50,11 +68,26 @@ describe('placementAffine', () => {
 
   it('lands the lowest vertex on the bed after a turn, not a corner of the old box', () => {
     // A tetrahedron tipped over: its old box corner would sit below the bed.
-    const positions = Float32Array.from([0, 0, 0, 10, 0, 0, 0, 10, 0, 0, 0, 0, 0, 10, 0, 0, 0, 10])
+    const positions = Float32Array.from([
+      0, 0, 0, 10, 0, 0, 0, 10, 0, 0, 0, 0, 0, 10, 0, 0, 0, 10,
+    ])
     const s = Math.SQRT1_2
-    const affine = placementAffine(positions, { x: 50, y: 50, qx: s, qy: 0, qz: 0, qw: s, sx: 1, sy: 1, sz: 1 })
+    const affine = placementAffine(positions, {
+      x: 50,
+      y: 50,
+      qx: s,
+      qy: 0,
+      qz: 0,
+      qw: s,
+      sx: 1,
+      sy: 1,
+      sz: 1,
+    })
     const lowest = Math.min(
-      ...[0, 3, 6, 9, 12, 15].map((i) => applyAffine(affine, positions[i]!, positions[i + 1]!, positions[i + 2]!)[2]),
+      ...[0, 3, 6, 9, 12, 15].map(
+        (i) =>
+          applyAffine(affine, positions[i]!, positions[i + 1]!, positions[i + 2]!)[2],
+      ),
     )
     expect(lowest).toBeCloseTo(0, 6)
   })
@@ -68,7 +101,12 @@ describe('canonicalQuat', () => {
   })
 
   it('falls back to no turn for a zero quaternion', () => {
-    expect(canonicalQuat({ qx: 0, qy: 0, qz: 0, qw: 0 })).toEqual({ qx: 0, qy: 0, qz: 0, qw: 1 })
+    expect(canonicalQuat({ qx: 0, qy: 0, qz: 0, qw: 0 })).toEqual({
+      qx: 0,
+      qy: 0,
+      qz: 0,
+      qw: 1,
+    })
   })
 })
 
@@ -76,8 +114,37 @@ describe('hullTouchesRect', () => {
   const rect = { minX: 0, minY: 0, maxX: 10, maxY: 10 }
 
   it('sees overlap, and a diamond whose box overlaps but whose shape does not', () => {
-    expect(hullTouchesRect(convexHull([[5, 5], [15, 5], [15, 15], [5, 15]]), rect)).toBe(true)
-    expect(hullTouchesRect(convexHull([[16, 10], [21, 15], [16, 20], [11, 15]]), rect)).toBe(false)
-    expect(hullTouchesRect(convexHull([[11, 0], [20, 0], [20, 5]]), rect)).toBe(false)
+    expect(
+      hullTouchesRect(
+        convexHull([
+          [5, 5],
+          [15, 5],
+          [15, 15],
+          [5, 15],
+        ]),
+        rect,
+      ),
+    ).toBe(true)
+    expect(
+      hullTouchesRect(
+        convexHull([
+          [16, 10],
+          [21, 15],
+          [16, 20],
+          [11, 15],
+        ]),
+        rect,
+      ),
+    ).toBe(false)
+    expect(
+      hullTouchesRect(
+        convexHull([
+          [11, 0],
+          [20, 0],
+          [20, 5],
+        ]),
+        rect,
+      ),
+    ).toBe(false)
   })
 })

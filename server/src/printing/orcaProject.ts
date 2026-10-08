@@ -64,7 +64,8 @@ export function transformAttribute({ m, t }: Affine): string {
 export function readProjectHeader(bytes: Uint8Array): ProjectHeader {
   const entries = unzipSync(bytes, {
     filter: (file) =>
-      file.name === 'Metadata/project_settings.config' || file.name === '3D/3dmodel.model',
+      file.name === 'Metadata/project_settings.config' ||
+      file.name === '3D/3dmodel.model',
   })
   const settings = entries['Metadata/project_settings.config']
   const model = entries['3D/3dmodel.model']
@@ -72,10 +73,15 @@ export function readProjectHeader(bytes: Uint8Array): ProjectHeader {
 
   // Orca writes some of these twice; the first of each is kept.
   const found = new Map<string, string>()
-  for (const match of strFromU8(model).matchAll(/<metadata name="([^"]+)">[^<]*<\/metadata>/g)) {
-    if (HEADER_KEYS.includes(match[1]!) && !found.has(match[1]!)) found.set(match[1]!, match[0])
+  for (const match of strFromU8(model).matchAll(
+    /<metadata name="([^"]+)">[^<]*<\/metadata>/g,
+  )) {
+    if (HEADER_KEYS.includes(match[1]!) && !found.has(match[1]!))
+      found.set(match[1]!, match[0])
   }
-  const metadata = HEADER_KEYS.map((key) => found.get(key)).filter((line) => line !== undefined)
+  const metadata = HEADER_KEYS.map((key) => found.get(key)).filter(
+    (line) => line !== undefined,
+  )
   if (metadata.length !== HEADER_KEYS.length) {
     throw new Error('Orca exported a project without its application metadata')
   }
@@ -201,7 +207,10 @@ function projectFiles(input: {
     },
     { name: '3D/3dmodel.model', lines: once(model) },
     { name: '3D/_rels/3dmodel.model.rels', lines: once(rels) },
-    ...meshes.map((mesh, index) => ({ name: meshPath(index), lines: () => meshModel(mesh, index, meshId(index)) })),
+    ...meshes.map((mesh, index) => ({
+      name: meshPath(index),
+      lines: () => meshModel(mesh, index, meshId(index)),
+    })),
     { name: 'Metadata/model_settings.config', lines: once(modelSettings) },
     { name: 'Metadata/project_settings.config', lines: once(header.settings) },
   ]

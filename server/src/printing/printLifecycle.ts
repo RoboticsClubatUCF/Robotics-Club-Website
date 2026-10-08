@@ -66,7 +66,9 @@ export async function deleteModelFiles(tx: Tx, modelIds: string[]): Promise<void
 /** Bytes held by print files right now, against `PRINT_STORAGE_CAP_MB`. */
 export async function printStorageBytes(): Promise<number> {
   const result = await prisma.storedFile.aggregate({
-    where: { kind: { in: [FileKind.PRINT_MODEL, FileKind.PRINT_SLICE, FileKind.PRINT_PREVIEW] } },
+    where: {
+      kind: { in: [FileKind.PRINT_MODEL, FileKind.PRINT_SLICE, FileKind.PRINT_PREVIEW] },
+    },
     _sum: { byteSize: true },
   })
   return result._sum.byteSize ?? 0
@@ -75,8 +77,13 @@ export async function printStorageBytes(): Promise<number> {
 export const storageCapBytes = () => env.PRINT_STORAGE_CAP_MB * 1024 * 1024
 
 /** When a draft last touched expires. */
-export function draftExpiry(draft: { createdAt: Date; draftActiveAt: Date | null }): Date {
-  const idle = (draft.draftActiveAt ?? draft.createdAt).getTime() + env.PRINT_DRAFT_IDLE_HOURS * 3_600_000
+export function draftExpiry(draft: {
+  createdAt: Date
+  draftActiveAt: Date | null
+}): Date {
+  const idle =
+    (draft.draftActiveAt ?? draft.createdAt).getTime() +
+    env.PRINT_DRAFT_IDLE_HOURS * 3_600_000
   const oldest = draft.createdAt.getTime() + env.PRINT_DRAFT_MAX_DAYS * 86_400_000
   return new Date(Math.min(idle, oldest))
 }

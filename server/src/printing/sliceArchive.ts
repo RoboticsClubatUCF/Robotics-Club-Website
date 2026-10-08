@@ -80,7 +80,10 @@ export function readSlicedProject(bytes: Uint8Array, expected: Expected): SliceS
   const sliceInfo = strFromU8(entries['Metadata/slice_info.config']!)
   const plate = plateMetadata(sliceInfo)
   if (plate.get('outside') === 'true') {
-    throw new ArchiveError('Orca marked part of the plate as outside the bed', 'doesntFit')
+    throw new ArchiveError(
+      'Orca marked part of the plate as outside the bed',
+      'doesntFit',
+    )
   }
 
   const printed = [...sliceInfo.matchAll(/<object\b[^>]*>/g)].filter(
@@ -96,9 +99,11 @@ export function readSlicedProject(bytes: Uint8Array, expected: Expected): SliceS
   // Copies of one model share a mesh file in Orca's export; different models never do. Fewer
   // distinct meshes than models means Orca loaded the wrong geometry for some copy.
   const paths = new Set(
-    [...strFromU8(entries['3D/3dmodel.model']!).matchAll(/<component\b[^>]*\bp:path="([^"]+)"/g)].map(
-      (match) => match[1],
-    ),
+    [
+      ...strFromU8(entries['3D/3dmodel.model']!).matchAll(
+        /<component\b[^>]*\bp:path="([^"]+)"/g,
+      ),
+    ].map((match) => match[1]),
   )
   if (paths.size !== expected.meshes) {
     throw new ArchiveError(
@@ -109,7 +114,12 @@ export function readSlicedProject(bytes: Uint8Array, expected: Expected): SliceS
 
   const grams = Number(plate.get('weight'))
   const seconds = Number(plate.get('prediction'))
-  if (!Number.isFinite(grams) || grams <= 0 || !Number.isFinite(seconds) || seconds <= 0) {
+  if (
+    !Number.isFinite(grams) ||
+    grams <= 0 ||
+    !Number.isFinite(seconds) ||
+    seconds <= 0
+  ) {
     throw new ArchiveError('Orca gave no estimate for the plate', 'broken')
   }
   const filament = /<filament\b[^>]*>/.exec(sliceInfo)?.[0]

@@ -25,16 +25,36 @@ import { parseStl } from './stl.js'
 const fixtures = fileURLToPath(new URL('../../orca/fixtures/', import.meta.url))
 
 /** A box whose raw coordinates start at `origin`, so placement has to recentre it. */
-function box(w: number, d: number, h: number, origin: [number, number, number] = [0, 0, 0]) {
+function box(
+  w: number,
+  d: number,
+  h: number,
+  origin: [number, number, number] = [0, 0, 0],
+) {
   const [ox, oy, oz] = origin
   const v = [
-    [0, 0, 0], [w, 0, 0], [w, d, 0], [0, d, 0],
-    [0, 0, h], [w, 0, h], [w, d, h], [0, d, h],
+    [0, 0, 0],
+    [w, 0, 0],
+    [w, d, 0],
+    [0, d, 0],
+    [0, 0, h],
+    [w, 0, h],
+    [w, d, h],
+    [0, d, h],
   ].map(([x, y, z]) => [x! + ox, y! + oy, z! + oz])
   const faces = [
-    [0, 2, 1], [0, 3, 2], [4, 5, 6], [4, 6, 7],
-    [0, 1, 5], [0, 5, 4], [1, 2, 6], [1, 6, 5],
-    [2, 3, 7], [2, 7, 6], [3, 0, 4], [3, 4, 7],
+    [0, 2, 1],
+    [0, 3, 2],
+    [4, 5, 6],
+    [4, 6, 7],
+    [0, 1, 5],
+    [0, 5, 4],
+    [1, 2, 6],
+    [1, 6, 5],
+    [2, 3, 7],
+    [2, 7, 6],
+    [3, 0, 4],
+    [3, 4, 7],
   ]
   return Float32Array.from(faces.flatMap((face) => face.flatMap((i) => v[i]!)))
 }
@@ -87,7 +107,9 @@ async function main() {
   const scratch = env.SLICER_SCRATCH_DIR ?? join(tmpdir(), 'rccf-slicer-smoke')
   const version = await orcaVersion(env.ORCA_BINARY, scratch)
   if (version !== manifest.orcaVersion) {
-    throw new Error(`Orca is ${String(version)}, the profiles want ${manifest.orcaVersion}`)
+    throw new Error(
+      `Orca is ${String(version)}, the profiles want ${manifest.orcaVersion}`,
+    )
   }
   const runner = new OrcaRunner(profiles, scratch, version)
 
@@ -100,7 +122,8 @@ async function main() {
     env.SLICER_TIMEOUT_SECONDS * 1000,
   )
   await rm(stepDir, { recursive: true, force: true })
-  if (!step.ok) throw new Error(`the STEP fixture didn't mesh: ${step.failure} ${step.detail}`)
+  if (!step.ok)
+    throw new Error(`the STEP fixture didn't mesh: ${step.failure} ${step.detail}`)
   console.log(`ok   STEP meshed in a child process: ${String(step.triangles)} triangles`)
 
   const meshes = new Map<string, Float32Array>([
@@ -136,7 +159,10 @@ async function main() {
       objects: [
         { model: 'cube', placement: at(60, 60) },
         { model: 'cube', placement: at(60, 110, { ...turn45 }) },
-        { model: 'bar', placement: at(150, 90, { ...turn45, sx: 1.5, sy: 1.5, sz: 1.5 }) },
+        {
+          model: 'bar',
+          placement: at(150, 90, { ...turn45, sx: 1.5, sy: 1.5, sz: 1.5 }),
+        },
         { model: 'cylinder', placement: at(120, 190) },
       ],
       boundsWithin: 1,
@@ -246,14 +272,17 @@ async function main() {
       }
       const off = Math.max(...got.map((value, i) => Math.abs(value - want[i]!)))
       if (off > test.boundsWithin) {
-        problems.push(`extrusions are ${off.toFixed(2)} mm from where the objects were put`)
+        problems.push(
+          `extrusions are ${off.toFixed(2)} mm from where the objects were put`,
+        )
       }
     }
 
     const out = process.env['SMOKE_OUT']
     if (out) {
       await writeFile(join(out, `plate-${String(index + 1)}.3mf`), result.output)
-      if (result.preview) await writeFile(join(out, `plate-${String(index + 1)}.rcpv`), result.preview)
+      if (result.preview)
+        await writeFile(join(out, `plate-${String(index + 1)}.rcpv`), result.preview)
     }
 
     if (problems.length > 0) {

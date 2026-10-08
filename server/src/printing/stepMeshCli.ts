@@ -18,6 +18,8 @@ try {
   await writeFile(target, writeBinaryStl(positions))
   console.log(JSON.stringify({ triangles: positions.length / 9 }))
 } catch (error) {
-  console.log(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }))
+  console.log(
+    JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
+  )
   process.exit(3)
 }

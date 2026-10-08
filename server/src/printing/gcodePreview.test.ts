@@ -84,7 +84,10 @@ describe('buildPreview', () => {
     const decoded = read(preview.bytes)
     expect(decoded.magic).toBe('RCPV')
     expect(decoded.layers[0]!.z).toBeCloseTo(0.2)
-    expect(decoded.layers[0]!.paths.map((p) => p.role)).toEqual(['outerWall', 'sparseInfill'])
+    expect(decoded.layers[0]!.paths.map((p) => p.role)).toEqual([
+      'outerWall',
+      'sparseInfill',
+    ])
     expect(decoded.layers[0]!.paths[0]!.points).toEqual([
       [10, 10],
       [20, 10],
@@ -103,7 +106,8 @@ describe('buildPreview', () => {
   })
 
   it('cuts arcs into chords that stay on the circle', () => {
-    const arc = ';LAYER_CHANGE\n;Z:0.2\n;TYPE:Outer wall\nG1 X60 Y50\nG3 X40 Y50 I-10 J0 E2\n'
+    const arc =
+      ';LAYER_CHANGE\n;Z:0.2\n;TYPE:Outer wall\nG1 X60 Y50\nG3 X40 Y50 I-10 J0 E2\n'
     const { layers } = read(buildPreview(gcode(arc), bed, limits).bytes)
     const points = layers[0]!.paths[0]!.points
     expect(points.length).toBeGreaterThan(10)
@@ -114,21 +118,20 @@ describe('buildPreview', () => {
   })
 
   it('reads absolute extrusion too', () => {
-    const absolute = ';LAYER_CHANGE\n;Z:0.2\nM82\nG92 E0\nG1 X0 Y0\nG1 X10 Y0 E1\nG1 X10 Y10 E1\nG1 X0 Y10 E2\n'
+    const absolute =
+      ';LAYER_CHANGE\n;Z:0.2\nM82\nG92 E0\nG1 X0 Y0\nG1 X10 Y0 E1\nG1 X10 Y10 E1\nG1 X0 Y10 E2\n'
     expect(buildPreview(gcode(absolute), bed, limits).segments).toBe(2)
   })
 
   it('refuses G-code whose layers disagree with its header', () => {
     const wrong = twoLayers.replace('number: 2', 'number: 3')
-    expect(() => buildPreview(gcode(wrong), bed, limits)).toThrow(
-      PreviewError,
-    )
+    expect(() => buildPreview(gcode(wrong), bed, limits)).toThrow(PreviewError)
   })
 
   it('stops at the segment cap', () => {
-    expect(() => buildPreview(gcode(twoLayers), bed, { ...limits, maxSegments: 2 })).toThrow(
-      'too detailed',
-    )
+    expect(() =>
+      buildPreview(gcode(twoLayers), bed, { ...limits, maxSegments: 2 }),
+    ).toThrow('too detailed')
   })
 })
 

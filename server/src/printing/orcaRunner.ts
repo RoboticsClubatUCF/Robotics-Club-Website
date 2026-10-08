@@ -35,7 +35,8 @@ export const FAILURES = {
   offPlate: 'Part of the plate hangs off the bed. Move it back on.',
   tooTall: 'Something on the plate is taller than the printer can print.',
   noGo: "Something sits in the bed's back corner, where the printer purges. Move it out.",
-  doesntFit: "Orca couldn't fit everything on one plate. Spread the copies out or remove some.",
+  doesntFit:
+    "Orca couldn't fit everything on one plate. Spread the copies out or remove some.",
   tooDetailed: 'The plate is too detailed to slice. Use fewer copies or a simpler model.',
   tooSlow: 'Slicing took too long. Use fewer copies or a simpler model.',
   needsSupports: 'Part of the model starts in mid-air. Turn supports on or lay it flat.',
@@ -85,15 +86,32 @@ function orcaFailure(code: number, supportsOn: boolean): SliceFailure {
 function cube(): Uint8Array {
   const s = 10
   const v = [
-    [0, 0, 0], [s, 0, 0], [s, s, 0], [0, s, 0],
-    [0, 0, s], [s, 0, s], [s, s, s], [0, s, s],
+    [0, 0, 0],
+    [s, 0, 0],
+    [s, s, 0],
+    [0, s, 0],
+    [0, 0, s],
+    [s, 0, s],
+    [s, s, s],
+    [0, s, s],
   ] as const
   const faces = [
-    [0, 2, 1], [0, 3, 2], [4, 5, 6], [4, 6, 7],
-    [0, 1, 5], [0, 5, 4], [1, 2, 6], [1, 6, 5],
-    [2, 3, 7], [2, 7, 6], [3, 0, 4], [3, 4, 7],
+    [0, 2, 1],
+    [0, 3, 2],
+    [4, 5, 6],
+    [4, 6, 7],
+    [0, 1, 5],
+    [0, 5, 4],
+    [1, 2, 6],
+    [1, 6, 5],
+    [2, 3, 7],
+    [2, 7, 6],
+    [3, 0, 4],
+    [3, 4, 7],
   ] as const
-  return writeBinaryStl(Float32Array.from(faces.flatMap((face) => face.flatMap((i) => [...v[i]]))))
+  return writeBinaryStl(
+    Float32Array.from(faces.flatMap((face) => face.flatMap((i) => [...v[i]]))),
+  )
 }
 
 export class OrcaRunner {
@@ -119,7 +137,8 @@ export class OrcaRunner {
       tmp: join(root, 'tmp'),
       xdg: join(root, 'xdg'),
     }
-    for (const dir of Object.values(dirs)) await mkdir(dir, { recursive: true, mode: 0o700 })
+    for (const dir of Object.values(dirs))
+      await mkdir(dir, { recursive: true, mode: 0o700 })
     return dirs
   }
 
@@ -134,13 +153,18 @@ export class OrcaRunner {
   }
 
   /** Orca's result file: both it and the exit code have to say 0. */
-  private async orcaResult(outDir: string): Promise<{ code: number; message: string } | null> {
+  private async orcaResult(
+    outDir: string,
+  ): Promise<{ code: number; message: string } | null> {
     try {
       const parsed = JSON.parse(await readFile(join(outDir, 'result.json'), 'utf8')) as {
         return_code?: number
         error_string?: string
       }
-      return { code: Number(parsed.return_code ?? -1), message: String(parsed.error_string ?? '') }
+      return {
+        code: Number(parsed.return_code ?? -1),
+        message: String(parsed.error_string ?? ''),
+      }
     } catch {
       return null
     }
@@ -169,13 +193,20 @@ export class OrcaRunner {
     const run = await runProcess(
       env.ORCA_BINARY,
       [
-        '--datadir', dirs.data,
-        '--load-settings', `${processFile};${join(profilesDir, this.profiles.manifest.printer.file)}`,
-        '--load-filaments', join(profilesDir, MATERIAL_FILES[spec.material]),
-        '--outputdir', dirs.header,
-        '--arrange', '1',
-        '--orient', '0',
-        '--export-3mf', 'header.3mf',
+        '--datadir',
+        dirs.data,
+        '--load-settings',
+        `${processFile};${join(profilesDir, this.profiles.manifest.printer.file)}`,
+        '--load-filaments',
+        join(profilesDir, MATERIAL_FILES[spec.material]),
+        '--outputdir',
+        dirs.header,
+        '--arrange',
+        '1',
+        '--orient',
+        '0',
+        '--export-3mf',
+        'header.3mf',
         cubeFile,
       ],
       { cwd: dirs.root, env: this.orcaEnv(dirs), timeoutMs, signal },
@@ -189,7 +220,9 @@ export class OrcaRunner {
         detail: `settings run: exit ${String(run.code)}, ${JSON.stringify(result)}\n${run.stderr.slice(-2000)}`,
       }
     }
-    const header = readProjectHeader(new Uint8Array(await readFile(join(dirs.header, 'header.3mf'))))
+    const header = readProjectHeader(
+      new Uint8Array(await readFile(join(dirs.header, 'header.3mf'))),
+    )
     if (this.headers.size > 64) this.headers.clear()
     this.headers.set(key, header)
     return header
@@ -217,7 +250,11 @@ export class OrcaRunner {
       const problem = fitProblem(positions, affine, bed)
       if (problem) return { failure: FIT[problem], retryable: false }
       triangles += triangleCount(positions)
-      placed.push({ name: `${object.name} #${String(index + 1)}`, modelId: object.modelId, affine })
+      placed.push({
+        name: `${object.name} #${String(index + 1)}`,
+        modelId: object.modelId,
+        affine,
+      })
     }
     if (triangles > env.PRINT_PLATE_MAX_TRIANGLES) {
       return { failure: FAILURES.tooDetailed, retryable: false }
@@ -243,15 +280,22 @@ export class OrcaRunner {
       const run = await runProcess(
         env.ORCA_BINARY,
         [
-          '--datadir', dirs.data,
-          '--outputdir', dirs.out,
-          '--arrange', '0',
+          '--datadir',
+          dirs.data,
+          '--outputdir',
+          dirs.out,
+          '--arrange',
+          '0',
           // The bare flag only turns rotation on; arranging off still needs it said.
           '--allow-rotations=0',
-          '--orient', '0',
-          '--mstpp', String(Math.max(10, Math.floor(left() / 1000))),
-          '--slice', '0',
-          '--export-3mf', 'rccf.3mf',
+          '--orient',
+          '0',
+          '--mstpp',
+          String(Math.max(10, Math.floor(left() / 1000))),
+          '--slice',
+          '0',
+          '--export-3mf',
+          'rccf.3mf',
           join(dirs.in, 'plate.3mf'),
         ],
         { cwd: dirs.root, env: this.orcaEnv(dirs), timeoutMs: left(), signal },
@@ -329,13 +373,21 @@ export class OrcaRunner {
 }
 
 /** The version Orca reports, from `--help`'s first line. */
-export async function orcaVersion(binary: string, scratch: string): Promise<string | null> {
+export async function orcaVersion(
+  binary: string,
+  scratch: string,
+): Promise<string | null> {
   const home = join(scratch, 'version-check')
   await mkdir(home, { recursive: true, mode: 0o700 })
   try {
     const run = await runProcess(binary, ['--help'], {
       cwd: home,
-      env: { PATH: process.env['PATH'] ?? '/usr/bin:/bin', LC_ALL: 'C', HOME: home, TMPDIR: home },
+      env: {
+        PATH: process.env['PATH'] ?? '/usr/bin:/bin',
+        LC_ALL: 'C',
+        HOME: home,
+        TMPDIR: home,
+      },
       timeoutMs: 30_000,
     })
     return /^OrcaSlicer-([\w.]+):/m.exec(run.stdout)?.[1] ?? null

@@ -18,7 +18,14 @@ import { gzipSync } from 'fflate'
  *       The delta cursor carries on across paths and layers.
  */
 
-export const ROLES = ['outerWall', 'innerWall', 'sparseInfill', 'solidInfill', 'support', 'other'] as const
+export const ROLES = [
+  'outerWall',
+  'innerWall',
+  'sparseInfill',
+  'solidInfill',
+  'support',
+  'other',
+] as const
 export type Role = (typeof ROLES)[number]
 
 export class PreviewError extends Error {}
@@ -41,10 +48,16 @@ const MAX_ARC_CHORDS = 720
 export function roleOf(type: string): Role {
   const t = type.trim().toLowerCase()
   if (t.startsWith('support')) return 'support'
-  if (t === 'outer wall' || t === 'overhang wall' || t === 'external perimeter') return 'outerWall'
+  if (t === 'outer wall' || t === 'overhang wall' || t === 'external perimeter')
+    return 'outerWall'
   if (t.endsWith('wall') || t === 'perimeter') return 'innerWall'
   if (t === 'sparse infill' || t === 'internal infill') return 'sparseInfill'
-  if (t.includes('infill') || t.includes('surface') || t.includes('bridge') || t === 'ironing') {
+  if (
+    t.includes('infill') ||
+    t.includes('surface') ||
+    t.includes('bridge') ||
+    t === 'ironing'
+  ) {
     return 'solidInfill'
   }
   return 'other'
@@ -334,7 +347,8 @@ function arcChords(
     const dy = ny - y
     const chord = Math.hypot(dx, dy)
     if (chord === 0 || Math.abs(r) < chord / 2) return [[nx, ny]]
-    const h = Math.sqrt(r * r - (chord * chord) / 4) * ((clockwise ? 1 : -1) * Math.sign(r))
+    const h =
+      Math.sqrt(r * r - (chord * chord) / 4) * ((clockwise ? 1 : -1) * Math.sign(r))
     cx = x + dx / 2 - (h * dy) / chord
     cy = y + dy / 2 + (h * dx) / chord
   } else {
@@ -350,7 +364,8 @@ function arcChords(
   // Start equal to end is a full circle, which the arithmetic above already gives.
   end = start + sweep
 
-  const step = radius > CHORD_TOLERANCE ? 2 * Math.acos(1 - CHORD_TOLERANCE / radius) : Math.PI
+  const step =
+    radius > CHORD_TOLERANCE ? 2 * Math.acos(1 - CHORD_TOLERANCE / radius) : Math.PI
   const count = Math.min(MAX_ARC_CHORDS, Math.max(1, Math.ceil(Math.abs(sweep) / step)))
   const points: [number, number][] = []
   for (let k = 1; k < count; k++) {

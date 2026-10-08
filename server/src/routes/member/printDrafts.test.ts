@@ -70,7 +70,9 @@ async function clearRows() {
   const ids = users.map((user) => user.id)
   // Sliced files have no uploader, so they're named with the prefix and found by it.
   await prisma.storedFile.deleteMany({
-    where: { OR: [{ createdById: { in: ids } }, { originalName: { startsWith: PREFIX } }] },
+    where: {
+      OR: [{ createdById: { in: ids } }, { originalName: { startsWith: PREFIX } }],
+    },
   })
   await prisma.user.deleteMany({ where: { email: { startsWith: PREFIX } } })
   await prisma.project.deleteMany({ where: { slug: { startsWith: PREFIX } } })
@@ -145,20 +147,40 @@ afterAll(async () => {
 /** A 20 mm cube as binary STL. */
 function cube(size = 20): Uint8Array<ArrayBuffer> {
   const v = [
-    [0, 0, 0], [size, 0, 0], [size, size, 0], [0, size, 0],
-    [0, 0, size], [size, 0, size], [size, size, size], [0, size, size],
+    [0, 0, 0],
+    [size, 0, 0],
+    [size, size, 0],
+    [0, size, 0],
+    [0, 0, size],
+    [size, 0, size],
+    [size, size, size],
+    [0, size, size],
   ]
   const faces = [
-    [0, 2, 1], [0, 3, 2], [4, 5, 6], [4, 6, 7], [0, 1, 5], [0, 5, 4],
-    [1, 2, 6], [1, 6, 5], [2, 3, 7], [2, 7, 6], [3, 0, 4], [3, 4, 7],
+    [0, 2, 1],
+    [0, 3, 2],
+    [4, 5, 6],
+    [4, 6, 7],
+    [0, 1, 5],
+    [0, 5, 4],
+    [1, 2, 6],
+    [1, 6, 5],
+    [2, 3, 7],
+    [2, 7, 6],
+    [3, 0, 4],
+    [3, 4, 7],
   ]
   return new Uint8Array(
-    writeBinaryStl(Float32Array.from(faces.flatMap((face) => face.flatMap((i) => v[i]!)))),
+    writeBinaryStl(
+      Float32Array.from(faces.flatMap((face) => face.flatMap((i) => v[i]!))),
+    ),
   )
 }
 
 const stepFile = () =>
-  new TextEncoder().encode('ISO-10303-21;\nHEADER;\nENDSEC;\nDATA;\nENDSEC;\nEND-ISO-10303-21;\n')
+  new TextEncoder().encode(
+    'ISO-10303-21;\nHEADER;\nENDSEC;\nDATA;\nENDSEC;\nEND-ISO-10303-21;\n',
+  )
 
 const objectId = () => `${PREFIX}${randomUUID()}`
 const placed = (x = 128, y = 128) => ({
@@ -194,10 +216,17 @@ function createDraft(
   options: { file?: Uint8Array<ArrayBuffer>; name?: string; settings?: unknown } = {},
 ) {
   const form = new FormData()
-  form.append('file', new File([options.file ?? cube()], options.name ?? `${PREFIX}cube.stl`))
+  form.append(
+    'file',
+    new File([options.file ?? cube()], options.name ?? `${PREFIX}cube.stl`),
+  )
   form.append('settings', JSON.stringify(options.settings ?? SETTINGS))
   form.append('object', JSON.stringify(placed()))
-  return app.request('/api/print/drafts', { method: 'POST', body: form, headers: { cookie } })
+  return app.request('/api/print/drafts', {
+    method: 'POST',
+    body: form,
+    headers: { cookie },
+  })
 }
 
 async function newDraft(cookie = memberCookie): Promise<Draft> {
@@ -214,10 +243,17 @@ const send = (method: string, path: string, body: unknown, cookie = memberCookie
   })
 
 const read = async (id: string, cookie = memberCookie) =>
-  (await (await app.request(`/api/print/drafts/${id}`, { headers: { cookie } })).json()) as Draft
+  (await (
+    await app.request(`/api/print/drafts/${id}`, { headers: { cookie } })
+  ).json()) as Draft
 
 const slice = (draft: Draft, cookie = memberCookie) =>
-  send('POST', `/api/print/drafts/${draft.id}/slice`, { revision: draft.revision }, cookie)
+  send(
+    'POST',
+    `/api/print/drafts/${draft.id}/slice`,
+    { revision: draft.revision },
+    cookie,
+  )
 
 /** The worker's half: a READY result with a .3mf and a preview. */
 async function finishSlice(requestId: string, grams = 36.2) {
@@ -263,20 +299,32 @@ async function slicedDraft(): Promise<Draft> {
 }
 
 const submit = (draft: Draft, body: Record<string, unknown> = {}) =>
-  send('POST', `/api/print/drafts/${draft.id}/submit`, { revision: draft.revision, ...body })
+  send('POST', `/api/print/drafts/${draft.id}/submit`, {
+    revision: draft.revision,
+    ...body,
+  })
 
 const settle = (id: string, body: unknown) =>
   send('PATCH', `/api/officer/print/${id}`, body, officerCookie)
 
 describe('the workspace', () => {
   it('names the presets, the bed and whether the slicer is up', async () => {
-    const response = await app.request('/api/print/workspace', { headers: { cookie: memberCookie } })
+    const response = await app.request('/api/print/workspace', {
+      headers: { cookie: memberCookie },
+    })
     expect(response.status).toBe(200)
     const body = (await response.json()) as {
-      profiles: { presets: { key: string; values: Record<string, unknown> }[]; bed: { width: number } }
+      profiles: {
+        presets: { key: string; values: Record<string, unknown> }[]
+        bed: { width: number }
+      }
       workerOnline: boolean
     }
-    expect(body.profiles.presets.map((preset) => preset.key)).toEqual(['STANDARD', 'Q', 'QS'])
+    expect(body.profiles.presets.map((preset) => preset.key)).toEqual([
+      'STANDARD',
+      'Q',
+      'QS',
+    ])
     expect(body.profiles.presets[0]!.values['wall_loops']).toBe(2)
     expect(body.profiles.bed.width).toBe(256)
     expect(body.workerOnline).toBe(true)
@@ -288,7 +336,12 @@ describe('the workspace', () => {
 describe('drafts', () => {
   it('starts a private draft with one model and one copy', async () => {
     const draft = await newDraft()
-    expect(draft).toMatchObject({ status: 'DRAFT', revision: 1, material: 'PLA', preset: 'STANDARD' })
+    expect(draft).toMatchObject({
+      status: 'DRAFT',
+      revision: 1,
+      material: 'PLA',
+      preset: 'STANDARD',
+    })
     expect(draft.models).toHaveLength(1)
     expect(draft.models[0]!.meshState).toBe('READY')
     expect(draft.objects).toHaveLength(1)
@@ -301,7 +354,9 @@ describe('drafts', () => {
     ).json()) as { id: string }[]
     expect(history.some((row) => row.id === draft.id)).toBe(false)
     const queue = (await (
-      await app.request('/api/officer/print-queue?all=1', { headers: { cookie: officerCookie } })
+      await app.request('/api/officer/print-queue?all=1', {
+        headers: { cookie: officerCookie },
+      })
     ).json()) as { id: string }[]
     expect(queue.some((row) => row.id === draft.id)).toBe(false)
     expect((await settle(draft.id, { status: 'PRINTING' })).status).toBe(404)
@@ -316,22 +371,47 @@ describe('drafts', () => {
   })
 
   it.each([
-    ['a file that isn’t a model', { file: new TextEncoder().encode('%PDF-1.4'), name: 'x.stl' }],
-    ['settings out of bounds', { settings: { ...SETTINGS, overrides: { layer_height: 0.5 } } }],
-    ['a setting members can’t change', { settings: { ...SETTINGS, overrides: { nozzle_temperature: 260 } } }],
+    [
+      'a file that isn’t a model',
+      { file: new TextEncoder().encode('%PDF-1.4'), name: 'x.stl' },
+    ],
+    [
+      'settings out of bounds',
+      { settings: { ...SETTINGS, overrides: { layer_height: 0.5 } } },
+    ],
+    [
+      'a setting members can’t change',
+      { settings: { ...SETTINGS, overrides: { nozzle_temperature: 260 } } },
+    ],
     ['resin', { settings: { ...SETTINGS, material: 'ABS_LIKE_RESIN' } }],
   ])('refuses %s', async (_case, options) => {
-    const response = await createDraft(memberCookie, options as Parameters<typeof createDraft>[1])
+    const response = await createDraft(
+      memberCookie,
+      options as Parameters<typeof createDraft>[1],
+    )
     expect(response.status).toBe(400)
   })
 
   it('is invisible to everybody else', async () => {
     const draft = await newDraft()
-    expect((await app.request(`/api/print/drafts/${draft.id}`, { headers: { cookie: otherCookie } })).status).toBe(404)
-    expect((await send('PATCH', `/api/print/drafts/${draft.id}`, { revision: 1 }, otherCookie)).status).toBe(404)
-    const mesh = await app.request(`/api/print/models/${draft.models[0]!.id}/mesh`, { headers: { cookie: otherCookie } })
+    expect(
+      (
+        await app.request(`/api/print/drafts/${draft.id}`, {
+          headers: { cookie: otherCookie },
+        })
+      ).status,
+    ).toBe(404)
+    expect(
+      (await send('PATCH', `/api/print/drafts/${draft.id}`, { revision: 1 }, otherCookie))
+        .status,
+    ).toBe(404)
+    const mesh = await app.request(`/api/print/models/${draft.models[0]!.id}/mesh`, {
+      headers: { cookie: otherCookie },
+    })
     expect(mesh.status).toBe(404)
-    const own = await app.request(`/api/print/models/${draft.models[0]!.id}/mesh`, { headers: { cookie: memberCookie } })
+    const own = await app.request(`/api/print/models/${draft.models[0]!.id}/mesh`, {
+      headers: { cookie: memberCookie },
+    })
     expect(own.status).toBe(200)
     expect(new Uint8Array(await own.arrayBuffer())).toEqual(cube())
   })
@@ -340,11 +420,17 @@ describe('drafts', () => {
 describe('editing the plate', () => {
   it('refuses an edit made against an old revision', async () => {
     const draft = await newDraft()
-    const first = await send('PATCH', `/api/print/drafts/${draft.id}`, { revision: 1, preset: 'Q' })
+    const first = await send('PATCH', `/api/print/drafts/${draft.id}`, {
+      revision: 1,
+      preset: 'Q',
+    })
     expect(first.status).toBe(200)
     expect(((await first.json()) as Draft).revision).toBe(2)
 
-    const stale = await send('PATCH', `/api/print/drafts/${draft.id}`, { revision: 1, preset: 'QS' })
+    const stale = await send('PATCH', `/api/print/drafts/${draft.id}`, {
+      revision: 1,
+      preset: 'QS',
+    })
     expect(stale.status).toBe(409)
     expect((await read(draft.id)).preset).toBe('Q')
   })
@@ -353,16 +439,29 @@ describe('editing the plate', () => {
     const draft = await newDraft()
     const model = draft.models[0]!
     const original = draft.objects[0]!
-    const copy = { ...original, ...placed(60, 60), modelId: model.id, name: original.name }
+    const copy = {
+      ...original,
+      ...placed(60, 60),
+      modelId: model.id,
+      name: original.name,
+    }
 
     const doubled = (await (
-      await send('PATCH', `/api/print/drafts/${draft.id}`, { revision: 1, objects: [original, copy] })
+      await send('PATCH', `/api/print/drafts/${draft.id}`, {
+        revision: 1,
+        objects: [original, copy],
+      })
     ).json()) as Draft
     expect(doubled.objects).toHaveLength(2)
     expect(doubled.models).toHaveLength(1)
 
-    const fileId = (await prisma.printModel.findUniqueOrThrow({ where: { id: model.id } })).fileId!
-    const emptied = await send('PATCH', `/api/print/drafts/${draft.id}`, { revision: 2, objects: [] })
+    const fileId = (
+      await prisma.printModel.findUniqueOrThrow({ where: { id: model.id } })
+    ).fileId!
+    const emptied = await send('PATCH', `/api/print/drafts/${draft.id}`, {
+      revision: 2,
+      objects: [],
+    })
     expect(emptied.status).toBe(200)
     expect(await prisma.printModel.findUnique({ where: { id: model.id } })).toBeNull()
     expect(await prisma.storedFile.findUnique({ where: { id: fileId } })).toBeNull()
@@ -378,7 +477,10 @@ describe('editing the plate', () => {
     ).json()) as Draft
     expect(edited.overrides).toEqual({ wall_loops: 4, sparse_infill_pattern: 'gyroid' })
 
-    const bad = await send('PATCH', `/api/print/drafts/${draft.id}`, { revision: 2, overrides: { wall_loops: 40 } })
+    const bad = await send('PATCH', `/api/print/drafts/${draft.id}`, {
+      revision: 2,
+      overrides: { wall_loops: 40 },
+    })
     expect(bad.status).toBe(400)
   })
 
@@ -419,22 +521,37 @@ describe('slicing', () => {
   it('queues one job with the plate frozen in it, and reuses it for the same plate', async () => {
     const draft = await newDraft()
     expect((await slice(draft)).status).toBe(200)
-    const job = await prisma.printSlice.findUniqueOrThrow({ where: { requestId: draft.id } })
+    const job = await prisma.printSlice.findUniqueOrThrow({
+      where: { requestId: draft.id },
+    })
     expect(job.state).toBe('QUEUED')
-    expect(job.spec).toMatchObject({ material: 'PLA', preset: 'STANDARD', objects: [{ x: 128, y: 128 }] })
+    expect(job.spec).toMatchObject({
+      material: 'PLA',
+      preset: 'STANDARD',
+      objects: [{ x: 128, y: 128 }],
+    })
 
     expect((await slice(draft)).status).toBe(200)
-    const again = await prisma.printSlice.findUniqueOrThrow({ where: { requestId: draft.id } })
+    const again = await prisma.printSlice.findUniqueOrThrow({
+      where: { requestId: draft.id },
+    })
     expect(again.requestedAt).toEqual(job.requestedAt)
   })
 
   it('makes a READY slice stale on an edit, and current again when the edit is undone', async () => {
     const draft = await slicedDraft()
-    expect(draft.slice).toMatchObject({ state: 'READY', current: true, estimatedGrams: 36.2 })
+    expect(draft.slice).toMatchObject({
+      state: 'READY',
+      current: true,
+      estimatedGrams: 36.2,
+    })
 
     const moved = { ...draft.objects[0]!, x: 100 }
     const edited = (await (
-      await send('PATCH', `/api/print/drafts/${draft.id}`, { revision: draft.revision, objects: [moved] })
+      await send('PATCH', `/api/print/drafts/${draft.id}`, {
+        revision: draft.revision,
+        objects: [moved],
+      })
     ).json()) as Draft
     expect(edited.slice?.current).toBe(false)
     expect((await submit(edited)).status).toBe(409)
@@ -479,10 +596,14 @@ describe('slicing', () => {
 
   it('serves the preview to its owner only', async () => {
     const draft = await slicedDraft()
-    const own = await app.request(`/api/print/drafts/${draft.id}/preview`, { headers: { cookie: memberCookie } })
+    const own = await app.request(`/api/print/drafts/${draft.id}/preview`, {
+      headers: { cookie: memberCookie },
+    })
     expect(own.status).toBe(200)
     expect(new Uint8Array(await own.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]))
-    const other = await app.request(`/api/print/drafts/${draft.id}/preview`, { headers: { cookie: otherCookie } })
+    const other = await app.request(`/api/print/drafts/${draft.id}/preview`, {
+      headers: { cookie: otherCookie },
+    })
     expect(other.status).toBe(404)
   })
 })
@@ -510,7 +631,9 @@ describe('submitting', () => {
     expect(vi.mocked(notifyOfficers).mock.calls[0]![0]).toContain('about 37 g')
 
     const queue = (await (
-      await app.request('/api/officer/print-queue', { headers: { cookie: officerCookie } })
+      await app.request('/api/officer/print-queue', {
+        headers: { cookie: officerCookie },
+      })
     ).json()) as { id: string; sliceFile: unknown; preset: string }[]
     expect(queue.find((item) => item.id === draft.id)).toMatchObject({
       preset: 'STANDARD',
@@ -524,7 +647,12 @@ describe('submitting', () => {
   it('refuses a project the member isn’t on', async () => {
     const draft = await slicedDraft()
     const other = await prisma.project.create({
-      data: { slug: `${PREFIX}other`, title: 'Not Theirs', termYear: 2035, termSeason: Season.FALL },
+      data: {
+        slug: `${PREFIX}other`,
+        title: 'Not Theirs',
+        termYear: 2035,
+        termSeason: Season.FALL,
+      },
     })
     expect((await submit(draft, { projectId: other.id })).status).toBe(403)
   })
@@ -547,21 +675,41 @@ describe('the officer’s side', () => {
   it('downloads the .3mf, for officers only', async () => {
     const draft = await slicedDraft()
     // A draft's file is its owner's business.
-    expect((await app.request(`/api/officer/print/${draft.id}/slice-file`, { headers: { cookie: officerCookie } })).status).toBe(404)
+    expect(
+      (
+        await app.request(`/api/officer/print/${draft.id}/slice-file`, {
+          headers: { cookie: officerCookie },
+        })
+      ).status,
+    ).toBe(404)
 
     await submit(draft)
-    const file = await app.request(`/api/officer/print/${draft.id}/slice-file`, { headers: { cookie: officerCookie } })
+    const file = await app.request(`/api/officer/print/${draft.id}/slice-file`, {
+      headers: { cookie: officerCookie },
+    })
     expect(file.status).toBe(200)
     expect(file.headers.get('content-type')).toBe('model/3mf')
-    expect(file.headers.get('content-disposition')).toMatch(/^attachment; filename=".+\.3mf"$/)
-    expect((await app.request(`/api/officer/print/${draft.id}/slice-file`, { headers: { cookie: memberCookie } })).status).toBe(403)
+    expect(file.headers.get('content-disposition')).toMatch(
+      /^attachment; filename=".+\.3mf"$/,
+    )
+    expect(
+      (
+        await app.request(`/api/officer/print/${draft.id}/slice-file`, {
+          headers: { cookie: memberCookie },
+        })
+      ).status,
+    ).toBe(403)
   })
 
   it('charges the estimate, rounded up, when MARK DONE names no figure', async () => {
     const draft = await slicedDraft()
     await submit(draft)
-    const files = await prisma.printSlice.findUniqueOrThrow({ where: { requestId: draft.id } })
-    const modelFile = (await prisma.printModel.findFirstOrThrow({ where: { requestId: draft.id } })).fileId!
+    const files = await prisma.printSlice.findUniqueOrThrow({
+      where: { requestId: draft.id },
+    })
+    const modelFile = (
+      await prisma.printModel.findFirstOrThrow({ where: { requestId: draft.id } })
+    ).fileId!
 
     const done = await settle(draft.id, { status: 'DONE' })
     expect(done.status).toBe(200)
@@ -591,7 +739,9 @@ describe('the officer’s side', () => {
     await finishSlice(draft.id, env.PERSONAL_PRINT_GRAMS + 10)
     await submit(await read(draft.id))
     expect((await settle(draft.id, { status: 'DONE' })).status).toBe(409)
-    expect((await settle(draft.id, { status: 'DONE', overAllowance: true })).status).toBe(200)
+    expect((await settle(draft.id, { status: 'DONE', overAllowance: true })).status).toBe(
+      200,
+    )
   })
 
   it('refuses settings corrections on a plate its owner sliced', async () => {
@@ -599,7 +749,12 @@ describe('the officer’s side', () => {
     await submit(draft)
     const response = await settle(draft.id, {
       status: 'DONE',
-      printed: { process: 'FDM', material: 'PETG', infillPattern: 'GRID', infillDensity: 20 },
+      printed: {
+        process: 'FDM',
+        material: 'PETG',
+        infillPattern: 'GRID',
+        infillDensity: 20,
+      },
     })
     expect(response.status).toBe(400)
   })
@@ -611,7 +766,9 @@ describe('when drafts go', () => {
     const response = await send('DELETE', `/api/print/drafts/${draft.id}`, {})
     expect(response.status).toBe(200)
     expect(await prisma.printRequest.findUnique({ where: { id: draft.id } })).toBeNull()
-    expect(await prisma.storedFile.count({ where: { originalName: { startsWith: PREFIX } } })).toBe(0)
+    expect(
+      await prisma.storedFile.count({ where: { originalName: { startsWith: PREFIX } } }),
+    ).toBe(0)
   })
 
   it('expires drafts left alone, and leaves ones still in use', async () => {
@@ -629,9 +786,13 @@ describe('when drafts go', () => {
     // A 2000 clock, so no real draft is old enough to be in the window.
     await sweepPrintDrafts(new Date('2000-01-01T12:00:00'))
     expect(await prisma.printRequest.findUnique({ where: { id: old.id } })).toBeNull()
-    expect(await prisma.printRequest.findUnique({ where: { id: fresh.id } })).not.toBeNull()
     expect(
-      await prisma.storedFile.count({ where: { createdById: memberId, kind: FileKind.PRINT_MODEL } }),
+      await prisma.printRequest.findUnique({ where: { id: fresh.id } }),
+    ).not.toBeNull()
+    expect(
+      await prisma.storedFile.count({
+        where: { createdById: memberId, kind: FileKind.PRINT_MODEL },
+      }),
     ).toBe(1)
   })
 
@@ -643,8 +804,8 @@ describe('when drafts go', () => {
       data: { createdAt: new Date('1999-12-01') },
     })
     await sweepPrintDrafts(new Date('2000-01-01T12:00:00'))
-    expect((await prisma.printRequest.findUniqueOrThrow({ where: { id: draft.id } })).status).toBe(
-      PrintRequestStatus.PENDING,
-    )
+    expect(
+      (await prisma.printRequest.findUniqueOrThrow({ where: { id: draft.id } })).status,
+    ).toBe(PrintRequestStatus.PENDING)
   })
 })

@@ -4,7 +4,9 @@ import { buildPreview } from './gcodePreview.js'
 import { ArchiveError, type Expected, readSlicedProject } from './sliceArchive.js'
 
 // A 20 mm cube the worker sliced with Orca 2.4.2: PLA, the Standard preset, nothing changed.
-const fixture = new Uint8Array(readFileSync(new URL('./fixtures/sliced-cube.3mf', import.meta.url)))
+const fixture = new Uint8Array(
+  readFileSync(new URL('./fixtures/sliced-cube.3mf', import.meta.url)),
+)
 
 const expected: Expected = {
   objects: 1,
@@ -49,7 +51,10 @@ describe('readSlicedProject', () => {
       readSlicedProject(fixture, { ...expected, overrides: { wall_loops: '5' } }),
     ).toThrow(ArchiveError)
     expect(() =>
-      readSlicedProject(fixture, { ...expected, filament: 'Elegoo RAPID PETG Optimized' }),
+      readSlicedProject(fixture, {
+        ...expected,
+        filament: 'Elegoo RAPID PETG Optimized',
+      }),
     ).toThrow(/filament_settings_id/)
   })
 

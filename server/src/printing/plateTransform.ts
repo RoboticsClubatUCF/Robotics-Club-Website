@@ -151,7 +151,12 @@ export function placedBox(positions: Float32Array, affine: Affine): Box {
 export function footprint(positions: Float32Array, affine: Affine): [number, number][] {
   const points: [number, number][] = []
   for (let i = 0; i < positions.length; i += 3) {
-    const [x, y] = applyAffine(affine, positions[i]!, positions[i + 1]!, positions[i + 2]!)
+    const [x, y] = applyAffine(
+      affine,
+      positions[i]!,
+      positions[i + 1]!,
+      positions[i + 2]!,
+    )
     points.push([x, y])
   }
   return convexHull(points)
@@ -165,12 +170,14 @@ export function convexHull(input: [number, number][]): [number, number][] {
     (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
   const lower: [number, number][] = []
   for (const point of points) {
-    while (lower.length >= 2 && cross(lower.at(-2)!, lower.at(-1)!, point) <= 0) lower.pop()
+    while (lower.length >= 2 && cross(lower.at(-2)!, lower.at(-1)!, point) <= 0)
+      lower.pop()
     lower.push(point)
   }
   const upper: [number, number][] = []
   for (const point of points.toReversed()) {
-    while (upper.length >= 2 && cross(upper.at(-2)!, upper.at(-1)!, point) <= 0) upper.pop()
+    while (upper.length >= 2 && cross(upper.at(-2)!, upper.at(-1)!, point) <= 0)
+      upper.pop()
     upper.push(point)
   }
   return [...lower.slice(0, -1), ...upper.slice(0, -1)]
@@ -198,7 +205,8 @@ export function hullTouchesRect(
     const [bx, by] = hull[(i + 1) % hull.length]!
     const nx = by - ay
     const ny = ax - bx
-    const project = (points: [number, number][]) => points.map(([x, y]) => x * nx + y * ny)
+    const project = (points: [number, number][]) =>
+      points.map(([x, y]) => x * nx + y * ny)
     const a = project(hull)
     const b = project(corners)
     if (Math.max(...a) <= Math.min(...b) || Math.max(...b) <= Math.min(...a)) return false
@@ -211,7 +219,11 @@ export type FitProblem = 'offPlate' | 'tooTall' | 'noGo'
 /** Small enough to forgive float noise from the browser's numbers, too small to matter on a part. */
 const EPSILON = 1e-3
 
-export function fitProblem(positions: Float32Array, affine: Affine, bed: Bed): FitProblem | null {
+export function fitProblem(
+  positions: Float32Array,
+  affine: Affine,
+  bed: Bed,
+): FitProblem | null {
   const box = placedBox(positions, affine)
   if (
     box.min[0] < -EPSILON ||
@@ -222,6 +234,7 @@ export function fitProblem(positions: Float32Array, affine: Affine, bed: Bed): F
     return 'offPlate'
   }
   if (box.max[2] > bed.height + EPSILON) return 'tooTall'
-  if (bed.exclude && hullTouchesRect(footprint(positions, affine), bed.exclude)) return 'noGo'
+  if (bed.exclude && hullTouchesRect(footprint(positions, affine), bed.exclude))
+    return 'noGo'
   return null
 }

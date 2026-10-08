@@ -79,7 +79,9 @@ export function fingerprintOf(spec: PlateSpec, profileSetHash: string): string {
       ...placement,
     })),
   }
-  return createHash('sha256').update(JSON.stringify(stable(body))).digest('hex')
+  return createHash('sha256')
+    .update(JSON.stringify(stable(body)))
+    .digest('hex')
 }
 
 type Tx = Prisma.TransactionClient
@@ -150,7 +152,8 @@ async function failAbandoned(): Promise<void> {
     },
     data: {
       state: SlicerJobState.FAILED,
-      failure: 'The slicer stopped twice on this plate. Try changing it, or ask an officer.',
+      failure:
+        'The slicer stopped twice on this plate. Try changing it, or ask an officer.',
       retryable: true,
       leaseToken: null,
       leaseExpiresAt: null,
@@ -165,7 +168,8 @@ async function failAbandoned(): Promise<void> {
     },
     data: {
       meshState: SlicerJobState.FAILED,
-      meshFailure: "This STEP file couldn't be converted. Export it as STL and upload that.",
+      meshFailure:
+        "This STEP file couldn't be converted. Export it as STL and upload that.",
       leaseToken: null,
       leaseExpiresAt: null,
     },
@@ -176,7 +180,13 @@ export async function claimSlice(): Promise<ClaimedSlice | null> {
   await failAbandoned()
   const token = randomUUID()
   const rows = await prisma.$queryRaw<
-    { id: string; request_id: string; fingerprint: string; spec: unknown; attempts: number }[]
+    {
+      id: string
+      request_id: string
+      fingerprint: string
+      spec: unknown
+      attempts: number
+    }[]
   >`
     UPDATE print_slices
     SET state = 'RUNNING', lease_token = ${token},
@@ -195,7 +205,12 @@ export async function claimSlice(): Promise<ClaimedSlice | null> {
 
   const spec = plateSpec.safeParse(row.spec)
   if (!spec.success) {
-    await failSlice(row.id, token, 'This plate was saved in a form the slicer no longer reads.', true)
+    await failSlice(
+      row.id,
+      token,
+      'This plate was saved in a form the slicer no longer reads.',
+      true,
+    )
     return null
   }
   return {
@@ -217,7 +232,9 @@ export interface ClaimedMesh {
 
 export async function claimMesh(): Promise<ClaimedMesh | null> {
   const token = randomUUID()
-  const rows = await prisma.$queryRaw<{ id: string; file_id: string | null; file_name: string }[]>`
+  const rows = await prisma.$queryRaw<
+    { id: string; file_id: string | null; file_name: string }[]
+  >`
     UPDATE print_models
     SET mesh_state = 'RUNNING', lease_token = ${token},
         lease_expires_at = now() + make_interval(secs => ${LEASE_SECONDS}),
@@ -276,9 +293,18 @@ export async function failSlice(
 }
 
 /** Back in the queue after a crash, unless it has had its attempts. */
-export async function retrySlice(id: string, token: string, attempts: number): Promise<void> {
+export async function retrySlice(
+  id: string,
+  token: string,
+  attempts: number,
+): Promise<void> {
   if (attempts >= MAX_ATTEMPTS) {
-    await failSlice(id, token, 'The slicer crashed on this plate. Try again in a minute.', true)
+    await failSlice(
+      id,
+      token,
+      'The slicer crashed on this plate. Try again in a minute.',
+      true,
+    )
     return
   }
   await prisma.printSlice.updateMany({
@@ -300,7 +326,11 @@ export interface SliceOutput {
 }
 
 /** Stores the `.3mf` and preview and marks the job READY, in one transaction, if it's still ours. */
-export async function publishSlice(id: string, token: string, result: SliceOutput): Promise<boolean> {
+export async function publishSlice(
+  id: string,
+  token: string,
+  result: SliceOutput,
+): Promise<boolean> {
   return prisma.$transaction(async (tx) => {
     const held = await tx.printSlice.findFirst({
       where: { id, leaseToken: token, state: SlicerJobState.RUNNING },
@@ -308,7 +338,9 @@ export async function publishSlice(id: string, token: string, result: SliceOutpu
     })
     if (!held) return false
 
-    const stale = [held.outputFileId, held.previewFileId].filter((v): v is string => v !== null)
+    const stale = [held.outputFileId, held.previewFileId].filter(
+      (v): v is string => v !== null,
+    )
     if (stale.length > 0) await tx.storedFile.deleteMany({ where: { id: { in: stale } } })
 
     const output = await tx.storedFile.create({
@@ -357,7 +389,11 @@ export async function publishSlice(id: string, token: string, result: SliceOutpu
   })
 }
 
-export async function failMesh(id: string, token: string, failure: string): Promise<void> {
+export async function failMesh(
+  id: string,
+  token: string,
+  failure: string,
+): Promise<void> {
   await prisma.printModel.updateMany({
     where: { id, leaseToken: token },
     data: {
