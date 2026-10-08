@@ -35,6 +35,7 @@ function read(bytes: Uint8Array) {
     const pathCount = varint()
     for (let p = 0; p < pathCount; p++) {
       const role = ROLES[raw[at++]!]
+      const width = varint() / 100
       const points: [number, number][] = []
       const n = varint()
       for (let i = 0; i < n; i++) {
@@ -42,12 +43,13 @@ function read(bytes: Uint8Array) {
         y += zigzag()
         points.push([x / 100, y / 100])
       }
-      paths.push({ role, points })
+      paths.push({ role, width, points })
     }
     layers.push({ z, paths })
   }
   return {
     magic: String.fromCharCode(...raw.subarray(0, 4)),
+    version: raw[4],
     segments: view.getUint32(24, true),
     bounds: [0, 1, 2, 3, 4, 5].map((i) => view.getFloat32(28 + i * 4, true)),
     layers,
@@ -64,10 +66,12 @@ G1 X10 Y10 F3000
 ;Z:0.2
 ;HEIGHT:0.2
 ;TYPE:Outer wall
+;WIDTH:0.42
 G1 X20 Y10 E1
 G1 X20 Y20 E1
 G1 X25 Y25
 ;TYPE:Sparse infill
+;WIDTH:0.45
 G1 X30 Y25 E0.5
 ;LAYER_CHANGE
 ;Z:0.4
@@ -83,6 +87,7 @@ describe('buildPreview', () => {
     expect(preview.segments).toBe(4)
     const decoded = read(preview.bytes)
     expect(decoded.magic).toBe('RCPV')
+    expect(decoded.version).toBe(2)
     expect(decoded.layers[0]!.z).toBeCloseTo(0.2)
     expect(decoded.layers[0]!.paths.map((p) => p.role)).toEqual([
       'outerWall',
@@ -93,8 +98,10 @@ describe('buildPreview', () => {
       [20, 10],
       [20, 20],
     ])
+    expect(decoded.layers[0]!.paths.map((p) => p.width)).toEqual([0.42, 0.45])
     expect(decoded.layers[1]!.paths[0]).toEqual({
       role: 'support',
+      width: 0.45,
       points: [
         [30, 25],
         [10, 10],
@@ -103,6 +110,35 @@ describe('buildPreview', () => {
     expect(decoded.bounds[0]).toBe(10)
     expect(decoded.bounds[3]).toBe(30)
     expect(decoded.bounds[5]).toBeCloseTo(0.4)
+  })
+
+  it('starts a new path where the line width changes, without a gap', () => {
+    const widths =
+      ';LAYER_CHANGE\n;Z:0.2\nM83\n;TYPE:Solid infill\n;WIDTH:0.42\nG1 X0 Y0\nG1 X10 Y0 E1\n;WIDTH:0.45\nG1 X20 Y0 E1\n'
+    const { layers } = read(buildPreview(gcode(widths), bed, limits).bytes)
+    expect(layers[0]!.paths).toEqual([
+      { role: 'solidInfill', width: 0.42, points: [[0, 0], [10, 0]] },
+      { role: 'solidInfill', width: 0.45, points: [[10, 0], [20, 0]] },
+    ])
+  })
+
+  it('keeps a path whole while its width only drifts, as Arachne walls do', () => {
+    const drift =
+      ';LAYER_CHANGE\n;Z:0.2\nM83\n;TYPE:Inner wall\n;WIDTH:0.45\nG1 X0 Y0\nG1 X10 Y0 E1\n;WIDTH:0.46\nG1 X20 Y0 E1\n;WIDTH:0.47\nG1 X30 Y0 E1\n'
+    const { layers } = read(buildPreview(gcode(drift), bed, limits).bytes)
+    expect(layers[0]!.paths).toHaveLength(1)
+    expect(layers[0]!.paths[0]!.points).toHaveLength(4)
+  })
+
+  it('leaves out a move too short to have a direction', () => {
+    const short = ';LAYER_CHANGE\n;Z:0.2\nM83\n;TYPE:Outer wall\nG1 X0 Y0\nG1 X10 Y0 E1\nG1 X10.001 Y0 E0.01\nG1 X10 Y10 E1\n'
+    const preview = buildPreview(gcode(short), bed, limits)
+    expect(preview.segments).toBe(2)
+    expect(read(preview.bytes).layers[0]!.paths[0]!.points).toEqual([
+      [0, 0],
+      [10, 0],
+      [10, 10],
+    ])
   })
 
   it('cuts arcs into chords that stay on the circle', () => {

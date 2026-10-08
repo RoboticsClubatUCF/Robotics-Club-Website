@@ -1,5 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { BufferGeometry, Float32BufferAttribute, Group, LineBasicMaterial, LineSegments } from 'three'
+import type { Group } from 'three'
+import {
+  type Extrusions,
+  disposeExtrusions,
+  fitsTexture,
+  makeExtrusions,
+  setExtrusionColor,
+  showSegments,
+} from '../../lib/slicer/extrusions'
 import { ROLES, ROLE_LABEL, type Preview, type Role } from '../../lib/slicer/preview'
 import type { Bed } from '../../lib/slicer/plateTransform'
 import {
@@ -12,8 +20,8 @@ import {
 import { useTheme } from '../../lib/theme'
 
 /**
- * The sliced plate, layer by layer: Orca's own toolpaths, coloured by what they are. The slider
- * picks the top layer shown; the legend hides a kind of path.
+ * The sliced plate, layer by layer: Orca's own toolpaths at their real width and layer height,
+ * coloured by what they are. The slider picks the top layer shown; the legend hides a kind of path.
  */
 export function PreviewView({ bed, preview }: { bed: Bed; preview: Preview }) {
   const last = preview.layers.length - 1
@@ -54,7 +62,7 @@ function PreviewCanvas({
   const host = useRef<HTMLDivElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
   const stage = useRef<Stage | null>(null)
-  const lines = useRef<Map<Role, LineSegments>>(new Map())
+  const beads = useRef<Map<Role, Extrusions>>(new Map())
   const bedGroup = useRef<Group | null>(null)
   const theme = useTheme()
   const [failed, setFailed] = useState(false)
@@ -66,21 +74,26 @@ function PreviewCanvas({
       setFailed(true)
       return
     }
+    const drawn = ROLES.filter((role) => !!preview.roles[role].layerStart.at(-1))
+    const { maxTextureSize } = made.renderer.capabilities
+    if (!drawn.every((role) => fitsTexture(preview.roles[role], maxTextureSize))) {
+      made.dispose()
+      setFailed(true)
+      return
+    }
+    // three only logs a shader that won't compile, which would leave the canvas blank.
+    made.renderer.debug.onShaderError = () => {
+      setFailed(true)
+    }
     stage.current = made
-    const paths = lines.current
-    for (const role of ROLES) {
-      const geometry = new BufferGeometry()
-      geometry.setAttribute('position', new Float32BufferAttribute(preview.roles[role].positions, 3))
-      const segments = new LineSegments(geometry, new LineBasicMaterial())
-      segments.frustumCulled = false
-      paths.set(role, segments)
-      made.scene.add(segments)
+    const paths = beads.current
+    for (const role of drawn) {
+      const extrusions = makeExtrusions(preview.roles[role])
+      paths.set(role, extrusions)
+      made.scene.add(extrusions)
     }
     return () => {
-      for (const segments of paths.values()) {
-        segments.geometry.dispose()
-        ;(segments.material as LineBasicMaterial).dispose()
-      }
+      for (const extrusions of paths.values()) disposeExtrusions(extrusions)
       paths.clear()
       if (bedGroup.current) disposeTree(bedGroup.current)
       bedGroup.current = null
@@ -100,18 +113,14 @@ function PreviewCanvas({
     }
     bedGroup.current = makeBed(bed, colors)
     made.scene.add(bedGroup.current)
-    for (const [role, segments] of lines.current) {
-      ;(segments.material as LineBasicMaterial).color.copy(colors.roles[role])
-    }
+    for (const [role, extrusions] of beads.current) setExtrusionColor(extrusions, colors.roles[role])
     made.render()
   }, [theme, bed, preview])
 
   useEffect(() => {
-    for (const [role, segments] of lines.current) {
-      const end = preview.roles[role].layerStart[top + 1] ?? 0
-      segments.visible = !hidden.has(role)
-      // Two vertices per segment.
-      segments.geometry.setDrawRange(0, end * 2)
+    for (const [role, extrusions] of beads.current) {
+      extrusions.visible = !hidden.has(role)
+      showSegments(extrusions, preview.roles[role].layerStart[top + 1] ?? 0)
     }
     stage.current?.render()
   }, [top, hidden, preview])
@@ -166,7 +175,7 @@ function Legend({
         {open ? 'HIDE PATHS' : 'PATHS'}
       </button>
       <ul aria-label="Path types" hidden={!open} className="p-1.5 pt-0">
-        {ROLES.filter((role) => preview.roles[role].positions.length > 0).map((role) => {
+        {ROLES.filter((role) => !!preview.roles[role].layerStart.at(-1)).map((role) => {
           const shown = !hidden.has(role)
           return (
             <li key={role}>

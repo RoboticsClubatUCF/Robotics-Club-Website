@@ -7,15 +7,17 @@ import { gzipSync } from 'fflate'
  * print. Arcs are cut into chords: the approved process has arc fitting on, and a reader that
  * skips G2/G3 (as three.js's stock loader does) loses most of every curved wall.
  *
- * Format, gzipped, little-endian ("RCPV" 1). `web/src/lib/slicer/preview.ts` reads it.
+ * Format, gzipped, little-endian ("RCPV" 2). `web/src/lib/slicer/preview.ts` reads it.
  *
  *   0   "RCPV", u8 version, 3 reserved bytes
  *   8   f32 bed width, depth, height
  *   20  u32 layer count, u32 segment count
  *   28  f32 extrusion bounds: min x, y, z, max x, y, z
  *   52  per layer: f32 z, f32 height, varint path count;
- *       per path: u8 role, varint point count, then zigzag-varint x/y deltas in 0.01 mm.
- *       The delta cursor carries on across paths and layers.
+ *       per path: u8 role, varint line width in 0.01 mm, varint point count, then zigzag-varint
+ *       x/y deltas in 0.01 mm. The delta cursor carries on across paths and layers.
+ *
+ * Version 1 had no line width; the viewer still reads it.
  */
 
 export const ROLES = [
@@ -40,6 +42,15 @@ export interface Preview {
   layers: number
   segments: number
 }
+
+/** Orca's outer wall width; the closest guess before the G-code says. */
+const DEFAULT_WIDTH = 0.42
+/**
+ * How far, in 0.01 mm, a line's width may drift before its path is split. Arachne walls change
+ * width on nearly every move, and a split per move would double the preview's size for a
+ * difference nobody can see.
+ */
+const WIDTH_DRIFT = 2
 
 /** How far a chord may stray from the arc it replaces. */
 const CHORD_TOLERANCE = 0.02
@@ -110,6 +121,8 @@ class Bytes {
 
 interface Path {
   role: number
+  /** Line width in 0.01 mm. */
+  width: number
   points: number[]
 }
 
@@ -141,6 +154,7 @@ export function buildPreview(
   let pendingHeight: number | null = null
 
   let role = ROLES.indexOf('other')
+  let width = Math.round(DEFAULT_WIDTH * 100)
   let absolute = true
   let absoluteE = true
   let x = 0
@@ -156,11 +170,15 @@ export function buildPreview(
   }
 
   const extrudeTo = (nx: number, ny: number) => {
-    if (!path || path.role !== role) {
+    if (!path || path.role !== role || Math.abs(path.width - width) > WIDTH_DRIFT) {
       endPath()
-      path = { role, points: [Math.round(x * 100), Math.round(y * 100)] }
+      path = { role, width, points: [Math.round(x * 100), Math.round(y * 100)] }
     }
-    path.points.push(Math.round(nx * 100), Math.round(ny * 100))
+    const px = Math.round(nx * 100)
+    const py = Math.round(ny * 100)
+    // A move shorter than the format's 0.01 mm has no direction to draw a line along.
+    if (px === path.points.at(-2) && py === path.points.at(-1)) return
+    path.points.push(px, py)
     segments++
     if (segments > limits.maxSegments) {
       throw new PreviewError('The plate is too detailed to preview.')
@@ -199,6 +217,10 @@ export function buildPreview(
       } else if (comment.startsWith('TYPE:') || comment.startsWith('FEATURE:')) {
         endPath()
         role = ROLES.indexOf(roleOf(comment.slice(comment.indexOf(':') + 1)))
+      } else if (comment.startsWith('WIDTH:') || comment.startsWith('LINE_WIDTH:')) {
+        // Orca says it before the lines it applies to, and again only when it changes.
+        const value = Number(comment.slice(comment.indexOf(':') + 1))
+        if (value > 0) width = Math.round(value * 100)
       } else if (comment.startsWith('total layer number:')) {
         declaredLayers = Number(comment.slice('total layer number:'.length))
       }
@@ -288,7 +310,7 @@ export function buildPreview(
 
   const out = new Bytes()
   for (const c of 'RCPV') out.u8(c.charCodeAt(0))
-  out.u8(1)
+  out.u8(2)
   out.u8(0)
   out.u8(0)
   out.u8(0)
@@ -307,6 +329,7 @@ export function buildPreview(
     out.varint(layer.paths.length)
     for (const p of layer.paths) {
       out.u8(p.role)
+      out.varint(p.width)
       out.varint(p.points.length / 2)
       for (let i = 0; i < p.points.length; i += 2) {
         out.zigzag(p.points[i]! - cx)

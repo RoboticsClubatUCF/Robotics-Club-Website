@@ -9,7 +9,7 @@ self.onmessage = async (event: MessageEvent<ArrayBuffer>) => {
   try {
     const preview = parsePreview(await gunzip(new Uint8Array(event.data)))
     const buffers = ROLES.flatMap((role) => [
-      preview.roles[role].positions.buffer,
+      preview.roles[role].segments.buffer,
       preview.roles[role].layerStart.buffer,
     ])
     ;(self as unknown as Worker).postMessage({ preview }, buffers as Transferable[])
