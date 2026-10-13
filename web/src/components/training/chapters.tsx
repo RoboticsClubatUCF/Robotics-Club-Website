@@ -1287,6 +1287,9 @@ export const CHAPTERS: Chapter[] = [
             <H>Infill pattern</H>
             <P>The shape the inside is filled with.</P>
             <InfillTiles />
+            <aside aria-label="Infill recommendation" className="text-dim mb-5 text-[12.5px] leading-[1.55] text-pretty">
+              Recommended: <Name>Line</Name> for quick prototypes; <Name>Gyroid</Name> for standard parts.
+            </aside>
             <Terms
               items={[
                 ['Rectilinear', 'Straight lines that change direction each layer. Quick.'],
@@ -1581,7 +1584,7 @@ export const CHAPTERS: Chapter[] = [
         question: 'You have 100 g of your allowance left and send a personal print that needs 120 g. What happens?',
         options: [
           { text: 'It’s refused', why: 'Going over is allowed. An officer decides.' },
-          { text: 'It’s sent, and an officer decides whether to print it', right: true, why: 'Right. The form warns you first.' },
+          { text: "It's sent, however, I will need to pay for the print.", right: true, why: 'Right. The form warns you first.' },
           { text: 'It’s charged to a project', why: 'Only if you choose a project you’re on.' },
         ],
       },

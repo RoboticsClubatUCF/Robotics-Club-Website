@@ -1,5 +1,6 @@
 import { type ReactNode, useId } from 'react'
 export { BracketDiagram } from './BracketDiagram'
+export { InfillTiles } from './InfillTiles'
 
 /**
  * The training's drawings. Line work in the theme's ink, the thing being pointed at in gold, and
@@ -401,90 +402,6 @@ export function CrossSectionDiagram() {
       <Label x={376} y={98} anchor="start" tone="ink">INFILL</Label>
       <line x1={330} y1={144} x2={372} y2={134} className="stroke-current" />
       <Label x={376} y={137} anchor="start" tone="ink">BOTTOM LAYERS</Label>
-    </Figure>
-  )
-}
-
-/** Six infill patterns, a tile each. */
-export function InfillTiles() {
-  const id = useId()
-  const tiles: { name: string; draw: (x: number) => ReactNode }[] = [
-    {
-      name: 'LINE',
-      draw: (x) => Array.from({ length: 8 }, (_, i) => <line key={i} x1={x - 30 + i * 12} y1={70} x2={x + i * 12} y2={10} />),
-    },
-    {
-      name: 'GRID',
-      draw: (x) =>
-        Array.from({ length: 8 }, (_, i) => (
-          <g key={i}>
-            <line x1={x - 30 + i * 12} y1={70} x2={x + i * 12} y2={10} />
-            <line x1={x - 30 + i * 12} y1={10} x2={x + i * 12} y2={70} />
-          </g>
-        )),
-    },
-    {
-      name: 'TRIANGLES',
-      draw: (x) =>
-        Array.from({ length: 6 }, (_, i) => (
-          <g key={i}>
-            <line x1={x} x2={x + 60} y1={10 + i * 12} y2={10 + i * 12} />
-            <line x1={x - 20 + i * 14} y1={70} x2={x + 15 + i * 14} y2={10} />
-            <line x1={x - 20 + i * 14} y1={10} x2={x + 15 + i * 14} y2={70} />
-          </g>
-        )),
-    },
-    {
-      name: 'HONEYCOMB',
-      draw: (x) =>
-        [0, 1, 2].flatMap((row) =>
-          [0, 1, 2, 3].map((col) => {
-            const cx = x + 6 + col * 17 + (row % 2) * 8.5
-            const cy = 16 + row * 15
-            const points = Array.from({ length: 6 }, (_, k) => {
-              const a = (Math.PI / 3) * k + Math.PI / 6
-              return `${cx + 9 * Math.cos(a)},${cy + 9 * Math.sin(a)}`
-            }).join(' ')
-            return <polygon key={`${String(row)}-${String(col)}`} points={points} fill="none" />
-          }),
-        ),
-    },
-    {
-      name: 'GYROID',
-      draw: (x) =>
-        Array.from({ length: 5 }, (_, i) => {
-          const y = 14 + i * 12
-          const d = Array.from({ length: 31 }, (_, k) => `${k === 0 ? 'M' : 'L'}${x + k * 2},${y + 4 * Math.sin(k / 3 + i)}`).join(' ')
-          return <path key={i} d={d} fill="none" />
-        }),
-    },
-    {
-      name: 'CONCENTRIC',
-      draw: (x) => [0, 7, 14, 21].map((inset) => <rect key={inset} x={x + inset} y={10 + inset} width={60 - 2 * inset} height={60 - 2 * inset} fill="none" />),
-    },
-  ]
-  return (
-    <Figure
-      viewBox="0 0 480 95"
-      label="Six infill patterns from above: straight lines, a crossing grid, triangles, hexagons, a wavy gyroid, and rings following the outline."
-    >
-      {tiles.map((tile, i) => {
-        const x = 12 + i * 78
-        return (
-          <g key={tile.name}>
-            <defs>
-              <clipPath id={`${id}-${String(i)}`}>
-                <rect x={x} y={10} width={60} height={60} />
-              </clipPath>
-            </defs>
-            <g clipPath={`url(#${id}-${String(i)})`} className="stroke-info" strokeWidth={1.4}>
-              {tile.draw(x)}
-            </g>
-            <rect x={x} y={10} width={60} height={60} className={ink} strokeOpacity={0.6} />
-            <Label x={x + 30} y={86}>{tile.name}</Label>
-          </g>
-        )
-      })}
     </Figure>
   )
 }
