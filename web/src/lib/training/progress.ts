@@ -13,6 +13,8 @@ export interface TrainingProgress {
   /** The step they were on. */
   at: string | null
   total: number
+  /** Tasks started over but not finished again, including after completing the training. */
+  restarted?: string[]
 }
 
 const EMPTY: TrainingProgress = { done: [], at: null, total: 0 }
@@ -24,10 +26,12 @@ export function readProgress(userId: string): TrainingProgress {
     const raw = localStorage.getItem(key(userId))
     if (!raw) return EMPTY
     const parsed = JSON.parse(raw) as Partial<TrainingProgress>
+    const restarted = Array.isArray(parsed.restarted) ? parsed.restarted.filter((id) => typeof id === 'string') : []
     return {
       done: Array.isArray(parsed.done) ? parsed.done.filter((id) => typeof id === 'string') : [],
       at: typeof parsed.at === 'string' ? parsed.at : null,
       total: typeof parsed.total === 'number' ? parsed.total : 0,
+      ...(restarted.length ? { restarted } : {}),
     }
   } catch {
     return EMPTY

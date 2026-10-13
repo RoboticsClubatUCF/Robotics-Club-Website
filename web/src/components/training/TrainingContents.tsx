@@ -5,8 +5,8 @@ import { useDialogFocus } from '../../lib/useDialogFocus'
 const KIND = { read: 'READ', check: 'QUESTION', try: 'TRY IT', finish: 'FINISH' } as const
 
 /**
- * Every step of the training, by chapter, as a panel over the page. Steps after the first one not
- * yet done are shown but can't be opened.
+ * Every step of the training, by chapter, as a panel over the page. Completed and restarted
+ * tasks stay available; other unfinished steps after the first one not yet done are locked.
  */
 export function TrainingContents({
   steps,

@@ -83,7 +83,7 @@ export function PracticeStep({
         onStartOver={() => {
           onStartOver()
           memory.current = {}
-          setAchieved(fresh())
+          setAchieved(step.goals.map((goal) => !can3d && goal.needs3d === true))
           setAnnounce('')
           setRound(round + 1)
         }}

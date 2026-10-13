@@ -11,7 +11,8 @@ import { loadManifest, matchSlice } from './practiceSlices'
 /**
  * The training's plate: the workspace's `PlateSource`, kept in the browser. Nothing is uploaded,
  * saved or sliced. SLICE PLATE takes a moment, the way the real one does, and then shows the
- * ready-made slice matching the plate (`practiceSlices.ts`); REQUEST PRINT sends nothing.
+ * ready-made slice matching the plate (`practiceSlices.ts`). Only the sending module allows
+ * REQUEST PRINT, which simulates a request locally and sends nothing.
  *
  * A plate with no ready-made slice gets a notice, not a failed slice: the real slicer would have
  * sliced it, and most tasks start with a part practice can't slice.
@@ -42,7 +43,7 @@ const fingerprint = (plate: Plate) => JSON.stringify(plate)
 const labelOf = (id: string | null, list: { id: string; label: string }[]) =>
   list.find((item) => item.id === id)?.label ?? ''
 
-export function usePracticePlate(parts: Map<PartName, Float32Array> | null) {
+export function usePracticePlate(parts: Map<PartName, Float32Array> | null, allowSubmission = false) {
   const [plate, setPlate] = useState<Plate>(() => ({ ...freshSettings(), objects: [] }))
   const [uploads, setUploads] = useState<ApiPlateModel[]>([])
   const [slice, setSlice] = useState<(ApiDraftSlice & { fingerprint: string }) | null>(null)
@@ -185,10 +186,12 @@ export function usePracticePlate(parts: Map<PartName, Float32Array> | null) {
       }, SLICE_DELAY)
     },
     submit: () => {
+      if (!allowSubmission) return Promise.reject(new Error('Practice requests are only available in Sending it to print.'))
       setSent((count) => count + 1)
       setSentNotice(true)
       return Promise.resolve({ fileName: draft.fileName })
     },
+    canSubmit: allowSubmission,
     saving: false,
     unsaved: false,
     notice,

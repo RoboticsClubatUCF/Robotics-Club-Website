@@ -497,6 +497,7 @@ export function WorkspaceView({
   }
 
   const send = async (details: { projectId: string | null; notes: string }) => {
+    if (plate.canSubmit === false) return
     setSending('sending')
     try {
       const sent = await plate.submit(details)
@@ -668,10 +669,12 @@ export function WorkspaceView({
             type="button"
             data-coach="request"
             onClick={() => {
+              if (plate.canSubmit === false) return
               setSending('open')
             }}
-            disabled={!editable || !sliced}
-            className={sliced ? loudButton : quietButton}
+            disabled={!editable || !sliced || plate.canSubmit === false}
+            title={plate.canSubmit === false ? 'Practice requests are only available in Sending it to print.' : undefined}
+            className={sliced && plate.canSubmit !== false ? loudButton : quietButton}
           >
             REQUEST PRINT
           </button>

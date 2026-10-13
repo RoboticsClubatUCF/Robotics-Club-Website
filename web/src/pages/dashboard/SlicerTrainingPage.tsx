@@ -43,10 +43,13 @@ export function SlicerTrainingPage() {
   const [progress, setProgress] = useState(() => readProgress(user.id))
   const done = new Set(progress.done)
   const firstOpen = STEPS.findIndex(({ step }) => !done.has(step.id))
-  const open = (index: number) => trained || firstOpen === -1 || index <= firstOpen
+  const open = (index: number) => {
+    const id = STEPS[index]!.step.id
+    return trained || firstOpen === -1 || index <= firstOpen || done.has(id) || progress.restarted?.includes(id) === true
+  }
   const [index, setIndex] = useState(() => {
     const at = STEPS.findIndex(({ step }) => step.id === progress.at)
-    return at >= 0 && (firstOpen === -1 || at <= firstOpen) ? at : Math.max(0, firstOpen)
+    return at >= 0 && open(at) ? at : Math.max(0, firstOpen)
   })
   const here = STEPS[index]!
   const [contents, setContents] = useState(false)
@@ -56,7 +59,12 @@ export function SlicerTrainingPage() {
   }, [user.id, progress])
 
   const markDone = (id: string) => {
-    setProgress((was) => (was.done.includes(id) ? was : { ...was, done: [...was.done, id], total: STEPS.length }))
+    setProgress((was) => (was.done.includes(id) ? was : {
+      ...was,
+      done: [...was.done, id],
+      restarted: was.restarted?.filter((task) => task !== id),
+      total: STEPS.length,
+    }))
   }
 
   const go = (next: number) => {
@@ -91,7 +99,7 @@ export function SlicerTrainingPage() {
     }
   }, [])
   const ready = parts instanceof Map ? parts : null
-  const practice = usePracticePlate(ready)
+  const practice = usePracticePlate(ready, here.chapter.id === 'sending')
   const preview = usePracticePreview(
     practice.sliced?.name ?? null,
     practice.sliced?.offset ?? [0, 0],
@@ -149,7 +157,7 @@ export function SlicerTrainingPage() {
 
   const { step, chapter, chapterIndex } = here
   // Somebody who has finished can look back through it without doing it all again.
-  const isDone = done.has(step.id) || trained
+  const isDone = done.has(step.id) || (trained && !progress.restarted?.includes(step.id))
 
   const finish = async () => {
     await postJson('/print/training', {})
@@ -223,6 +231,11 @@ export function SlicerTrainingPage() {
               markDone(step.id)
             }}
             onStartOver={() => {
+              setProgress((was) => ({
+                ...was,
+                done: was.done.filter((id) => id !== step.id),
+                restarted: [...(was.restarted ?? []).filter((id) => id !== step.id), step.id],
+              }))
               setUp(step)
             }}
             onBack={() => {

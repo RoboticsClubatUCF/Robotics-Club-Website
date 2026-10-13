@@ -48,6 +48,8 @@ export interface PlateSource {
   addModel: (file: File, object: { id: string } & ApiPlacement) => Promise<ApiDraft>
   slice: () => Promise<void>
   submit: (details: { projectId: string | null; notes: string }) => Promise<{ fileName: string }>
+  /** Practice plates allow simulated requests only in the sending module. */
+  canSubmit?: boolean
   saving: boolean
   unsaved: boolean
   notice: string | null

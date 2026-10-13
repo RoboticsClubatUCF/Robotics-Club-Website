@@ -183,6 +183,7 @@ const manifest = {
   orca: '2.4.2',
   slices: {
     'mushroom-up-tree': { part: 'mushroom', at: [128, 128], overrides: {}, filament: 'pla', grams: 4.45, seconds: 955, meters: null, layers: null, preview: null },
+    'mushroom-down': { part: 'mushroom', at: [128, 128], overrides: {}, filament: 'pla', grams: 4, seconds: 800, meters: null, layers: null, preview: null },
   },
 }
 
@@ -370,12 +371,109 @@ describe('practice', () => {
     expect(callout()).toMatch(/^STEP 1 OF 4/)
   })
 
+  it('keeps REQUEST PRINT disabled outside the sending module, even after a successful slice', async () => {
+    startAt('try-the-screen')
+    renderPage()
+    await screen.findByText(/1 on the plate/)
+    fireEvent.click(screen.getByRole('button', { name: 'SLICE PLATE' }))
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'PREVIEW' })).toHaveAttribute('aria-selected', 'true'), slicing)
+    const request = screen.getByRole('button', { name: 'REQUEST PRINT' })
+    expect(request).toBeDisabled()
+    fireEvent.click(request)
+    expect(screen.queryByRole('dialog', { name: 'Send this plate to the officers?' })).not.toBeInTheDocument()
+    expect(vi.mocked(globalThis.fetch).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
+  })
+
+  it('allows the sending module to finish with a browser-only practice request', async () => {
+    startAt('try-send')
+    renderPage()
+    await screen.findByText(/1 on the plate/)
+    const request = screen.getByRole('button', { name: 'REQUEST PRINT' })
+    expect(request).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'SLICE PLATE' }))
+    await waitFor(() => expect(request).toBeEnabled(), slicing)
+    fireEvent.click(request)
+    expect(screen.getByRole('dialog', { name: 'Send this plate to the officers?' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'SEND IT' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'NEXT' })).toBeEnabled())
+    expect(screen.getByRole('status', { name: 'Plate status' })).toHaveTextContent('nothing was sent')
+    expect(readProgress('u1').done).toContain('try-send')
+    expect(vi.mocked(globalThis.fetch).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
+  })
+
   it('lets somebody who has finished move on without doing a task again', async () => {
     startAt('try-the-screen')
     renderPage(context(true))
     await screen.findByText(/1 on the plate/)
     expect(screen.getByRole('button', { name: 'NEXT' })).toBeEnabled()
     expect(callout()).toBe('DONEPress NEXT to carry on.')
+  })
+
+  it.each([false, true])('resets only a completed task, persists the reset and lets it be finished again (trained=%s)', async (trained) => {
+    writeProgress('u1', { done: ids, at: 'try-strength', total: ids.length })
+    const page = renderPage(context(trained))
+    await screen.findByText(/1 on the plate/)
+    expect(screen.getByRole('button', { name: 'NEXT' })).toBeEnabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'START OVER' }))
+    expect(callout()).toMatch(/^STEP 1 OF 5.*Set Walls to 3/)
+    expect(screen.getByRole('button', { name: 'NEXT' })).toBeDisabled()
+    await waitFor(() => expect(readProgress('u1').done).toEqual(ids.filter((id) => id !== 'try-strength')))
+    expect(readProgress('u1').restarted).toEqual(['try-strength'])
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', String(ids.length - 1))
+    fireEvent.click(screen.getByRole('button', { name: 'CONTENTS' }))
+    expect(within(screen.getByRole('dialog', { name: 'Training contents' })).getByRole('button', { name: /Check: a part that snaps/ })).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: 'CLOSE' }))
+
+    page.unmount()
+    const resumed = renderPage(context(trained))
+    await screen.findByText(/1 on the plate/)
+    expect(callout()).toMatch(/^STEP 1 OF 5/)
+    expect(screen.getByRole('button', { name: 'NEXT' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'SETTINGS' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Strength' }))
+    for (const [name, value] of [['Walls', '3'], ['Top layers', '6'], ['Infill density', '25']]) {
+      const input = screen.getByRole('spinbutton', { name })
+      fireEvent.change(input, { target: { value } })
+      fireEvent.keyDown(input, { key: 'Enter' })
+    }
+    fireEvent.change(screen.getByRole('combobox', { name: 'Infill pattern' }), { target: { value: 'gyroid' } })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Top surface pattern' }), { target: { value: 'concentric' } })
+    expect(screen.getByRole('button', { name: 'NEXT' })).toBeEnabled()
+    await waitFor(() => expect(readProgress('u1').done).toContain('try-strength'))
+    expect(new Set(readProgress('u1').done)).toEqual(new Set(ids))
+    expect(readProgress('u1').restarted).toBeUndefined()
+
+    resumed.unmount()
+    renderPage(context(trained))
+    await screen.findByText(/1 on the plate/)
+    expect(callout()).toBe('DONEPress NEXT to carry on.')
+  })
+
+  it('keeps an explicitly restarted task incomplete even when training completion supplied its original DONE state', async () => {
+    startAt('try-strength')
+    const page = renderPage(context(true))
+    await screen.findByText(/1 on the plate/)
+    expect(screen.getByRole('button', { name: 'NEXT' })).toBeEnabled()
+    const previous = readProgress('u1').done
+    fireEvent.click(screen.getByRole('button', { name: 'START OVER' }))
+    expect(screen.getByRole('button', { name: 'NEXT' })).toBeDisabled()
+    await waitFor(() => expect(readProgress('u1').restarted).toEqual(['try-strength']))
+    expect(readProgress('u1').done).toEqual(previous)
+    page.unmount()
+    renderPage(context(true))
+    await screen.findByText(/1 on the plate/)
+    expect(callout()).toMatch(/^STEP 1 OF 5/)
+    expect(screen.getByRole('button', { name: 'NEXT' })).toBeDisabled()
+  })
+
+  it('reopens a saved restart before membership has loaded, even with no other local progress', async () => {
+    writeProgress('u1', { done: [], at: 'try-strength', total: ids.length, restarted: ['try-strength'] })
+    renderPage({ ...context(true), membership: { status: 'loading' } })
+    await waitFor(() => expect(heading()).toBe('TRY IT · STRENGTH SETTINGS'))
+    expect(callout()).toMatch(/^STEP 1 OF 5/)
+    expect(screen.getByRole('button', { name: 'NEXT' })).toBeDisabled()
+    expect(readProgress('u1').at).toBe('try-strength')
   })
 })
 
