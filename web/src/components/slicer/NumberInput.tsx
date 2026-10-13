@@ -14,6 +14,7 @@ export function NumberInput({
   step = 1,
   unit,
   disabled,
+  coach,
   onCommit,
 }: {
   label: string
@@ -26,6 +27,8 @@ export function NumberInput({
   step?: number
   unit?: string
   disabled?: boolean
+  /** Its `data-coach` name, for the slicer training to point at. */
+  coach?: string
   onCommit: (value: number) => void
 }) {
   const id = useId()
@@ -59,7 +62,7 @@ export function NumberInput({
   }
 
   return (
-    <label className="block">
+    <label className="block" data-coach={coach}>
       <span className="text-faint mb-0.5 block font-mono text-[9.5px] tracking-[0.14em] uppercase">
         {label}
       </span>

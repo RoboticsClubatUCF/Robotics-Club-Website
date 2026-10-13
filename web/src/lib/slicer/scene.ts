@@ -18,6 +18,7 @@ import {
   WebGLRenderer,
 } from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { type CameraMoves, lookFrom, slideCamera, turnCamera, zoomCamera } from './camera'
 import type { Bed } from './plateTransform'
 
 /**
@@ -245,15 +246,17 @@ export function frameBed(camera: PerspectiveCamera, controls: OrbitControls, bed
   controls.update()
 }
 
-export interface Stage {
+/** The camera's vertical field of view, in degrees. The training projects onto the plate with it. */
+export const VIEW_ANGLE = 40
+
+/** The camera's keyboard moves (`camera.ts`) are the stage's own. */
+export interface Stage extends CameraMoves {
   renderer: WebGLRenderer
   scene: Scene
   camera: PerspectiveCamera
   orbit: OrbitControls
   /** Draws on the next frame; calls in between coalesce. Nothing animates on its own. */
   render: () => void
-  /** Back to the view it opened with. */
-  reset: () => void
   dispose: () => void
 }
 
@@ -271,7 +274,7 @@ export function createStage(canvas: HTMLCanvasElement, host: HTMLElement, bed: B
   sun.position.set(-bed.width, -bed.depth * 2, bed.height * 3)
   scene.add(sun)
 
-  const camera = new PerspectiveCamera(40, 1, 1, 5_000)
+  const camera = new PerspectiveCamera(VIEW_ANGLE, 1, 1, 5_000)
   // Z is up on the plate, as in Orca. OrbitControls reads the up axis once, when it's made, so
   // this comes first; set afterwards, it orbits about Y and tilting jams the view side-on.
   camera.up.set(0, 0, 1)
@@ -314,6 +317,13 @@ export function createStage(canvas: HTMLCanvasElement, host: HTMLElement, bed: B
   observer.observe(host)
   resize()
 
+  // A key moved it: as a drag would, it stays where it's put, and the view and anything watching
+  // the camera hear about it.
+  const moved = () => {
+    framed = false
+    if (!orbit.update()) orbit.dispatchEvent({ type: 'change' })
+  }
+
   return {
     renderer,
     scene,
@@ -324,6 +334,22 @@ export function createStage(canvas: HTMLCanvasElement, host: HTMLElement, bed: B
       framed = true
       resize()
       orbit.dispatchEvent({ type: 'change' })
+    },
+    turn: (around, up) => {
+      turnCamera(camera.position, orbit.target, around, up)
+      moved()
+    },
+    slide: (right, up) => {
+      slideCamera(camera, orbit.target, right, up)
+      moved()
+    },
+    zoom: (factor) => {
+      zoomCamera(camera.position, orbit.target, factor)
+      moved()
+    },
+    look: (view) => {
+      lookFrom(camera.position, orbit.target, view)
+      moved()
     },
     dispose: () => {
       cancelAnimationFrame(frame)

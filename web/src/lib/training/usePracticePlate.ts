@@ -13,6 +13,9 @@ import { loadManifest, matchSlice } from './practiceSlices'
  * saved or sliced. SLICE PLATE takes a moment, the way the real one does, and then shows the
  * ready-made slice matching the plate (`practiceSlices.ts`); REQUEST PRINT sends nothing.
  *
+ * A plate with no ready-made slice gets a notice, not a failed slice: the real slicer would have
+ * sliced it, and most tasks start with a part practice can't slice.
+ *
  * A task can set the plate up (`setUp`); otherwise it carries on from the last one, so what a
  * member did a step ago is still there.
  */
@@ -47,6 +50,8 @@ export function usePracticePlate(parts: Map<PartName, Float32Array> | null) {
   const [sent, setSent] = useState(0)
   // The notice about settings a ready-made slice doesn't show, put away for this slice.
   const [dismissed, setDismissed] = useState<string | null>(null)
+  // Why SLICE PLATE made nothing, for as long as the plate is the one it was pressed on.
+  const [unsliced, setUnsliced] = useState<{ problem: string; fingerprint: string } | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(
@@ -66,11 +71,14 @@ export function usePracticePlate(parts: Map<PartName, Float32Array> | null) {
     key === 'process' ? 'the process' : key === 'filament' ? 'the filament' : (settingDef(key)?.label ?? key),
   )
   const [sentNotice, setSentNotice] = useState(false)
+  const unslicedNow = unsliced !== null && unsliced.fingerprint === fingerprint(plate)
   const notice = sentNotice
     ? 'Practice only, so nothing was sent. The real slicer takes you to the printing page, with the plate in your list as WAITING.'
-    : ignored && ignored.length > 0 && dismissed !== slice?.requestedAt
-      ? `Practice slices are made ahead of time for the mushroom's supports and brim. This one doesn't show your change to ${ignored.join(', ')}; the real slicer would.`
-      : null
+    : unslicedNow
+      ? unsliced.problem
+      : ignored && ignored.length > 0 && dismissed !== slice?.requestedAt
+        ? `Practice slices are made ahead of time for the mushroom's supports and brim. This one doesn't show your change to ${ignored.join(', ')}; the real slicer would.`
+        : null
   const printer = PRACTICE_WORKSPACE.profiles.printers[0]!
 
   const draft: ApiDraft = {
@@ -108,10 +116,10 @@ export function usePracticePlate(parts: Map<PartName, Float32Array> | null) {
     draft,
     plate,
     edit,
-    preview: (objectId: string, placement: Partial<ApiPlacement>) => {
+    preview: (placements: ReadonlyMap<string, Partial<ApiPlacement>>) => {
       setPlate((was) => ({
         ...was,
-        objects: was.objects.map((object) => (object.id === objectId ? { ...object, ...placement } : object)),
+        objects: was.objects.map((object) => (placements.has(object.id) ? { ...object, ...placements.get(object.id) } : object)),
       }))
     },
     reload: () => Promise.resolve(),
@@ -153,12 +161,13 @@ export function usePracticePlate(parts: Map<PartName, Float32Array> | null) {
         fingerprint: fingerprint(plate),
       }
       if ('problem' in match) {
-        setSliced(null)
-        setSlice({ ...base, state: 'FAILED', failure: match.problem })
+        setSentNotice(false)
+        setUnsliced({ problem: match.problem, fingerprint: base.fingerprint })
         return
       }
       const made = (await loadManifest()).slices[match.name]
       if (!made) throw new Error(`no practice slice called ${match.name}`)
+      setUnsliced(null)
       setSliced(null)
       setSlice(base)
       if (timer.current) clearTimeout(timer.current)
@@ -185,6 +194,7 @@ export function usePracticePlate(parts: Map<PartName, Float32Array> | null) {
     notice,
     clearNotice: () => {
       if (sentNotice) setSentNotice(false)
+      else if (unslicedNow) setUnsliced(null)
       else setDismissed(slice?.requestedAt ?? null)
     },
   }
@@ -200,6 +210,7 @@ export function usePracticePlate(parts: Map<PartName, Float32Array> | null) {
     setUp: (objects: ApiPlateObject[], settings: Partial<Omit<Plate, 'objects'>> = {}) => {
       if (timer.current) clearTimeout(timer.current)
       setSentNotice(false)
+      setUnsliced(null)
       setPlate({ ...freshSettings(), ...settings, objects })
       setSlice(null)
       setSliced(null)

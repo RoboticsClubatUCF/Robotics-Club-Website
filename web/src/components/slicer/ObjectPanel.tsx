@@ -35,9 +35,11 @@ export function ObjectPanel({
   models,
   meshes,
   selected,
+  selectSeveral,
   problems,
   disabled,
   onSelect,
+  onSelectSeveral,
   onChange,
   onCopy,
   onDelete,
@@ -46,9 +48,11 @@ export function ObjectPanel({
   models: ApiPlateModel[]
   meshes: MeshMap
   selected: string[]
+  selectSeveral: boolean
   problems: ReadonlyMap<string, PlateWarning>
   disabled: boolean
   onSelect: (ids: string[]) => void
+  onSelectSeveral: (on: boolean) => void
   onChange: (id: string, placement: Partial<ApiPlacement>) => void
   onCopy: () => void
   onDelete: () => void
@@ -87,6 +91,20 @@ export function ObjectPanel({
         </span>
       </div>
 
+      <label
+        data-coach={selectSeveral ? 'select-several:on' : 'select-several:off'}
+        className="flex min-h-11 cursor-pointer items-center justify-between gap-3 border-b border-rule px-4 py-2 font-mono text-[10px] tracking-[0.12em]"
+      >
+        SELECT SEVERAL
+        <input
+          type="checkbox"
+          className="toggle toggle-sm"
+          checked={selectSeveral}
+          disabled={objects.length < 2 && !selectSeveral}
+          onChange={(event) => onSelectSeveral(event.target.checked)}
+        />
+      </label>
+
       {objects.length === 0 ? (
         <p className="p-4 text-[13px] leading-[1.6] text-dim">
           Nothing on the plate yet.
@@ -104,10 +122,11 @@ export function ObjectPanel({
               <li key={object.id}>
                 <button
                   type="button"
+                  data-coach={`object:${object.id}`}
                   aria-pressed={active}
                   onClick={(event) => {
                     onSelect(
-                      event.shiftKey || event.ctrlKey || event.metaKey
+                      selectSeveral || event.shiftKey || event.ctrlKey || event.metaKey
                         ? active
                           ? selected.filter((id) => id !== object.id)
                           : [...selected, object.id]
@@ -226,7 +245,7 @@ function Transform({
       </p>
       {failure && <p className="text-[12px] leading-[1.5] text-error">{failure}</p>}
 
-      <fieldset>
+      <fieldset data-coach="position">
         <legend className={`${panelHeading} mb-1.5`}>POSITION</legend>
         <div className="grid grid-cols-2 gap-2">
           <NumberInput
@@ -254,7 +273,7 @@ function Transform({
         </div>
       </fieldset>
 
-      <fieldset>
+      <fieldset data-coach="rotation">
         <legend className="sr-only">Rotation</legend>
         <div className="mb-1.5 flex items-center justify-between">
           <span aria-hidden="true" className={panelHeading}>
@@ -262,6 +281,7 @@ function Transform({
           </span>
           <button
             type="button"
+            data-coach="rotation-reset"
             disabled={disabled}
             onClick={() => {
               onChange({ qx: 0, qy: 0, qz: 0, qw: 1 })
@@ -277,6 +297,7 @@ function Transform({
               key={name}
               label={name}
               name={`Rotation ${name}`}
+              coach={`rotation-${name.toLowerCase()}`}
               unit="°"
               step={0.1}
               min={-360}
@@ -291,7 +312,7 @@ function Transform({
         </div>
       </fieldset>
 
-      <fieldset>
+      <fieldset data-coach="scale">
         <legend className="sr-only">Scale</legend>
         <div className="mb-1.5 flex items-center justify-between">
           <span aria-hidden="true" className={panelHeading}>
@@ -299,6 +320,8 @@ function Transform({
           </span>
           <button
             type="button"
+            // Named for what it is now, so the training can tell UNIFORM from PER AXIS.
+            data-coach={uniform ? 'uniform' : 'per-axis'}
             aria-pressed={uniform}
             onClick={() => {
               setUniform(!uniform)
@@ -319,6 +342,7 @@ function Transform({
               key={axis}
               label={['X', 'Y', 'Z'][index]!}
               name={`Scale ${['X', 'Y', 'Z'][index]!}`}
+              coach={`scale-${axis.slice(1)}`}
               unit="%"
               step={0.1}
               min={MIN_SCALE * 100}
@@ -334,7 +358,7 @@ function Transform({
       </fieldset>
 
       {size && (
-        <fieldset>
+        <fieldset data-coach="size">
           <legend className={`${panelHeading} mb-1.5`}>SIZE ON THE PLATE</legend>
           <div className="grid grid-cols-3 gap-2">
             {(['W', 'D', 'H'] as const).map((name, axis) => (
@@ -342,6 +366,7 @@ function Transform({
                 key={name}
                 label={name}
                 name={`${{ W: 'Width', D: 'Depth', H: 'Height' }[name]} on the plate`}
+                coach={`size-${name.toLowerCase()}`}
                 unit="mm"
                 step={0.1}
                 min={0.1}

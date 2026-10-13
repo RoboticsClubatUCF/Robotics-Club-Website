@@ -1,5 +1,5 @@
 import { ChevronLeft, X } from 'lucide-react'
-import { type ReactNode, useEffect, useEffectEvent, useId, useRef, useState } from 'react'
+import { type ReactNode, type RefObject, useEffect, useEffectEvent, useId, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
 import { ApiError } from '../../lib/api/api'
 import type {
@@ -11,6 +11,7 @@ import type {
   ApiSlicerWorkspace,
 } from '../../lib/api/api'
 import { arrange, freeSpot } from '../../lib/slicer/arrange'
+import { type CameraMoves, viewKey } from '../../lib/slicer/camera'
 import { restingFaces } from '../../lib/slicer/faces'
 import { primeMesh, useMeshes } from '../../lib/slicer/meshes'
 import { autoOrient, layFlat } from '../../lib/slicer/orient'
@@ -91,6 +92,10 @@ const onPlate = (target: EventTarget | null) =>
   target.closest('[data-shortcuts]') !== null ||
   target.closest(CONTROL) === null
 
+/** Inside a dialog, such as the training's contents, that the workspace doesn't know is open. */
+const inDialog = (target: EventTarget | null) =>
+  target instanceof Element && target.closest('dialog, [role="dialog"]') !== null
+
 /**
  * The slicer workspace for one of the member's plates: the plate saved as they work, its slice
  * and preview from the worker. The view is `WorkspaceView`, which the slicer training also runs
@@ -153,6 +158,8 @@ const PRINTING_LINK = (
  * columns open as drawers over the plate. SLICE PLATE sends the plate to the slicer worker, and
  * REQUEST PRINT sends the sliced plate to the officers once it's current. Nothing here talks to a
  * printer: an officer prints it.
+ *
+ * `data-coach` names what the slicer training's callouts point at (`lib/training/aim.ts`).
  */
 export function WorkspaceView({
   plateKey,
@@ -196,8 +203,10 @@ export function WorkspaceView({
 
   const [tab, setTab] = useState<'prepare' | 'preview'>('prepare')
   const [selected, setSelected] = useState<string[]>([])
+  const [selectSeveral, setSelectSeveral] = useState(false)
   const [mode, setMode] = useState<PlateMode>('move')
   const [drawer, setDrawer] = useState<'settings' | 'objects' | null>(null)
+  const drawerOpener = useRef<HTMLButtonElement | null>(null)
   const [problem, setProblem] = useState<{ title: string; message: string } | null>(null)
   const [uploading, setUploading] = useState(false)
   const [slicing, setSlicing] = useState(false)
@@ -212,6 +221,14 @@ export function WorkspaceView({
   // A drag moves the plate as it goes (`plate.preview`), so undo takes it back to the plate from
   // before the drag began, not to its last frame.
   const beforeDrag = useRef<ApiPlateObject[] | null>(null)
+
+  // Opening a drawer makes its button inert before the dialog can remember focus.
+  useEffect(() => {
+    if (drawer === null && drawerOpener.current) {
+      drawerOpener.current.focus({ preventScroll: true })
+      drawerOpener.current = null
+    }
+  }, [drawer])
 
   const problems = new Map<string, FitProblem>()
   const boxes = new Map<string, Box>()
@@ -334,18 +351,20 @@ export function WorkspaceView({
     placeMeshed()
   }, [meshes, waiting])
 
-  const change = (id: string, placement: Partial<ApiPlacement>) => {
+  const commit = (placements: ReadonlyMap<string, Partial<ApiPlacement>>) => {
     const before = beforeDrag.current ?? objects
     beforeDrag.current = null
     setObjects(
-      objects.map((object) => (object.id === id ? { ...object, ...placement } : object)),
+      objects.map((object) => (placements.has(object.id) ? { ...object, ...placements.get(object.id) } : object)),
       before,
     )
   }
 
-  const drag = (id: string, placement: Partial<ApiPlacement>) => {
+  const change = (id: string, placement: Partial<ApiPlacement>) => commit(new Map([[id, placement]]))
+
+  const drag = (placements: ReadonlyMap<string, Partial<ApiPlacement>>) => {
     beforeDrag.current ??= objects
-    plate.preview(id, placement)
+    plate.preview(placements)
   }
 
   const add = async (files: File[]) => {
@@ -491,12 +510,21 @@ export function WorkspaceView({
     }
   }
 
+  // The view on either tab, while it's up: the view keys go to it.
+  const camera = useRef<CameraMoves | null>(null)
+
   // Shortcuts, as in Orca. Never while typing, with a dialog or drawer open, or away from the plate.
+  // The view keys (`viewKey`) only look, so they also work on PREVIEW and on a sent plate.
   const keys = useRef<(event: KeyboardEvent) => void>(() => undefined)
   useEffect(() => {
     keys.current = (event: KeyboardEvent) => {
       if (event.defaultPrevented || typing(event.target)) return
-      if (problem || sending !== 'closed' || drawer || tab !== 'prepare' || !editable) return
+      if (problem || sending !== 'closed' || drawer || inDialog(event.target)) return
+      if (onPlate(event.target) && viewKey(event, camera.current, false)) {
+        event.preventDefault()
+        return
+      }
+      if (tab !== 'prepare' || !editable) return
       if (event.key === 'Escape') {
         setSelected([])
         setMode('move')
@@ -568,6 +596,7 @@ export function WorkspaceView({
       type="button"
       role="tab"
       id={`${id}-tab-${key}`}
+      data-coach={`tab:${key}`}
       aria-selected={tab === key}
       aria-controls={`${id}-panel`}
       tabIndex={tab === key ? 0 : -1}
@@ -624,17 +653,20 @@ export function WorkspaceView({
         <span className="ml-auto flex items-center gap-2 wide:ml-0">
           <button
             type="button"
+            data-coach="slice"
             onClick={() => {
               void runSlice()
             }}
             disabled={!editable || slicing || slicingNow || sliceBlocked !== null}
             title={sliceBlocked ?? undefined}
+            aria-describedby={sliceBlocked ? `${id}-status` : undefined}
             className={sliced ? quietButton : loudButton}
           >
             {slicing || slicingNow ? 'SLICING…' : 'SLICE PLATE'}
           </button>
           <button
             type="button"
+            data-coach="request"
             onClick={() => {
               setSending('open')
             }}
@@ -645,37 +677,6 @@ export function WorkspaceView({
           </button>
         </span>
       </header>
-
-      {(notice || !editable || (sliceBlocked && objects.length > 0) || overlapping > 0) && (
-        <div role="status" className="border-rule bg-wash flex items-start justify-between gap-3 border-b px-4 py-2 text-[12.5px] leading-[1.5]">
-          <span className={notice ? 'text-base-content' : 'text-dim'}>
-            {notice ? (
-              notice.text
-            ) : !editable ? (
-              <>
-                This plate has been sent.{' '}
-                <Link to="/dashboard/print" className="text-primary underline underline-offset-2">
-                  Take it back from the printing page
-                </Link>{' '}
-                to change it.
-              </>
-            ) : (
-              (sliceBlocked ??
-              `${String(overlapping)} objects overlap and would print joined. Spread them out or press Arrange.`)
-            )}
-          </span>
-          {notice && (
-            <button
-              type="button"
-              onClick={notice.dismiss}
-              aria-label="Dismiss"
-              className="text-dim hover:text-base-content -m-1 inline-flex size-11 shrink-0 cursor-pointer items-center justify-center wide:size-8"
-            >
-              <X className={iconSize} aria-hidden="true" />
-            </button>
-          )}
-        </div>
-      )}
 
       <div className="relative flex min-h-0 flex-1">
         <Drawer label="Print settings" open={drawer === 'settings'} className={drawerClass('settings')} onClose={() => setDrawer(null)}>
@@ -694,6 +695,7 @@ export function WorkspaceView({
           role="tabpanel"
           aria-labelledby={`${id}-tab-${tab}`}
           data-shortcuts
+          data-coach="stage"
           inert={drawer !== null}
           // A canvas can't hold focus, so pressing on the plate brings it here; otherwise a
           // setting changed a moment ago keeps it and swallows Delete and the arrows.
@@ -714,9 +716,10 @@ export function WorkspaceView({
                 mode={editable ? mode : 'move'}
                 onSelect={setSelected}
                 onDrag={editable ? drag : () => undefined}
-                onCommit={editable ? change : () => undefined}
+                onCommit={editable ? commit : () => undefined}
                 onLayFlat={editable ? flatten : () => undefined}
                 onView={watch?.onCamera}
+                camera={camera}
               />
               {editable && (
                 <PlateToolbar
@@ -756,14 +759,21 @@ export function WorkspaceView({
               grams={slice?.estimatedGrams ?? null}
               failure={slice?.previewFailure ?? null}
               onExplore={watch?.onLayers}
+              camera={camera}
             />
           )}
 
           <span className="absolute top-3 left-3 flex gap-1.5 wide:hidden">
-            <button type="button" onClick={() => setDrawer('settings')} className={`${quietButton} bg-base-100`}>
+            <button type="button" data-coach="drawer:settings" onClick={(event) => {
+              drawerOpener.current = event.currentTarget
+              setDrawer('settings')
+            }} className={`${quietButton} bg-base-100`}>
               SETTINGS
             </button>
-            <button type="button" onClick={() => setDrawer('objects')} className={`${quietButton} bg-base-100`}>
+            <button type="button" data-coach="drawer:objects" onClick={(event) => {
+              drawerOpener.current = event.currentTarget
+              setDrawer('objects')
+            }} className={`${quietButton} bg-base-100`}>
               OBJECTS · {objects.length}
             </button>
           </span>
@@ -775,14 +785,47 @@ export function WorkspaceView({
             models={models}
             meshes={meshes}
             selected={selected}
+            selectSeveral={selectSeveral}
             problems={warnings}
             disabled={!editable}
             onSelect={setSelected}
+            onSelectSeveral={setSelectSeveral}
             onChange={change}
             onCopy={copy}
             onDelete={remove}
           />
         </Drawer>
+      </div>
+
+      <div
+        id={`${id}-status`}
+        role="status"
+        aria-label="Plate status"
+        className="border-rule bg-base-100 flex h-16 shrink-0 items-start justify-between gap-3 overflow-y-auto border-t px-4 py-2 text-[12.5px] leading-[1.5] wide:h-12"
+      >
+        <span className={notice ? 'text-base-content' : 'text-dim'}>
+          {notice ? notice.text : !editable ? (
+            <>
+              This plate has been sent.{' '}
+              <Link to="/dashboard/print" className="text-primary underline underline-offset-2">
+                Take it back from the printing page
+              </Link>{' '}
+              to change it.
+            </>
+          ) : (sliceBlocked && objects.length > 0) ? sliceBlocked : overlapping > 0 ? (
+            `${String(overlapping)} objects overlap and would print joined. Spread them out or press Arrange.`
+          ) : null}
+        </span>
+        {notice && (
+          <button
+            type="button"
+            onClick={notice.dismiss}
+            aria-label="Dismiss"
+            className="text-dim hover:text-base-content -m-1 inline-flex size-11 shrink-0 cursor-pointer items-center justify-center focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary wide:size-8"
+          >
+            <X className={iconSize} aria-hidden="true" />
+          </button>
+        )}
       </div>
 
       {problem && (
@@ -948,6 +991,7 @@ function PreviewPane({
   grams,
   failure,
   onExplore,
+  camera,
 }: {
   preview: PreviewLoad
   bed: ApiBed
@@ -956,9 +1000,10 @@ function PreviewPane({
   /** Why a sliced plate has no preview, in the worker's words. */
   failure: string | null
   onExplore?: WorkspaceWatch['onLayers']
+  camera: RefObject<CameraMoves | null>
 }) {
   if (preview.status === 'ready') {
-    return <PreviewView bed={bed} preview={preview.preview} grams={grams} onExplore={onExplore} />
+    return <PreviewView bed={bed} preview={preview.preview} grams={grams} onExplore={onExplore} camera={camera} />
   }
   const text =
     preview.status === 'loading'

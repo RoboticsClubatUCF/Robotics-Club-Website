@@ -96,6 +96,7 @@ export function SettingsPanel({
           FILAMENT
         </h2>
         <select
+          data-coach="filament"
           aria-labelledby={`${id}-filament`}
           aria-invalid={printer !== undefined && !filament}
           value={filament?.id ?? ''}
@@ -124,6 +125,7 @@ export function SettingsPanel({
           PROCESS
         </h2>
         <select
+          data-coach="process"
           aria-labelledby={`${id}-process`}
           aria-describedby={preset ? `${id}-process-about` : undefined}
           aria-invalid={printer !== undefined && !preset}
@@ -176,6 +178,7 @@ export function SettingsPanel({
               <button
                 key={option.key}
                 id={`${id}-tab-${option.key}`}
+                data-coach={`settings-tab:${option.key}`}
                 type="button"
                 role="tab"
                 aria-selected={active}

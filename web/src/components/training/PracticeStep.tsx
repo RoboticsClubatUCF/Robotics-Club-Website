@@ -6,12 +6,14 @@ import { PRACTICE_WORKSPACE } from '../../lib/training/practiceProfiles'
 import type { PracticePlate } from '../../lib/training/usePracticePlate'
 import type { PreviewLoad } from '../../lib/slicer/usePreview'
 import { WorkspaceView, type WorkspaceWatch } from '../slicer/SlicerWorkspace'
+import { GoalCallout } from './GoalCallout'
 import { TaskStrip } from './TaskStrip'
 
 /**
- * A practice task: the real workspace on the practice plate, with the task over it. Goals are
- * checked in order as the plate, the view and the preview change, and stay met once they are.
- * Where the browser can't draw 3D, goals that need the view count as met.
+ * A practice task: the real workspace on the practice plate, with the task over it and the next
+ * goal pointing at what to use. Goals are checked in order as the plate, the view and the preview
+ * change, and stay met once they are. Where the browser can't draw 3D, goals that need the view
+ * count as met.
  */
 export function PracticeStep({
   step,
@@ -57,31 +59,27 @@ export function PracticeStep({
     }
     if (met === null) return
     setAchieved(next)
-    setAnnounce(index === -1 ? 'Task done. Press NEXT.' : `Done: ${met}`)
+    setAnnounce(index === -1 ? 'Task done. Press NEXT.' : `Done. Next: ${step.goals[index]!.text}`)
     if (index === -1) onComplete()
   })
   useEffect(() => {
     check()
   }, [state])
 
+  const next = achieved.findIndex((done) => !done)
+  const goal = next === -1 ? null : step.goals[next]!
+  const aims = goal ? (typeof goal.aim === 'function' ? goal.aim(state) : (goal.aim ?? [])) : [{ at: 'next' }]
+
   return (
     // The task above the workspace rather than inside it, so on a phone, where the page grows, the
-    // workspace's minimum height is the plate's and an open task can't squeeze it.
-    <div className="flex min-h-0 flex-1 flex-col">
+    // workspace's minimum height is the plate's and the task can't squeeze it.
+    <div className="relative flex min-h-0 flex-1 flex-col">
       <TaskStrip
         title={step.title}
         brief={step.brief}
-        goals={step.goals}
-        achieved={achieved}
         hint={step.hint}
-        complete={achieved.every(Boolean)}
+        complete={goal === null}
         announce={announce}
-        onSkipView={() => {
-          const next = achieved.map((met, index) => met || step.goals[index]!.needs3d === true)
-          setAchieved(next)
-          setAnnounce(next.every(Boolean) ? 'Task done. Press NEXT.' : 'Skipped the goals that need a mouse or touch screen.')
-          if (next.every(Boolean)) onComplete()
-        }}
         onStartOver={() => {
           onStartOver()
           memory.current = {}
@@ -91,6 +89,13 @@ export function PracticeStep({
         }}
         onBack={onBack}
         onNext={onNext}
+      />
+      <GoalCallout
+        key={`${String(round)}-${String(next)}`}
+        label={goal ? `STEP ${String(next + 1)} OF ${String(step.goals.length)}` : 'DONE'}
+        text={goal ? goal.text : 'Press NEXT to carry on.'}
+        aims={aims}
+        state={state}
       />
       <WorkspaceView
         key={round}

@@ -1,4 +1,5 @@
 import type { Focus } from '../../lib/slicer/scene'
+import { type Aim, addSelectionAims, panelAims, partAims, settingAims } from '../../lib/training/aim'
 import type { Chapter } from '../../lib/training/curriculum'
 import {
   type Goal,
@@ -31,9 +32,9 @@ import {
   SeamDiagram,
   StrengthDiagram,
   ThresholdDiagram,
-  WorkspaceMap,
 } from './Diagrams'
 import { Careful, H, Kbd, List, Name, P, PreviewCompare, SliceNumbers, Terms } from './LessonParts'
+import { WorkspaceMap } from './WorkspaceMap'
 
 /**
  * The slicer training, start to finish. Written for somebody who has never used a slicer: short
@@ -42,18 +43,44 @@ import { Careful, H, Kbd, List, Name, P, PreviewCompare, SliceNumbers, Terms } f
  * beside the page checks none is missed).
  *
  * Tasks run on the practice plate, the real workspace with nothing saved or sent. Their goals are
- * checked as the member works (`lib/training/goals.ts`).
+ * checked as the member works (`lib/training/goals.ts`), and each points at what to use next
+ * (`lib/training/aim.ts`).
  */
 
 const is = (key: string, value: number | boolean | string, text: string): Goal => ({
   text,
   done: (state) => setting(state, key) === value,
+  aim: settingAims(key),
 })
 
 /** The member put this setting back with its reset arrow, after changing it. */
-const reset = (key: string, text: string): Goal => ({ text, done: (state) => !changed(state, key) })
+const reset = (key: string, text: string): Goal => ({
+  text,
+  done: (state) => !changed(state, key),
+  aim: settingAims(key, 'reset'),
+})
 
 const count = (state: PracticeState) => state.plate.objects.length
+
+/** A field of `id`'s in the object panel: the part until it's the one selected, then the field. */
+const field =
+  (id: string, ...fields: string[]) =>
+  (state: PracticeState): Aim[] =>
+    state.selected.length === 1 && state.selected[0] === id ? panelAims(...fields) : partAims(id)
+
+/** A tool that works on the selection: the part until something's selected, then the tool. */
+const tool =
+  (name: string, id: (state: PracticeState) => string | undefined) =>
+  (state: PracticeState): Aim[] =>
+    state.selected.length > 0 ? [{ at: `tool:${name}` }] : partAims(id(state) ?? '')
+
+/** Bare plate to drag on, wherever the camera has it: the first of these that's in view. */
+const EMPTY: Aim[] = [
+  { spot: [56, 200, 0] },
+  { spot: [56, 56, 0] },
+  { spot: [200, 76, 0] },
+  { spot: [200, 220, 0] },
+]
 
 const MIDDLE = 128
 
@@ -208,15 +235,22 @@ export const CHAPTERS: Chapter[] = [
         kind: 'try',
         id: 'try-the-screen',
         title: 'Look around',
-        brief: 'This is the real slicer screen on a practice plate. Nothing here is saved or sent.',
-        setUp: { objects: () => [placed('cube', 'cube', MIDDLE, MIDDLE)] },
+        setUp: { objects: () => [placed('mushroom', 'mushroom', MIDDLE, MIDDLE)] },
         goals: [
-          { text: 'Open the PREVIEW tab at the top.', done: (s) => s.tab === 'preview' },
-          { text: 'Go back to PREPARE.', done: (s) => s.tab === 'prepare' },
-          { text: 'Click or tap the cube to select it. It turns gold.', done: (s) => s.selected.includes('cube') },
-          { text: 'Click empty plate, or press Escape, to select nothing.', done: (s) => s.selected.length === 0 },
+          // Met once PREVIEW has opened on the slice, so going back to PREPARE can't tick with it.
+          {
+            text: 'Press SLICE PLATE. When it’s done, PREVIEW opens on the layers it made.',
+            done: (s) => isSliced(s) && s.tab === 'preview',
+            aim: [{ at: 'slice' }],
+          },
+          { text: 'Go back to PREPARE.', done: (s) => s.tab === 'prepare', aim: [{ at: 'tab:prepare' }] },
+          {
+            text: 'Click or tap the mushroom to select it. It turns gold.',
+            done: (s) => s.selected.includes('mushroom'),
+            aim: partAims('mushroom'),
+          },
+          { text: 'Click empty plate, or press Escape, to select nothing.', done: (s) => s.selected.length === 0, aim: EMPTY },
         ],
-        hint: 'PREVIEW has nothing to show yet: the plate hasn’t been sliced. That’s expected.',
       },
     ],
   },
@@ -235,6 +269,7 @@ export const CHAPTERS: Chapter[] = [
               The view turns around the middle of the plate, like walking around a table. Moving the view never
               moves your parts.
             </P>
+            <H>With a mouse or a touch screen</H>
             <Terms
               items={[
                 ['Turn the view', 'Drag on empty space with the left mouse button. On a touch screen, drag with one finger.'],
@@ -250,13 +285,59 @@ export const CHAPTERS: Chapter[] = [
               A drag that starts on a part moves the part. Start on empty space to turn the view. If you move a part
               by mistake, <Kbd>Ctrl</Kbd> + <Kbd>Z</Kbd> puts it back.
             </Careful>
+            <H>With the keyboard</H>
+            <Terms
+              items={[
+                [
+                  '1 to 6',
+                  <>
+                    Look straight at one side: <Kbd>1</Kbd> from above, <Kbd>2</Kbd> from below, <Kbd>3</Kbd> from the
+                    front, <Kbd>4</Kbd> from behind, <Kbd>5</Kbd> from the left, <Kbd>6</Kbd> from the right.
+                  </>,
+                ],
+                [
+                  'I and O',
+                  <>
+                    The letters <Kbd>I</Kbd> and <Kbd>O</Kbd>: I zooms in, O zooms out.
+                  </>,
+                ],
+                [
+                  'Zero',
+                  <>
+                    The number <Kbd>0</Kbd> goes back to the view the plate opened with.
+                  </>,
+                ],
+                [
+                  'The house button',
+                  <>
+                    Press <Kbd>Tab</Kbd> until the house button at the top right of the plate is outlined. While it
+                    is, the arrow keys turn the view a little at a time, and <Kbd>Shift</Kbd> with the arrow keys
+                    slides it. The keys are listed under the button.
+                  </>,
+                ],
+              ]}
+            />
+            <Careful>
+              Away from the house button, the arrow keys move the selected parts, not the view. Press{' '}
+              <Kbd>Escape</Kbd> to select nothing first if you&rsquo;re not sure.
+            </Careful>
+            <P>
+              The numbers, <Kbd>I</Kbd> and <Kbd>O</Kbd> work while you&rsquo;re on the plate: after you click it,
+              or once <Kbd>Tab</Kbd> has reached the house button or another of the plate&rsquo;s buttons. They
+              don&rsquo;t work while you&rsquo;re typing in a box. In the pictures in these lessons, <Kbd>Tab</Kbd>{' '}
+              to the picture&rsquo;s own house button first.
+            </P>
+            <P>
+              Using a screen reader? Switch it to focus mode first (in NVDA, <Kbd>Insert</Kbd> +{' '}
+              <Kbd>Space</Kbd>), or it keeps these keys for itself.
+            </P>
+            <P>
+              Desktop OrcaSlicer, which the officers print from, uses the same numbers with <Kbd>Ctrl</Kbd> held
+              down, and the same <Kbd>I</Kbd> and <Kbd>O</Kbd>.
+            </P>
             <P>
               You can turn the view all the way under the plate. From below the plate is see-through, so you can
               check what&rsquo;s touching it.
-            </P>
-            <P>
-              No mouse or touch screen? The view can&rsquo;t be turned from the keyboard yet, so the task lets you
-              skip those goals. You can still place, turn and size parts by typing in <Name>OBJECTS</Name>.
             </P>
           </>
         ),
@@ -265,30 +346,55 @@ export const CHAPTERS: Chapter[] = [
         kind: 'try',
         id: 'try-camera',
         title: 'Move the view',
-        brief: 'Get to know the camera. Start every drag on empty space.',
+        brief: 'Get to know the camera, with the mouse, the touch screen or the keys. Start every drag on empty space.',
         setUp: { objects: () => [placed('cube', 'cube', MIDDLE, MIDDLE), placed('bracket', 'bracket', 190, 190)] },
         goals: [
           {
-            text: 'Turn the view to look from behind the plate. FRONT ends up at the far side, upside down.',
+            text: 'Turn the view to look from behind the plate.',
             needs3d: true,
             done: (s) => (cameraOffset(s)?.direction[1] ?? -1) > 0.3,
+            aim: EMPTY,
           },
-          { text: 'Look straight down from above.', needs3d: true, done: (s) => (cameraOffset(s)?.direction[2] ?? 0) > 0.95 },
+          {
+            text: 'Look straight down from above.',
+            needs3d: true,
+            done: (s) => (cameraOffset(s)?.direction[2] ?? 0) > 0.95,
+            aim: EMPTY,
+          },
           {
             text: 'Turn under the plate and look up at it from below.',
             needs3d: true,
             done: (s) => (cameraOffset(s)?.direction[2] ?? 0) < -0.3,
+            aim: EMPTY,
           },
-          { text: 'Zoom in close to the parts.', needs3d: true, done: (s) => (cameraOffset(s)?.distance ?? Infinity) < 250 },
+          {
+            text: 'Zoom in close to the parts.',
+            needs3d: true,
+            done: (s) => (cameraOffset(s)?.distance ?? Infinity) < 250,
+            aim: [{ part: 'cube' }, ...EMPTY],
+          },
           {
             text: 'Slide the view sideways so the middle of the plate moves off centre.',
             needs3d: true,
             done: (s) =>
               !!s.camera && Math.hypot(s.camera.target[0] - MIDDLE, s.camera.target[1] - MIDDLE, s.camera.target[2]) > 30,
+            aim: EMPTY,
           },
-          { text: 'Press the house button to put the view back.', needs3d: true, done: atOpeningView },
+          {
+            text: 'Press the house button, or zero, to put the view back.',
+            needs3d: true,
+            done: atOpeningView,
+            aim: [{ at: 'house' }],
+          },
         ],
-        hint: 'On a laptop trackpad: drag with one finger to turn, hold Shift and drag to slide, scroll with two fingers to zoom.',
+        hint: (
+          <>
+            On a laptop trackpad, drag with one finger to turn, hold Shift and drag to slide, and scroll with two
+            fingers to zoom. With the keyboard, <Kbd>4</Kbd> looks from behind, <Kbd>1</Kbd> from above and{' '}
+            <Kbd>2</Kbd> from below, and <Kbd>I</Kbd> zooms in. To slide, <Kbd>Tab</Kbd> to the house button and
+            press <Kbd>Shift</Kbd> with an arrow key.
+          </>
+        ),
       },
     ],
   },
@@ -306,12 +412,15 @@ export const CHAPTERS: Chapter[] = [
             <H>Selecting</H>
             <P>
               Click or tap a part to select it; it turns gold. Hold <Kbd>Shift</Kbd> or <Kbd>Ctrl</Kbd> and click to
-              add another. Click empty plate to select nothing. <Kbd>Ctrl</Kbd> + <Kbd>A</Kbd> selects everything and{' '}
+              add another. On a touch screen, turn on <Name>SELECT SEVERAL</Name> in <Name>OBJECTS</Name>, then tap
+              parts in the list to add or remove them. Turn it off to select just one. Click empty plate to
+              select nothing. <Kbd>Ctrl</Kbd> + <Kbd>A</Kbd> selects everything and{' '}
               <Kbd>Esc</Kbd> lets go. The list in <Name>OBJECTS</Name> selects too.
             </P>
             <H>Moving</H>
             <P>
-              In <Name>MOVE</Name> mode (the four arrows, or <Kbd>M</Kbd>) drag a part across the plate. With a
+              In <Name>MOVE</Name> mode (the four arrows, or <Kbd>M</Kbd>) drag a part across the plate. Selected
+              parts move together. With a
               keyboard, the arrow keys nudge the selected parts 1 mm, or 10 mm with <Kbd>Shift</Kbd>.
             </P>
             <H>Putting it exactly somewhere</H>
@@ -341,24 +450,28 @@ export const CHAPTERS: Chapter[] = [
         brief: 'A cube and a block. Move them around.',
         setUp: { objects: () => [placed('cube', 'cube', 64, 64), placed('block', 'block', 190, 80)] },
         goals: [
-          { text: 'Select the cube.', done: (s) => s.selected.includes('cube') },
+          { text: 'Select the cube.', done: (s) => s.selected.includes('cube'), aim: partAims('cube') },
           {
-            text: 'Hold Shift and click the block, so both are selected.',
+            text: 'In OBJECTS, turn on SELECT SEVERAL and tap Block. Or hold Shift and click the block. Keep both selected.',
             done: (s) => s.selected.includes('cube') && s.selected.includes('block'),
+            aim: addSelectionAims('block'),
           },
           {
             text: 'Drag the block into the back half of the plate, away from FRONT.',
             done: (s) => (objectOf(s, 'block')?.y ?? 0) > 140 && fits(s, 'block'),
+            aim: partAims('block'),
           },
           {
-            text: 'Select only the cube, then type 128 in POSITION X and 128 in Y, pressing Enter after each.',
+            text: 'Turn off SELECT SEVERAL if it’s on. Select only the cube, then type 128 in POSITION X and 128 in Y, pressing Enter after each.',
             done: (s) => {
               const cube = objectOf(s, 'cube')
               return !!cube && near(cube.x, MIDDLE, 0.05) && near(cube.y, MIDDLE, 0.05)
             },
+            aim: (s) => s.selected.length === 1 && s.selected[0] === 'cube'
+              ? panelAims('position')
+              : [{ at: 'select-several:on', side: 'left' }, ...partAims('cube')],
           },
         ],
-        hint: 'POSITION is in the right column once one part is selected. On a phone, tap OBJECTS to open it.',
       },
     ],
   },
@@ -408,13 +521,18 @@ export const CHAPTERS: Chapter[] = [
         brief: 'Turn the bracket, then put it back.',
         setUp: { objects: () => [placed('bracket', 'bracket', MIDDLE, MIDDLE)] },
         goals: [
-          { text: 'Switch to ROTATE: the button with the curved arrows, or press R.', done: (s) => s.mode === 'rotate' },
+          {
+            text: 'Switch to ROTATE: the button with the curved arrows, or press R.',
+            done: (s) => s.mode === 'rotate',
+            aim: [{ at: 'tool:rotate' }],
+          },
           {
             text: 'Turn the bracket a quarter turn around Z so it faces another way. Drag the blue ring, or type 90 in ROTATION Z.',
             done: (s) => {
               const bracket = objectOf(s, 'bracket')
               return !!bracket && Math.abs(pointing(bracket, [1, 0, 0])[1]) > 0.985 && pointing(bracket, [0, 0, 1])[2] > 0.985
             },
+            aim: partAims('bracket'),
           },
           {
             text: 'Press RESET next to ROTATION to turn it back.',
@@ -422,9 +540,9 @@ export const CHAPTERS: Chapter[] = [
               const bracket = objectOf(s, 'bracket')
               return !!bracket && pointing(bracket, [1, 0, 0])[0] > 0.9999 && pointing(bracket, [0, 0, 1])[2] > 0.9999
             },
+            aim: field('bracket', 'rotation-reset'),
           },
         ],
-        hint: 'ROTATION and RESET are in the right column. Select the bracket first.',
       },
       {
         kind: 'try',
@@ -439,6 +557,7 @@ export const CHAPTERS: Chapter[] = [
               const cube = objectOf(s, 'cube')
               return !!cube && near(sizeOf(s, 'cube')?.[2] ?? 0, 30, 0.3) && near(cube.sx, cube.sz, 0.001)
             },
+            aim: field('cube', 'size-h'),
           },
           {
             text: 'Click UNIFORM so it says PER AXIS, then type 200 in SCALE X.',
@@ -446,6 +565,8 @@ export const CHAPTERS: Chapter[] = [
               const cube = objectOf(s, 'cube')
               return !!cube && near(cube.sx, 2, 0.01) && Math.abs(cube.sy - cube.sx) > 0.1
             },
+            // UNIFORM until it's switched, then SCALE X.
+            aim: field('cube', 'uniform', 'scale-x'),
           },
           {
             text: 'Put all three SCALE boxes back to 100.',
@@ -453,6 +574,7 @@ export const CHAPTERS: Chapter[] = [
               const cube = objectOf(s, 'cube')
               return !!cube && [cube.sx, cube.sy, cube.sz].every((v) => near(v, 1, 0.001))
             },
+            aim: field('cube', 'scale'),
           },
         ],
       },
@@ -515,9 +637,18 @@ export const CHAPTERS: Chapter[] = [
           {
             text: 'Press ARRANGE (the grid button, or A) to spread them out.',
             done: (s) => count(s) === 4 && !anyOverlap(s) && s.plate.objects.every((o) => fits(s, o.id)),
+            aim: [{ at: 'tool:arrange' }],
           },
-          { text: 'Select a cube and press COPY (or Ctrl+D) to make a fifth.', done: (s) => count(s) === 5 },
-          { text: 'Delete one: select it and press DELETE (or the Delete key).', done: (s) => count(s) === 4 },
+          {
+            text: 'Select a cube and press COPY (or Ctrl+D) to make a fifth.',
+            done: (s) => count(s) === 5,
+            aim: tool('copy', (s) => s.plate.objects[0]?.id),
+          },
+          {
+            text: 'Delete one: select it and press DELETE (or the Delete key).',
+            done: (s) => count(s) === 4,
+            aim: tool('delete', (s) => s.plate.objects.at(-1)?.id),
+          },
           { text: 'Undo that with Ctrl+Z. No keyboard? Copy one instead.', done: (s) => count(s) === 5 },
         ],
       },
@@ -564,9 +695,13 @@ export const CHAPTERS: Chapter[] = [
           ],
         },
         goals: [
-          { text: 'Bring the cube hanging off the right edge back onto the plate.', done: (s) => fits(s, 'off') },
-          { text: 'Move the other cube out of the hatched corner.', done: (s) => fits(s, 'corner') },
-          { text: 'The tower is too tall. Shrink it until it fits.', done: (s) => fits(s, 'tall') },
+          {
+            text: 'Bring the cube hanging off the right edge back onto the plate.',
+            done: (s) => fits(s, 'off'),
+            aim: partAims('off'),
+          },
+          { text: 'Move the other cube out of the hatched corner.', done: (s) => fits(s, 'corner'), aim: partAims('corner') },
+          { text: 'The tower is too tall. Shrink it until it fits.', done: (s) => fits(s, 'tall'), aim: partAims('tall') },
         ],
         hint: 'Zoom out to see the whole tower. SCALE or SIZE ON THE PLATE, H will shrink it.',
       },
@@ -660,15 +795,25 @@ export const CHAPTERS: Chapter[] = [
         brief: 'The bracket is tipped over at an angle. Put it down properly.',
         setUp: { objects: () => [placed('bracket', 'bracket', MIDDLE, MIDDLE, { turns: [turn('x', 35), turn('y', 20)] })] },
         goals: [
-          { text: 'Switch to LAY ON FACE: the arrow pointing down to a line, or press F.', done: (s) => s.mode === 'flat' },
-          { text: 'Click the bracket. The faces it could sit on light up.', done: (s) => s.selected.includes('bracket') },
+          {
+            text: 'Switch to LAY ON FACE: the arrow pointing down to a line, or press F.',
+            done: (s) => s.mode === 'flat',
+            aim: [{ at: 'tool:lay-on-face' }],
+          },
+          {
+            text: 'Click the bracket. The faces it could sit on light up.',
+            done: (s) => s.selected.includes('bracket'),
+            aim: partAims('bracket'),
+          },
           {
             text: 'Click one of its two biggest flat sides to put that side down.',
             done: (s) => restsOn(objectOf(s, 'bracket'), [0, -1, 0]) || restsOn(objectOf(s, 'bracket'), [0, 0, -1]),
+            aim: partAims('bracket'),
           },
           {
             text: 'Now stand it on one of its L-shaped ends instead.',
             done: (s) => restsOn(objectOf(s, 'bracket'), [1, 0, 0]) || restsOn(objectOf(s, 'bracket'), [-1, 0, 0]),
+            aim: partAims('bracket'),
           },
         ],
         hint: 'Turn the view to reach a face on the far side. Without the 3D view, type angles in ROTATION instead.',
@@ -718,6 +863,7 @@ export const CHAPTERS: Chapter[] = [
           {
             text: 'Select the mushroom and press AUTO-ORIENT (the wand).',
             done: (s) => restsOn(objectOf(s, 'mushroom'), [0, 0, 1]),
+            aim: tool('auto-orient', () => 'mushroom'),
           },
         ],
         hint: 'It should turn the mushroom over onto its cap. You could also type 180 in ROTATION X.',
@@ -834,13 +980,14 @@ export const CHAPTERS: Chapter[] = [
           {
             text: 'Switch Supports back on, and set Support type to Normal.',
             done: (s) => setting(s, 'enable_support') === true && setting(s, 'support_type') === 'normal(auto)',
+            aim: (s) => settingAims(setting(s, 'enable_support') === true ? 'support_type' : 'enable_support'),
           },
           is('support_threshold_angle', 45, 'Set Threshold angle to 45, and press Enter.'),
           is('support_on_build_plate_only', true, 'Switch on On build plate only.'),
           is('raft_layers', 2, 'Set Raft layers to 2.'),
           reset('raft_layers', 'Press the gold reset arrow beside Raft layers to put it back to 0.'),
         ],
-        hint: 'Settings are in the left column; on a phone, tap SETTINGS. A changed setting turns gold with a reset arrow.',
+        hint: 'A changed setting turns gold, with a reset arrow to put it back.',
       },
       {
         kind: 'check',
@@ -988,9 +1135,21 @@ export const CHAPTERS: Chapter[] = [
         brief: 'The top of the settings column.',
         setUp: { objects: () => [placed('cube', 'cube', MIDDLE, MIDDLE)] },
         goals: [
-          { text: 'Change FILAMENT to PETG.', done: (s) => s.plate.filamentId === PRACTICE_PETG },
-          { text: 'Change PROCESS to Q-S.', done: (s) => s.plate.processId === 'practice-qs' },
-          { text: 'In the Strength tab, change Walls to 4 and press Enter.', done: (s) => s.plate.overrides['wall_loops'] === 4 },
+          {
+            text: 'Change FILAMENT to PETG.',
+            done: (s) => s.plate.filamentId === PRACTICE_PETG,
+            aim: [{ at: 'filament', side: 'right' }, { at: 'drawer:settings' }],
+          },
+          {
+            text: 'Change PROCESS to Q-S.',
+            done: (s) => s.plate.processId === 'practice-qs',
+            aim: [{ at: 'process', side: 'right' }, { at: 'drawer:settings' }],
+          },
+          {
+            text: 'In the Strength tab, change Walls to 4 and press Enter.',
+            done: (s) => s.plate.overrides['wall_loops'] === 4,
+            aim: settingAims('wall_loops'),
+          },
           reset('wall_loops', 'Press the gold reset arrow beside Walls to go back to the process’s 6.'),
         ],
       },
@@ -1303,14 +1462,19 @@ export const CHAPTERS: Chapter[] = [
         brief: 'The mushroom standing on its stem, with the Standard process. Slice it and look at the result.',
         setUp: { objects: () => [placed('mushroom', 'mushroom', MIDDLE, MIDDLE)] },
         goals: [
-          { text: 'Press SLICE PLATE.', done: isSliced },
-          { text: 'In PREVIEW, drag the layer slider all the way down to layer 1.', done: (s) => s.tab === 'preview' && s.layers?.top === 0 },
+          { text: 'Press SLICE PLATE.', done: isSliced, aim: [{ at: 'slice' }] },
+          {
+            text: 'In PREVIEW, drag the layer slider all the way down to layer 1.',
+            done: (s) => s.tab === 'preview' && s.layers?.top === 0,
+            aim: (s) => [{ at: s.tab === 'preview' ? 'layers' : 'tab:preview' }],
+          },
           {
             text: 'In PATHS, click Support to hide it. On a phone, tap PATHS to open it first.',
             done: (s) => s.layers?.hidden.includes('support') ?? false,
+            aim: (s) => (s.tab === 'preview' ? [{ at: 'path:support' }, { at: 'paths' }] : [{ at: 'tab:preview' }]),
           },
         ],
-        hint: 'Practice slices are made ahead of time by the club’s slicer, for this mushroom. On a phone the slider runs along the bottom and PATHS is at the top right.',
+        hint: 'Practice slices are made ahead of time by the club’s slicer, for this mushroom.',
       },
       {
         kind: 'try',
@@ -1319,15 +1483,21 @@ export const CHAPTERS: Chapter[] = [
         brief: 'Those supports cost plastic. Get rid of them and compare.',
         setUp: { objects: () => [placed('mushroom', 'mushroom', MIDDLE, MIDDLE)] },
         goals: [
-          { text: 'Slice it as it is, and note the grams.', done: isSliced },
+          { text: 'Slice it as it is, and note the grams.', done: isSliced, aim: [{ at: 'slice' }] },
           {
             text: 'Back in PREPARE, turn the mushroom upside down.',
             done: (s) => restsOn(objectOf(s, 'mushroom'), [0, 0, 1]),
+            aim: (s) => (s.tab === 'prepare' ? tool('auto-orient', () => 'mushroom')(s) : [{ at: 'tab:prepare' }]),
           },
-          { text: 'Slice it again. Fewer grams?', done: (s) => isSliced(s) && s.sliced?.name.startsWith('mushroom-down') === true },
+          {
+            text: 'Slice it again. Fewer grams?',
+            done: (s) => isSliced(s) && s.sliced?.name.startsWith('mushroom-down') === true,
+            aim: [{ at: 'slice' }],
+          },
           {
             text: 'Set Brim to Outer only and slice once more.',
             done: (s) => isSliced(s) && s.sliced?.name === 'mushroom-down-brim',
+            aim: (s) => (setting(s, 'brim_type') === 'outer_only' ? [{ at: 'slice' }] : settingAims('brim_type')),
           },
         ],
       },
@@ -1395,10 +1565,12 @@ export const CHAPTERS: Chapter[] = [
               memory['sent'] = s.sent
               return isSliced(s)
             },
+            aim: [{ at: 'slice' }],
           },
           {
             text: 'Press REQUEST PRINT, choose what it’s for and press SEND IT.',
             done: (s, memory) => s.sent > Number(memory['sent'] ?? s.sent),
+            aim: [{ at: 'request' }],
           },
         ],
       },

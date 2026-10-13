@@ -1,5 +1,6 @@
-import { useEffect, useEffectEvent, useRef, useState } from 'react'
+import { type RefObject, useEffect, useEffectEvent, useRef, useState } from 'react'
 import type { Group } from 'three'
+import type { CameraMoves } from '../../lib/slicer/camera'
 import {
   type Extrusions,
   disposeExtrusions,
@@ -20,7 +21,7 @@ import {
   themeColors,
 } from '../../lib/slicer/scene'
 import { useTheme } from '../../lib/theme'
-import { ResetView } from './ResetView'
+import { ViewControl } from './ViewControl'
 
 /**
  * The sliced plate, layer by layer: Orca's own toolpaths at their real width and layer height,
@@ -34,6 +35,7 @@ export function PreviewView({
   focus,
   legend,
   onExplore,
+  camera,
 }: {
   bed: Bed
   preview: Preview
@@ -45,6 +47,8 @@ export function PreviewView({
   legend?: boolean
   /** The slider moved or a kind of path was hidden: for the slicer training. */
   onExplore?: (layers: { top: number; count: number; hidden: Role[] }) => void
+  /** Given the camera while the view is up, for the workspace's view keys. */
+  camera?: RefObject<CameraMoves | null>
 }) {
   const last = preview.layers.length - 1
   const [top, setTop] = useState(last)
@@ -60,7 +64,7 @@ export function PreviewView({
   return (
     <div className="absolute inset-0 flex">
       <div className="relative min-w-0 flex-1">
-        <PreviewCanvas bed={bed} preview={preview} top={top} hidden={hidden} focus={focus} />
+        <PreviewCanvas bed={bed} preview={preview} top={top} hidden={hidden} focus={focus} camera={camera} />
         <Legend
           initiallyOpen={legend}
           hidden={hidden}
@@ -85,12 +89,14 @@ function PreviewCanvas({
   top,
   hidden,
   focus,
+  camera,
 }: {
   bed: Bed
   preview: Preview
   top: number
   hidden: ReadonlySet<Role>
   focus?: Focus
+  camera?: RefObject<CameraMoves | null>
 }) {
   const host = useRef<HTMLDivElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
@@ -119,6 +125,7 @@ function PreviewCanvas({
       setFailed(true)
     }
     stage.current = made
+    if (camera) camera.current = made
     const paths = beads.current
     for (const role of drawn) {
       const extrusions = makeExtrusions(preview.roles[role])
@@ -132,9 +139,10 @@ function PreviewCanvas({
       bedGroup.current = null
       made.dispose()
       stage.current = null
+      if (camera?.current === made) camera.current = null
     }
     // `focus` has to be a stable object, or the view is rebuilt on every render.
-  }, [bed, preview, focus])
+  }, [bed, preview, focus, camera])
 
   useEffect(() => {
     const made = stage.current
@@ -176,7 +184,7 @@ function PreviewCanvas({
             aria-label={`Sliced plate, layer ${String(top + 1)} of ${String(preview.layers.length)}`}
             className="block h-full w-full touch-none"
           />
-          <ResetView onReset={() => stage.current?.reset()} />
+          <ViewControl camera={() => stage.current} everywhere={camera !== undefined} />
         </>
       )}
     </div>
@@ -212,6 +220,7 @@ function Legend({
     <div className="border-rule bg-base-100/90 absolute top-16 right-3 border backdrop-blur-sm wide:top-auto wide:right-auto wide:bottom-3 wide:left-3">
       <button
         type="button"
+        data-coach="paths"
         aria-expanded={open}
         onClick={() => {
           setOpen(!open)
@@ -227,6 +236,7 @@ function Legend({
             <li key={role}>
               <button
                 type="button"
+                data-coach={`path:${role}`}
                 aria-pressed={shown}
                 onClick={() => {
                   onToggle(role)
@@ -283,6 +293,7 @@ function LayerSlider({
           onChange(Number(event.target.value))
         }}
         aria-label="Top layer shown"
+        data-coach="layers"
         aria-valuetext={`Layer ${String(top + 1)} of ${String(preview.layers.length)}, ${layer ? layer.z.toFixed(2) : '0'} mm`}
         className="accent-primary h-6 min-w-0 flex-1 cursor-pointer wide:h-auto wide:w-6 wide:[direction:rtl] wide:[writing-mode:vertical-lr]"
       />

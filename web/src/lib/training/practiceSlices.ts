@@ -79,9 +79,16 @@ export type SliceMatch =
 
 /** Which ready-made slice the plate is, or why there isn't one. */
 export function matchSlice(plate: Plate): SliceMatch {
+  const mushroom = modelIdOf('mushroom')
   const [only, ...rest] = plate.objects
-  if (!only || rest.length > 0 || only.modelId !== modelIdOf('mushroom')) {
-    return { problem: 'Practice slicing only knows the mushroom, on its own. Delete everything else on the plate.' }
+  if (!only || rest.length > 0 || only.modelId !== mushroom) {
+    // Most tasks before the slicing chapter put a cube or a bracket on the plate, with no mushroom
+    // to delete down to.
+    return {
+      problem: plate.objects.some((object) => object.modelId === mushroom)
+        ? 'Practice only slices the mushroom on its own. Delete everything else to slice it.'
+        : 'Practice only slices the mushroom, so nothing was sliced. The real slicer would slice this plate.',
+    }
   }
   if ([only.sx, only.sy, only.sz].some((s) => Math.abs(s - 1) > 0.001)) {
     return { problem: 'Practice slices are made at 100% size. Put the mushroom’s scale back to 100%.' }

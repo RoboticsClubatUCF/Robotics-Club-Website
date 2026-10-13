@@ -32,7 +32,7 @@ export type Step =
       kind: 'try'
       id: string
       title: string
-      brief: ReactNode
+      brief?: ReactNode
       /** Left out, the task carries on with the plate as the last one left it. */
       setUp?: Setup
       goals: Goal[]

@@ -1,9 +1,12 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import type { RefObject } from 'react'
 import { MemoryRouter, Outlet, Route, Routes } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
 import { CHAPTERS } from '../../components/training/chapters'
 import type { ApiTerm } from '../../lib/api/api'
+import type { CameraMoves } from '../../lib/slicer/camera'
+import type { CameraView } from '../../lib/slicer/scene'
 import { flatten } from '../../lib/training/curriculum'
 import { readProgress, writeProgress } from '../../lib/training/progress'
 import { stubFetch, stubFetchStatus, urlOf } from '../../test/stubFetch'
@@ -15,9 +18,74 @@ import { SlicerTrainingPage } from './SlicerTrainingPage'
  * practice parts are a stub mesh rather than files fetched from the site.
  */
 
-vi.mock('../../components/slicer/PlateView', () => ({
-  PlateView: ({ objects }: { objects: unknown[] }) => <div data-testid="plate">{objects.length} on the plate</div>,
-}))
+// The plate's camera without the drawing: the view keys move it with the real camera maths, as the
+// stage does, and the training hears where it went.
+vi.mock('../../components/slicer/PlateView', async () => {
+  const { useEffect } = await import('react')
+  const { PerspectiveCamera, Vector3 } = await import('three')
+  const moves = await import('../../lib/slicer/camera')
+  const { ViewControl } = await import('../../components/slicer/ViewControl')
+  return {
+    PlateView: ({
+      objects,
+      onView,
+      camera,
+    }: {
+      objects: unknown[]
+      onView?: (view: CameraView) => void
+      camera?: RefObject<CameraMoves | null>
+    }) => {
+      useEffect(() => {
+        const eye = new PerspectiveCamera(40, 1, 1, 5_000)
+        eye.up.set(0, 0, 1)
+        const target = new Vector3()
+        // Where `frameBed` opens on the practice printer's 256 mm bed.
+        const home = () => {
+          eye.position.set(128, -268.8, 332.8)
+          target.set(128, 128, 0)
+        }
+        const report = () => {
+          eye.lookAt(target)
+          onView?.({ position: eye.position.toArray(), target: target.toArray() })
+        }
+        home()
+        report()
+        const rig: CameraMoves = {
+          reset: () => {
+            home()
+            report()
+          },
+          turn: (around, up) => {
+            moves.turnCamera(eye.position, target, around, up)
+            report()
+          },
+          slide: (right, up) => {
+            moves.slideCamera(eye, target, right, up)
+            report()
+          },
+          zoom: (factor) => {
+            moves.zoomCamera(eye.position, target, factor)
+            report()
+          },
+          look: (view) => {
+            moves.lookFrom(eye.position, target, view)
+            report()
+          },
+        }
+        if (camera) camera.current = rig
+        return () => {
+          if (camera) camera.current = null
+        }
+      }, [camera, onView])
+      return (
+        <div data-testid="plate">
+          {objects.length} on the plate
+          <ViewControl camera={() => camera?.current} />
+        </div>
+      )
+    },
+  }
+})
 vi.mock('../../components/slicer/PreviewView', () => ({
   PreviewView: () => <div data-testid="preview" />,
 }))
@@ -106,9 +174,24 @@ const startAt = (id: string) => {
 
 const heading = () => document.querySelector('[data-step-heading]')?.textContent
 
+/** What the task's callout says: which goal it's on, and the goal. */
+const callout = () => screen.getByRole('region', { name: 'What to do' }).textContent
+
+// The standing mushroom's slice, numbers only. The manifest is fetched once per file, so every test
+// gets the same one.
+const manifest = {
+  orca: '2.4.2',
+  slices: {
+    'mushroom-up-tree': { part: 'mushroom', at: [128, 128], overrides: {}, filament: 'pla', grams: 4.45, seconds: 955, meters: null, layers: null, preview: null },
+  },
+}
+
+/** Practice slicing waits a second or so before it lands. */
+const slicing = { timeout: 3_000 }
+
 beforeEach(() => {
   localStorage.clear()
-  vi.stubGlobal('fetch', stubFetch({ '/training/slices.json': { orca: '2.4.2', slices: {} } }))
+  vi.stubGlobal('fetch', stubFetch({ '/training/slices.json': manifest }))
 })
 
 afterEach(() => {
@@ -173,48 +256,118 @@ describe('questions', () => {
 })
 
 describe('practice', () => {
-  it('runs a task on the practice plate and ticks a goal as it’s met', async () => {
+  it('runs a task on the practice plate and moves on to the next goal as one is met', async () => {
     startAt('try-the-screen')
     renderPage()
     expect(await screen.findByText(/1 on the plate/)).toBeInTheDocument()
     expect(heading()).toBe('TRY IT · LOOK AROUND')
+    expect(callout()).toMatch(/^STEP 1 OF 4Press SLICE PLATE/)
     expect(screen.getByRole('button', { name: 'NEXT' })).toBeDisabled()
 
-    fireEvent.click(screen.getByRole('tab', { name: 'PREVIEW' }))
+    fireEvent.click(screen.getByRole('button', { name: 'SLICE PLATE' }))
     await waitFor(() => {
-      expect(within(screen.getByRole('list', { name: 'Goals' })).getAllByText('Done.')).toHaveLength(1)
-    })
+      expect(callout()).toBe('STEP 2 OF 4Go back to PREPARE.')
+    }, slicing)
+    expect(screen.getByText('Done. Next: Go back to PREPARE.')).toBeInTheDocument()
+    // The slice opened PREVIEW, which mustn't count as the next goal, going back to PREPARE.
+    expect(screen.getByRole('tab', { name: 'PREVIEW' })).toHaveAttribute('aria-selected', 'true')
     // Nothing on the practice plate goes near the server.
     const fetch = vi.mocked(globalThis.fetch)
     expect(fetch.mock.calls.filter((call) => urlOf(call[0]).includes('/api/'))).toHaveLength(0)
   })
 
-  it('lets somebody without a mouse or touch screen past the goals that need one', async () => {
+  it('says why a plate with no practice slice wasn’t sliced, without calling it a failure', async () => {
+    startAt('try-scale')
+    renderPage()
+    await screen.findByText(/1 on the plate/)
+
+    fireEvent.click(screen.getByRole('button', { name: 'SLICE PLATE' }))
+    expect(await screen.findByText(/Practice only slices the mushroom, so nothing was sliced/)).toBeInTheDocument()
+    expect(screen.getByText('Not sliced yet.')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+    expect(screen.queryByText(/Practice only slices the mushroom/)).not.toBeInTheDocument()
+  })
+
+  it('can be done from the keyboard, the view task included, with no way to skip it', async () => {
     startAt('try-camera')
     renderPage()
     await screen.findByText(/on the plate/)
-    expect(screen.getByRole('button', { name: 'NEXT' })).toBeDisabled()
+    const next = screen.getByRole('button', { name: 'NEXT' })
+    expect(next).toBeDisabled()
+    expect(screen.queryByRole('button', { name: /skip/i })).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /No mouse or touch screen/ }))
+    const goalsDone = () => {
+      const step = /^STEP (\d+) OF/.exec(callout() ?? '')
+      return step ? Number(step[1]) - 1 : 6
+    }
+    const press = (key: string, target: Element = document.body, shiftKey = false) => {
+      fireEvent.keyDown(target, { key, shiftKey })
+    }
+
+    // Not from a button off the plate, where a stray key shouldn't swing the view.
+    press('4', screen.getByRole('button', { name: 'START OVER' }))
+    expect(goalsDone()).toBe(0)
+    press('4')
+    await waitFor(() => expect(goalsDone()).toBe(1))
+    press('1')
+    await waitFor(() => expect(goalsDone()).toBe(2))
+    press('2')
+    await waitFor(() => expect(goalsDone()).toBe(3))
+    for (let i = 0; i < 4; i++) press('i')
+    await waitFor(() => expect(goalsDone()).toBe(4))
+    const house = screen.getByRole('button', { name: 'Reset view' })
+    for (let i = 0; i < 3; i++) press('ArrowLeft', house, true)
+    await waitFor(() => expect(goalsDone()).toBe(5))
+    press('0')
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'NEXT' })).toBeEnabled()
+      expect(next).toBeEnabled()
     })
+    expect(callout()).toBe('DONEPress NEXT to carry on.')
     expect(readProgress('u1').done).toContain('try-camera')
+  })
+
+  it('adds a second part without modifiers and completes the placing task', async () => {
+    startAt('try-placing')
+    renderPage()
+    await screen.findByText(/2 on the plate/)
+    fireEvent.click(screen.getByRole('button', { name: 'OBJECTS · 2' }))
+    fireEvent.click(screen.getByRole('button', { name: /Cube/ }))
+    expect(callout()).toMatch(/SELECT SEVERAL/)
+    const toggle = screen.getByRole('checkbox', { name: 'SELECT SEVERAL' })
+    fireEvent.click(toggle)
+    fireEvent.click(screen.getByRole('button', { name: /Block/ }))
+    expect(callout()).toMatch(/Drag the block/)
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    for (let i = 0; i < 8; i++) fireEvent.keyDown(window, { key: 'ArrowUp', shiftKey: true })
+    expect(callout()).toMatch(/Turn off SELECT SEVERAL/)
+    fireEvent.click(screen.getByRole('button', { name: 'OBJECTS · 2' }))
+    expect(screen.getByRole('checkbox', { name: 'SELECT SEVERAL' })).toBeChecked()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'SELECT SEVERAL' }))
+    fireEvent.click(screen.getByRole('button', { name: /Cube/ }))
+    for (const axis of ['X', 'Y']) {
+      const input = screen.getByRole('spinbutton', { name: `Position ${axis}` })
+      fireEvent.change(input, { target: { value: '128' } })
+      fireEvent.keyDown(input, { key: 'Enter' })
+    }
+    await waitFor(() => expect(screen.getByRole('button', { name: 'NEXT' })).toBeEnabled())
+    expect(readProgress('u1').done).toContain('try-placing')
   })
 
   it('starts over on a clean plate, without counting what was done before', async () => {
     startAt('try-the-screen')
     renderPage()
     await screen.findByText(/1 on the plate/)
-    fireEvent.click(screen.getByRole('tab', { name: 'PREVIEW' }))
+    fireEvent.click(screen.getByRole('button', { name: 'SLICE PLATE' }))
     await waitFor(() => {
-      expect(within(screen.getByRole('list', { name: 'Goals' })).getAllByText('Done.')).toHaveLength(1)
-    })
+      expect(callout()).toMatch(/^STEP 2 OF 4/)
+    }, slicing)
 
     fireEvent.click(screen.getByRole('button', { name: 'START OVER' }))
     await screen.findByText(/1 on the plate/)
     expect(screen.getByRole('tab', { name: 'PREPARE' })).toHaveAttribute('aria-selected', 'true')
-    expect(within(screen.getByRole('list', { name: 'Goals' })).queryAllByText('Done.')).toHaveLength(0)
+    expect(screen.getByText('Not sliced yet.')).toBeInTheDocument()
+    expect(callout()).toMatch(/^STEP 1 OF 4/)
   })
 
   it('lets somebody who has finished move on without doing a task again', async () => {
@@ -222,6 +375,7 @@ describe('practice', () => {
     renderPage(context(true))
     await screen.findByText(/1 on the plate/)
     expect(screen.getByRole('button', { name: 'NEXT' })).toBeEnabled()
+    expect(callout()).toBe('DONEPress NEXT to carry on.')
   })
 })
 

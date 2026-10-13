@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { type RefObject, useEffect, useRef, useState } from 'react'
 import {
   BufferGeometry,
   DoubleSide,
@@ -19,6 +19,7 @@ import {
 } from 'three'
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js'
 import type { ApiPlacement, ApiPlateObject } from '../../lib/api/api'
+import type { CameraMoves } from '../../lib/slicer/camera'
 import { restingFaces } from '../../lib/slicer/faces'
 import type { MeshMap } from '../../lib/slicer/meshes'
 import {
@@ -41,7 +42,7 @@ import {
   themeColors,
 } from '../../lib/slicer/scene'
 import { useTheme } from '../../lib/theme'
-import { ResetView } from './ResetView'
+import { ViewControl } from './ViewControl'
 
 export type PlateMode = 'move' | 'rotate' | 'scale' | 'flat'
 
@@ -54,13 +55,15 @@ interface Props {
   mode: PlateMode
   onSelect: (ids: string[]) => void
   /** A drag in progress: shown, not saved. */
-  onDrag: (id: string, placement: Partial<ApiPlacement>) => void
+  onDrag: (placements: ReadonlyMap<string, Partial<ApiPlacement>>) => void
   /** A drag finished, or a gizmo let go: saved. */
-  onCommit: (id: string, placement: Partial<ApiPlacement>) => void
+  onCommit: (placements: ReadonlyMap<string, Partial<ApiPlacement>>) => void
   /** A face picked in LAY ON FACE, as a direction on the plate. */
   onLayFlat: (id: string, normal: [number, number, number]) => void
   /** The camera moved. */
   onView?: (view: CameraView) => void
+  /** Given the camera while the view is up, for the workspace's view keys. */
+  camera?: RefObject<CameraMoves | null>
 }
 
 interface Scene3d {
@@ -170,6 +173,8 @@ export function PlateView(props: Props) {
       hovered: null,
     }
     three.current = scene
+    const handle = latest.current.camera
+    if (handle) handle.current = stage
 
     const placementFromProxy = (): Partial<ApiPlacement> => {
       const { mode } = latest.current
@@ -191,19 +196,27 @@ export function PlateView(props: Props) {
     gizmo.addEventListener('change', stage.render)
     gizmo.addEventListener('objectChange', () => {
       const id = latest.current.selected[0]
-      if (id) latest.current.onDrag(id, placementFromProxy())
+      if (id) latest.current.onDrag(new Map([[id, placementFromProxy()]]))
     })
     gizmo.addEventListener('dragging-changed', (event) => {
       stage.orbit.enabled = !event.value
       const id = latest.current.selected[0]
-      if (!event.value && id) latest.current.onCommit(id, placementFromProxy())
+      if (!event.value && id) latest.current.onCommit(new Map([[id, placementFromProxy()]]))
     })
 
     const raycaster = new Raycaster()
     const pointer = new Vector2()
     const bedPlane = new Plane(new Vector3(0, 0, 1), 0)
     const element = stage.renderer.domElement
-    let down: { x: number; y: number; id: string | null; offset: Vector2 | null } | null = null
+    let down: {
+      x: number
+      y: number
+      id: string | null
+      offset: Vector2 | null
+      /** Where everything the drag moves started: the whole selection, if it grabbed a part of it. */
+      from: Map<string, { x: number; y: number }>
+      placements: Map<string, Partial<ApiPlacement>>
+    } | null = null
     let dragged = false
 
     const aim = (event: PointerEvent) => {
@@ -241,16 +254,20 @@ export function PlateView(props: Props) {
       const found = objectAt()
       const { mode, selected, objects: placed } = latest.current
       let offset: Vector2 | null = null
-      if (found && mode === 'move' && (selected.includes(found.id) || !event.shiftKey)) {
+      const from = new Map<string, { x: number; y: number }>()
+      const adding = event.shiftKey || event.ctrlKey || event.metaKey
+      if (found && mode === 'move' && (selected.includes(found.id) || !adding)) {
         const object = placed.find((o) => o.id === found.id)
         const at = onBed()
         if (object && at) {
           offset = new Vector2(object.x - at.x, object.y - at.y)
+          const moving = selected.includes(found.id) ? selected : [found.id]
+          for (const o of placed) if (moving.includes(o.id)) from.set(o.id, { x: o.x, y: o.y })
           stage.orbit.enabled = false
           element.setPointerCapture(event.pointerId)
         }
       }
-      down = { x: event.clientX, y: event.clientY, id: found?.id ?? null, offset }
+      down = { x: event.clientX, y: event.clientY, id: found?.id ?? null, offset, from, placements: new Map() }
       dragged = false
     }
 
@@ -268,21 +285,26 @@ export function PlateView(props: Props) {
       }
       aim(event)
       const at = onBed()
-      if (at) {
-        latest.current.onDrag(down.id, {
-          x: Math.round((at.x + down.offset.x) * 10) / 10,
-          y: Math.round((at.y + down.offset.y) * 10) / 10,
-        })
+      const grabbed = down.from.get(down.id)
+      if (at && grabbed) {
+        // The grabbed part follows the pointer; the rest of the selection keeps its place beside it.
+        const dx = Math.round((at.x + down.offset.x) * 10) / 10 - grabbed.x
+        const dy = Math.round((at.y + down.offset.y) * 10) / 10 - grabbed.y
+        down.placements = new Map([...down.from].map(([id, start]) => [
+          id,
+          { x: Math.round((start.x + dx) * 10) / 10, y: Math.round((start.y + dy) * 10) / 10 },
+        ]))
+        latest.current.onDrag(down.placements)
       }
     }
 
     const onUp = (event: PointerEvent) => {
       if (!down) return
       stage.orbit.enabled = true
-      const { mode, selected, objects: placed } = latest.current
+      const { mode, selected } = latest.current
       if (dragged && down.id) {
-        const object = placed.find((o) => o.id === down!.id)
-        if (object) latest.current.onCommit(down.id, { x: object.x, y: object.y })
+        // Commit the whole last preview, even if React hasn't drawn it yet.
+        latest.current.onCommit(down.placements)
       } else if (Math.hypot(event.clientX - down.x, event.clientY - down.y) < 4) {
         aim(event)
         const face = mode === 'flat' ? faceAt() : null
@@ -342,6 +364,7 @@ export function PlateView(props: Props) {
       Object.values(scene.faceMaterials).forEach((material) => material.dispose())
       stage.dispose()
       three.current = null
+      if (handle?.current === stage) handle.current = null
     }
     // Rebuilt for a new bed only; everything else is synced below.
   }, [props.bed])
@@ -518,11 +541,12 @@ export function PlateView(props: Props) {
         <>
           <canvas
             ref={canvas}
+            data-coach="plate"
             role="img"
-            aria-label={`Build plate with ${String(count)} ${count === 1 ? 'object' : 'objects'}. Use the object panel to move them with a keyboard.`}
+            aria-label={`Build plate with ${String(count)} ${count === 1 ? 'object' : 'objects'}. Use the object panel to move them with a keyboard, and the view keys on the house button to move the view.`}
             className={`block h-full w-full touch-none ${props.mode === 'flat' ? 'cursor-crosshair' : ''}`}
           />
-          <ResetView onReset={() => three.current?.stage.reset()} />
+          <ViewControl camera={() => three.current?.stage} everywhere={props.camera !== undefined} />
         </>
       )}
     </div>

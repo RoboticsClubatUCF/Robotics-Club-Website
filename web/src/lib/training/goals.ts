@@ -6,6 +6,7 @@ import type { Bed } from '../slicer/plateTransform'
 import type { Role } from '../slicer/preview'
 import type { CameraView } from '../slicer/scene'
 import type { Plate } from '../slicer/useDraft'
+import type { Aim } from './aim'
 import { PRACTICE_WORKSPACE } from './practiceProfiles'
 import type { PracticeSliceState } from './usePracticePlate'
 
@@ -39,6 +40,8 @@ export interface Goal {
   done: (state: PracticeState, memory: Memory) => boolean
   /** Needs the 3D view. Counted as done in a browser that can't draw it. */
   needs3d?: boolean
+  /** Where the task points while this is the next goal (`aim.ts`). Without one it just says it. */
+  aim?: Aim[] | ((state: PracticeState) => Aim[])
 }
 
 export const objectOf = (state: PracticeState, id: string): ApiPlateObject | undefined =>

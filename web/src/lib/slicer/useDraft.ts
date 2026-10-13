@@ -43,7 +43,7 @@ export interface PlateSource {
   draft: ApiDraft | null
   plate: Plate
   edit: (change: Edit) => void
-  preview: (objectId: string, placement: Partial<ApiPlacement>) => void
+  preview: (placements: ReadonlyMap<string, Partial<ApiPlacement>>) => void
   reload: () => Promise<void>
   addModel: (file: File, object: { id: string } & ApiPlacement) => Promise<ApiDraft>
   slice: () => Promise<void>
@@ -196,12 +196,12 @@ export function useDraft(id: string | undefined, fresh: PlateChoice): PlateSourc
     [flush],
   )
 
-  /** Moves one copy without saving, for a drag in progress. */
-  const preview = useCallback((objectId: string, placement: Partial<ApiPlacement>) => {
+  /** Moves a selection together without saving, for a drag in progress. */
+  const preview = useCallback((placements: ReadonlyMap<string, Partial<ApiPlacement>>) => {
     setPlate((current) => ({
       ...current,
       objects: current.objects.map((object) =>
-        object.id === objectId ? { ...object, ...placement } : object,
+        placements.has(object.id) ? { ...object, ...placements.get(object.id) } : object,
       ),
     }))
   }, [])

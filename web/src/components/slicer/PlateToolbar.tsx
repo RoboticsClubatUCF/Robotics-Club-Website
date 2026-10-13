@@ -55,6 +55,8 @@ export function PlateToolbar({
       disabled={disabled || options.off}
       aria-label={label}
       aria-pressed={options.on}
+      // `tool:arrange`, `tool:lay-on-face`: what the slicer training points at.
+      data-coach={`tool:${label.toLowerCase().replaceAll(' ', '-')}`}
       title={options.shortcut ? `${label} (${options.shortcut})` : label}
       className={`${toolButton} shrink-0 ${options.on ? toolButtonOn : ''}`}
     >
@@ -66,9 +68,11 @@ export function PlateToolbar({
     <div
       role="toolbar"
       aria-label="Plate tools"
+      data-coach="tools"
       // Along the bottom on a phone, where a thumb is, wrapping to a second row; centred above
-      // the plate at `wide`, as in Orca.
-      className="border-rule bg-base-100/90 absolute right-3 bottom-3 left-3 flex flex-wrap items-center justify-center gap-0.5 border p-1 backdrop-blur-sm wide:right-auto wide:bottom-auto wide:top-3 wide:left-1/2 wide:-translate-x-1/2 wide:flex-nowrap"
+      // the plate at `wide`, as in Orca, and wrapping before it reaches the house at the top right
+      // (`ViewControl`) when the plate is narrow.
+      className="border-rule bg-base-100/90 absolute right-3 bottom-3 left-3 flex flex-wrap items-center justify-center gap-0.5 border p-1 backdrop-blur-sm wide:right-auto wide:bottom-auto wide:top-3 wide:left-1/2 wide:w-max wide:max-w-[calc(100%-7rem)] wide:-translate-x-1/2"
     >
       <input
         ref={input}

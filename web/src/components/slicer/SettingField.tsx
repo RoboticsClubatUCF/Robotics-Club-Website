@@ -34,6 +34,7 @@ export function SettingField({
 
   return (
     <div
+      data-coach={`setting:${def.key}`}
       className={`grid grid-cols-[minmax(0,1fr)_6.75rem_2.75rem] items-center gap-x-2 border-l-2 py-1.5 pr-1 pl-2.5 wide:grid-cols-[minmax(0,1fr)_6.75rem_1.75rem] ${
         changed ? 'border-primary bg-primary/5' : 'border-transparent'
       }`}
@@ -47,6 +48,7 @@ export function SettingField({
       {changed ? (
         <button
           type="button"
+          data-coach="reset"
           onClick={() => {
             onChange(undefined)
           }}
