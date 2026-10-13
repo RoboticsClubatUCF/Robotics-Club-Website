@@ -1,4 +1,4 @@
-import { RotateCcw } from 'lucide-react'
+import { OrcaIcon } from './OrcaIcon'
 import { useId, useState } from 'react'
 import {
   type SettingDef,
@@ -57,7 +57,7 @@ export function SettingField({
           aria-label={`Reset ${def.label} to the preset's ${displayValue(def, presetValue)}`}
           className="text-primary hover:text-base-content inline-flex size-11 cursor-pointer items-center justify-center focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-40 wide:size-7"
         >
-          <RotateCcw className={iconSize} aria-hidden="true" />
+          <OrcaIcon name="reset" className={iconSize} />
         </button>
       ) : (
         <span aria-hidden="true" />

@@ -1,18 +1,8 @@
-import {
-  ArrowDownToLine,
-  Copy,
-  LayoutGrid,
-  Move,
-  Rotate3d,
-  Scale3d,
-  Trash2,
-  Upload,
-  WandSparkles,
-} from 'lucide-react'
 import { type ReactNode, useRef } from 'react'
 import { ACCEPTED_MODELS } from '../../lib/slicer/stl'
+import { OrcaIcon } from './OrcaIcon'
 import type { PlateMode } from './PlateView'
-import { iconSize, toolButton, toolButtonOn } from './slicerChrome'
+import { toolButton, toolButtonOn } from './slicerChrome'
 
 /**
  * The plate's tools, in Orca's order: add, then the layout tools, then the four modes. Every
@@ -72,7 +62,7 @@ export function PlateToolbar({
       // Along the bottom on a phone, where a thumb is, wrapping to a second row; centred above
       // the plate at `wide`, as in Orca, and wrapping before it reaches the house at the top right
       // (`ViewControl`) when the plate is narrow.
-      className="border-rule bg-base-100/90 absolute right-3 bottom-3 left-3 flex flex-wrap items-center justify-center gap-0.5 border p-1 backdrop-blur-sm wide:right-auto wide:bottom-auto wide:top-3 wide:left-1/2 wide:w-max wide:max-w-[calc(100%-7rem)] wide:-translate-x-1/2"
+      className="border-rule bg-base-100/90 absolute right-3 bottom-3 left-3 z-10 flex flex-wrap items-center justify-center gap-0.5 border p-1 backdrop-blur-sm wide:right-auto wide:bottom-auto wide:top-3 wide:left-1/2 wide:w-max wide:max-w-[calc(100%-7rem)] wide:-translate-x-1/2"
     >
       <input
         ref={input}
@@ -88,17 +78,17 @@ export function PlateToolbar({
           if (files.length > 0) onAdd(files)
         }}
       />
-      {tool('Add a model', <Upload className={iconSize} aria-hidden="true" />, () => input.current?.click())}
+      {tool('Add a model', <OrcaIcon name="add" />, () => input.current?.click())}
       <span aria-hidden="true" className="bg-rule mx-1 h-6 w-px" />
-      {tool('Arrange', <LayoutGrid className={iconSize} aria-hidden="true" />, onArrange, { off: !hasObjects, shortcut: 'A' })}
-      {tool('Auto-orient', <WandSparkles className={iconSize} aria-hidden="true" />, onOrient, { off: !hasObjects })}
-      {tool('Copy', <Copy className={iconSize} aria-hidden="true" />, onCopy, { off: !hasSelection, shortcut: 'Ctrl+D' })}
-      {tool('Delete', <Trash2 className={iconSize} aria-hidden="true" />, onDelete, { off: !hasSelection, shortcut: 'Delete' })}
+      {tool('Arrange', <OrcaIcon name="arrange" />, onArrange, { off: !hasObjects, shortcut: 'A' })}
+      {tool('Auto-orient', <OrcaIcon name="orient" />, onOrient, { off: !hasObjects })}
+      {tool('Copy', <OrcaIcon name="copy" />, onCopy, { off: !hasSelection, shortcut: 'Ctrl+D' })}
+      {tool('Delete', <OrcaIcon name="remove" />, onDelete, { off: !hasSelection, shortcut: 'Delete' })}
       <span aria-hidden="true" className="bg-rule mx-1 h-6 w-px" />
-      {tool('Move', <Move className={iconSize} aria-hidden="true" />, () => onMode('move'), { on: mode === 'move', shortcut: 'M' })}
-      {tool('Rotate', <Rotate3d className={iconSize} aria-hidden="true" />, () => onMode('rotate'), { on: mode === 'rotate', shortcut: 'R' })}
-      {tool('Scale', <Scale3d className={iconSize} aria-hidden="true" />, () => onMode('scale'), { on: mode === 'scale', shortcut: 'S' })}
-      {tool('Lay on face', <ArrowDownToLine className={iconSize} aria-hidden="true" />, () => onMode('flat'), { on: mode === 'flat', shortcut: 'F' })}
+      {tool('Move', <OrcaIcon name="move" />, () => onMode('move'), { on: mode === 'move', shortcut: 'M' })}
+      {tool('Rotate', <OrcaIcon name="rotate" />, () => onMode('rotate'), { on: mode === 'rotate', shortcut: 'R' })}
+      {tool('Scale', <OrcaIcon name="scale" />, () => onMode('scale'), { on: mode === 'scale', shortcut: 'S' })}
+      {tool('Lay on face', <OrcaIcon name="flat" />, () => onMode('flat'), { on: mode === 'flat', shortcut: 'F' })}
     </div>
   )
 }

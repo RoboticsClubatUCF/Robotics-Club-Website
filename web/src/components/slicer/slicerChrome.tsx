@@ -27,7 +27,7 @@ export const smallDangerButton = `${smallBase} btn-outline border-error/40 text-
 export const toolButton =
   'inline-flex size-11 cursor-pointer items-center justify-center border border-transparent text-dim transition-colors duration-150 hover:bg-base-content/6 hover:text-base-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-40 wide:size-9'
 
-export const toolButtonOn = 'border-primary bg-primary/10 text-primary'
+export const toolButtonOn = 'aria-pressed:border-primary aria-pressed:bg-primary/10 aria-pressed:text-primary'
 
 export const panelHeading =
   'text-faint font-mono text-[10px] font-medium tracking-[0.16em]'

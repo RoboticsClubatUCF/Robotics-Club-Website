@@ -1,7 +1,6 @@
-import { House } from 'lucide-react'
 import { useId } from 'react'
 import { type CameraMoves, viewKey } from '../../lib/slicer/camera'
-import { iconSize } from './slicerChrome'
+import { OrcaIcon } from './OrcaIcon'
 
 // In the body face, not the mono: there the O that zooms out and the 0 that resets look alike.
 const KEYS: [keys: string, does: string][] = [
@@ -38,7 +37,7 @@ export function ViewControl({
   return (
     // Across the top of the view so the phone's paragraph can span it; only the button and the
     // list take the pointer, so the plate and the toolbar under it still do.
-    <div className="group pointer-events-none absolute inset-x-3 top-3 flex flex-col items-end gap-1.5">
+    <div className="group pointer-events-none absolute inset-x-3 top-3 z-10 flex flex-col items-end gap-1.5">
       <button
         type="button"
         onClick={() => camera()?.reset()}
@@ -53,7 +52,7 @@ export function ViewControl({
         title="Reset view (zero)"
         className="border-rule bg-base-100/90 text-dim hover:text-base-content pointer-events-auto inline-flex size-11 cursor-pointer items-center justify-center border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary wide:size-9"
       >
-        <House className={iconSize} aria-hidden="true" />
+        <OrcaIcon name="home" />
       </button>
       {/* Two boxes: `not-sr-only` zeroes padding, so the panel's own is on the inner one. */}
       <div id={id} className="sr-only self-stretch group-has-[:focus-visible]:not-sr-only wide:self-end">

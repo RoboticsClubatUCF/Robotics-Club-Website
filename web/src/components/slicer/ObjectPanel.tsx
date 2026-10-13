@@ -1,4 +1,3 @@
-import { Copy, Lock, LockOpen, RotateCcw, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { Euler, Quaternion } from 'three'
 import type { ApiPlacement, ApiPlateModel, ApiPlateObject } from '../../lib/api/api'
@@ -12,7 +11,8 @@ import {
   placementAffine,
 } from '../../lib/slicer/plateTransform'
 import { NumberInput } from './NumberInput'
-import { dangerButton, iconSize, panelHeading, quietButton } from './slicerChrome'
+import { OrcaIcon } from './OrcaIcon'
+import { dangerButton, panelHeading, quietButton } from './slicerChrome'
 
 /** Why a copy won't slice, or overlaps another and would print joined to it. */
 export type PlateWarning = FitProblem | 'overlaps'
@@ -76,7 +76,7 @@ export function ObjectPanel({
             aria-label="Copy the selected objects"
             title="Copy (Ctrl+D)"
           >
-            <Copy className={iconSize} aria-hidden="true" />
+            <OrcaIcon name="copy" className="size-5" />
           </button>
           <button
             type="button"
@@ -86,7 +86,7 @@ export function ObjectPanel({
             aria-label="Delete the selected objects"
             title="Delete"
           >
-            <Trash2 className={iconSize} aria-hidden="true" />
+            <OrcaIcon name="remove" className="size-5" />
           </button>
         </span>
       </div>
@@ -288,7 +288,7 @@ function Transform({
             }}
             className="inline-flex cursor-pointer items-center gap-1 font-mono text-[9.5px] tracking-[0.12em] text-dim hover:text-base-content disabled:opacity-40"
           >
-            <RotateCcw className="size-3" aria-hidden="true" /> RESET
+            <OrcaIcon name="reset" className="size-3" /> RESET
           </button>
         </div>
         <div className="grid grid-cols-3 gap-2">
@@ -329,9 +329,9 @@ function Transform({
             className="inline-flex cursor-pointer items-center gap-1 font-mono text-[9.5px] tracking-[0.12em] text-dim hover:text-base-content"
           >
             {uniform ? (
-              <Lock className="size-3" aria-hidden="true" />
+              <OrcaIcon name="locked" className="size-3" />
             ) : (
-              <LockOpen className="size-3" aria-hidden="true" />
+              <OrcaIcon name="unlocked" className="size-3" />
             )}
             {uniform ? 'UNIFORM' : 'PER AXIS'}
           </button>
