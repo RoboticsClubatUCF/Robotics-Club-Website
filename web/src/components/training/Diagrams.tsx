@@ -1,4 +1,5 @@
 import { type ReactNode, useId } from 'react'
+export { BracketDiagram } from './BracketDiagram'
 
 /**
  * The training's drawings. Line work in the theme's ink, the thing being pointed at in gold, and
@@ -256,53 +257,6 @@ export function StrengthDiagram() {
       <Label x={115} y={136}>HOLDS</Label>
       <Label x={355} y={124} tone="bad">LAYERS ACROSS IT</Label>
       <Label x={355} y={136} tone="bad">SNAPS BETWEEN LAYERS</Label>
-    </Figure>
-  )
-}
-
-/** The bracket three ways up, with its layer lines. */
-export function BracketDiagram() {
-  const id = useId()
-  const layers = (clip: string, x: number, y: number, w: number, h: number) => (
-    <g clipPath={`url(#${id}-${clip})`}>
-      {Array.from({ length: Math.floor(h / 5) }, (_, i) => (
-        <line key={i} x1={x} x2={x + w} y1={y + h - i * 5} y2={y + h - i * 5} className="stroke-current" strokeOpacity={0.55} />
-      ))}
-    </g>
-  )
-  const standing = 'M30,150 L118,150 L118,138 L42,138 L42,50 L30,50 Z'
-  const back = 'M180,150 L290,150 L290,138 L192,138 L192,62 L180,62 Z'
-  return (
-    <Figure
-      viewBox="0 0 480 190"
-      label="The L-shaped bracket three ways up, seen from the side with its layers drawn as horizontal lines. A: standing on its foot. B: lying on its back. C: standing on one of its L-shaped ends, where every layer is a whole L."
-    >
-      <defs>
-        <clipPath id={`${id}-a`}>
-          <path d={standing} />
-        </clipPath>
-        <clipPath id={`${id}-b`}>
-          <path d={back} />
-        </clipPath>
-        <clipPath id={`${id}-c`}>
-          <rect x={350} y={40} width={66} height={110} />
-        </clipPath>
-      </defs>
-      <line x1={10} y1={150.5} x2={470} y2={150.5} className="stroke-current" strokeOpacity={0.6} />
-      <path d={standing} className="stroke-current fill-current" fillOpacity={0.15} />
-      {layers('a', 30, 50, 90, 100)}
-      <path d={back} className="stroke-current fill-current" fillOpacity={0.15} />
-      {layers('b', 180, 62, 110, 88)}
-      <rect x={350} y={40} width={66} height={110} className="stroke-current fill-current" fillOpacity={0.15} />
-      {layers('c', 350, 40, 66, 110)}
-      <path d="M436,20 L474,20 L474,26 L442,26 L442,48 L436,48 Z" className="stroke-primary fill-primary" fillOpacity={0.3} />
-      <Label x={476} y={62} anchor="end" tone="gold">EACH LAYER</Label>
-      <Label x={74} y={170} tone="ink">A</Label>
-      <Label x={74} y={182}>ON ITS FOOT</Label>
-      <Label x={235} y={170} tone="ink">B</Label>
-      <Label x={235} y={182}>ON ITS BACK</Label>
-      <Label x={383} y={170} tone="ink">C</Label>
-      <Label x={383} y={182}>ON ITS END</Label>
     </Figure>
   )
 }
