@@ -266,20 +266,15 @@ export function MushroomDiagram() {
   return (
     <Figure
       viewBox="0 0 480 175"
-      label="Two mushrooms. The left one stands on its stem with the cap on top; the cap's underside hangs over nothing and needs support. The right one is upside down with the cap on the plate and needs none."
+      label="Two orientations of the same mushroom. A, on the left: standing on its stem, cap on top. B, on the right: upside down, cap on the plate."
     >
       <line x1={10} y1={150.5} x2={470} y2={150.5} className="stroke-current" strokeOpacity={0.6} />
-      <rect x={60} y={94} width={36} height={56} className="fill-error" fillOpacity={0.12} />
-      <rect x={144} y={94} width={36} height={56} className="fill-error" fillOpacity={0.12} />
-      <line x1={60} y1={94} x2={60} y2={150} className="stroke-error" strokeDasharray="3 3" />
-      <line x1={180} y1={94} x2={180} y2={150} className="stroke-error" strokeDasharray="3 3" />
       <rect x={96} y={94} width={48} height={56} className="stroke-current fill-current" fillOpacity={0.3} />
       <rect x={60} y={74} width={120} height={20} className="stroke-current fill-current" fillOpacity={0.3} />
-      <rect x={300} y={130} width={120} height={20} className="stroke-primary fill-primary" fillOpacity={0.3} />
-      <rect x={336} y={74} width={48} height={56} className="stroke-primary fill-primary" fillOpacity={0.3} />
-      <Label x={120} y={66} tone="bad">NOTHING UNDER THE CAP</Label>
-      <Label x={120} y={168} tone="bad">NEEDS SUPPORT</Label>
-      <Label x={360} y={168} tone="gold">NO SUPPORT NEEDED</Label>
+      <rect x={300} y={130} width={120} height={20} className="stroke-current fill-current" fillOpacity={0.3} />
+      <rect x={336} y={74} width={48} height={56} className="stroke-current fill-current" fillOpacity={0.3} />
+      <Label x={120} y={168} tone="ink">A · CAP ON TOP</Label>
+      <Label x={360} y={168} tone="ink">B · CAP ON PLATE</Label>
     </Figure>
   )
 }
