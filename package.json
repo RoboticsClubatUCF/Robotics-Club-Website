@@ -27,6 +27,6 @@
     "format:check": "npm --prefix server run format:check && npm --prefix web run format:check"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "concurrently": "^9.2.5"
   }
 }
