@@ -123,6 +123,36 @@ describe('WorkspaceView', () => {
     expect(screen.getByTestId('placements')).toHaveTextContent('cube:74,144;block:200,160')
   })
 
+  it('copies with Ctrl+C and pastes with Ctrl+V as often as pressed, and leaves Ctrl+D alone', async () => {
+    render(<Workspace />)
+    await waitFor(() => expect(screen.getByTestId('mesh-count')).toHaveTextContent('2'))
+    fireEvent.click(screen.getByRole('button', { name: 'Select cube' }))
+    expect(fireEvent.keyDown(window, { key: 'd', ctrlKey: true })).toBe(true)
+    expect(readObjects()).toHaveLength(2)
+    fireEvent.keyDown(window, { key: 'c', ctrlKey: true })
+    expect(readObjects()).toHaveLength(2)
+    // What was copied comes back even after the original is deleted.
+    fireEvent.keyDown(window, { key: 'Delete' })
+    fireEvent.keyDown(window, { key: 'v', ctrlKey: true })
+    fireEvent.keyDown(window, { key: 'v', ctrlKey: true })
+    const pasted = readObjects().slice(1)
+    expect(pasted.map((object) => object.modelId)).toEqual(['practice-cube', 'practice-cube'])
+    expect(pasted.map((object) => object.id)).not.toContain('cube')
+    expect(boxOn(mesh, pasted[0]!)).not.toEqual(boxOn(mesh, pasted[1]!))
+    fireEvent.keyDown(window, { key: 'z', ctrlKey: true })
+    expect(readObjects()).toHaveLength(2)
+  })
+
+  it('leaves Ctrl+C to the browser while text on the page is selected', () => {
+    render(<Workspace />)
+    fireEvent.click(screen.getByRole('button', { name: 'Select cube' }))
+    document.getSelection()!.selectAllChildren(screen.getByRole('button', { name: 'Select cube' }))
+    expect(fireEvent.keyDown(window, { key: 'c', ctrlKey: true })).toBe(true)
+    document.getSelection()!.removeAllRanges()
+    expect(fireEvent.keyDown(window, { key: 'v', ctrlKey: true })).toBe(true)
+    expect(readObjects()).toHaveLength(2)
+  })
+
   it('keeps warnings in the same status region and blocks slicing until the part fits', async () => {
     render(<Workspace />)
     const status = screen.getByRole('status', { name: 'Plate status' })

@@ -437,7 +437,7 @@ export const CHAPTERS: Chapter[] = [
             <P>
               Click or tap a part to select it; it turns gold. Hold <Kbd>Shift</Kbd> or <Kbd>Ctrl</Kbd> and click to
               add another. On a touch screen, turn on <Name>SELECT SEVERAL</Name> in <Name>OBJECTS</Name>, then tap
-              parts, on the plate or in the list, to add or remove them. Turn it off to select just one. Click empty plate to
+              parts, on the plate or in the list, to add or remove them. Turning it off lets go of them all. Click empty plate to
               select nothing. <Kbd>Ctrl</Kbd> + <Kbd>A</Kbd> selects everything and{' '}
               <Kbd>Esc</Kbd> lets go. The list in <Name>OBJECTS</Name> selects too.
             </P>
@@ -621,7 +621,13 @@ export const CHAPTERS: Chapter[] = [
           <>
             <Terms
               items={[
-                ['COPY', <>Puts another of each selected part on the plate. <Kbd>Ctrl</Kbd> + <Kbd>D</Kbd>.</>],
+                [
+                  'COPY',
+                  <>
+                    Puts another of each selected part on the plate. Or <Kbd>Ctrl</Kbd> + <Kbd>C</Kbd> to copy, then{' '}
+                    <Kbd>Ctrl</Kbd> + <Kbd>V</Kbd> to paste, as many times as you like.
+                  </>,
+                ],
                 ['DELETE', <>Takes the selected parts off the plate. The <Kbd>Delete</Kbd> key.</>],
                 ['ARRANGE', <>Spreads everything out with a gap between, so nothing touches. <Kbd>A</Kbd>.</>],
                 [
@@ -668,7 +674,7 @@ export const CHAPTERS: Chapter[] = [
             aim: [{ at: 'tool:arrange' }],
           },
           {
-            text: 'Select a cube and press COPY (or Ctrl+D) to make a fifth.',
+            text: 'Select a cube and press COPY (or Ctrl+C, then Ctrl+V) to make a fifth.',
             done: (s) => count(s) === 5,
             aim: tool('copy', (s) => s.plate.objects[0]?.id),
           },

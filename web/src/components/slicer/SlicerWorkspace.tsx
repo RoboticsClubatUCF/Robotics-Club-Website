@@ -93,6 +93,12 @@ const onPlate = (target: EventTarget | null) =>
   target.closest('[data-shortcuts]') !== null ||
   target.closest(CONTROL) === null
 
+/** Text picked out on the page, such as a training step, which Ctrl+C should copy instead of parts. */
+const textSelected = () => {
+  const picked = window.getSelection()
+  return picked !== null && !picked.isCollapsed
+}
+
 /** Inside a dialog, such as the training's contents, that the workspace doesn't know is open. */
 const inDialog = (target: EventTarget | null) =>
   target instanceof Element && target.closest('dialog, [role="dialog"]') !== null
@@ -236,6 +242,8 @@ export function WorkspaceView({
   // A drag moves the plate as it goes (`plate.preview`), so undo takes it back to the plate from
   // before the drag began, not to its last frame.
   const beforeDrag = useRef<ApiPlateObject[] | null>(null)
+  // What Ctrl+C took, as it was then, for Ctrl+V to put down again.
+  const clipboard = useRef<ApiPlateObject[]>([])
 
   // Opening a drawer makes its button inert before the dialog can remember focus.
   useEffect(() => {
@@ -322,9 +330,10 @@ export function WorkspaceView({
     step('forward')
   }
 
-  // A different plate starts with nothing to undo.
+  // A different plate starts with nothing to undo or paste.
   useEffect(() => {
     history.current = { back: [], forward: [] }
+    clipboard.current = []
   }, [plateKey])
 
   const report = useEffectEvent(() => {
@@ -423,15 +432,17 @@ export function WorkspaceView({
     }
   }
 
-  const copy = () => {
+  const selection = () => selected.flatMap((id) => objects.filter((object) => object.id === id))
+
+  /** Puts another of each of `originals` on the plate where there's room, and selects the new ones. */
+  const place = (originals: ApiPlateObject[]) => {
+    if (originals.length === 0) return
     const taken = objects.flatMap((object) => {
       const positions = meshes.get(object.modelId)
       return positions ? [boxOn(positions, object)] : []
     })
     const copies: ApiPlateObject[] = []
-    for (const id of selected) {
-      const original = objects.find((object) => object.id === id)
-      if (!original) continue
+    for (const original of originals) {
       const positions = meshes.get(original.modelId)
       const spot = positions
         ? freeSpot(taken, sizeOf(positions, original), bed)
@@ -446,6 +457,16 @@ export function WorkspaceView({
     }
     setObjects([...objects, ...copies])
     setSelected(copies.map((object) => object.id))
+  }
+
+  const copy = () => {
+    place(selection())
+  }
+
+  const paste = () => {
+    // A model kept for undo is deleted once a new upload needs its room; its copies can't return.
+    const known = new Set(models.map((model) => model.id))
+    place(clipboard.current.filter((object) => known.has(object.modelId)))
   }
 
   const remove = () => {
@@ -559,9 +580,12 @@ export function WorkspaceView({
       } else if ((event.key === 'Delete' || event.key === 'Backspace') && selected.length > 0) {
         event.preventDefault()
         remove()
-      } else if (ctrl && event.key.toLowerCase() === 'd' && selected.length > 0) {
+      } else if (ctrl && key === 'c' && selected.length > 0 && !textSelected()) {
         event.preventDefault()
-        copy()
+        clipboard.current = selection()
+      } else if (ctrl && key === 'v' && clipboard.current.length > 0) {
+        event.preventDefault()
+        paste()
       } else if (ctrl && event.key.toLowerCase() === 'a') {
         event.preventDefault()
         setSelected(objects.map((object) => object.id))

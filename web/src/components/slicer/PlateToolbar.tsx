@@ -82,7 +82,7 @@ export function PlateToolbar({
       <span aria-hidden="true" className="bg-rule mx-1 h-6 w-px" />
       {tool('Arrange', <OrcaIcon name="arrange" />, onArrange, { off: !hasObjects, shortcut: 'A' })}
       {tool('Auto-orient', <OrcaIcon name="orient" />, onOrient, { off: !hasSelection })}
-      {tool('Copy', <OrcaIcon name="copy" />, onCopy, { off: !hasSelection, shortcut: 'Ctrl+D' })}
+      {tool('Copy', <OrcaIcon name="copy" />, onCopy, { off: !hasSelection, shortcut: 'Ctrl+C, Ctrl+V' })}
       {tool('Delete', <OrcaIcon name="remove" />, onDelete, { off: !hasSelection, shortcut: 'Delete' })}
       <span aria-hidden="true" className="bg-rule mx-1 h-6 w-px" />
       {tool('Move', <OrcaIcon name="move" />, () => onMode('move'), { on: mode === 'move', shortcut: 'M' })}

@@ -17,7 +17,7 @@ describe('plate tools with Orca artwork', () => {
       fireEvent.click(button)
       expect(callback).toHaveBeenCalledOnce()
     }
-    expect(tools.getByRole('button', { name: 'Copy' })).toHaveAttribute('title', 'Copy (Ctrl+D)')
+    expect(tools.getByRole('button', { name: 'Copy' })).toHaveAttribute('title', 'Copy (Ctrl+C, Ctrl+V)')
     expect(tools.getByRole('button', { name: 'Lay on face' })).toHaveAttribute('data-coach', 'tool:lay-on-face')
   })
 

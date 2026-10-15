@@ -79,7 +79,7 @@ export function ObjectPanel({
             disabled={disabled || selected.length === 0}
             className={`${quietButton} px-2.5`}
             aria-label="Copy the selected objects"
-            title="Copy (Ctrl+D)"
+            title="Copy (Ctrl+C, Ctrl+V)"
           >
             <OrcaIcon name="copy" className="size-5" />
           </button>
@@ -107,7 +107,11 @@ export function ObjectPanel({
           className="toggle toggle-sm checked:border-primary checked:bg-primary checked:text-primary-content"
           checked={selectSeveral}
           disabled={objects.length < 2 && !selectSeveral}
-          onChange={(event) => onSelectSeveral(event.target.checked)}
+          onChange={(event) => {
+            onSelectSeveral(event.target.checked)
+            // Turned off, the group is let go, so the next tap picks one part.
+            if (!event.target.checked && selected.length > 1) onSelect([])
+          }}
         />
       </label>
 

@@ -52,6 +52,22 @@ describe('ObjectPanel selection', () => {
     expect(block).toHaveAttribute('aria-pressed', 'true')
   })
 
+  it('lets go of a group when SELECT SEVERAL is turned off, but keeps a lone part', () => {
+    render(<Panel />)
+    const toggle = screen.getByRole('switch', { name: 'SELECT SEVERAL' })
+    const cube = screen.getByRole('button', { name: /Cube/ })
+    const block = screen.getByRole('button', { name: /Block/ })
+    fireEvent.click(toggle)
+    fireEvent.click(block)
+    fireEvent.click(toggle)
+    expect(cube).toHaveAttribute('aria-pressed', 'false')
+    expect(block).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(toggle)
+    fireEvent.click(cube)
+    fireEvent.click(toggle)
+    expect(cube).toHaveAttribute('aria-pressed', 'true')
+  })
+
   it.each(['shiftKey', 'ctrlKey', 'metaKey'])('keeps %s selection with the toggle off', (modifier) => {
     render(<Panel />)
     const cube = screen.getByRole('button', { name: /Cube/ })
