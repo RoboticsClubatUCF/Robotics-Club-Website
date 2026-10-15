@@ -2,8 +2,8 @@
 #
 # Bring the box up to whatever is on main, if main is green.
 #
-# The club's box has no public address — it sits on a LAN and a Cloudflare
-# Tunnel on another machine reaches it at :4173 — so GitHub cannot push a
+# The club's box has no public address — it sits on a LAN and reaches
+# Cloudflare through cloudflared's outbound tunnel — so GitHub cannot push a
 # deployment to it and there is no webhook to receive. This pulls instead: a
 # systemd timer runs it every couple of minutes, it asks GitHub what main points
 # at, and if that is something new and CI passed on it, it deploys.

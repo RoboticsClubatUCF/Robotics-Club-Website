@@ -15,8 +15,9 @@ that exact commit, and updates whichever half of the site changed.
 
 ## Why it pulls
 
-The server has no public address. It sits on the club's LAN, and a Cloudflare
-Tunnel on another machine reaches it at `:4173`, so GitHub can't connect to it.
+The server has no public address. It sits on the club's LAN and reaches
+Cloudflare over an outbound tunnel (see [Cloudflare](#cloudflare)), so GitHub
+can't connect to it.
 
 A self-hosted Actions runner would connect outward, but this repository is
 public and a runner executes workflow files from pull requests. This server
@@ -190,7 +191,21 @@ runs as root and never hits the check.
 
 ## Cloudflare
 
-Cloudflare fronts the site with a WAF. A rule matching `/join` once challenged
+Visitors reach the site through a Cloudflare Tunnel. `cloudflared` runs on the
+server as the systemd service `cloudflared` and dials out to Cloudflare, so no
+inbound port or firewall rule is involved. The tunnel is `rccf-box` and is
+managed from the dashboard (Networking > Tunnels), not from a file here. Its one
+route sends `rccf.club` to `http://localhost:4173`, the web container, and the
+`rccf.club` DNS record is a proxied CNAME to the tunnel.
+
+- Logs: `sudo journalctl -u cloudflared`.
+- The tunnel token is in the root-owned systemd unit. If it leaks, rotate it on
+  the tunnel's page and reinstall the service with the new one.
+- Don't point `rccf.club` back at an origin IP. The last one sat on a network
+  that dropped Cloudflare's non-US data centres, and everyone outside the US got
+  a `522`.
+
+Cloudflare also fronts the site with a WAF. A rule matching `/join` once challenged
 `POST /api/projects/:id/join`, and members couldn't join projects: a `403` with
 `cf-mitigated: challenge` that never reached the server. If something works
 locally but not live, check the request arrives:

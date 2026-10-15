@@ -146,20 +146,15 @@ services:
   #
   #   docker compose --profile app --profile web up -d
   #
-  # **One origin rather than a site host and an api host, and that is forced
-  # rather than chosen.** The club's box has no public address — it sits on a
-  # LAN at 192.168.105.20 — and what carries the internet to it is a Cloudflare
-  # Tunnel running on another machine, aimed at port 4173, which is the port the
-  # *old* SvelteKit site published. Serving the whole thing on 4173 means the
-  # tunnel, the DNS record and the certificate all keep working with nothing
-  # touched. A second hostname would mean a second tunnel route on a machine
-  # this one cannot see.
+  # One origin rather than a site host and an api host. The browser never makes
+  # a cross-origin request, so there is no CORS to get wrong, no
+  # `SameSite=None`, no second certificate, and no `www` host quietly failing
+  # every API call. Everything the frontend calls lives under `/api`, so one
+  # `location` covers it — see `nginx.conf`.
   #
-  # It is also simply the better shape here. The browser never makes a
-  # cross-origin request, so there is no CORS to get wrong, no `SameSite=None`,
-  # no second certificate, and no `www` host quietly failing every API call.
-  # Everything the frontend calls lives under `/api`, so one `location` covers
-  # it — see `nginx.conf`.
+  # The box has no public address. cloudflared runs on it as a systemd service
+  # and carries `rccf.club` to this container on 4173; the route lives in the
+  # Cloudflare dashboard. deploy/README.md has the rest.
   web:
     image: nginx:1.27-alpine
     container_name: rccf-v13-web
@@ -174,8 +169,9 @@ services:
       # in this container has any business writing to it.
       - ${WEB_ROOT:-/srv/rccf/web}:/usr/share/nginx/html:ro
     ports:
-      # 4173 because that is where the tunnel already points. Change both
-      # together or the site answers on a port nothing is asking about.
+      # The tunnel's route and deploy.sh's health check both point at 4173.
+      # Change them together or the site answers on a port nothing is asking
+      # about.
       - "${WEB_PORT:-4173}:80"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost/"]
