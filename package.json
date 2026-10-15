@@ -2,6 +2,7 @@
   "name": "rccf-website",
   "private": true,
   "version": "13.0.0",
+  "license": "AGPL-3.0-only",
   "description": "Website for the Robotics Club of Central Florida",
   "type": "module",
   "engines": {

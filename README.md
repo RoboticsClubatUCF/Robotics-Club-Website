@@ -175,3 +175,12 @@ Stripe's own card form isn't tested; it needs a real browser.
 More in [`web/README.md`](web/README.md) (frontend conventions),
 [`server/README.md`](server/README.md) (API routes, database tools, scaling) and
 [`deploy/README.md`](deploy/README.md) (the deploy agent).
+
+## License
+
+Free software under the GNU Affero General Public License, version 3 only
+([`LICENSE`](LICENSE)). Anyone who runs a modified copy where people use it
+over a network has to offer those people its source (section 13).
+
+The slicer's toolbar icons are OrcaSlicer's artwork, also under the AGPL v3:
+[`web/public/licenses/orcaslicer/NOTICE.md`](web/public/licenses/orcaslicer/NOTICE.md).
