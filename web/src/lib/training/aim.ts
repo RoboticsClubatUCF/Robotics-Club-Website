@@ -57,12 +57,12 @@ export function settingAims(key: string, inside?: string): Aim[] {
 /** A part on the plate, else its row in the object list, else the OBJECTS button. */
 export const partAims = (id: string): Aim[] => [{ part: id }, { at: `object:${id}`, side: 'left' }, { at: 'drawer:objects' }]
 
-/** Adding a part on touch: turn on the list's toggle, then tap its row. */
-export const addSelectionAims = (id: string): Aim[] => [
-  { at: 'select-several:off', side: 'left' },
-  { at: `object:${id}`, side: 'left' },
-  { at: 'drawer:objects' },
-]
+/**
+ * Adding a part on touch: SELECT SEVERAL in the object list, then the part. With the switch off
+ * and the list shut on a phone, OBJECTS, since a tap on the part would pick it alone.
+ */
+export const addSelectionAims = (id: string, selectSeveral: boolean): Aim[] =>
+  selectSeveral ? partAims(id) : [{ at: 'select-several:off', side: 'left' }, { at: 'drawer:objects' }]
 
 /** Fields in the object panel, which only shows them with one part selected. */
 export const panelAims = (...fields: string[]): Aim[] => [

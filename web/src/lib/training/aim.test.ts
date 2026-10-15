@@ -77,12 +77,9 @@ describe('projection', () => {
 })
 
 describe('aims', () => {
-  it('guides adding a part through the toggle, then its row, or opens OBJECTS on a phone', () => {
-    expect(addSelectionAims('block')).toEqual([
-      { at: 'select-several:off', side: 'left' },
-      { at: 'object:block', side: 'left' },
-      { at: 'drawer:objects' },
-    ])
+  it('guides adding a part to SELECT SEVERAL first, or OBJECTS on a phone, then to the part', () => {
+    expect(addSelectionAims('block', false)).toEqual([{ at: 'select-several:off', side: 'left' }, { at: 'drawer:objects' }])
+    expect(addSelectionAims('block', true)).toEqual(partAims('block'))
   })
 
   it('fall back from a setting to its tab to the SETTINGS button', () => {

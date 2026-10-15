@@ -4,10 +4,12 @@ import { boxOn, fitOn } from '../slicer/plate'
 import { rotate } from '../slicer/orient'
 import type { Bed } from '../slicer/plateTransform'
 import type { Role } from '../slicer/preview'
+import type { SettingValue } from '../slicer/processSettings'
 import type { CameraView } from '../slicer/scene'
 import type { Plate } from '../slicer/useDraft'
 import type { Aim } from './aim'
 import { PRACTICE_WORKSPACE } from './practiceProfiles'
+import { same } from './practiceSlices'
 import type { PracticeSliceState } from './usePracticePlate'
 
 /**
@@ -19,10 +21,13 @@ import type { PracticeSliceState } from './usePracticePlate'
 export interface PracticeState {
   plate: Plate
   selected: string[]
+  /** SELECT SEVERAL is on, so a tap adds a part rather than picking it alone. */
+  selectSeveral: boolean
   mode: PlateMode
   tab: 'prepare' | 'preview'
   camera: CameraView | null
-  layers: { top: number; count: number; hidden: Role[] } | null
+  /** The preview's layer slider and PATHS, for the slice on show only. `z` is the top layer's height. */
+  layers: { top: number; count: number; z: number; hidden: Role[] } | null
   /** Meshes by model id. */
   meshes: ReadonlyMap<string, Float32Array>
   slice: (ApiDraftSlice & { current: boolean }) | null
@@ -40,6 +45,8 @@ export interface Goal {
   done: (state: PracticeState, memory: Memory) => boolean
   /** Needs the 3D view. Counted as done in a browser that can't draw it. */
   needs3d?: boolean
+  /** What an experiment slices. A test checks each has a ready-made slice of its own. */
+  wants?: Want[]
   /** Where the task points while this is the next goal (`aim.ts`). Without one it just says it. */
   aim?: Aim[] | ((state: PracticeState) => Aim[])
 }
@@ -126,3 +133,43 @@ export function atOpeningView(state: PracticeState): boolean {
 export const isSliced = (state: PracticeState) =>
   state.slice?.state === 'READY' && state.slice.current && state.sliced !== null
 
+
+/** A setting's value in the chosen process, before the member changes it. */
+export function processValue(state: PracticeState, key: string): SettingValue | undefined {
+  return PRACTICE_WORKSPACE.profiles.printers
+    .flatMap((printer) => printer.processes)
+    .find((p) => p.id === state.plate.processId)?.values[key]
+}
+
+/**
+ * What a practice task asks for: a setting by its key, or `process` or `filament` by the practice
+ * profile's id.
+ */
+export type Want = [key: string, value: SettingValue]
+
+/** The plate is set up the way `want` says. */
+export function plateHas(state: PracticeState, [key, value]: Want): boolean {
+  if (key === 'process') return state.plate.processId === value
+  if (key === 'filament') return state.plate.filamentId === value
+  return same(setting(state, key), value)
+}
+
+/** The slice on show, still current, was made the way `want` says. */
+export function slicedHas(state: PracticeState, [key, value]: Want): boolean {
+  if (!isSliced(state)) return false
+  const made = state.sliced!.with
+  if (key === 'process') return made.processId === value
+  if (key === 'filament') return made.filamentId === value
+  return same(made.values[key], value)
+}
+
+/** Where a task asks for the layer slider: layer 1, about halfway up, or a height in mm. */
+export type Look = 'bottom' | 'middle' | { from: number; to: number }
+
+export function looking(state: PracticeState, look: Look): boolean {
+  const { layers } = state
+  if (state.tab !== 'preview' || !layers) return false
+  if (look === 'bottom') return layers.top === 0
+  if (look === 'middle') return layers.top >= layers.count * 0.25 && layers.top <= layers.count * 0.75
+  return layers.z >= look.from - 1e-6 && layers.z <= look.to + 1e-6
+}

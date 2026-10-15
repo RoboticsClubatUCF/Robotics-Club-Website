@@ -533,7 +533,7 @@ function SettleDialog({
         <p className="text-error font-semibold">
           {request.user.fullName} has{' '}
           {grams(request.allowance?.remainingGrams ?? 0)} left this semester, so
-          this puts them {grams(over)} over.
+          this puts them {grams(over)} over, which they pay for.
         </p>
       )}
 

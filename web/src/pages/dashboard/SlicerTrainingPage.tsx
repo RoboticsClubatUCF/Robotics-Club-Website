@@ -21,7 +21,7 @@ import { usePracticePlate } from '../../lib/training/usePracticePlate'
 const STEPS = flatten(CHAPTERS)
 const BED = PRACTICE_WORKSPACE.profiles.printers[0]!.bed
 
-type Watched = { selected: string[]; mode: PracticeState['mode']; tab: PracticeState['tab'] }
+type Watched = Pick<PracticeState, 'selected' | 'selectSeveral' | 'mode' | 'tab'>
 
 /**
  * `/dashboard/profile/training`: the slicer training, reached from the profile page. Finishing it
@@ -42,7 +42,11 @@ export function SlicerTrainingPage() {
 
   const [progress, setProgress] = useState(() => readProgress(user.id))
   const done = new Set(progress.done)
-  const firstOpen = STEPS.findIndex(({ step }) => !done.has(step.id))
+  // A task started over was finished once, so it doesn't pull back how far somebody has got: the
+  // steps they'd reached stay open. Finishing still needs it done again.
+  const reached = new Set([...progress.done, ...(progress.restarted ?? [])])
+  const firstOpen = STEPS.findIndex(({ step }) => !reached.has(step.id))
+  const allDone = STEPS.every(({ step }) => step.kind === 'finish' || done.has(step.id))
   const open = (index: number) => {
     const id = STEPS[index]!.step.id
     return trained || firstOpen === -1 || index <= firstOpen || done.has(id) || progress.restarted?.includes(id) === true
@@ -100,17 +104,22 @@ export function SlicerTrainingPage() {
   }, [])
   const ready = parts instanceof Map ? parts : null
   const practice = usePracticePlate(ready, here.chapter.id === 'sending')
-  const preview = usePracticePreview(
-    practice.sliced?.name ?? null,
-    practice.sliced?.offset ?? [0, 0],
-    practice.sliceState?.requestedAt ?? null,
-  )
+  const sliceKey = practice.sliceState?.requestedAt ?? null
+  const preview = usePracticePreview(practice.sliced?.name ?? null, practice.sliced ?? { offset: [0, 0], yaw: 0 }, sliceKey)
   const [can3d] = useState(webglAvailable)
 
-  const [watched, setWatched] = useState<Watched>({ selected: [], mode: 'move', tab: 'prepare' })
+  const [watched, setWatched] = useState<Watched>({ selected: [], selectSeveral: false, mode: 'move', tab: 'prepare' })
   const [camera, setCamera] = useState<CameraView | null>(null)
-  const [layers, setLayers] = useState<PracticeState['layers']>(null)
-  const watch: WorkspaceWatch = { onState: setWatched, onCamera: setCamera, onLayers: setLayers }
+  // Marked with the slice they were reported for: the slider of the slice before mustn't meet a
+  // goal that asks to look at this one.
+  const [layers, setLayers] = useState<(NonNullable<PracticeState['layers']> & { of: string | null }) | null>(null)
+  const watch: WorkspaceWatch = {
+    onState: setWatched,
+    onCamera: setCamera,
+    onLayers: (reported) => {
+      setLayers({ ...reported, of: sliceKey })
+    },
+  }
 
   /**
    * A task's starting plate, and a clean slate for what its goals watch. Done before the task is
@@ -123,7 +132,7 @@ export function SlicerTrainingPage() {
       return
     }
     if (target.setUp) practice.setUp(target.setUp.objects(), target.setUp.settings)
-    setWatched({ selected: [], mode: 'move', tab: 'prepare' })
+    setWatched({ selected: [], selectSeveral: false, mode: 'move', tab: 'prepare' })
     setCamera(null)
     setLayers(null)
     setSetUpFor(target.id)
@@ -147,7 +156,7 @@ export function SlicerTrainingPage() {
     plate: practice.source.plate,
     ...watched,
     camera,
-    layers,
+    layers: layers?.of === sliceKey ? layers : null,
     meshes,
     slice: practice.sliceState,
     sliced: practice.sliced,
@@ -283,7 +292,7 @@ export function SlicerTrainingPage() {
               />
             )}
             {step.kind === 'finish' && (
-              <FinishStep trained={trained} ready={firstOpen === -1 || firstOpen === index} onFinish={finish} />
+              <FinishStep trained={trained} ready={allDone} onFinish={finish} />
             )}
             <nav aria-label="Steps" className="border-rule mt-10 flex items-center justify-between gap-3 border-t pt-5">
               <button

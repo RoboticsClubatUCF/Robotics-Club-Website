@@ -6,6 +6,7 @@ import type { DashboardContext } from '../../components/dashboard/DashboardLayou
 import { CHAPTERS } from '../../components/training/chapters'
 import type { ApiTerm } from '../../lib/api/api'
 import type { CameraMoves } from '../../lib/slicer/camera'
+import type { Preview } from '../../lib/slicer/preview'
 import type { CameraView } from '../../lib/slicer/scene'
 import { flatten } from '../../lib/training/curriculum'
 import { readProgress, writeProgress } from '../../lib/training/progress'
@@ -86,9 +87,58 @@ vi.mock('../../components/slicer/PlateView', async () => {
     },
   }
 })
-vi.mock('../../components/slicer/PreviewView', () => ({
-  PreviewView: () => <div data-testid="preview" />,
-}))
+// The preview without the drawing: just its layer slider, which reports to the training as the
+// real one does.
+vi.mock('../../components/slicer/PreviewView', async () => {
+  const { useEffect, useEffectEvent, useState } = await import('react')
+  return {
+    PreviewView: ({
+      preview,
+      onExplore,
+    }: {
+      preview: Preview
+      onExplore?: (layers: { top: number; count: number; z: number; hidden: [] }) => void
+    }) => {
+      const [top, setTop] = useState(preview.layers.length - 1)
+      const report = useEffectEvent(() => {
+        onExplore?.({ top, count: preview.layers.length, z: preview.layers[top]?.z ?? 0, hidden: [] })
+      })
+      useEffect(() => {
+        report()
+      }, [top, preview])
+      return (
+        <input
+          type="range"
+          aria-label="Top layer shown"
+          min={0}
+          max={preview.layers.length - 1}
+          value={top}
+          onChange={(event) => {
+            setTop(Number(event.target.value))
+          }}
+        />
+      )
+    },
+  }
+})
+// Every practice preview is 60 layers of nothing; the files themselves are tested in practice.test.ts.
+vi.mock('../../lib/slicer/usePreview', async (importOriginal) => {
+  const { ROLES } = await import('../../lib/slicer/preview')
+  return {
+    ...(await importOriginal<typeof import('../../lib/slicer/usePreview')>()),
+    decodePreview: () =>
+      Promise.resolve({
+        bed: { width: 256, depth: 256, height: 256 },
+        layers: Array.from({ length: 60 }, (_, i) => ({ z: (i + 1) * 0.2, height: 0.2 })),
+        segments: 0,
+        bounds: { min: [113, 113, 0], max: [143, 143, 12] },
+        filament: null,
+        roles: Object.fromEntries(
+          ROLES.map((role) => [role, { segments: new Float32Array(0), layerStart: new Uint32Array(61) }]),
+        ) as Preview['roles'],
+      } satisfies Preview),
+  }
+})
 // As if the browser could draw 3D, so the goals that need the view are asked for.
 vi.mock('../../lib/slicer/scene', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../lib/slicer/scene')>()),
@@ -177,14 +227,40 @@ const heading = () => document.querySelector('[data-step-heading]')?.textContent
 /** What the task's callout says: which goal it's on, and the goal. */
 const callout = () => screen.getByRole('region', { name: 'What to do' }).textContent
 
-// The standing mushroom's slice, numbers only. The manifest is fetched once per file, so every test
-// gets the same one.
+// The mushroom both ways up and the block for the strength task. The manifest is fetched once per
+// file, so every test gets the same one.
+const made = (name: string, part: string, overrides: Record<string, number | string>, grams: number, turn = [0, 0, 0, 1]) => [
+  name,
+  {
+    part,
+    at: [128, 128],
+    turn,
+    overrides,
+    process: '0.20mm, 0.4 nozzle, Line, T-Support',
+    filament: 'Elegoo Rapid PLA',
+    grams,
+    seconds: 600,
+    meters: null,
+    layers: 60,
+    preview: `slices/${name}.rcpv`,
+  },
+]
 const manifest = {
   orca: '2.4.2',
-  slices: {
-    'mushroom-up-tree': { part: 'mushroom', at: [128, 128], overrides: {}, filament: 'pla', grams: 4.45, seconds: 955, meters: null, layers: null, preview: null },
-    'mushroom-down': { part: 'mushroom', at: [128, 128], overrides: {}, filament: 'pla', grams: 4, seconds: 800, meters: null, layers: null, preview: null },
-  },
+  slices: Object.fromEntries([
+    made('mushroom-up-tree', 'mushroom', {}, 4.45),
+    made('mushroom-down', 'mushroom', {}, 2.94, [1, 0, 0, 0]),
+    made('block-standard', 'block', {}, 4.76),
+    made('block-walls-5', 'block', { wall_loops: 5 }, 6.1),
+    made('block-infill-40', 'block', { sparse_infill_density: 40 }, 7.28),
+    made('block-infill-40-gyroid', 'block', { sparse_infill_density: 40, sparse_infill_pattern: 'gyroid' }, 7.02),
+    made(
+      'block-infill-40-gyroid-concentric',
+      'block',
+      { sparse_infill_density: 40, sparse_infill_pattern: 'gyroid', top_surface_pattern: 'concentric' },
+      7.02,
+    ),
+  ]),
 }
 
 /** Practice slicing waits a second or so before it lands. */
@@ -192,8 +268,16 @@ const slicing = { timeout: 3_000 }
 
 beforeEach(() => {
   localStorage.clear()
-  vi.stubGlobal('fetch', stubFetch({ '/training/slices.json': manifest }))
+  vi.stubGlobal('fetch', stubFetch({ '/training/slices.json': manifest, '/training/slices/': {} }))
 })
+
+/** Presses SLICE PLATE, waits for the preview, and moves its slider to `layer` if there is one. */
+async function sliceAndLook(layer?: number) {
+  fireEvent.click(screen.getByRole('button', { name: 'SLICE PLATE' }))
+  await waitFor(() => expect(screen.queryByRole('slider', { name: 'Top layer shown' })).not.toBeInTheDocument())
+  const slider = await screen.findByRole('slider', { name: 'Top layer shown' }, slicing)
+  if (layer !== undefined) fireEvent.change(slider, { target: { value: String(layer) } })
+}
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -283,11 +367,11 @@ describe('practice', () => {
     await screen.findByText(/1 on the plate/)
 
     fireEvent.click(screen.getByRole('button', { name: 'SLICE PLATE' }))
-    expect(await screen.findByText(/Practice only slices the mushroom, so nothing was sliced/)).toBeInTheDocument()
+    expect(await screen.findByText(/Practice only slices the mushroom and block, so nothing was sliced/)).toBeInTheDocument()
     expect(screen.getByText('Not sliced yet.')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
-    expect(screen.queryByText(/Practice only slices the mushroom/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Practice only slices/)).not.toBeInTheDocument()
   })
 
   it('can be done from the keyboard, the view task included, with no way to skip it', async () => {
@@ -335,7 +419,7 @@ describe('practice', () => {
     fireEvent.click(screen.getByRole('button', { name: 'OBJECTS · 2' }))
     fireEvent.click(screen.getByRole('button', { name: /Cube/ }))
     expect(callout()).toMatch(/SELECT SEVERAL/)
-    const toggle = screen.getByRole('checkbox', { name: 'SELECT SEVERAL' })
+    const toggle = screen.getByRole('switch', { name: 'SELECT SEVERAL' })
     fireEvent.click(toggle)
     fireEvent.click(screen.getByRole('button', { name: /Block/ }))
     expect(callout()).toMatch(/Drag the block/)
@@ -343,8 +427,8 @@ describe('practice', () => {
     for (let i = 0; i < 8; i++) fireEvent.keyDown(window, { key: 'ArrowUp', shiftKey: true })
     expect(callout()).toMatch(/Turn off SELECT SEVERAL/)
     fireEvent.click(screen.getByRole('button', { name: 'OBJECTS · 2' }))
-    expect(screen.getByRole('checkbox', { name: 'SELECT SEVERAL' })).toBeChecked()
-    fireEvent.click(screen.getByRole('checkbox', { name: 'SELECT SEVERAL' }))
+    expect(screen.getByRole('switch', { name: 'SELECT SEVERAL' })).toBeChecked()
+    fireEvent.click(screen.getByRole('switch', { name: 'SELECT SEVERAL' }))
     fireEvent.click(screen.getByRole('button', { name: /Cube/ }))
     for (const axis of ['X', 'Y']) {
       const input = screen.getByRole('spinbutton', { name: `Position ${axis}` })
@@ -416,7 +500,7 @@ describe('practice', () => {
     expect(screen.getByRole('button', { name: 'NEXT' })).toBeEnabled()
 
     fireEvent.click(screen.getByRole('button', { name: 'START OVER' }))
-    expect(callout()).toMatch(/^STEP 1 OF 5.*Set Walls to 3/)
+    expect(callout()).toMatch(/^STEP 1 OF 5Press SLICE PLATE, then drag the layer slider halfway down/)
     expect(screen.getByRole('button', { name: 'NEXT' })).toBeDisabled()
     await waitFor(() => expect(readProgress('u1').done).toEqual(ids.filter((id) => id !== 'try-strength')))
     expect(readProgress('u1').restarted).toEqual(['try-strength'])
@@ -430,16 +514,40 @@ describe('practice', () => {
     await screen.findByText(/1 on the plate/)
     expect(callout()).toMatch(/^STEP 1 OF 5/)
     expect(screen.getByRole('button', { name: 'NEXT' })).toBeDisabled()
-    fireEvent.click(screen.getByRole('button', { name: 'SETTINGS' }))
-    fireEvent.click(screen.getByRole('tab', { name: 'Strength' }))
-    for (const [name, value] of [['Walls', '3'], ['Top layers', '6'], ['Infill density', '25']]) {
+    const type = (name: string, value: string) => {
       const input = screen.getByRole('spinbutton', { name })
       fireEvent.change(input, { target: { value } })
       fireEvent.keyDown(input, { key: 'Enter' })
     }
+    // Each step is a slice; looking inside means the slider about halfway down.
+    await sliceAndLook(30)
+    await waitFor(() => expect(callout()).toMatch(/^STEP 2 OF 5Set Walls to 5/))
+    // Looking at the slice before doesn't count for the next one.
+    fireEvent.click(screen.getByRole('button', { name: 'SETTINGS' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Strength' }))
+    type('Walls', '5')
+    await sliceAndLook()
+    expect(callout()).toMatch(/^STEP 2 OF 5/)
+    fireEvent.change(screen.getByRole('slider', { name: 'Top layer shown' }), { target: { value: '30' } })
+    await waitFor(() => expect(callout()).toMatch(/^STEP 3 OF 5/))
+    type('Walls', '2')
+    type('Infill density', '40')
+    await sliceAndLook(30)
+    await waitFor(() => expect(callout()).toMatch(/^STEP 4 OF 5/))
     fireEvent.change(screen.getByRole('combobox', { name: 'Infill pattern' }), { target: { value: 'gyroid' } })
+    await sliceAndLook(30)
+    await waitFor(() => expect(callout()).toMatch(/^STEP 5 OF 5/))
     fireEvent.change(screen.getByRole('combobox', { name: 'Top surface pattern' }), { target: { value: 'concentric' } })
-    expect(screen.getByRole('button', { name: 'NEXT' })).toBeEnabled()
+    await sliceAndLook()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'NEXT' })).toBeEnabled())
+    const log = within(screen.getByRole('region', { name: 'YOUR SLICES' }))
+    expect(log.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      expect.stringMatching(/^1 As it is · 4\.76 g/),
+      expect.stringMatching(/^2 Walls: 5 · 6\.10 g \(\+1\.34\)/),
+      expect.stringMatching(/^3 Walls: 2, Infill density: 40% · 7\.28 g/),
+      expect.stringMatching(/^4 Infill pattern: Gyroid · 7\.02 g \(−0\.26\)/),
+      expect.stringMatching(/^5 Top surface pattern: Concentric · 7\.02 g · 10 min · 60 layers$/),
+    ])
     await waitFor(() => expect(readProgress('u1').done).toContain('try-strength'))
     expect(new Set(readProgress('u1').done)).toEqual(new Set(ids))
     expect(readProgress('u1').restarted).toBeUndefined()
@@ -448,7 +556,8 @@ describe('practice', () => {
     renderPage(context(trained))
     await screen.findByText(/1 on the plate/)
     expect(callout()).toBe('DONEPress NEXT to carry on.')
-  })
+    // Five practice slices of a second or so each.
+  }, 20_000)
 
   it('keeps an explicitly restarted task incomplete even when training completion supplied its original DONE state', async () => {
     startAt('try-strength')
@@ -465,6 +574,22 @@ describe('practice', () => {
     await screen.findByText(/1 on the plate/)
     expect(callout()).toMatch(/^STEP 1 OF 5/)
     expect(screen.getByRole('button', { name: 'NEXT' })).toBeDisabled()
+  })
+
+  it('keeps the step somebody had reached open after they start an earlier task over', async () => {
+    const reached = ids.indexOf('check-strength')
+    writeProgress('u1', { done: ids.slice(0, reached), at: 'try-strength', total: ids.length })
+    renderPage()
+    await screen.findByText(/1 on the plate/)
+    fireEvent.click(screen.getByRole('button', { name: 'START OVER' }))
+    await waitFor(() => expect(readProgress('u1').restarted).toEqual(['try-strength']))
+
+    fireEvent.click(screen.getByRole('button', { name: 'CONTENTS' }))
+    const contents = screen.getByRole('dialog', { name: 'Training contents' })
+    expect(within(contents).getByRole('button', { name: /Check: a part that snaps/ })).toBeEnabled()
+    expect(within(contents).getByRole('button', { name: /The rest of the Others tab/ })).toBeDisabled()
+    // Finishing still waits for the task to be done again.
+    expect(within(contents).getByRole('button', { name: /You’re ready/ })).toBeDisabled()
   })
 
   it('reopens a saved restart before membership has loaded, even with no other local progress', async () => {

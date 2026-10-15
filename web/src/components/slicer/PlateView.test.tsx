@@ -24,14 +24,21 @@ vi.mock('../../lib/slicer/scene', async (original) => ({
   makeBed: () => new Group(),
   themeColors: () => Object.fromEntries(['background', 'model', 'selected', 'problem'].map(key => [key, new Color()])),
 }))
+// The gizmo records its listeners so a test can play a drag on its handles.
+const gizmos = vi.hoisted(() => [] as { object?: { scale: Vector3 }; fire: (type: string, event?: object) => void }[])
 vi.mock('three/examples/jsm/controls/TransformControls.js', () => ({
   TransformControls: class {
     dragging = false
-    object = undefined
+    object: { scale: Vector3 } | undefined = undefined
+    listeners = new Map<string, (event: object) => void>()
+    constructor() { gizmos.push(this) }
     getHelper = () => new Group()
     setSize = vi.fn()
-    addEventListener = vi.fn()
-    detach = vi.fn()
+    setMode = vi.fn()
+    attach(object: { scale: Vector3 }) { this.object = object }
+    addEventListener(type: string, listener: (event: object) => void) { this.listeners.set(type, listener) }
+    fire(type: string, event = {}) { this.listeners.get(type)?.(event) }
+    detach() { this.object = undefined }
     dispose = vi.fn()
   },
 }))
@@ -50,11 +57,12 @@ function pointer(canvas: HTMLCanvasElement, type: string, x: number, y: number, 
   fireEvent(canvas, event)
 }
 
-function view(selected = ['cube', 'block']) {
+function view(selected = ['cube', 'block'], selectSeveral = false) {
   const onDrag = vi.fn(), onCommit = vi.fn(), onSelect = vi.fn()
   const { container } = render(<PlateView bed={{ width: 256, depth: 256, height: 256, exclude: null }} objects={objects}
     meshes={new Map([['practice-cube', positions], ['practice-block', positions]])} selected={selected}
-    problems={new Map()} mode="move" onSelect={onSelect} onDrag={onDrag} onCommit={onCommit} onLayFlat={vi.fn()} />)
+    problems={new Map()} mode="move" selectSeveral={selectSeveral} onSelect={onSelect} onDrag={onDrag}
+    onCommit={onCommit} onLayFlat={vi.fn()} />)
   const canvas = container.querySelector('canvas')!
   canvas.getBoundingClientRect = () => ({ x: 0, y: 0, left: 0, top: 0, right: 600, bottom: 600, width: 600, height: 600, toJSON: () => ({}) })
   canvas.setPointerCapture = vi.fn()
@@ -94,5 +102,52 @@ describe('PlateView dragging', () => {
     expect(onSelect).toHaveBeenCalledWith(['cube', 'block'])
     expect(onDrag).not.toHaveBeenCalled()
     expect(onCommit).not.toHaveBeenCalled()
+  })
+
+  it('adds and removes parts with a plain tap while SELECT SEVERAL is on', () => {
+    const { canvas, onDrag, onSelect } = view(['cube'], true)
+    pointer(canvas, 'pointerdown', 190, 80)
+    pointer(canvas, 'pointerup', 190, 80)
+    expect(onSelect).toHaveBeenLastCalledWith(['cube', 'block'])
+    pointer(canvas, 'pointerdown', 64, 64)
+    pointer(canvas, 'pointerup', 64, 64)
+    expect(onSelect).toHaveBeenLastCalledWith([])
+    expect(onDrag).not.toHaveBeenCalled()
+  })
+
+  it('still drags the selection while SELECT SEVERAL is on', () => {
+    const { canvas, onCommit } = view(['cube', 'block'], true)
+    pointer(canvas, 'pointerdown', 64, 64)
+    pointer(canvas, 'pointermove', 74, 124)
+    pointer(canvas, 'pointerup', 74, 124)
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith(new Map([['cube', { x: 74, y: 124 }], ['block', { x: 200, y: 140 }]]))
+  })
+})
+
+describe('PlateView scale handles', () => {
+  // A cube already stretched to twice its width, its Y handle pulled to half as long again.
+  function pullY(uniformScale: boolean) {
+    const onDrag = vi.fn(), onCommit = vi.fn()
+    render(<PlateView bed={{ width: 256, depth: 256, height: 256, exclude: null }} objects={[{ ...objects[0]!, sx: 2, sy: 1, sz: 1 }]}
+      meshes={new Map([['practice-cube', positions]])} selected={['cube']} problems={new Map()} mode="scale"
+      uniformScale={uniformScale} onSelect={vi.fn()} onDrag={onDrag} onCommit={onCommit} onLayFlat={vi.fn()} />)
+    const gizmo = gizmos.at(-1)!
+    gizmo.fire('dragging-changed', { value: true })
+    gizmo.object!.scale.y = 1.5
+    gizmo.fire('objectChange')
+    gizmo.fire('dragging-changed', { value: false })
+    return { onDrag, onCommit }
+  }
+
+  it('resizes all three axes and keeps the shape while UNIFORM is on', () => {
+    const { onDrag, onCommit } = pullY(true)
+    const grown = new Map([['cube', { sx: 3, sy: 1.5, sz: 1.5 }]])
+    expect(onDrag).toHaveBeenLastCalledWith(grown)
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith(grown)
+  })
+
+  it('stretches only the pulled axis while PER AXIS', () => {
+    const { onCommit } = pullY(false)
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith(new Map([['cube', { sx: 2, sy: 1.5, sz: 1 }]]))
   })
 })

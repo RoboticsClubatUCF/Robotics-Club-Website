@@ -3,21 +3,26 @@ import { type Aim, addSelectionAims, panelAims, partAims, settingAims } from '..
 import type { Chapter } from '../../lib/training/curriculum'
 import {
   type Goal,
+  type Look,
   type PracticeState,
+  type Want,
   anyOverlap,
   atOpeningView,
   cameraOffset,
   changed,
   fits,
   isSliced,
+  looking,
   near,
   objectOf,
+  plateHas,
   pointing,
+  processValue,
   restsOn,
-  setting,
   sizeOf,
+  slicedHas,
 } from '../../lib/training/goals'
-import { PRACTICE_PETG } from '../../lib/training/practiceProfiles'
+import { PRACTICE_PETG, PRACTICE_PLA, PRACTICE_STANDARD } from '../../lib/training/practiceProfiles'
 import { placed, turn } from '../../lib/training/practiceParts'
 import {
   BracketDiagram,
@@ -44,13 +49,32 @@ import { WorkspaceMap } from './WorkspaceMap'
  *
  * Tasks run on the practice plate, the real workspace with nothing saved or sent. Their goals are
  * checked as the member works (`lib/training/goals.ts`), and each points at what to use next
- * (`lib/training/aim.ts`).
+ * (`lib/training/aim.ts`). The settings tasks are experiments: change one thing, slice, look, and
+ * compare with the slice before. Each step needs a ready-made slice with every change made before
+ * it in that task (`server/src/printing/trainingSlices.ts`).
  */
 
-const is = (key: string, value: number | boolean | string, text: string): Goal => ({
+/** Where to change what `want` asks for: the reset arrow when it's going back to the process's value. */
+function wantAims(state: PracticeState, [key, value]: Want): Aim[] {
+  if (key === 'process' || key === 'filament') return [{ at: key, side: 'right' }, { at: 'drawer:settings' }]
+  return settingAims(key, changed(state, key) && processValue(state, key) === value ? 'reset' : undefined)
+}
+
+/**
+ * One experiment: set the plate up as `wants` says, slice it, and with `look`, move the layer
+ * slider to see what changed. Done once the slice on show was made that way and the slider's
+ * there. The callout walks it through: each setting, SLICE PLATE, then the slider.
+ */
+const experiment = (text: string, wants: Want[], look?: Look): Goal => ({
   text,
-  done: (state) => setting(state, key) === value,
-  aim: settingAims(key),
+  wants,
+  done: (state) => wants.every((want) => slicedHas(state, want)) && (!look || looking(state, look)),
+  aim: (state) => {
+    const unset = wants.find((want) => !plateHas(state, want))
+    if (unset) return wantAims(state, unset)
+    if (!wants.every((want) => slicedHas(state, want))) return [{ at: 'slice' }]
+    return [{ at: state.tab === 'preview' ? 'layers' : 'tab:preview' }]
+  },
 })
 
 /** The member put this setting back with its reset arrow, after changing it. */
@@ -413,7 +437,7 @@ export const CHAPTERS: Chapter[] = [
             <P>
               Click or tap a part to select it; it turns gold. Hold <Kbd>Shift</Kbd> or <Kbd>Ctrl</Kbd> and click to
               add another. On a touch screen, turn on <Name>SELECT SEVERAL</Name> in <Name>OBJECTS</Name>, then tap
-              parts in the list to add or remove them. Turn it off to select just one. Click empty plate to
+              parts, on the plate or in the list, to add or remove them. Turn it off to select just one. Click empty plate to
               select nothing. <Kbd>Ctrl</Kbd> + <Kbd>A</Kbd> selects everything and{' '}
               <Kbd>Esc</Kbd> lets go. The list in <Name>OBJECTS</Name> selects too.
             </P>
@@ -454,7 +478,7 @@ export const CHAPTERS: Chapter[] = [
           {
             text: 'In OBJECTS, turn on SELECT SEVERAL and tap Block. Or hold Shift and click the block. Keep both selected.',
             done: (s) => s.selected.includes('cube') && s.selected.includes('block'),
-            aim: addSelectionAims('block'),
+            aim: (s) => addSelectionAims('block', s.selectSeveral),
           },
           {
             text: 'Drag the block into the back half of the plate, away from FRONT.',
@@ -467,9 +491,13 @@ export const CHAPTERS: Chapter[] = [
               const cube = objectOf(s, 'cube')
               return !!cube && near(cube.x, MIDDLE, 0.05) && near(cube.y, MIDDLE, 0.05)
             },
-            aim: (s) => s.selected.length === 1 && s.selected[0] === 'cube'
-              ? panelAims('position')
-              : [{ at: 'select-several:on', side: 'left' }, ...partAims('cube')],
+            // SELECT SEVERAL off first: while it's on, a tap on the cube would only take it away.
+            aim: (s) =>
+              s.selected.length === 1 && s.selected[0] === 'cube'
+                ? panelAims('position')
+                : s.selectSeveral
+                  ? [{ at: 'select-several:on', side: 'left' }, { at: 'drawer:objects' }]
+                  : partAims('cube'),
           },
         ],
       },
@@ -780,7 +808,7 @@ export const CHAPTERS: Chapter[] = [
                 ],
                 [
                   'AUTO-ORIENT',
-                  'The wand. Turns the selected parts, or all of them, to the way with the least overhang and the most contact with the plate. It doesn’t know what your part is for, so check its choice against strength.',
+                  'The wand. Turns the selected parts to the way with the least overhang and the most contact with the plate. It doesn’t know what your part is for, so check its choice against strength.',
                 ],
                 ['ROTATE', 'For anything else: the rings, or exact degrees in ROTATION.'],
               ]}
@@ -867,6 +895,116 @@ export const CHAPTERS: Chapter[] = [
           },
         ],
         hint: 'It should turn the mushroom over onto its cap. You could also type 180 in ROTATION X.',
+      },
+    ],
+  },
+
+  {
+    id: 'slicing',
+    title: 'Slicing and the preview',
+    steps: [
+      {
+        kind: 'read',
+        id: 'slice-and-preview',
+        title: 'Slicing and checking the preview',
+        body: (
+          <>
+            <H>Slicing</H>
+            <P>
+              <Name>SLICE PLATE</Name> sends the plate to the club&rsquo;s slicer. It takes from a few seconds to a
+              minute. When it&rsquo;s done, the status line shows the print time and the plastic in grams and metres,
+              and <Name>PREVIEW</Name> opens.
+            </P>
+            <P>
+              Change anything after slicing and the status line says so. Slice again before you send it.
+            </P>
+            <P>
+              From here on, the tasks have you change a setting, slice again and compare. In the practice copy,{' '}
+              <Name>YOUR SLICES</Name> above the plate keeps each slice&rsquo;s time, plastic and layers side by side.
+            </P>
+            <P>
+              <Name>SLICE PLATE</Name> stays grey while something is wrong: nothing on the plate, a red part, a STEP
+              file still converting, or a printer, filament or process to pick. The line under the top bar says which.
+            </P>
+            <H>The preview</H>
+            <Terms
+              items={[
+                [
+                  'Layer slider',
+                  'Up the right side, or along the bottom on a phone. Drag it down to watch the print build layer by layer and to see inside. It shows the layer number and its height.',
+                ],
+                [
+                  'PATHS',
+                  'What the colours mean: outer wall (gold), inner wall (grey), sparse infill (blue), solid infill (red), support (green), and skirt, brim and purge (pale blue). The purge is a line the printer draws near the edge of the plate to clean the nozzle before it starts. Click a kind to hide it. The grams beside each say where your plastic goes. On a phone, tap PATHS to open the list.',
+                ],
+              ]}
+            />
+            <H>What to check before you send it</H>
+            <List>
+              <li>Layer 1: is everything that should touch the plate touching it?</li>
+              <li>Is anything printed in mid-air, with nothing under it?</li>
+              <li>Are supports where you expect them, and nowhere you don&rsquo;t?</li>
+              <li>Did thin bits make it? A wall thinner than the nozzle can disappear.</li>
+              <li>Do the time and grams make sense?</li>
+            </List>
+          </>
+        ),
+      },
+      {
+        kind: 'try',
+        id: 'try-slice',
+        title: 'Slice and look',
+        brief: 'The mushroom standing on its stem, with the Standard process. Slice it and look at the result.',
+        setUp: { objects: () => [placed('mushroom', 'mushroom', MIDDLE, MIDDLE)] },
+        goals: [
+          { text: 'Press SLICE PLATE.', done: isSliced, aim: [{ at: 'slice' }] },
+          {
+            text: 'In PREVIEW, drag the layer slider all the way down to layer 1.',
+            done: (s) => s.tab === 'preview' && s.layers?.top === 0,
+            aim: (s) => [{ at: s.tab === 'preview' ? 'layers' : 'tab:preview' }],
+          },
+          {
+            text: 'In PATHS, click Support to hide it. On a phone, tap PATHS to open it first.',
+            done: (s) => s.layers?.hidden.includes('support') ?? false,
+            aim: (s) => (s.tab === 'preview' ? [{ at: 'path:support' }, { at: 'paths' }] : [{ at: 'tab:preview' }]),
+          },
+        ],
+        hint: 'Practice slices are made ahead of time by the club’s slicer.',
+      },
+      {
+        kind: 'try',
+        id: 'try-fix-slice',
+        title: 'Fix it and slice again',
+        brief: 'Those supports cost plastic. Get rid of them and compare.',
+        setUp: { objects: () => [placed('mushroom', 'mushroom', MIDDLE, MIDDLE)] },
+        goals: [
+          {
+            text: 'Slice it as it is. YOUR SLICES, above the plate, keeps its time and plastic.',
+            done: isSliced,
+            aim: [{ at: 'slice' }],
+          },
+          {
+            text: 'Back in PREPARE, turn the mushroom upside down.',
+            done: (s) => restsOn(objectOf(s, 'mushroom'), [0, 0, 1]),
+            aim: (s) => (s.tab === 'prepare' ? tool('auto-orient', () => 'mushroom')(s) : [{ at: 'tab:prepare' }]),
+          },
+          {
+            text: 'Slice it again and compare the two in YOUR SLICES. No supports, less plastic.',
+            done: (s) => isSliced(s) && s.sliced?.with.upsideDown === true,
+            aim: [{ at: 'slice' }],
+          },
+        ],
+      },
+      {
+        kind: 'check',
+        id: 'check-preview-green',
+        title: 'Check: the green paths',
+        question: 'In PREVIEW, what are the green paths?',
+        options: [
+          { text: 'The outer wall', why: 'The outer wall is gold.' },
+          { text: 'Support', right: true, why: 'Right. Green is support, which comes off afterwards.' },
+          { text: 'Infill', why: 'Sparse infill is blue and solid infill is red.' },
+        ],
       },
     ],
   },
@@ -973,21 +1111,34 @@ export const CHAPTERS: Chapter[] = [
         kind: 'try',
         id: 'try-supports',
         title: 'Support settings',
-        brief: 'Open the Support tab in the settings column and work through it.',
+        brief: 'Change one support setting at a time and slice after each. YOUR SLICES keeps the numbers to compare.',
         setUp: { objects: () => [placed('mushroom', 'mushroom', MIDDLE, MIDDLE)] },
         goals: [
-          is('enable_support', false, 'Switch Supports off.'),
-          {
-            text: 'Switch Supports back on, and set Support type to Normal.',
-            done: (s) => setting(s, 'enable_support') === true && setting(s, 'support_type') === 'normal(auto)',
-            aim: (s) => settingAims(setting(s, 'enable_support') === true ? 'support_type' : 'enable_support'),
-          },
-          is('support_threshold_angle', 45, 'Set Threshold angle to 45, and press Enter.'),
-          is('support_on_build_plate_only', true, 'Switch on On build plate only.'),
-          is('raft_layers', 2, 'Set Raft layers to 2.'),
+          experiment('Press SLICE PLATE. The green branches are the process’s Tree supports.', [
+            ['enable_support', true],
+            ['support_type', 'tree(auto)'],
+          ]),
+          experiment(
+            'In the Support tab, switch Supports off and slice. Drag the layer slider down to about 14 mm: the cap starts in mid-air.',
+            [['enable_support', false]],
+            { from: 14, to: 15 },
+          ),
+          experiment('Switch Supports back on, set Support type to Normal and slice. Compare its plastic with Tree’s.', [
+            ['enable_support', true],
+            ['support_type', 'normal(auto)'],
+          ]),
+          experiment(
+            'Set Raft layers to 2, slice, and drag the layer slider down to layer 1 to see the raft.',
+            [
+              ['enable_support', true],
+              ['support_type', 'normal(auto)'],
+              ['raft_layers', 2],
+            ],
+            'bottom',
+          ),
           reset('raft_layers', 'Press the gold reset arrow beside Raft layers to put it back to 0.'),
         ],
-        hint: 'A changed setting turns gold, with a reset arrow to put it back.',
+        hint: 'A changed setting turns gold, with a reset arrow to put it back. The slider shows each layer’s height in mm.',
       },
       {
         kind: 'check',
@@ -1051,12 +1202,39 @@ export const CHAPTERS: Chapter[] = [
         kind: 'try',
         id: 'try-brim',
         title: 'Add a brim',
-        brief: 'The tower needs help standing up. The brim and skirt are in the Others tab.',
+        brief: 'The tower needs help standing up. Slice it after each change and look at its first layer.',
         setUp: { objects: () => [placed('tower', 'tower', MIDDLE, MIDDLE)] },
         goals: [
-          is('brim_type', 'outer_only', 'Set Brim to Outer only.'),
-          is('brim_width', 8, 'Set Brim width to 8.'),
-          is('skirt_loops', 2, 'Set Skirt loops to 2.'),
+          experiment(
+            'Slice the tower and drag the layer slider down to layer 1. That small circle is all it stands on.',
+            [['brim_type', 'no_brim']],
+            'bottom',
+          ),
+          experiment(
+            'In the Others tab, set Brim to Outer only, slice, and look at layer 1 again.',
+            [
+              ['brim_type', 'outer_only'],
+              ['brim_width', 5],
+            ],
+            'bottom',
+          ),
+          experiment(
+            'Set Brim width to 8, slice and look at layer 1.',
+            [
+              ['brim_type', 'outer_only'],
+              ['brim_width', 8],
+            ],
+            'bottom',
+          ),
+          experiment(
+            'Set Skirt loops to 2, slice and look at layer 1. The skirt goes round without touching.',
+            [
+              ['brim_type', 'outer_only'],
+              ['brim_width', 8],
+              ['skirt_loops', 2],
+            ],
+            'bottom',
+          ),
         ],
       },
       {
@@ -1132,24 +1310,34 @@ export const CHAPTERS: Chapter[] = [
         kind: 'try',
         id: 'try-profiles',
         title: 'Choose a filament and process',
-        brief: 'The top of the settings column.',
-        setUp: { objects: () => [placed('cube', 'cube', MIDDLE, MIDDLE)] },
+        brief: 'The top of the settings column. Slice after each change and compare.',
+        setUp: { objects: () => [placed('block', 'block', MIDDLE, MIDDLE)] },
         goals: [
-          {
-            text: 'Change FILAMENT to PETG.',
-            done: (s) => s.plate.filamentId === PRACTICE_PETG,
-            aim: [{ at: 'filament', side: 'right' }, { at: 'drawer:settings' }],
-          },
-          {
-            text: 'Change PROCESS to Q-S.',
-            done: (s) => s.plate.processId === 'practice-qs',
-            aim: [{ at: 'process', side: 'right' }, { at: 'drawer:settings' }],
-          },
-          {
-            text: 'In the Strength tab, change Walls to 4 and press Enter.',
-            done: (s) => s.plate.overrides['wall_loops'] === 4,
-            aim: settingAims('wall_loops'),
-          },
+          experiment('Press SLICE PLATE. This is PLA with the Standard process.', [
+            ['filament', PRACTICE_PLA],
+            ['process', PRACTICE_STANDARD],
+          ]),
+          experiment('Change FILAMENT to PETG and slice. PETG brings its own speeds, so the time changes.', [
+            ['filament', PRACTICE_PETG],
+            ['process', PRACTICE_STANDARD],
+          ]),
+          experiment(
+            'Change PROCESS to Q-S, slice, and drag the layer slider halfway down. Count the walls.',
+            [
+              ['filament', PRACTICE_PETG],
+              ['process', 'practice-qs'],
+            ],
+            'middle',
+          ),
+          experiment(
+            'In the Strength tab, change Walls to 4, slice and look halfway down again.',
+            [
+              ['filament', PRACTICE_PETG],
+              ['process', 'practice-qs'],
+              ['wall_loops', 4],
+            ],
+            'middle',
+          ),
           reset('wall_loops', 'Press the gold reset arrow beside Walls to go back to the process’s 6.'),
         ],
       },
@@ -1216,14 +1404,19 @@ export const CHAPTERS: Chapter[] = [
         kind: 'try',
         id: 'try-quality',
         title: 'Quality settings',
-        brief: 'The Quality tab. Numbers save when you press Enter or click away.',
+        brief: 'The Quality tab. Numbers save when you press Enter or click away. Watch the layers and the time.',
         setUp: { objects: () => [placed('block', 'block', MIDDLE, MIDDLE)] },
         goals: [
-          is('layer_height', 0.12, 'Set Layer height to 0.12.'),
-          is('initial_layer_print_height', 0.25, 'Set First layer height to 0.25.'),
-          is('wall_generator', 'arachne', 'Set Wall generator to Arachne.'),
-          is('seam_position', 'back', 'Set Seam position to Back.'),
-          is('ironing_type', 'topmost', 'Set Ironing to Topmost surface.'),
+          experiment('Press SLICE PLATE. The layer slider counts the layers it made.', [['layer_height', 0.2]]),
+          experiment('Set Layer height to 0.12 and slice. More layers, so more time.', [['layer_height', 0.12]]),
+          experiment('Set Layer height to 0.28 and slice. Fewer, thicker layers, so it’s quicker.', [['layer_height', 0.28]]),
+          experiment(
+            'Put Layer height back with its reset arrow, set Ironing to Topmost surface and slice. Ironing adds time, not plastic.',
+            [
+              ['layer_height', 0.2],
+              ['ironing_type', 'topmost'],
+            ],
+          ),
         ],
       },
     ],
@@ -1335,14 +1528,39 @@ export const CHAPTERS: Chapter[] = [
         kind: 'try',
         id: 'try-strength',
         title: 'Strength settings',
-        brief: 'The Strength tab.',
+        brief: 'The Strength tab. Slice after each change and look inside the block.',
         setUp: { objects: () => [placed('block', 'block', MIDDLE, MIDDLE)] },
         goals: [
-          is('wall_loops', 3, 'Set Walls to 3.'),
-          is('top_shell_layers', 6, 'Set Top layers to 6.'),
-          is('sparse_infill_density', 25, 'Set Infill density to 25%.'),
-          is('sparse_infill_pattern', 'gyroid', 'Set Infill pattern to Gyroid.'),
-          is('top_surface_pattern', 'concentric', 'Set Top surface pattern to Concentric.'),
+          experiment(
+            'Press SLICE PLATE, then drag the layer slider halfway down to see inside: 2 walls and 15% infill.',
+            [
+              ['wall_loops', 2],
+              ['sparse_infill_density', 15],
+            ],
+            'middle',
+          ),
+          experiment('Set Walls to 5, slice and look halfway down again.', [['wall_loops', 5]], 'middle'),
+          experiment(
+            'Put Walls back with its reset arrow, set Infill density to 40% and slice. Look inside.',
+            [
+              ['wall_loops', 2],
+              ['sparse_infill_density', 40],
+            ],
+            'middle',
+          ),
+          experiment(
+            'Set Infill pattern to Gyroid, slice and look inside. Check the time, too.',
+            [
+              ['sparse_infill_density', 40],
+              ['sparse_infill_pattern', 'gyroid'],
+            ],
+            'middle',
+          ),
+          experiment('Set Top surface pattern to Concentric and slice. The top is drawn in rings.', [
+            ['sparse_infill_density', 40],
+            ['sparse_infill_pattern', 'gyroid'],
+            ['top_surface_pattern', 'concentric'],
+          ]),
         ],
       },
       {
@@ -1373,7 +1591,7 @@ export const CHAPTERS: Chapter[] = [
               items={[
                 [
                   'Vase mode',
-                  'Prints one wall that spirals up without stopping: a solid bottom, no top and nothing inside. Fast and smooth for cups, vases and lamp shades. Only for one part on the plate; the slicer refuses more. Don’t count on it holding water.',
+                  'Prints one wall that spirals up without stopping: a solid bottom, no top and nothing inside. Fast and smooth for cups, vases and lamp shades. Only for one part on the plate, with Supports off; the slicer refuses anything else. Don’t count on it holding water.',
                 ],
                 [
                   'Fuzzy skin',
@@ -1389,12 +1607,26 @@ export const CHAPTERS: Chapter[] = [
         kind: 'try',
         id: 'try-others',
         title: 'Others',
-        brief: 'The Others tab.',
+        brief: 'The Others tab, sliced each way.',
         setUp: { objects: () => [placed('tower', 'tower', MIDDLE, MIDDLE)] },
         goals: [
-          is('spiral_mode', true, 'Switch on Vase mode.'),
-          is('spiral_mode', false, 'Switch it off again.'),
-          is('fuzzy_skin', 'external', 'Set Fuzzy skin to Outer walls.'),
+          experiment(
+            'Press SLICE PLATE and drag the layer slider halfway down: two walls and infill.',
+            [['spiral_mode', false]],
+            'middle',
+          ),
+          experiment(
+            'Switch Supports off in the Support tab, since the slicer won’t make a vase with them on. Then switch on Vase mode, slice and look halfway down.',
+            [
+              ['enable_support', false],
+              ['spiral_mode', true],
+            ],
+            'middle',
+          ),
+          experiment('Switch Vase mode off, set Fuzzy skin to Outer walls and slice. Zoom in on the rough outside.', [
+            ['spiral_mode', false],
+            ['fuzzy_skin', 'external'],
+          ]),
         ],
       },
       {
@@ -1406,113 +1638,6 @@ export const CHAPTERS: Chapter[] = [
           { text: 'A pencil cup, on its own on the plate', right: true, why: 'Right. One part, one thin wall, open at the top.' },
           { text: 'A gear', why: 'Vase mode prints one thin wall with nothing inside. A gear needs to be solid.' },
           { text: 'Four parts at once', why: 'Vase mode takes one part on the plate.' },
-        ],
-      },
-    ],
-  },
-
-  {
-    id: 'slicing',
-    title: 'Slicing and the preview',
-    steps: [
-      {
-        kind: 'read',
-        id: 'slice-and-preview',
-        title: 'Slicing and checking the preview',
-        body: (
-          <>
-            <H>Slicing</H>
-            <P>
-              <Name>SLICE PLATE</Name> sends the plate to the club&rsquo;s slicer. It takes from a few seconds to a
-              minute. When it&rsquo;s done, the status line shows the print time and the plastic in grams and metres,
-              and <Name>PREVIEW</Name> opens.
-            </P>
-            <P>
-              Change anything after slicing and the status line says so. Slice again before you send it.
-            </P>
-            <P>
-              <Name>SLICE PLATE</Name> stays grey while something is wrong: nothing on the plate, a red part, a STEP
-              file still converting, or a printer, filament or process to pick. The line under the top bar says which.
-            </P>
-            <H>The preview</H>
-            <Terms
-              items={[
-                [
-                  'Layer slider',
-                  'Up the right side, or along the bottom on a phone. Drag it down to watch the print build layer by layer and to see inside. It shows the layer number and its height.',
-                ],
-                [
-                  'PATHS',
-                  'What the colours mean: outer wall (gold), inner wall (grey), sparse infill (blue), solid infill (red), support (green), and skirt, brim and purge (pale blue). The purge is a line the printer draws near the edge of the plate to clean the nozzle before it starts. Click a kind to hide it. The grams beside each say where your plastic goes. On a phone, tap PATHS to open the list.',
-                ],
-              ]}
-            />
-            <H>What to check before you send it</H>
-            <List>
-              <li>Layer 1: is everything that should touch the plate touching it?</li>
-              <li>Is anything printed in mid-air, with nothing under it?</li>
-              <li>Are supports where you expect them, and nowhere you don&rsquo;t?</li>
-              <li>Did thin bits make it? A wall thinner than the nozzle can disappear.</li>
-              <li>Do the time and grams make sense?</li>
-            </List>
-          </>
-        ),
-      },
-      {
-        kind: 'try',
-        id: 'try-slice',
-        title: 'Slice and look',
-        brief: 'The mushroom standing on its stem, with the Standard process. Slice it and look at the result.',
-        setUp: { objects: () => [placed('mushroom', 'mushroom', MIDDLE, MIDDLE)] },
-        goals: [
-          { text: 'Press SLICE PLATE.', done: isSliced, aim: [{ at: 'slice' }] },
-          {
-            text: 'In PREVIEW, drag the layer slider all the way down to layer 1.',
-            done: (s) => s.tab === 'preview' && s.layers?.top === 0,
-            aim: (s) => [{ at: s.tab === 'preview' ? 'layers' : 'tab:preview' }],
-          },
-          {
-            text: 'In PATHS, click Support to hide it. On a phone, tap PATHS to open it first.',
-            done: (s) => s.layers?.hidden.includes('support') ?? false,
-            aim: (s) => (s.tab === 'preview' ? [{ at: 'path:support' }, { at: 'paths' }] : [{ at: 'tab:preview' }]),
-          },
-        ],
-        hint: 'Practice slices are made ahead of time by the club’s slicer, for this mushroom.',
-      },
-      {
-        kind: 'try',
-        id: 'try-fix-slice',
-        title: 'Fix it and slice again',
-        brief: 'Those supports cost plastic. Get rid of them and compare.',
-        setUp: { objects: () => [placed('mushroom', 'mushroom', MIDDLE, MIDDLE)] },
-        goals: [
-          { text: 'Slice it as it is, and note the grams.', done: isSliced, aim: [{ at: 'slice' }] },
-          {
-            text: 'Back in PREPARE, turn the mushroom upside down.',
-            done: (s) => restsOn(objectOf(s, 'mushroom'), [0, 0, 1]),
-            aim: (s) => (s.tab === 'prepare' ? tool('auto-orient', () => 'mushroom')(s) : [{ at: 'tab:prepare' }]),
-          },
-          {
-            text: 'Slice it again. Fewer grams?',
-            done: (s) => isSliced(s) && s.sliced?.name.startsWith('mushroom-down') === true,
-            aim: [{ at: 'slice' }],
-          },
-          {
-            text: 'Set Brim to Outer only and slice once more.',
-            done: (s) => isSliced(s) && s.sliced?.name === 'mushroom-down-brim',
-            aim: (s) => (setting(s, 'brim_type') === 'outer_only' ? [{ at: 'slice' }] : settingAims('brim_type')),
-          },
-        ],
-      },
-      {
-        kind: 'check',
-        id: 'check-preview-green',
-        title: 'Check: the green paths',
-        question: 'In PREVIEW, what are the green paths?',
-        options: [
-          { text: 'The outer wall', why: 'The outer wall is gold.' },
-          { text: 'Support', right: true, why: 'Right. Green is support, which comes off afterwards.' },
-          { text: 'Infill', why: 'Sparse infill is blue and solid infill is red.' },
         ],
       },
     ],
@@ -1549,7 +1674,8 @@ export const CHAPTERS: Chapter[] = [
               <Name>MY DRAFTS</Name>. A draft left alone for a while is deleted, and the list says when.
             </P>
             <P>
-              Going over your allowance is allowed; an officer decides whether to print it. Officers may also turn
+              You can go over your allowance. An officer still has to approve the print, and you pay for every gram
+              past it. Officers may also turn
               down a plate that won&rsquo;t print well, and they&rsquo;ll say why.
             </P>
           </>
@@ -1583,8 +1709,12 @@ export const CHAPTERS: Chapter[] = [
         title: 'Check: going over',
         question: 'You have 100 g of your allowance left and send a personal print that needs 120 g. What happens?',
         options: [
-          { text: 'It’s refused', why: 'Going over is allowed. An officer decides.' },
-          { text: "It's sent, however, I will need to pay for the print.", right: true, why: 'Right. The form warns you first.' },
+          { text: 'It’s refused', why: 'Going over is allowed, but you pay for the grams past your allowance.' },
+          {
+            text: 'It’s sent, and you pay for the 20 g over',
+            right: true,
+            why: 'Right. Only the grams past your allowance, and only once an officer approves the print. The form warns you before you send it.',
+          },
           { text: 'It’s charged to a project', why: 'Only if you choose a project you’re on.' },
         ],
       },

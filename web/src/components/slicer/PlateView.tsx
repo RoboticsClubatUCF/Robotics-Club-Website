@@ -22,6 +22,7 @@ import type { ApiPlacement, ApiPlateObject } from '../../lib/api/api'
 import type { CameraMoves } from '../../lib/slicer/camera'
 import { restingFaces } from '../../lib/slicer/faces'
 import type { MeshMap } from '../../lib/slicer/meshes'
+import { scaleBy } from '../../lib/slicer/plate'
 import {
   type Affine,
   type Bed,
@@ -53,6 +54,10 @@ interface Props {
   selected: string[]
   problems: ReadonlyMap<string, FitProblem>
   mode: PlateMode
+  /** SELECT SEVERAL is on: a tap adds a part or takes it away, as Shift does. */
+  selectSeveral?: boolean
+  /** UNIFORM is on: pulling a SCALE handle along one axis resizes the part along all three. */
+  uniformScale?: boolean
   onSelect: (ids: string[]) => void
   /** A drag in progress: shown, not saved. */
   onDrag: (placements: ReadonlyMap<string, Partial<ApiPlacement>>) => void
@@ -176,14 +181,22 @@ export function PlateView(props: Props) {
     const handle = latest.current.camera
     if (handle) handle.current = stage
 
+    // The part's scale when the gizmo was grabbed.
+    let grabbedAt = { sx: 1, sy: 1, sz: 1 }
     const placementFromProxy = (): Partial<ApiPlacement> => {
       const { mode } = latest.current
       if (mode === 'rotate') {
         const q = proxy.quaternion
         return canonicalQuat({ qx: q.x, qy: q.y, qz: q.z, qw: q.w })
       }
+      const { x, y, z } = proxy.scale
+      if (latest.current.uniformScale) {
+        // The gizmo stretches only the handle's axes; the one pulled furthest sets the ratio for all three.
+        const ratios = [x / grabbedAt.sx, y / grabbedAt.sy, z / grabbedAt.sz].map(Math.abs)
+        return scaleBy(grabbedAt, ratios.reduce((a, b) => (Math.abs(b - 1) > Math.abs(a - 1) ? b : a)))
+      }
       const clamp = (value: number) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.abs(value)))
-      return { sx: clamp(proxy.scale.x), sy: clamp(proxy.scale.y), sz: clamp(proxy.scale.z) }
+      return { sx: clamp(x), sy: clamp(y), sz: clamp(z) }
     }
     const view = () => {
       const { position } = stage.camera
@@ -200,6 +213,7 @@ export function PlateView(props: Props) {
     })
     gizmo.addEventListener('dragging-changed', (event) => {
       stage.orbit.enabled = !event.value
+      if (event.value) grabbedAt = { sx: proxy.scale.x, sy: proxy.scale.y, sz: proxy.scale.z }
       const id = latest.current.selected[0]
       if (!event.value && id) latest.current.onCommit(new Map([[id, placementFromProxy()]]))
     })
@@ -255,7 +269,7 @@ export function PlateView(props: Props) {
       const { mode, selected, objects: placed } = latest.current
       let offset: Vector2 | null = null
       const from = new Map<string, { x: number; y: number }>()
-      const adding = event.shiftKey || event.ctrlKey || event.metaKey
+      const adding = latest.current.selectSeveral === true || event.shiftKey || event.ctrlKey || event.metaKey
       if (found && mode === 'move' && (selected.includes(found.id) || !adding)) {
         const object = placed.find((o) => o.id === found.id)
         const at = onBed()
@@ -321,7 +335,7 @@ export function PlateView(props: Props) {
           // A part of the selected object with no face to lie on: nothing to do.
         } else if (!found) {
           latest.current.onSelect([])
-        } else if (event.shiftKey || event.ctrlKey || event.metaKey) {
+        } else if (latest.current.selectSeveral === true || event.shiftKey || event.ctrlKey || event.metaKey) {
           latest.current.onSelect(
             selected.includes(found.id) ? selected.filter((id) => id !== found.id) : [...selected, found.id],
           )

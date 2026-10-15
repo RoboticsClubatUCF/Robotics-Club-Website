@@ -7,6 +7,7 @@ import type { PracticePlate } from '../../lib/training/usePracticePlate'
 import type { PreviewLoad } from '../../lib/slicer/usePreview'
 import { WorkspaceView, type WorkspaceWatch } from '../slicer/SlicerWorkspace'
 import { GoalCallout } from './GoalCallout'
+import { SliceLog } from './SliceLog'
 import { TaskStrip } from './TaskStrip'
 
 /**
@@ -68,6 +69,10 @@ export function PracticeStep({
 
   const next = achieved.findIndex((done) => !done)
   const goal = next === -1 ? null : step.goals[next]!
+  // Done after several slices, the strip says so beside DONE instead of a callout under NEXT, which
+  // would cover YOUR SLICES just when there's something to compare, or over the plate, which would
+  // cover the preview's PATHS.
+  const compare = goal === null && practice.log.slices.length > 1
   const aims = goal ? (typeof goal.aim === 'function' ? goal.aim(state) : (goal.aim ?? [])) : [{ at: 'next' }]
 
   return (
@@ -79,6 +84,7 @@ export function PracticeStep({
         brief={step.brief}
         hint={step.hint}
         complete={goal === null}
+        doneNote={compare ? 'Compare your slices, then press NEXT.' : undefined}
         announce={announce}
         onStartOver={() => {
           onStartOver()
@@ -89,14 +95,18 @@ export function PracticeStep({
         }}
         onBack={onBack}
         onNext={onNext}
-      />
-      <GoalCallout
-        key={`${String(round)}-${String(next)}`}
-        label={goal ? `STEP ${String(next + 1)} OF ${String(step.goals.length)}` : 'DONE'}
-        text={goal ? goal.text : 'Press NEXT to carry on.'}
-        aims={aims}
-        state={state}
-      />
+      >
+        <SliceLog log={practice.log} />
+      </TaskStrip>
+      {!compare && (
+        <GoalCallout
+          key={`${String(round)}-${String(next)}`}
+          label={goal ? `STEP ${String(next + 1)} OF ${String(step.goals.length)}` : 'DONE'}
+          text={goal ? goal.text : 'Press NEXT to carry on.'}
+          aims={aims}
+          state={state}
+        />
+      )}
       <WorkspaceView
         key={round}
         plateKey="practice"
@@ -108,6 +118,7 @@ export function PracticeStep({
         onSent={() => undefined}
         back={null}
         watch={watch}
+        previewFocus={practice.sliced?.focus}
         className="min-h-[30rem] flex-1 wide:min-h-0"
       />
     </div>

@@ -4,14 +4,17 @@ import { smallQuietButton } from '../slicer/slicerChrome'
 /**
  * A practice task, under the practice workspace's top bar: what it's about, a hint, and the way
  * on. The goals aren't listed here; `GoalCallout` shows the next one beside what to press. NEXT
- * stays outlined: the workspace's own gold button is the one in view.
+ * stays outlined: the workspace's own gold button is the one in view. `children` take the strip's
+ * full width under it: the task's slices so far, which need the room more than the buttons do.
  */
 export function TaskStrip({
   title,
   brief,
   hint,
   complete,
+  doneNote,
   announce,
+  children,
   onStartOver,
   onBack,
   onNext,
@@ -20,8 +23,11 @@ export function TaskStrip({
   brief?: ReactNode
   hint?: ReactNode
   complete: boolean
+  /** Said beside DONE, for a finished task the callout has stood aside for. */
+  doneNote?: string
   /** The goal just met and the next one, said to a screen reader. */
   announce: string
+  children?: ReactNode
   onStartOver: () => void
   onBack: () => void
   onNext: () => void
@@ -37,6 +43,7 @@ export function TaskStrip({
               TRY IT · {title.toUpperCase()}
             </h1>
             {complete && <span className="text-success font-mono text-[10.5px] tracking-[0.1em]">DONE</span>}
+            {complete && doneNote && <span className="text-base-content text-[12.5px]">{doneNote}</span>}
           </div>
           {brief && <p className="text-dim mt-1 text-[13.5px] leading-[1.5] text-pretty">{brief}</p>}
           {hint && (
@@ -67,6 +74,7 @@ export function TaskStrip({
           </button>
         </div>
       </div>
+      {children}
       <p aria-live="polite" className="sr-only">
         {announce}
       </p>

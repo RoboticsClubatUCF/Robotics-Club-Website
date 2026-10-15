@@ -4,6 +4,8 @@ import {
   type Bed,
   type Box,
   type FitProblem,
+  MAX_SCALE,
+  MIN_SCALE,
   footprint,
   hullTouchesRect,
   placedBox,
@@ -66,6 +68,19 @@ export function fitOn(positions: Float32Array, placement: ApiPlacement, bed: Bed
     if (hullTouchesRect(shifted, bed.exclude)) return 'noGo'
   }
   return null
+}
+
+/**
+ * The scale grown by `ratio` on every axis, so the part keeps its shape. The ratio stops where the
+ * first axis meets MIN_SCALE or MAX_SCALE; clamping each axis on its own would stretch the part.
+ */
+export function scaleBy(scale: { sx: number; sy: number; sz: number }, ratio: number) {
+  const axes = [scale.sx, scale.sy, scale.sz]
+  const low = Math.max(...axes.map((s) => MIN_SCALE / s))
+  const high = Math.min(...axes.map((s) => MAX_SCALE / s))
+  const r = Number.isFinite(ratio) ? Math.min(high, Math.max(low, ratio)) : 1
+  const clamp = (value: number) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, value))
+  return { sx: clamp(scale.sx * r), sy: clamp(scale.sy * r), sz: clamp(scale.sz * r) }
 }
 
 /** The footprint size at this turn and scale, for finding room for a copy. */

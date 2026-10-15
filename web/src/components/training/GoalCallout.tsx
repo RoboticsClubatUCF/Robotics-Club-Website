@@ -12,8 +12,11 @@ interface Shown {
   ring: Rect | null
 }
 
-/** Controls on the plate a callout shouldn't sit over: the toolbar, the house, a phone's drawer buttons. */
-const AVOID = ['tools', 'house', 'drawer:settings', 'drawer:objects']
+/**
+ * What a callout shouldn't sit over: the toolbar, the house, a phone's drawer buttons, and the
+ * task's slices, which DONE under NEXT would cover just when there's something to compare.
+ */
+const AVOID = ['tools', 'house', 'drawer:settings', 'drawer:objects', 'slice-log']
 
 /** The arrow on the edge facing the target: where it sits, and its shape in an 18 by 10 box. */
 const ARROW: Record<Side, { edge: string; path: string; across: boolean }> = {

@@ -45,8 +45,8 @@ export function PreviewView({
   focus?: Focus
   /** Whether PATHS starts open; by default, open at `wide` only. */
   legend?: boolean
-  /** The slider moved or a kind of path was hidden: for the slicer training. */
-  onExplore?: (layers: { top: number; count: number; hidden: Role[] }) => void
+  /** The slider moved or a kind of path was hidden: for the slicer training. `z` is the top layer's height. */
+  onExplore?: (layers: { top: number; count: number; z: number; hidden: Role[] }) => void
   /** Given the camera while the view is up, for the workspace's view keys. */
   camera?: RefObject<CameraMoves | null>
 }) {
@@ -55,7 +55,7 @@ export function PreviewView({
   const [hidden, setHidden] = useState<ReadonlySet<Role>>(new Set())
 
   const report = useEffectEvent(() => {
-    onExplore?.({ top, count: preview.layers.length, hidden: [...hidden] })
+    onExplore?.({ top, count: preview.layers.length, z: preview.layers[top]?.z ?? 0, hidden: [...hidden] })
   })
   useEffect(() => {
     report()

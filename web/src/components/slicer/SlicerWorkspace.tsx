@@ -21,7 +21,7 @@ import { boxOn, fitOn, sizeOf } from '../../lib/slicer/plate'
 import { type Box, type FitProblem, canonicalQuat } from '../../lib/slicer/plateTransform'
 import { ACCEPTED_MODELS, MeshError, parseStl } from '../../lib/slicer/stl'
 import type { Role } from '../../lib/slicer/preview'
-import type { CameraView } from '../../lib/slicer/scene'
+import type { CameraView, Focus } from '../../lib/slicer/scene'
 import { type PlateSource, useDraft } from '../../lib/slicer/useDraft'
 import { type PreviewLoad, usePreview } from '../../lib/slicer/usePreview'
 import { useDialogFocus } from '../../lib/useDialogFocus'
@@ -138,9 +138,9 @@ export function SlicerWorkspace({
 
 /** What the slicer training watches to tell when a practice task is done. */
 export interface WorkspaceWatch {
-  onState?: (state: { selected: string[]; mode: PlateMode; tab: 'prepare' | 'preview' }) => void
+  onState?: (state: { selected: string[]; selectSeveral: boolean; mode: PlateMode; tab: 'prepare' | 'preview' }) => void
   onCamera?: (view: CameraView) => void
-  onLayers?: (layers: { top: number; count: number; hidden: Role[] }) => void
+  onLayers?: (layers: { top: number; count: number; z: number; hidden: Role[] }) => void
 }
 
 const PRINTING_LINK = (
@@ -174,6 +174,7 @@ export function WorkspaceView({
   onSent,
   back = PRINTING_LINK,
   watch,
+  previewFocus,
   className = 'h-[calc(100dvh-var(--spacing-nav))] min-h-[30rem]',
 }: {
   /** The plate's id, or undefined before its first upload. A new key starts undo over. */
@@ -191,6 +192,11 @@ export function WorkspaceView({
   /** The way out at the left of the top bar; null for none. */
   back?: ReactNode
   watch?: WorkspaceWatch
+  /**
+   * What PREVIEW opens looking at, instead of the whole bed: the training's part, so slices made
+   * one after another open on the same close-up. A new object rebuilds the view.
+   */
+  previewFocus?: Focus
   /** The workspace's height. */
   className?: string
 }) {
@@ -206,6 +212,14 @@ export function WorkspaceView({
   const [selected, setSelected] = useState<string[]>([])
   const [selectSeveral, setSelectSeveral] = useState(false)
   const [mode, setMode] = useState<PlateMode>('move')
+  // UNIFORM or PER AXIS, which both the panel's boxes and the plate's handles keep to. A part starts
+  // on whichever its scale already is, and keeps what was clicked for as long as it stays selected.
+  const lone = selected.length === 1 ? objects.find((object) => object.id === selected[0]) : undefined
+  const [scaleLock, setScaleLock] = useState<{ id: string; uniform: boolean } | null>(null)
+  if (lone && scaleLock?.id !== lone.id) {
+    setScaleLock({ id: lone.id, uniform: lone.sx === lone.sy && lone.sy === lone.sz })
+  }
+  const uniform = scaleLock?.uniform ?? true
   const [drawer, setDrawer] = useState<'settings' | 'objects' | null>(null)
   const drawerOpener = useRef<HTMLButtonElement | null>(null)
   const [problem, setProblem] = useState<{ title: string; message: string } | null>(null)
@@ -314,11 +328,11 @@ export function WorkspaceView({
   }, [plateKey])
 
   const report = useEffectEvent(() => {
-    watch?.onState?.({ selected, mode, tab })
+    watch?.onState?.({ selected, selectSeveral, mode, tab })
   })
   useEffect(() => {
     report()
-  }, [selected, mode, tab])
+  }, [selected, selectSeveral, mode, tab])
 
   // A STEP lands in the middle of the plate because its shape isn't known until the worker meshes
   // it. Once it is, a copy sitting on top of another part moves to the nearest free spot.
@@ -455,11 +469,12 @@ export function WorkspaceView({
   }
 
   const orient = () => {
-    const targets = selected.length > 0 ? selected : objects.map((object) => object.id)
+    if (selected.length === 0) return
     setObjects(
       objects.map((object) => {
+        if (!selected.includes(object.id)) return object
         const positions = meshes.get(object.modelId)
-        if (!targets.includes(object.id) || !positions) return object
+        if (!positions) return object
         return { ...object, ...canonicalQuat(autoOrient(positions, [object.sx, object.sy, object.sz])) }
       }),
     )
@@ -727,6 +742,8 @@ export function WorkspaceView({
                 selected={selected}
                 problems={problems}
                 mode={editable ? mode : 'move'}
+                selectSeveral={selectSeveral}
+                uniformScale={uniform}
                 onSelect={setSelected}
                 onDrag={editable ? drag : () => undefined}
                 onCommit={editable ? commit : () => undefined}
@@ -773,20 +790,31 @@ export function WorkspaceView({
               failure={slice?.previewFailure ?? null}
               onExplore={watch?.onLayers}
               camera={camera}
+              focus={previewFocus}
             />
           )}
 
           <span className="absolute top-3 left-3 flex gap-1.5 wide:hidden">
-            <button type="button" data-coach="drawer:settings" onClick={(event) => {
-              drawerOpener.current = event.currentTarget
-              setDrawer('settings')
-            }} className={`${quietButton} bg-base-100`}>
+            <button
+              type="button"
+              data-coach="drawer:settings"
+              onClick={(event) => {
+                drawerOpener.current = event.currentTarget
+                setDrawer('settings')
+              }}
+              className={`${quietButton} bg-base-100`}
+            >
               SETTINGS
             </button>
-            <button type="button" data-coach="drawer:objects" onClick={(event) => {
-              drawerOpener.current = event.currentTarget
-              setDrawer('objects')
-            }} className={`${quietButton} bg-base-100`}>
+            <button
+              type="button"
+              data-coach="drawer:objects"
+              onClick={(event) => {
+                drawerOpener.current = event.currentTarget
+                setDrawer('objects')
+              }}
+              className={`${quietButton} bg-base-100`}
+            >
               OBJECTS · {objects.length}
             </button>
           </span>
@@ -801,8 +829,12 @@ export function WorkspaceView({
             selectSeveral={selectSeveral}
             problems={warnings}
             disabled={!editable}
+            uniform={uniform}
             onSelect={setSelected}
             onSelectSeveral={setSelectSeveral}
+            onUniform={(on) => {
+              if (lone) setScaleLock({ id: lone.id, uniform: on })
+            }}
             onChange={change}
             onCopy={copy}
             onDelete={remove}
@@ -1009,6 +1041,7 @@ function PreviewPane({
   failure,
   onExplore,
   camera,
+  focus,
 }: {
   preview: PreviewLoad
   bed: ApiBed
@@ -1018,9 +1051,10 @@ function PreviewPane({
   failure: string | null
   onExplore?: WorkspaceWatch['onLayers']
   camera: RefObject<CameraMoves | null>
+  focus?: Focus
 }) {
   if (preview.status === 'ready') {
-    return <PreviewView bed={bed} preview={preview.preview} grams={grams} onExplore={onExplore} camera={camera} />
+    return <PreviewView bed={bed} preview={preview.preview} grams={grams} onExplore={onExplore} camera={camera} focus={focus} />
   }
   const text =
     preview.status === 'loading'

@@ -260,7 +260,7 @@ function Allowance({ allowance }: { allowance: ApiPrintAllowance | null }) {
           <>
             You are{' '}
             <strong className="text-base-content">{grams(-remainingGrams)}</strong> past
-            your allowance for the semester. It resets with the next one.
+            your allowance for the semester, and pay for those grams. It resets with the next one.
           </>
         ) : (
           <>

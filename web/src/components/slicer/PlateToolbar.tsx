@@ -81,7 +81,7 @@ export function PlateToolbar({
       {tool('Add a model', <OrcaIcon name="add" />, () => input.current?.click())}
       <span aria-hidden="true" className="bg-rule mx-1 h-6 w-px" />
       {tool('Arrange', <OrcaIcon name="arrange" />, onArrange, { off: !hasObjects, shortcut: 'A' })}
-      {tool('Auto-orient', <OrcaIcon name="orient" />, onOrient, { off: !hasObjects })}
+      {tool('Auto-orient', <OrcaIcon name="orient" />, onOrient, { off: !hasSelection })}
       {tool('Copy', <OrcaIcon name="copy" />, onCopy, { off: !hasSelection, shortcut: 'Ctrl+D' })}
       {tool('Delete', <OrcaIcon name="remove" />, onDelete, { off: !hasSelection, shortcut: 'Delete' })}
       <span aria-hidden="true" className="bg-rule mx-1 h-6 w-px" />

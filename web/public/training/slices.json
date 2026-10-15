@@ -1,7 +1,6 @@
 {
   "orca": "2.4.2",
   "printer": "CC1",
-  "process": "0.20mm, 0.4 nozzle, Line, T-Support",
   "slices": {
     "mushroom-up-none": {
       "part": "mushroom",
@@ -9,9 +8,16 @@
         128,
         128
       ],
+      "turn": [
+        0,
+        0,
+        0,
+        1
+      ],
       "overrides": {
         "enable_support": false
       },
+      "process": "0.20mm, 0.4 nozzle, Line, T-Support",
       "filament": "Elegoo Rapid PLA",
       "grams": 2.92,
       "seconds": 563,
@@ -25,10 +31,17 @@
         128,
         128
       ],
+      "turn": [
+        0,
+        0,
+        0,
+        1
+      ],
       "overrides": {
         "enable_support": true,
         "support_type": "normal(auto)"
       },
+      "process": "0.20mm, 0.4 nozzle, Line, T-Support",
       "filament": "Elegoo Rapid PLA",
       "grams": 5.65,
       "seconds": 739,
@@ -42,10 +55,17 @@
         128,
         128
       ],
+      "turn": [
+        0,
+        0,
+        0,
+        1
+      ],
       "overrides": {
         "enable_support": true,
         "support_type": "tree(auto)"
       },
+      "process": "0.20mm, 0.4 nozzle, Line, T-Support",
       "filament": "Elegoo Rapid PLA",
       "grams": 4.45,
       "seconds": 955,
@@ -59,10 +79,17 @@
         128,
         128
       ],
+      "turn": [
+        1,
+        0,
+        0,
+        0
+      ],
       "overrides": {
         "enable_support": true,
         "support_type": "tree(auto)"
       },
+      "process": "0.20mm, 0.4 nozzle, Line, T-Support",
       "filament": "Elegoo Rapid PLA",
       "grams": 2.94,
       "seconds": 559,
@@ -76,11 +103,18 @@
         128,
         128
       ],
+      "turn": [
+        0,
+        0,
+        0,
+        1
+      ],
       "overrides": {
         "enable_support": false,
         "brim_type": "outer_only",
         "brim_width": 5
       },
+      "process": "0.20mm, 0.4 nozzle, Line, T-Support",
       "filament": "Elegoo Rapid PLA",
       "grams": 2.98,
       "seconds": 574,
@@ -94,12 +128,19 @@
         128,
         128
       ],
+      "turn": [
+        0,
+        0,
+        0,
+        1
+      ],
       "overrides": {
         "enable_support": true,
         "support_type": "normal(auto)",
         "brim_type": "outer_only",
         "brim_width": 5
       },
+      "process": "0.20mm, 0.4 nozzle, Line, T-Support",
       "filament": "Elegoo Rapid PLA",
       "grams": 5.65,
       "seconds": 739,
@@ -113,12 +154,19 @@
         128,
         128
       ],
+      "turn": [
+        0,
+        0,
+        0,
+        1
+      ],
       "overrides": {
         "enable_support": true,
         "support_type": "tree(auto)",
         "brim_type": "outer_only",
         "brim_width": 5
       },
+      "process": "0.20mm, 0.4 nozzle, Line, T-Support",
       "filament": "Elegoo Rapid PLA",
       "grams": 4.46,
       "seconds": 961,
@@ -132,12 +180,19 @@
         128,
         128
       ],
+      "turn": [
+        1,
+        0,
+        0,
+        0
+      ],
       "overrides": {
         "enable_support": true,
         "support_type": "tree(auto)",
         "brim_type": "outer_only",
         "brim_width": 5
       },
+      "process": "0.20mm, 0.4 nozzle, Line, T-Support",
       "filament": "Elegoo Rapid PLA",
       "grams": 3.06,
       "seconds": 578,
@@ -145,13 +200,45 @@
       "layers": 95,
       "preview": "slices/mushroom-down-brim.rcpv"
     },
+    "mushroom-up-normal-raft": {
+      "part": "mushroom",
+      "at": [
+        128,
+        128
+      ],
+      "turn": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "overrides": {
+        "enable_support": true,
+        "support_type": "normal(auto)",
+        "raft_layers": 2
+      },
+      "process": "0.20mm, 0.4 nozzle, Line, T-Support",
+      "filament": "Elegoo Rapid PLA",
+      "grams": 5.79,
+      "seconds": 749,
+      "meters": 1.94,
+      "layers": 147,
+      "preview": "slices/mushroom-up-normal-raft.rcpv"
+    },
     "tower-none": {
       "part": "tower",
       "at": [
         128,
         128
       ],
+      "turn": [
+        0,
+        0,
+        0,
+        1
+      ],
       "overrides": {},
+      "process": "0.20mm, 0.4 nozzle, Line, T-Support",
       "filament": "Elegoo Rapid PLA",
       "grams": 1.93,
       "seconds": 1329,
@@ -165,10 +252,17 @@
         128,
         128
       ],
+      "turn": [
+        0,
+        0,
+        0,
+        1
+      ],
       "overrides": {
         "brim_type": "outer_only",
         "brim_width": 5
       },
+      "process": "0.20mm, 0.4 nozzle, Line, T-Support",
       "filament": "Elegoo Rapid PLA",
       "grams": 1.97,
       "seconds": 1338,
@@ -176,13 +270,116 @@
       "layers": 300,
       "preview": "slices/tower-brim.rcpv"
     },
+    "tower-brim-8": {
+      "part": "tower",
+      "at": [
+        128,
+        128
+      ],
+      "turn": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "overrides": {
+        "brim_type": "outer_only",
+        "brim_width": 8
+      },
+      "process": "0.20mm, 0.4 nozzle, Line, T-Support",
+      "filament": "Elegoo Rapid PLA",
+      "grams": 2.01,
+      "seconds": 1347,
+      "meters": 0.68,
+      "layers": 300,
+      "preview": "slices/tower-brim-8.rcpv"
+    },
+    "tower-brim-8-skirt-2": {
+      "part": "tower",
+      "at": [
+        128,
+        128
+      ],
+      "turn": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "overrides": {
+        "brim_type": "outer_only",
+        "brim_width": 8,
+        "skirt_loops": 2
+      },
+      "process": "0.20mm, 0.4 nozzle, Line, T-Support",
+      "filament": "Elegoo Rapid PLA",
+      "grams": 2.03,
+      "seconds": 1351,
+      "meters": 0.68,
+      "layers": 300,
+      "preview": "slices/tower-brim-8-skirt-2.rcpv"
+    },
+    "tower-vase": {
+      "part": "tower",
+      "at": [
+        128,
+        128
+      ],
+      "turn": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "overrides": {
+        "enable_support": false,
+        "spiral_mode": true
+      },
+      "process": "0.20mm, 0.4 nozzle, Line, T-Support",
+      "filament": "Elegoo Rapid PLA",
+      "grams": 0.8,
+      "seconds": 736,
+      "meters": 0.27,
+      "layers": 301,
+      "preview": "slices/tower-vase.rcpv"
+    },
+    "tower-fuzzy": {
+      "part": "tower",
+      "at": [
+        128,
+        128
+      ],
+      "turn": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "overrides": {
+        "fuzzy_skin": "external"
+      },
+      "process": "0.20mm, 0.4 nozzle, Line, T-Support",
+      "filament": "Elegoo Rapid PLA",
+      "grams": 2.01,
+      "seconds": 1328,
+      "meters": 0.67,
+      "layers": 300,
+      "preview": "slices/tower-fuzzy.rcpv"
+    },
     "block-standard": {
       "part": "block",
       "at": [
         128,
         128
       ],
+      "turn": [
+        0,
+        0,
+        0,
+        1
+      ],
       "overrides": {},
+      "process": "0.20mm, 0.4 nozzle, Line, T-Support",
       "filament": "Elegoo Rapid PLA",
       "grams": 4.76,
       "seconds": 467,
@@ -196,9 +393,16 @@
         128,
         128
       ],
+      "turn": [
+        0,
+        0,
+        0,
+        1
+      ],
       "overrides": {
         "sparse_infill_density": 40
       },
+      "process": "0.20mm, 0.4 nozzle, Line, T-Support",
       "filament": "Elegoo Rapid PLA",
       "grams": 7.28,
       "seconds": 657,
@@ -206,15 +410,71 @@
       "layers": 60,
       "preview": "slices/block-infill-40.rcpv"
     },
+    "block-infill-40-gyroid": {
+      "part": "block",
+      "at": [
+        128,
+        128
+      ],
+      "turn": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "overrides": {
+        "sparse_infill_density": 40,
+        "sparse_infill_pattern": "gyroid"
+      },
+      "process": "0.20mm, 0.4 nozzle, Line, T-Support",
+      "filament": "Elegoo Rapid PLA",
+      "grams": 7.02,
+      "seconds": 1178,
+      "meters": 2.35,
+      "layers": 60,
+      "preview": "slices/block-infill-40-gyroid.rcpv"
+    },
+    "block-infill-40-gyroid-concentric": {
+      "part": "block",
+      "at": [
+        128,
+        128
+      ],
+      "turn": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "overrides": {
+        "sparse_infill_density": 40,
+        "sparse_infill_pattern": "gyroid",
+        "top_surface_pattern": "concentric"
+      },
+      "process": "0.20mm, 0.4 nozzle, Line, T-Support",
+      "filament": "Elegoo Rapid PLA",
+      "grams": 7.02,
+      "seconds": 1179,
+      "meters": 2.35,
+      "layers": 60,
+      "preview": "slices/block-infill-40-gyroid-concentric.rcpv"
+    },
     "block-gyroid": {
       "part": "block",
       "at": [
         128,
         128
       ],
+      "turn": [
+        0,
+        0,
+        0,
+        1
+      ],
       "overrides": {
         "sparse_infill_pattern": "gyroid"
       },
+      "process": "0.20mm, 0.4 nozzle, Line, T-Support",
       "filament": "Elegoo Rapid PLA",
       "grams": 4.71,
       "seconds": 567,
@@ -228,9 +488,16 @@
         128,
         128
       ],
+      "turn": [
+        0,
+        0,
+        0,
+        1
+      ],
       "overrides": {
         "wall_loops": 5
       },
+      "process": "0.20mm, 0.4 nozzle, Line, T-Support",
       "filament": "Elegoo Rapid PLA",
       "grams": 6.1,
       "seconds": 557,
@@ -244,15 +511,22 @@
         128,
         128
       ],
+      "turn": [
+        0,
+        0,
+        0,
+        1
+      ],
       "overrides": {
         "sparse_infill_density": 0
       },
+      "process": "0.20mm, 0.4 nozzle, Line, T-Support",
       "filament": "Elegoo Rapid PLA",
       "grams": 3.07,
       "seconds": 430,
       "meters": 1.03,
       "layers": 60,
-      "preview": null
+      "preview": "slices/block-infill-0.rcpv"
     },
     "block-infill-100": {
       "part": "block",
@@ -260,15 +534,22 @@
         128,
         128
       ],
+      "turn": [
+        0,
+        0,
+        0,
+        1
+      ],
       "overrides": {
         "sparse_infill_density": 100
       },
+      "process": "0.20mm, 0.4 nozzle, Line, T-Support",
       "filament": "Elegoo Rapid PLA",
       "grams": 13.16,
       "seconds": 1131,
       "meters": 4.41,
       "layers": 60,
-      "preview": null
+      "preview": "slices/block-infill-100.rcpv"
     },
     "block-layer-0.12": {
       "part": "block",
@@ -276,15 +557,22 @@
         128,
         128
       ],
+      "turn": [
+        0,
+        0,
+        0,
+        1
+      ],
       "overrides": {
         "layer_height": 0.12
       },
+      "process": "0.20mm, 0.4 nozzle, Line, T-Support",
       "filament": "Elegoo Rapid PLA",
       "grams": 4.99,
       "seconds": 690,
       "meters": 1.67,
       "layers": 99,
-      "preview": null
+      "preview": "slices/block-layer-0.12.rcpv"
     },
     "block-layer-0.28": {
       "part": "block",
@@ -292,15 +580,45 @@
         128,
         128
       ],
+      "turn": [
+        0,
+        0,
+        0,
+        1
+      ],
       "overrides": {
         "layer_height": 0.28
       },
+      "process": "0.20mm, 0.4 nozzle, Line, T-Support",
       "filament": "Elegoo Rapid PLA",
       "grams": 5.06,
       "seconds": 446,
       "meters": 1.7,
       "layers": 43,
-      "preview": null
+      "preview": "slices/block-layer-0.28.rcpv"
+    },
+    "block-ironing": {
+      "part": "block",
+      "at": [
+        128,
+        128
+      ],
+      "turn": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "overrides": {
+        "ironing_type": "topmost"
+      },
+      "process": "0.20mm, 0.4 nozzle, Line, T-Support",
+      "filament": "Elegoo Rapid PLA",
+      "grams": 4.78,
+      "seconds": 663,
+      "meters": 1.6,
+      "layers": 60,
+      "preview": "slices/block-ironing.rcpv"
     },
     "block-petg": {
       "part": "block",
@@ -308,13 +626,64 @@
         128,
         128
       ],
+      "turn": [
+        0,
+        0,
+        0,
+        1
+      ],
       "overrides": {},
+      "process": "0.20mm, 0.4 nozzle, Line, T-Support",
       "filament": "Elegoo RAPID PETG Optimized",
       "grams": 4.9,
       "seconds": 401,
       "meters": 1.58,
       "layers": 60,
-      "preview": null
+      "preview": "slices/block-petg.rcpv"
+    },
+    "block-petg-qs": {
+      "part": "block",
+      "at": [
+        128,
+        128
+      ],
+      "turn": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "overrides": {},
+      "process": "0.20mm, Q-S, 0.4 nozzle, Line, T-Support",
+      "filament": "Elegoo RAPID PETG Optimized",
+      "grams": 6.26,
+      "seconds": 500,
+      "meters": 2.02,
+      "layers": 60,
+      "preview": "slices/block-petg-qs.rcpv"
+    },
+    "block-petg-qs-walls-4": {
+      "part": "block",
+      "at": [
+        128,
+        128
+      ],
+      "turn": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "overrides": {
+        "wall_loops": 4
+      },
+      "process": "0.20mm, Q-S, 0.4 nozzle, Line, T-Support",
+      "filament": "Elegoo RAPID PETG Optimized",
+      "grams": 5.32,
+      "seconds": 440,
+      "meters": 1.71,
+      "layers": 60,
+      "preview": "slices/block-petg-qs-walls-4.rcpv"
     }
   }
 }

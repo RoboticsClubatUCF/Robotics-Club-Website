@@ -1,11 +1,16 @@
 /**
  * Makes the slicer training's practice parts and slices them with the real Orca, inside the worker
  * image, so the training's previews and numbers are what the slicer really gives. Run it again
- * when the club's profiles in `orca/source/` change:
+ * when the club's profiles in `orca/source/` change, or a task needs another slice. The image runs
+ * its own copy of this file, so mount the one you changed:
  *
  *   docker run --rm --network none --read-only --tmpfs /tmp --tmpfs /scratch:uid=10001 \
  *     -v "<repo>/web/public/training:/out" -e TRAINING_OUT=/out \
+ *     -v "<repo>/server/src/printing/trainingSlices.ts:/app/src/printing/trainingSlices.ts:ro" \
  *     -e DATABASE_URL=postgres://unused rccf-v13-slicer node --import tsx src/printing/trainingSlices.ts
+ *
+ * A preview's gzip header carries the time it was written, so every preview shows as changed after
+ * a run. Commit only the ones whose slice did.
  *
  * It writes `parts/*.stl`, `slices/*.rcpv` (the worker's gzipped preview) and `slices.json`, which
  * `web/src/lib/training/practiceSlices.ts` reads. Every part sits at the middle of the CC1's
@@ -14,7 +19,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { env } from '../core/env.js'
-import { type FILAMENTS, clubProfiles } from './clubProfiles.js'
+import { type FILAMENTS, type PROCESSES, clubProfiles } from './clubProfiles.js'
 import { OrcaRunner, orcaVersion } from './orcaRunner.js'
 import type { Placement } from './plateTransform.js'
 import type { ProcessOverrides } from './processSettings.js'
@@ -152,11 +157,15 @@ interface Slice {
   part: Part
   placement: Placement
   overrides: ProcessOverrides
+  process?: keyof typeof PROCESSES
   filament?: keyof typeof FILAMENTS
-  /** Numbers only: the preview isn't shipped. */
-  numbersOnly?: boolean
 }
 
+/**
+ * The training's tasks change a setting and slice again, so each step of a task needs its slice
+ * here, with every change made before it in that task. The web picks one by comparing settings
+ * (`matchSlice`), so the names are only file names.
+ */
 const SLICES: Record<string, Slice> = {
   'mushroom-up-none': { part: 'mushroom', placement: middle, overrides: NO_SUPPORT },
   'mushroom-up-normal': { part: 'mushroom', placement: middle, overrides: NORMAL },
@@ -166,17 +175,36 @@ const SLICES: Record<string, Slice> = {
   'mushroom-up-normal-brim': { part: 'mushroom', placement: middle, overrides: { ...NORMAL, ...BRIM } },
   'mushroom-up-tree-brim': { part: 'mushroom', placement: middle, overrides: { ...TREE, ...BRIM } },
   'mushroom-down-brim': { part: 'mushroom', placement: upsideDown, overrides: { ...TREE, ...BRIM } },
+  'mushroom-up-normal-raft': { part: 'mushroom', placement: middle, overrides: { ...NORMAL, raft_layers: 2 } },
   'tower-none': { part: 'tower', placement: middle, overrides: {} },
   'tower-brim': { part: 'tower', placement: middle, overrides: BRIM },
+  'tower-brim-8': { part: 'tower', placement: middle, overrides: { ...BRIM, brim_width: 8 } },
+  'tower-brim-8-skirt-2': { part: 'tower', placement: middle, overrides: { ...BRIM, brim_width: 8, skirt_loops: 2 } },
+  // Orca refuses vase mode with supports on.
+  'tower-vase': { part: 'tower', placement: middle, overrides: { ...NO_SUPPORT, spiral_mode: true } },
+  'tower-fuzzy': { part: 'tower', placement: middle, overrides: { fuzzy_skin: 'external' } },
   'block-standard': { part: 'block', placement: middle, overrides: {} },
   'block-infill-40': { part: 'block', placement: middle, overrides: { sparse_infill_density: 40 } },
+  'block-infill-40-gyroid': {
+    part: 'block',
+    placement: middle,
+    overrides: { sparse_infill_density: 40, sparse_infill_pattern: 'gyroid' },
+  },
+  'block-infill-40-gyroid-concentric': {
+    part: 'block',
+    placement: middle,
+    overrides: { sparse_infill_density: 40, sparse_infill_pattern: 'gyroid', top_surface_pattern: 'concentric' },
+  },
   'block-gyroid': { part: 'block', placement: middle, overrides: { sparse_infill_pattern: 'gyroid' } },
   'block-walls-5': { part: 'block', placement: middle, overrides: { wall_loops: 5 } },
-  'block-infill-0': { part: 'block', placement: middle, overrides: { sparse_infill_density: 0 }, numbersOnly: true },
-  'block-infill-100': { part: 'block', placement: middle, overrides: { sparse_infill_density: 100 }, numbersOnly: true },
-  'block-layer-0.12': { part: 'block', placement: middle, overrides: { layer_height: 0.12 }, numbersOnly: true },
-  'block-layer-0.28': { part: 'block', placement: middle, overrides: { layer_height: 0.28 }, numbersOnly: true },
-  'block-petg': { part: 'block', placement: middle, overrides: {}, filament: 'PETG', numbersOnly: true },
+  'block-infill-0': { part: 'block', placement: middle, overrides: { sparse_infill_density: 0 } },
+  'block-infill-100': { part: 'block', placement: middle, overrides: { sparse_infill_density: 100 } },
+  'block-layer-0.12': { part: 'block', placement: middle, overrides: { layer_height: 0.12 } },
+  'block-layer-0.28': { part: 'block', placement: middle, overrides: { layer_height: 0.28 } },
+  'block-ironing': { part: 'block', placement: middle, overrides: { ironing_type: 'topmost' } },
+  'block-petg': { part: 'block', placement: middle, overrides: {}, filament: 'PETG' },
+  'block-petg-qs': { part: 'block', placement: middle, overrides: {}, process: 'QS', filament: 'PETG' },
+  'block-petg-qs-walls-4': { part: 'block', placement: middle, overrides: { wall_loops: 4 }, process: 'QS', filament: 'PETG' },
 }
 
 async function main() {
@@ -187,7 +215,6 @@ async function main() {
   if (!version) throw new Error(`${env.ORCA_BINARY} didn't say which OrcaSlicer it is`)
   const runner = new OrcaRunner(scratch, version)
   const club = await clubProfiles(await StockProfiles.load(env.ORCA_PROFILES_DIR))
-  const process_ = club.processes.STANDARD
 
   await mkdir(join(out, 'parts'), { recursive: true })
   await mkdir(join(out, 'slices'), { recursive: true })
@@ -198,6 +225,7 @@ async function main() {
   const manifest: Record<string, unknown> = {}
   for (const [name, slice] of Object.entries(SLICES)) {
     const filament = club.filaments[slice.filament ?? 'PLA']
+    const process_ = club.processes[slice.process ?? 'STANDARD']
     const job: ClaimedSlice = {
       id: `training-${name}`,
       requestId: 'training',
@@ -222,18 +250,21 @@ async function main() {
       Date.now() + env.SLICER_TIMEOUT_SECONDS * 1000,
     )
     if ('failure' in result) throw new Error(`${name}: ${result.failure} ${result.detail ?? ''}`)
-    if (!slice.numbersOnly && !result.preview) throw new Error(`${name}: no preview (${String(result.previewFailure)})`)
-    if (!slice.numbersOnly) await writeFile(join(out, 'slices', `${name}.rcpv`), result.preview!)
+    if (!result.preview) throw new Error(`${name}: no preview (${String(result.previewFailure)})`)
+    await writeFile(join(out, 'slices', `${name}.rcpv`), result.preview)
+    const { x, y, qx, qy, qz, qw } = slice.placement
     manifest[name] = {
       part: slice.part,
-      at: [slice.placement.x, slice.placement.y],
+      at: [x, y],
+      turn: [qx, qy, qz, qw],
       overrides: slice.overrides,
+      process: process_.name,
       filament: filament.name,
       grams: Math.round(result.grams * 100) / 100,
       seconds: Math.round(result.seconds),
       meters: result.meters === null ? null : Math.round(result.meters * 100) / 100,
       layers: result.layerCount,
-      preview: slice.numbersOnly ? null : `slices/${name}.rcpv`,
+      preview: `slices/${name}.rcpv`,
     }
     console.log(
       `ok   ${name}: ${result.grams.toFixed(1)} g, ${String(Math.round(result.seconds / 60))} min, ${String(result.layerCount)} layers${
@@ -243,7 +274,7 @@ async function main() {
   }
   await writeFile(
     join(out, 'slices.json'),
-    `${JSON.stringify({ orca: version, printer: club.printer.name, process: process_.name, slices: manifest }, null, 2)}\n`,
+    `${JSON.stringify({ orca: version, printer: club.printer.name, slices: manifest }, null, 2)}\n`,
   )
 }
 

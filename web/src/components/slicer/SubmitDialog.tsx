@@ -6,8 +6,8 @@ import { labelClass } from '../shared/formChrome'
 
 /**
  * Sending the sliced plate to the officers. The estimate is what a personal print will cost, so
- * it's set against what's left before anything is sent; going over is allowed, and the officer
- * decides, as it always has been.
+ * it's set against what's left before anything is sent. Going over is allowed: an officer still
+ * approves it, and the member pays for the grams past their allowance.
  */
 export function SubmitDialog({
   grams,
@@ -74,7 +74,7 @@ export function SubmitDialog({
           : !allowance
             ? `Comes out of your allowance for the semester.`
             : over > 0
-              ? `That's ${String(over)} g past what you have left. An officer decides whether to print it.`
+              ? `That's ${String(over)} g past what you have left. An officer still has to approve it, and you pay for the ${String(over)} g over.`
               : `Leaves ${String(allowance.remainingGrams - charge)} g of your allowance.`}
       </p>
 

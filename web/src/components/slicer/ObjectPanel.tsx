@@ -1,7 +1,7 @@
-import { useState } from 'react'
 import { Euler, Quaternion } from 'three'
 import type { ApiPlacement, ApiPlateModel, ApiPlateObject } from '../../lib/api/api'
 import type { MeshMap } from '../../lib/slicer/meshes'
+import { scaleBy } from '../../lib/slicer/plate'
 import {
   type FitProblem,
   MAX_SCALE,
@@ -38,8 +38,10 @@ export function ObjectPanel({
   selectSeveral,
   problems,
   disabled,
+  uniform,
   onSelect,
   onSelectSeveral,
+  onUniform,
   onChange,
   onCopy,
   onDelete,
@@ -51,8 +53,11 @@ export function ObjectPanel({
   selectSeveral: boolean
   problems: ReadonlyMap<string, PlateWarning>
   disabled: boolean
+  /** UNIFORM rather than PER AXIS. The workspace holds it, so the plate's handles keep to it too. */
+  uniform: boolean
   onSelect: (ids: string[]) => void
   onSelectSeveral: (on: boolean) => void
+  onUniform: (uniform: boolean) => void
   onChange: (id: string, placement: Partial<ApiPlacement>) => void
   onCopy: () => void
   onDelete: () => void
@@ -98,7 +103,8 @@ export function ObjectPanel({
         SELECT SEVERAL
         <input
           type="checkbox"
-          className="toggle toggle-sm"
+          role="switch"
+          className="toggle toggle-sm checked:border-primary checked:bg-primary checked:text-primary-content"
           checked={selectSeveral}
           disabled={objects.length < 2 && !selectSeveral}
           onChange={(event) => onSelectSeveral(event.target.checked)}
@@ -172,6 +178,8 @@ export function ObjectPanel({
             positions={meshes.get(one.modelId)}
             failure={modelOf.get(one.modelId)?.meshFailure ?? null}
             disabled={disabled}
+            uniform={uniform}
+            onUniform={onUniform}
             onChange={(placement) => {
               onChange(one.id, placement)
             }}
@@ -193,17 +201,18 @@ function Transform({
   positions,
   failure,
   disabled,
+  uniform,
+  onUniform,
   onChange,
 }: {
   object: ApiPlateObject
   positions: Float32Array | undefined
   failure: string | null
   disabled: boolean
+  uniform: boolean
+  onUniform: (uniform: boolean) => void
   onChange: (placement: Partial<ApiPlacement>) => void
 }) {
-  const [uniform, setUniform] = useState(
-    object.sx === object.sy && object.sy === object.sz,
-  )
   const euler = new Euler().setFromQuaternion(
     new Quaternion(object.qx, object.qy, object.qz, object.qw),
     'XYZ',
@@ -223,19 +232,14 @@ function Transform({
 
   const scaleTo = (axis: 'sx' | 'sy' | 'sz', percent: number) => {
     const factor = percent / 100
-    if (uniform) onChange({ sx: factor, sy: factor, sz: factor })
+    // Locked, the other two grow by the same ratio, so a part already stretched stays stretched.
+    if (uniform) onChange(scaleBy(object, factor / object[axis]))
     else onChange({ [axis]: factor })
   }
 
   const sizeTo = (axis: number, mm: number) => {
     if (!size || size[axis]! <= 0) return
-    const ratio = mm / size[axis]!
-    const clamp = (value: number) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, value))
-    onChange({
-      sx: clamp(object.sx * ratio),
-      sy: clamp(object.sy * ratio),
-      sz: clamp(object.sz * ratio),
-    })
+    onChange(scaleBy(object, mm / size[axis]!))
   }
 
   return (
@@ -324,7 +328,7 @@ function Transform({
             data-coach={uniform ? 'uniform' : 'per-axis'}
             aria-pressed={uniform}
             onClick={() => {
-              setUniform(!uniform)
+              onUniform(!uniform)
             }}
             className="inline-flex cursor-pointer items-center gap-1 font-mono text-[9.5px] tracking-[0.12em] text-dim hover:text-base-content"
           >
@@ -348,7 +352,7 @@ function Transform({
               min={MIN_SCALE * 100}
               max={MAX_SCALE * 100}
               value={object[axis] * 100}
-              disabled={disabled || (uniform && index > 0)}
+              disabled={disabled}
               onCommit={(percent) => {
                 scaleTo(axis, percent)
               }}
