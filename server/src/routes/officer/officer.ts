@@ -17,6 +17,7 @@ import {
   MeetingRepeat,
   OfficerPosition,
   OfficerTermSource,
+  PrintProcess,
   PrintRequestStatus,
   ProjectMemberRank,
   ProjectStatus,
@@ -28,6 +29,7 @@ import {
   allowanceIn,
   allowanceKey,
   allowancesFor,
+  roundGrams,
 } from '../../printing/printAllowance.js'
 import { printedColumns, printedSettings } from '../../printing/printSettings.js'
 import { deleteHeldFiles } from '../../printing/printLifecycle.js'
@@ -47,11 +49,18 @@ import {
   termsAgree,
 } from '../../projects/projectTerm.js'
 import { rateLimit } from '../../core/rateLimit.js'
-import { SEASONS, forgetTermOverrides, getTerm } from '../../membership/semester.js'
+import {
+  SEASONS,
+  type Term,
+  currentTerm,
+  forgetTermOverrides,
+  getTerm,
+  termBefore,
+} from '../../membership/semester.js'
 import { type AuthEnv, originGuard, requireAuth } from '../../auth/session.js'
 import { grantMembership } from '../member/dues.js'
 import { HOLDING } from '../member/equipment.js'
-import { printSelect } from '../member/print.js'
+import { printSelect, withGrams } from '../member/print.js'
 
 /**
  * The officer desk: club business rather than any one project's.
@@ -550,7 +559,7 @@ officer.get(
 
     return c.json(
       requests.map(({ userId, termYear, termSeason, slice, ...request }) => ({
-        ...request,
+        ...withGrams(request),
         // Whether there's a .3mf to download, without handing out the file's id.
         sliceFile: slice?.outputFileId
           ? { layers: slice.layerCount, filamentMeters: slice.filamentMeters }
@@ -568,8 +577,8 @@ officer.get(
 /**
  * Moving a print through the queue, and recording what it cost.
  *
- * A filament plate its owner sliced carries Orca's estimate, and MARK DONE charges that, rounded
- * up, unless the officer sends another figure (a failed first attempt, say). Resin and older
+ * A filament plate its owner sliced carries Orca's estimate, and MARK DONE charges that, to the
+ * hundredth of a gram, unless the officer sends another figure (a failed first attempt, say). Resin and older
  * requests have no estimate, so the officer reads the grams off their slicer as before. On a
  * personal print that comes out of the member's allowance, and this is the only route that ever
  * writes `gramsUsed`, which is what makes `printAllowance.ts` trustworthy.
@@ -581,8 +590,8 @@ officer.get(
 const settlePrint = z.object({
   status: z.enum(PrintRequestStatus),
   officerNote: z.string().trim().max(1_000).nullable().optional(),
-  /** Whole grams — see the note on the column. */
-  gramsUsed: z.number().int().min(0).max(100_000).nullable().optional(),
+  /** To the hundredth of a gram, the column's precision; anything finer is rounded. */
+  gramsUsed: z.number().min(0).max(100_000).transform(roundGrams).nullable().optional(),
   printed: printedSettings,
   /**
    * Print it anyway, past the member's allowance. Never a default: going over is a
@@ -630,10 +639,10 @@ officer.patch(
       })
     }
 
-    // Orca's estimate for the plate, in whole grams rounded up, when the officer doesn't say.
+    // Orca's estimate for the plate, to the hundredth of a gram, when the officer doesn't say.
     const gramsUsed =
       status === PrintRequestStatus.DONE && sentGrams == null && request.estimatedGrams !== null
-        ? Math.ceil(request.estimatedGrams)
+        ? roundGrams(request.estimatedGrams)
         : sentGrams
 
     // DONE and REJECTED are terminal because they're the moment the file is deleted.
@@ -684,7 +693,7 @@ officer.patch(
       const allowance = await allowanceIn(request.userId, request)
 
       if (gramsUsed > allowance.remainingGrams) {
-        const over = gramsUsed - allowance.remainingGrams
+        const over = roundGrams(gramsUsed - allowance.remainingGrams)
 
         throw new HTTPException(409, {
           message: `That is ${over} g past what they have left — ${allowance.usedGrams} g of their ${allowance.limitGrams} g is already spent this semester. Print it anyway, or decline it.`,
@@ -717,6 +726,7 @@ officer.patch(
           ...(status === PrintRequestStatus.PRINTING && request.startedAt === null
             ? { startedAt: new Date() }
             : {}),
+          ...(settling ? { settledAt: new Date() } : {}),
           // Every move, not only the settling one. "Which officer approved this" has
           // to include whoever put it on the printer.
           decidedById: user.id,
@@ -725,9 +735,58 @@ officer.patch(
       })
     })
 
-    return c.json(updated)
+    return c.json(withGrams(updated))
   },
 )
+
+/**
+ * Every finished filament print and what it took, for the filament graph, with this semester's
+ * and last semester's dates for its presets.
+ *
+ * One row per print rather than totals, because the page buckets them by day, week or month in
+ * the officer's timezone, which the server doesn't know. It's all of them: a club's worth of prints
+ * is small, and the page then changes range without asking again. A row with no grams is a print
+ * an officer settled without a figure; the page counts those instead of drawing them as nothing.
+ *
+ * A semester runs from the moment the one before it ends, so the break before a term counts
+ * towards it, as `currentTerm` and the allowance count it, and the semesters leave no gaps.
+ */
+officer.get('/print-usage', requireAuth, requireOfficer, async (c) => {
+  const current = await currentTerm()
+  const previous = termBefore(current)
+  const last = await getTerm(previous.year, previous.season)
+  const beforeLast = termBefore(last)
+  const lastStart = (await getTerm(beforeLast.year, beforeLast.season)).endsAt
+  const range = (term: Term, after: Date) => ({
+    year: term.year,
+    season: term.season,
+    from: new Date(after.getTime() + 1),
+    to: term.endsAt,
+  })
+
+  const prints = await prisma.printRequest.findMany({
+    where: {
+      status: PrintRequestStatus.DONE,
+      settledAt: { not: null },
+      // What came off the machine: the process asked for, unless the officer said otherwise.
+      OR: [
+        { printedProcess: PrintProcess.FDM },
+        { printedProcess: null, process: PrintProcess.FDM },
+      ],
+    },
+    orderBy: { settledAt: 'asc' },
+    select: { settledAt: true, gramsUsed: true, projectId: true },
+  })
+
+  return c.json({
+    terms: { current: range(current, last.endsAt), last: range(last, lastStart) },
+    prints: prints.map((print) => ({
+      settledAt: print.settledAt,
+      grams: print.gramsUsed === null ? null : print.gramsUsed.toNumber(),
+      project: print.projectId !== null,
+    })),
+  })
+})
 
 /**
  * The sliced plate, for desktop OrcaSlicer: the member's models where they put them, with the

@@ -1047,7 +1047,7 @@ describe('the officer’s side', () => {
     ).toBe(403)
   })
 
-  it('charges the estimate, rounded up, when MARK DONE names no figure', async () => {
+  it('charges the estimate, to the hundredth, when MARK DONE names no figure', async () => {
     const draft = await slicedDraft()
     await submit(draft)
     const files = await prisma.printSlice.findUniqueOrThrow({
@@ -1059,7 +1059,7 @@ describe('the officer’s side', () => {
 
     const done = await settle(draft.id, { status: 'DONE' })
     expect(done.status).toBe(200)
-    expect(await done.json()).toMatchObject({ status: 'DONE', gramsUsed: 37 })
+    expect(await done.json()).toMatchObject({ status: 'DONE', gramsUsed: 36.2 })
 
     // Every byte goes with the settle; the row stays as the record.
     const gone = await prisma.storedFile.count({
@@ -1069,14 +1069,14 @@ describe('the officer’s side', () => {
     const allowance = (await (
       await app.request('/api/me/print-allowance', { headers: { cookie: memberCookie } })
     ).json()) as { usedGrams: number }
-    expect(allowance.usedGrams).toBe(37)
+    expect(allowance.usedGrams).toBe(36.2)
   })
 
   it('takes the officer’s figure over the estimate', async () => {
     const draft = await slicedDraft()
     await submit(draft)
-    const done = await settle(draft.id, { status: 'DONE', gramsUsed: 52 })
-    expect(await done.json()).toMatchObject({ gramsUsed: 52 })
+    const done = await settle(draft.id, { status: 'DONE', gramsUsed: 52.47 })
+    expect(await done.json()).toMatchObject({ gramsUsed: 52.47 })
   })
 
   it('still stops a personal print past the allowance unless told to go over', async () => {

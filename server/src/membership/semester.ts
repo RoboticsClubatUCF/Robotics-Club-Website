@@ -520,6 +520,13 @@ export async function currentTerm(now: Date = new Date()): Promise<Term> {
   return getTerm(year + 1, Season.SPRING)
 }
 
+/** The term before `term`, summer included, the way the print allowance counts terms. */
+export function termBefore(term: { year: number; season: Season }): { year: number; season: Season } {
+  return term.season === Season.SPRING
+    ? { year: term.year - 1, season: Season.FALL }
+    : { year: term.year, season: term.season === Season.FALL ? Season.SUMMER : Season.SPRING }
+}
+
 /** The term after `term` that dues are actually charged for. Summer is skipped. */
 export function nextPaidTerm(term: Term): { year: number; season: Season } {
   return term.season === Season.FALL

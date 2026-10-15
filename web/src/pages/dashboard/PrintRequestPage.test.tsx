@@ -365,7 +365,7 @@ describe('PrintRequestPage', () => {
     renderPage()
 
     expect(await screen.findByText(/CC1 · PLA · Q · Walls 4/)).toBeInTheDocument()
-    expect(screen.getByText(/About 37 g, 1 h 1 min/)).toBeInTheDocument()
+    expect(screen.getByText(/About 36.2 g, 1 h 1 min/)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'EDIT' }))
     fireEvent.click(await screen.findByRole('button', { name: 'EDIT IT' }))

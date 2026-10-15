@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { prisma } from '../../core/db.js'
 import { env } from '../../core/env.js'
 import { looksLikePrintModel } from '../../files/files.js'
+import type { Prisma } from '../../generated/prisma/client.js'
 import { FileKind, PrintProcess, PrintRequestStatus } from '../../generated/prisma/enums.js'
 import { notifyOfficers } from '../../discord/officerNotify.js'
 import {
@@ -110,6 +111,17 @@ export const printSelect = {
   updatedAt: true,
   project: { select: { id: true, slug: true, title: true } },
 } as const
+
+/**
+ * A request with its grams as a number. The column is `numeric`, which Prisma reads as a
+ * `Decimal` and JSON would send as a string, so every route answering with one goes through this.
+ */
+export const withGrams = <T extends { gramsUsed: Prisma.Decimal | null }>(
+  request: T,
+): Omit<T, 'gramsUsed'> & { gramsUsed: number | null } => ({
+  ...request,
+  gramsUsed: request.gramsUsed === null ? null : request.gramsUsed.toNumber(),
+})
 
 print.post(
   '/',
@@ -248,7 +260,7 @@ print.post(
       console.error('officer notify failed', error)
     })
 
-    return c.json(request, 201)
+    return c.json(withGrams(request), 201)
   },
 )
 

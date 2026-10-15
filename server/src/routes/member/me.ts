@@ -14,7 +14,7 @@ import { currentTerm } from '../../membership/semester.js'
 import { type AuthEnv, requireAuth } from '../../auth/session.js'
 import { loanSelect } from './equipment.js'
 import { managedProjectSelect } from '../officer/officer.js'
-import { printSelect } from './print.js'
+import { printSelect, withGrams } from './print.js'
 import {
   manageableTaskFilter,
   taskSelect,
@@ -266,7 +266,7 @@ me.get('/print-requests', requireAuth, async (c) => {
     select: printSelect,
   })
 
-  return c.json(requests)
+  return c.json(requests.map(withGrams))
 })
 
 /**

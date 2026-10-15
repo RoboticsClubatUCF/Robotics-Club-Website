@@ -39,7 +39,7 @@ import {
 } from '../../printing/profiles.js'
 import { currentSpec, fingerprintOf, workerOnline } from '../../printing/sliceJobs.js'
 import { MeshError, parseStl } from '../../printing/stl.js'
-import { printSelect } from './print.js'
+import { printSelect, withGrams } from './print.js'
 
 /**
  * Filament plates, prepared and sliced by their owner.
@@ -1058,7 +1058,7 @@ printDrafts.post(
       console.error('officer notify failed', error)
     })
 
-    return c.json(sent)
+    return c.json(withGrams(sent))
   },
 )
 

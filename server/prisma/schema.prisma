@@ -1131,12 +1131,14 @@ model PrintRequest {
   projectId String?  @map("project_id")
   project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
-  /// How much material it actually took, in whole grams, written by the officer when they settle it.
+  /// How much material it actually took, to the hundredth of a gram, written by the officer when
+  /// they settle it.
   ///
-  /// Whole grams for the reason dues are whole cents: an integer sum cannot drift, and a slicer's
-  /// 23.45 g rounded to 23 is 0.2% of a 500 g term. Null until somebody settles the request, and
-  /// null on anything rejected — nothing was printed.
-  gramsUsed Int? @map("grams_used")
+  /// `numeric`, not a float, for the reason dues are whole cents: the allowance is a sum, and a
+  /// sum of exact decimals can't drift. Prisma reads it back as a `Decimal`, which JSON sends as a
+  /// string, so routes hand it out through `withGrams`. Null until somebody settles the request,
+  /// and null on anything rejected — nothing was printed.
+  gramsUsed Decimal? @map("grams_used") @db.Decimal(8, 2)
 
   /// What came off the printer, when it differs from what was asked for. The officer prints in
   /// whatever is on the shelf, so "asked for PLA, printed in PETG" has to be sayable.
@@ -1214,6 +1216,11 @@ model PrintRequest {
   /// happened, not a flag for the current state.
   startedAt DateTime? @map("started_at")
 
+  /// When an officer marked it DONE or REJECTED. The filament graph puts a print's grams on this
+  /// day. Requests settled before the column existed were backfilled from `updatedAt`, which
+  /// nothing writes after settling.
+  settledAt DateTime? @map("settled_at")
+
   /// The officer's side of the conversation: why it was rejected, where to
   /// collect it, "come see me".
   officerNote String? @map("officer_note")
@@ -1230,6 +1237,8 @@ model PrintRequest {
   // The allowance query: one member's grams for one term. See `printAllowance.ts`.
   @@index([userId, termYear, termSeason])
   @@index([projectId])
+  // The filament graph: finished prints by when they finished.
+  @@index([status, settledAt])
   @@map("print_requests")
 }
 

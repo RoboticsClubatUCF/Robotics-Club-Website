@@ -369,6 +369,23 @@ describe('the print queue', () => {
     expect(sent(stub)).toMatchObject({ status: 'DONE', gramsUsed: 42 })
   })
 
+  it('sends grams to the hundredth, rounding anything finer', async () => {
+    const stub = stubFetch({
+      '/officer/print-queue': [item()],
+      '/officer/print/r1': item({ status: 'DONE' }),
+    })
+    vi.stubGlobal('fetch', stub)
+
+    renderPage()
+    await screen.findByText('bracket.stl')
+
+    typeGrams('23.456')
+    press(/mark done/i)
+    agree(/mark done/i)
+
+    expect(sent(stub)).toMatchObject({ status: 'DONE', gramsUsed: 23.46 })
+  })
+
   /**
    * Caught here rather than at the server's 400: the officer is standing at a
    * printer, and a round trip to be told to fill in a box is a round trip too
@@ -938,6 +955,22 @@ describe('who did what', () => {
   })
 })
 
+describe('the desk’s other pages', () => {
+  it('links to the slicer profiles and the filament graph', async () => {
+    vi.stubGlobal('fetch', stubFetch({ '/officer/print-queue': [] }))
+    renderPage()
+
+    expect(await screen.findByRole('link', { name: 'SLICER PROFILES' })).toHaveAttribute(
+      'href',
+      '/dashboard/officer/print/profiles',
+    )
+    expect(screen.getByRole('link', { name: 'FILAMENT USAGE' })).toHaveAttribute(
+      'href',
+      '/dashboard/officer/print/usage',
+    )
+  })
+})
+
 describe('the gate', () => {
   it('turns away somebody who is not on the board', async () => {
     vi.stubGlobal('fetch', stubFetch({ '/officer/print-queue': [] }))
@@ -953,8 +986,8 @@ describe('the gate', () => {
 /**
  * A plate its owner sliced: the officer downloads the .3mf, and the grams come from Orca.
  *
- * The box starts on the estimate rounded up, so MARK DONE with nothing typed charges exactly what
- * the server would; the officer can still change it. The settings are the owner's spec, so the
+ * The box starts on the estimate to the hundredth, so MARK DONE with nothing typed charges exactly
+ * what the server would; the officer can still change it. The settings are the owner's spec, so the
  * correction controls aren't there to send a `printed` the server would refuse.
  */
 describe('a sliced plate', () => {
@@ -964,7 +997,7 @@ describe('a sliced plate', () => {
       overrides: { wall_loops: 4 },
       infillPattern: null,
       infillDensity: null,
-      estimatedGrams: 36.2,
+      estimatedGrams: 36.237,
       estimatedSeconds: 8_040,
       sliceFile: { layers: 100, filamentMeters: 12.1 },
       fileId: null,
@@ -985,11 +1018,10 @@ describe('a sliced plate', () => {
     expect(screen.getByText(/CC1 · PLA · Q-S · Walls 4/)).toBeInTheDocument()
     expect(screen.getByText('2 h 14 min, 36.2 g')).toBeInTheDocument()
     expect(screen.queryByText('PRINTED AS')).not.toBeInTheDocument()
-    expect(screen.getByLabelText(/grams used for bracket\.stl/i)).toHaveValue(37)
-    expect(screen.getByText('ORCA: 36.2 G')).toBeInTheDocument()
+    expect(screen.getByLabelText(/grams used for bracket\.stl/i)).toHaveValue(36.24)
   })
 
-  it('charges the rounded-up estimate when MARK DONE is pressed with nothing changed', async () => {
+  it('charges the estimate when MARK DONE is pressed with nothing changed', async () => {
     const stub = stubFetch({ '/officer/print-queue': [plate()], '/officer/print/r1': plate({ status: 'DONE' }) })
     vi.stubGlobal('fetch', stub)
     renderPage()
@@ -999,7 +1031,7 @@ describe('a sliced plate', () => {
     agree(/mark done/i)
 
     await waitFor(() => {
-      expect(sent(stub)).toMatchObject({ status: 'DONE', gramsUsed: 37 })
+      expect(sent(stub)).toMatchObject({ status: 'DONE', gramsUsed: 36.24 })
     })
     expect(sent(stub)).not.toHaveProperty('printed')
   })

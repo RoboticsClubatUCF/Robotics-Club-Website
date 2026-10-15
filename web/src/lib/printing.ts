@@ -191,8 +191,15 @@ export function actionPhrase(
 export const isCancel = (status: PrintRequestStatus): boolean =>
   status === 'PRINTING'
 
+/**
+ * Grams to the hundredth, the server's precision (`roundGrams` in `printAllowance.ts`). A
+ * difference of two such figures can come out as 0.30000000000000004, so anything compared or
+ * shown goes through this.
+ */
+export const roundGrams = (value: number): number => Math.round(value * 100) / 100
+
 /** Grams as the page prints them, and the one place the unit is spelled. */
-export const grams = (value: number): string => `${value} g`
+export const grams = (value: number): string => `${String(roundGrams(value))} g`
 
 /**
  * How many, when it is worth saying. One of a thing is what almost every
