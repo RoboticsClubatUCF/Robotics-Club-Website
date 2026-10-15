@@ -1023,11 +1023,16 @@ export type ApiPrintQueueItem = ApiPrintRequest & {
   sliceFile: { layers: number | null; filamentMeters: number | null } | null
 }
 
-/** One finished filament print. `grams` is null when an officer settled it without a figure. */
+/**
+ * One finished filament print. `grams` is null when an officer settled it without a figure;
+ * `projectId` is null on a personal print. `filament` is the label a sliced plate was sent with,
+ * or the material an older request was printed in: "PLA", "PETG".
+ */
 export type ApiPrintUsage = {
   settledAt: string
   grams: number | null
-  project: boolean
+  projectId: string | null
+  filament: string
 }
 
 /**
@@ -1044,6 +1049,8 @@ export type ApiUsageTerm = {
 /** `GET /api/officer/print-usage`: every finished filament print, oldest first. */
 export type ApiPrintUsageDesk = {
   terms: { current: ApiUsageTerm; last: ApiUsageTerm }
+  /** Every project one of the prints is for. */
+  projects: { id: string; title: string }[]
   prints: ApiPrintUsage[]
 }
 

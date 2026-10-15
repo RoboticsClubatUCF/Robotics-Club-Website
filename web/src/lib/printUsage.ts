@@ -72,7 +72,7 @@ export function buckets(prints: ApiPrintUsage[], from: Date, to: Date): {
     if (!period) continue
     period.prints += 1
     if (print.grams === null) period.unmeasured += 1
-    else if (print.project) period.project += print.grams
+    else if (print.projectId !== null) period.project += print.grams
     else period.personal += print.grams
   }
 
@@ -85,6 +85,58 @@ export function buckets(prints: ApiPrintUsage[], from: Date, to: Date): {
       total: roundGrams(period.personal + period.project),
     })),
   }
+}
+
+/** Whose prints the page shows: all, personal ones, project ones, or one project's. */
+export type UsageShow = 'all' | 'personal' | 'projects' | `project:${string}`
+
+/** Whether a print is in what SHOW and FILAMENT ask for; an empty filament means any. */
+export function shown(print: ApiPrintUsage, show: UsageShow, filament: string): boolean {
+  if (filament !== '' && print.filament !== filament) return false
+  if (show === 'all') return true
+  if (show === 'personal') return print.projectId === null
+  if (show === 'projects') return print.projectId !== null
+  return print.projectId === show.slice('project:'.length)
+}
+
+export type BreakdownBy = 'project' | 'filament'
+
+export interface BreakdownRow {
+  /** A project's id, `personal`, or a filament's name. */
+  key: string
+  name: string
+  prints: number
+  grams: number
+}
+
+/** The key personal prints share in the breakdown by project. Project ids are UUIDs. */
+export const PERSONAL = 'personal'
+
+/** The prints in the range added up by project, personal ones as one row, or by filament. */
+export function breakdown(
+  prints: ApiPrintUsage[],
+  from: Date,
+  to: Date,
+  by: BreakdownBy,
+  projects: Map<string, string>,
+): BreakdownRow[] {
+  const rows = new Map<string, BreakdownRow>()
+  for (const print of prints) {
+    const at = new Date(print.settledAt)
+    if (at < from || at > to) continue
+    const key = by === 'filament' ? print.filament : (print.projectId ?? PERSONAL)
+    const name =
+      by === 'filament'
+        ? print.filament
+        : print.projectId === null
+          ? 'Personal prints'
+          : (projects.get(print.projectId) ?? 'A project')
+    const row = rows.get(key) ?? { key, name, prints: 0, grams: 0 }
+    row.prints += 1
+    row.grams += print.grams ?? 0
+    rows.set(key, row)
+  }
+  return [...rows.values()].map((row) => ({ ...row, grams: roundGrams(row.grams) }))
 }
 
 /** The periods added up, for the line above the graph. */

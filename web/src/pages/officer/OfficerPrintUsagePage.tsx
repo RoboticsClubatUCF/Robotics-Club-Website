@@ -3,6 +3,7 @@ import { Link, useOutletContext } from 'react-router'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
 import { DuesLocked } from '../../components/dashboard/DuesLocked'
 import { OfficerOnly } from '../../components/dashboard/OfficerOnly'
+import { UsageBreakdown } from '../../components/dashboard/UsageBreakdown'
 import { UsageChart } from '../../components/dashboard/UsageChart'
 import { FilterChips } from '../../components/shared/FilterChips'
 import { FormEyebrow, FormHeading, FormPanel, measureClass } from '../../components/shared/formChrome'
@@ -13,15 +14,25 @@ import { isOfficer } from '../../lib/auth/session'
 import { duesLocked, termLabel } from '../../lib/dues/dues'
 import { longDate } from '../../lib/format/formats'
 import { grams } from '../../lib/printing'
-import { buckets, fromDateInput, periodDate, toDateInput, totals } from '../../lib/printUsage'
-import type { UsageBucket, UsageScale } from '../../lib/printUsage'
+import {
+  PERSONAL,
+  breakdown,
+  buckets,
+  fromDateInput,
+  periodDate,
+  shown,
+  toDateInput,
+  totals,
+} from '../../lib/printUsage'
+import type { UsageBucket, UsageScale, UsageShow } from '../../lib/printUsage'
 
 /**
  * How much filament the club has gone through: grams on finished filament prints, by the day an
  * officer marked them done, personal and project together. Resin isn't counted.
  *
  * The presets fill in FROM and TO, and changing either makes the range custom. The columns are
- * days, weeks, months or years, whichever suits the range's length.
+ * days, weeks, months or years, whichever suits the range's length. SHOW and FILAMENT narrow
+ * everything under them, the totals by project or filament included.
  */
 
 const EYEBROW = '/ MANAGE · PRINT QUEUE · FILAMENT'
@@ -39,7 +50,12 @@ type Range = { kind: Preset } | { kind: 'custom'; from: string; to: string }
 const dateField =
   'input border-rule bg-base-200 h-11 w-40 px-2 font-mono text-[12px] wide:h-8'
 
-const caption = 'text-faint font-mono text-[10px] font-medium tracking-[0.14em]'
+// The same width for all four on a phone, where they stack, so the fields line up.
+const caption =
+  'text-faint min-w-16 font-mono text-[10px] font-medium tracking-[0.14em] wide:min-w-0'
+
+const selectField =
+  'select border-rule bg-base-200 h-11 min-h-11 w-auto max-w-[16rem] py-0 text-[13px] wide:h-8 wide:min-h-8'
 
 const printsLabel = (count: number) => (count === 1 ? '1 print' : `${String(count)} prints`)
 
@@ -93,6 +109,8 @@ function resolve(
 function Usage() {
   const usage = useApi<ApiPrintUsageDesk>('/officer/print-usage')
   const [range, setRange] = useState<Range>({ kind: 'this' })
+  const [show, setShow] = useState<UsageShow>('all')
+  const [filament, setFilament] = useState('')
 
   const now = new Date()
   const desk = usage.status === 'ready' ? usage.data : null
@@ -101,8 +119,24 @@ function Usage() {
   const fromValue = range.kind === 'custom' ? range.from : dates ? toDateInput(dates.from) : ''
   const toValue = range.kind === 'custom' ? range.to : dates ? toDateInput(dates.to) : ''
 
-  const graph = desk && dates ? buckets(desk.prints, dates.from, dates.to) : null
+  const projects = desk
+    ? [...desk.projects].sort((a, b) => a.title.localeCompare(b.title))
+    : []
+  const filaments = desk
+    ? [...new Set(desk.prints.map((print) => print.filament))].sort((a, b) => a.localeCompare(b))
+    : []
+  const visible = desk ? desk.prints.filter((print) => shown(print, show, filament)) : []
+  const narrowed = show !== 'all' || filament !== ''
+
+  const graph = dates ? buckets(visible, dates.from, dates.to) : null
   const sum = graph ? totals(graph.periods) : null
+  const titles = new Map(projects.map((project) => [project.id, project.title]))
+  const byWhat = dates
+    ? {
+        project: breakdown(visible, dates.from, dates.to, 'project', titles),
+        filament: breakdown(visible, dates.from, dates.to, 'filament', titles),
+      }
+    : null
 
   return (
     <>
@@ -129,7 +163,7 @@ function Usage() {
         />
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <label className="flex items-center gap-2">
-            <span className={`${caption} min-w-9 wide:min-w-0`}>FROM</span>
+            <span className={caption}>FROM</span>
             <input
               type="date"
               value={fromValue}
@@ -142,7 +176,7 @@ function Usage() {
             />
           </label>
           <label className="flex items-center gap-2">
-            <span className={`${caption} min-w-9 wide:min-w-0`}>TO</span>
+            <span className={caption}>TO</span>
             <input
               type="date"
               value={toValue}
@@ -155,6 +189,51 @@ function Usage() {
             />
           </label>
         </div>
+      </div>
+
+      <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <label className="flex items-center gap-2">
+          <span className={caption}>SHOW</span>
+          <select
+            value={show}
+            disabled={!desk}
+            onChange={(event) => {
+              setShow(event.target.value as UsageShow)
+            }}
+            className={selectField}
+          >
+            <option value="all">Everything</option>
+            <option value="personal">Personal prints</option>
+            <option value="projects">Every project</option>
+            {projects.length > 0 && (
+              <optgroup label="One project">
+                {projects.map((project) => (
+                  <option key={project.id} value={`project:${project.id}`}>
+                    {project.title}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+          </select>
+        </label>
+        <label className="flex items-center gap-2">
+          <span className={caption}>FILAMENT</span>
+          <select
+            value={filament}
+            disabled={!desk}
+            onChange={(event) => {
+              setFilament(event.target.value)
+            }}
+            className={selectField}
+          >
+            <option value="">Any filament</option>
+            {filaments.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       <FormPanel>
@@ -176,7 +255,8 @@ function Usage() {
         {dates && graph && sum && (
           sum.prints === 0 ? (
             <p className="text-dim text-sm leading-[1.7]">
-              No filament prints were finished {dates.phrase}.
+              {narrowed ? 'No matching prints were' : 'No filament prints were'} finished{' '}
+              {dates.phrase}.
             </p>
           ) : (
             <>
@@ -198,6 +278,16 @@ function Usage() {
                     ? '1 finished print has no grams recorded and isn’t in the graph.'
                     : `${String(sum.unmeasured)} finished prints have no grams recorded and aren’t in the graph.`}
                 </p>
+              )}
+
+              {byWhat && (
+                <UsageBreakdown
+                  rows={byWhat}
+                  onPick={(by, key) => {
+                    if (by === 'filament') setFilament(key)
+                    else setShow(key === PERSONAL ? 'personal' : `project:${key}`)
+                  }}
+                />
               )}
 
               <UsageTable periods={graph.periods} scale={graph.scale} />
@@ -226,7 +316,9 @@ function UsageTable({ periods, scale }: { periods: UsageBucket[]; scale: UsageSc
   return (
     <div className="mt-8 max-w-[44rem] overflow-x-auto">
       <table className="w-full text-left text-[12px] wide:text-[13px]">
-        <caption className="sr-only">Filament per {scale}, newest first</caption>
+        <caption className="text-faint mb-2 caption-top text-left font-mono text-[10px] font-medium tracking-[0.16em] uppercase">
+          Filament per {scale}, newest first
+        </caption>
         <thead>
           <tr className="border-rule text-faint border-b font-mono text-[10px] tracking-[0.14em]">
             <th className="py-2 pr-2 font-medium wide:pr-3">{SCALE_HEADING[scale]}</th>

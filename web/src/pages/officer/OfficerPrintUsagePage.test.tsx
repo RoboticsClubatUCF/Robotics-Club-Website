@@ -69,20 +69,37 @@ const ago = (days: number) => new Date(Date.now() - days * DAY).toISOString()
 // This semester began sixty days ago, so it draws in weeks; the prints finished just now land in
 // the current week whatever day the suite runs.
 const now = new Date().toISOString()
-const desk = (prints: ApiPrintUsage[] = [
-  { settledAt: ago(100), grams: 20, project: false },
-  { settledAt: now, grams: 12.5, project: false },
-  { settledAt: now, grams: 30.25, project: true },
-  { settledAt: now, grams: null, project: true },
-]): ApiPrintUsageDesk => ({
+const PRINTS: ApiPrintUsage[] = [
+  { settledAt: ago(100), grams: 20, projectId: null, filament: 'PLA' },
+  { settledAt: now, grams: 12.5, projectId: null, filament: 'PLA' },
+  { settledAt: now, grams: 30.25, projectId: 'rover', filament: 'PETG' },
+  { settledAt: now, grams: null, projectId: 'rover', filament: 'PETG' },
+]
+/** One more project print this week, so the totals have three rows to sort. */
+const WITH_BLIMP: ApiPrintUsage[] = [
+  ...PRINTS,
+  { settledAt: now, grams: 8, projectId: 'blimp', filament: 'PLA' },
+]
+
+const desk = (prints: ApiPrintUsage[] = PRINTS): ApiPrintUsageDesk => ({
   terms: {
     current: { year: 2026, season: 'FALL', from: ago(60), to: new Date(Date.now() + 60 * DAY).toISOString() },
     last: { year: 2026, season: 'SUMMER', from: ago(150), to: ago(60) },
   },
+  projects: [
+    { id: 'rover', title: 'Rover' },
+    { id: 'blimp', title: 'Blimp' },
+  ],
   prints,
 })
 
 const summary = () => screen.getByText(/, from \d+ prints?:/)
+const weeks = () => screen.getByRole('table', { name: /per week/i })
+const totalsTable = () => screen.getByRole('table', { name: /filament by/i })
+const totalsNames = () =>
+  within(totalsTable())
+    .getAllByRole('rowheader')
+    .map((cell) => cell.textContent)
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -104,7 +121,7 @@ describe('the filament graph', () => {
     expect(screen.getByLabelText('TO')).toHaveValue(toDateInput(new Date()))
 
     // Only the weeks that had prints.
-    const rows = within(screen.getByRole('table')).getAllByRole('row')
+    const rows = within(weeks()).getAllByRole('row')
     expect(rows).toHaveLength(2)
     expect(rows[1]).toHaveTextContent('42.75 g')
   })
@@ -142,6 +159,89 @@ describe('the filament graph', () => {
     fireEvent.change(screen.getByLabelText('TO'), { target: { value: toDateInput(new Date(ago(3))) } })
     expect(screen.getByText('FROM is after TO. Pick an earlier start.')).toBeInTheDocument()
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  })
+
+  it('narrows everything to what SHOW and FILAMENT pick', async () => {
+    vi.stubGlobal('fetch', stubFetch({ '/officer/print-usage': desk() }))
+    renderPage()
+    await screen.findByText(/in Fall 2026 so far/)
+    const show = (value: string) => {
+      fireEvent.change(screen.getByLabelText('SHOW'), { target: { value } })
+    }
+    const filament = (value: string) => {
+      fireEvent.change(screen.getByLabelText('FILAMENT'), { target: { value } })
+    }
+
+    expect(
+      within(screen.getByLabelText('FILAMENT'))
+        .getAllByRole('option')
+        .map((option) => option.textContent),
+    ).toEqual(['Any filament', 'PETG', 'PLA'])
+
+    show('personal')
+    expect(summary()).toHaveTextContent(
+      '12.5 g in Fall 2026 so far, from 1 print: 12.5 g personal, 0 g for projects.',
+    )
+    expect(screen.queryByText(/no grams recorded/)).not.toBeInTheDocument()
+
+    show('project:rover')
+    expect(summary()).toHaveTextContent(/^30\.25 g in Fall 2026 so far, from 2 prints:/)
+    expect(screen.getByText(/1 finished print has no grams recorded/)).toBeInTheDocument()
+
+    show('all')
+    filament('PLA')
+    expect(summary()).toHaveTextContent(/^12\.5 g in Fall 2026 so far, from 1 print:/)
+
+    show('project:rover')
+    expect(
+      screen.getByText('No matching prints were finished in Fall 2026 so far.'),
+    ).toBeInTheDocument()
+  })
+
+  it('totals the range by project or filament, and sorts by any column', async () => {
+    vi.stubGlobal('fetch', stubFetch({ '/officer/print-usage': desk(WITH_BLIMP) }))
+    renderPage()
+    await screen.findByText(/in Fall 2026 so far/)
+
+    // Most grams first.
+    expect(totalsNames()).toEqual(['Rover', 'Personal prints', 'Blimp'])
+
+    fireEvent.click(within(totalsTable()).getByRole('button', { name: 'PRINTS' }))
+    expect(totalsNames()).toEqual(['Rover', 'Blimp', 'Personal prints'])
+    expect(within(totalsTable()).getByRole('columnheader', { name: 'PRINTS' })).toHaveAttribute(
+      'aria-sort',
+      'descending',
+    )
+
+    fireEvent.click(within(totalsTable()).getByRole('button', { name: 'PROJECT' }))
+    expect(totalsNames()).toEqual(['Blimp', 'Personal prints', 'Rover'])
+    fireEvent.click(within(totalsTable()).getByRole('button', { name: 'PROJECT' }))
+    expect(totalsNames()).toEqual(['Rover', 'Personal prints', 'Blimp'])
+
+    fireEvent.click(screen.getByRole('button', { name: 'FILAMENT' }))
+    fireEvent.click(within(totalsTable()).getByRole('button', { name: 'GRAMS' }))
+    expect(
+      within(totalsTable())
+        .getAllByRole('row')
+        .slice(1)
+        .map((row) => row.textContent),
+    ).toEqual(['PETG230.25 g', 'PLA220.5 g'])
+  })
+
+  it('shows only a row picked in the totals', async () => {
+    vi.stubGlobal('fetch', stubFetch({ '/officer/print-usage': desk(WITH_BLIMP) }))
+    renderPage()
+    await screen.findByText(/in Fall 2026 so far/)
+
+    fireEvent.click(within(totalsTable()).getByRole('button', { name: 'Rover' }))
+    expect(screen.getByLabelText('SHOW')).toHaveValue('project:rover')
+    expect(summary()).toHaveTextContent(/^30\.25 g in Fall 2026 so far/)
+
+    fireEvent.change(screen.getByLabelText('SHOW'), { target: { value: 'all' } })
+    fireEvent.click(screen.getByRole('button', { name: 'FILAMENT' }))
+    fireEvent.click(within(totalsTable()).getByRole('button', { name: 'PLA' }))
+    expect(screen.getByLabelText('FILAMENT')).toHaveValue('PLA')
+    expect(summary()).toHaveTextContent(/^20\.5 g in Fall 2026 so far, from 2 prints:/)
   })
 
   it('reads out another week from the keyboard', async () => {

@@ -1028,7 +1028,8 @@ describe('the filament graph', () => {
 
   type Usage = {
     terms: Record<'current' | 'last', { year: number; season: string; from: string; to: string }>
-    prints: { settledAt: string; grams: number | null; project: boolean }[]
+    projects: { id: string; title: string }[]
+    prints: { settledAt: string; grams: number | null; projectId: string | null; filament: string }[]
   }
 
   const usage = (cookie = officerCookie) =>
@@ -1038,9 +1039,15 @@ describe('the filament graph', () => {
     expect((await usage(memberCookie)).status).toBe(403)
   })
 
-  it('lists finished filament prints, oldest first', async () => {
+  it('lists finished filament prints, oldest first, with their project and filament', async () => {
     await finished('2035-03-02T15:00:00.000Z', { gramsUsed: 42.5, projectId: myProjectId })
     await finished('2035-02-01T15:00:00.000Z', { gramsUsed: 12.25 })
+    // Printed in PETG, though PLA was asked for.
+    await finished('2035-02-05T15:00:00.000Z', { material: 'PLA', printedMaterial: 'PETG' })
+    // A sliced plate goes by the filament label it was sent with.
+    await finished('2035-02-06T15:00:00.000Z', {
+      slicedWith: { printer: 'CC1', process: 'Standard', filament: 'PLA Silk' },
+    })
     // Resin, printed as resin, and not finished.
     await finished('2035-02-02T15:00:00.000Z', { process: 'SLA', material: 'ABS_LIKE_RESIN' })
     await finished('2035-02-03T15:00:00.000Z', { printedProcess: 'SLA' })
@@ -1052,11 +1059,14 @@ describe('the filament graph', () => {
     const response = await usage()
 
     expect(response.status).toBe(200)
-    const { prints } = (await response.json()) as Usage
+    const { prints, projects } = (await response.json()) as Usage
     expect(prints.filter((print) => print.settledAt.startsWith(OURS))).toEqual([
-      { settledAt: '2035-02-01T15:00:00.000Z', grams: 12.25, project: false },
-      { settledAt: '2035-03-02T15:00:00.000Z', grams: 42.5, project: true },
+      { settledAt: '2035-02-01T15:00:00.000Z', grams: 12.25, projectId: null, filament: 'PLA' },
+      { settledAt: '2035-02-05T15:00:00.000Z', grams: 10, projectId: null, filament: 'PETG' },
+      { settledAt: '2035-02-06T15:00:00.000Z', grams: 10, projectId: null, filament: 'PLA Silk' },
+      { settledAt: '2035-03-02T15:00:00.000Z', grams: 42.5, projectId: myProjectId, filament: 'PLA' },
     ])
+    expect(projects).toContainEqual({ id: myProjectId, title: 'Print Fixture Rover' })
   })
 
   it('dates this semester and the last so they meet, with today in this one', async () => {

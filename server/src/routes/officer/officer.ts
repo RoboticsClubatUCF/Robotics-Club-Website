@@ -31,7 +31,8 @@ import {
   allowancesFor,
   roundGrams,
 } from '../../printing/printAllowance.js'
-import { printedColumns, printedSettings } from '../../printing/printSettings.js'
+import { MATERIAL_LABEL, printedColumns, printedSettings } from '../../printing/printSettings.js'
+import { slicedWith } from '../../printing/profiles.js'
 import { deleteHeldFiles } from '../../printing/printLifecycle.js'
 import {
   NO_SCHEDULE,
@@ -775,15 +776,40 @@ officer.get('/print-usage', requireAuth, requireOfficer, async (c) => {
       ],
     },
     orderBy: { settledAt: 'asc' },
-    select: { settledAt: true, gramsUsed: true, projectId: true },
+    select: {
+      settledAt: true,
+      gramsUsed: true,
+      material: true,
+      printedMaterial: true,
+      slicedWith: true,
+      project: { select: { id: true, title: true } },
+    },
   })
+
+  /**
+   * The filament a print used, by name: a sliced plate's filament label as it was sent, which
+   * is what officers call the spool on the profiles desk, and otherwise the material printed.
+   * Both say "PLA" for PLA, so old and new prints group together.
+   */
+  const filamentOf = (print: (typeof prints)[number]) => {
+    const labels = slicedWith.safeParse(print.slicedWith)
+    return labels.success && labels.data.filament
+      ? labels.data.filament
+      : MATERIAL_LABEL[print.printedMaterial ?? print.material]
+  }
+
+  const projects = new Map(
+    prints.flatMap((print) => (print.project ? [[print.project.id, print.project] as const] : [])),
+  )
 
   return c.json({
     terms: { current: range(current, last.endsAt), last: range(last, lastStart) },
+    projects: [...projects.values()],
     prints: prints.map((print) => ({
       settledAt: print.settledAt,
       grams: print.gramsUsed === null ? null : print.gramsUsed.toNumber(),
-      project: print.projectId !== null,
+      projectId: print.project?.id ?? null,
+      filament: filamentOf(print),
     })),
   })
 })

@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import type { ApiPrintUsage } from './api/api'
 import {
+  PERSONAL,
   axisDate,
   axisGrams,
+  breakdown,
   buckets,
   fromDateInput,
   scaleFor,
+  shown,
   ticks,
   toDateInput,
   totals,
@@ -15,10 +18,16 @@ import {
 const local = (month: number, day: number, hour = 15) => new Date(2026, month, day, hour)
 const at = (month: number, day: number, hour = 15) => local(month, day, hour).toISOString()
 
-const print = (settledAt: string, grams: number | null, project = false): ApiPrintUsage => ({
+const print = (
+  settledAt: string,
+  grams: number | null,
+  project = false,
+  filament = 'PLA',
+): ApiPrintUsage => ({
   settledAt,
   grams,
-  project,
+  projectId: project ? 'rover' : null,
+  filament,
 })
 
 describe('the columns', () => {
@@ -95,6 +104,48 @@ describe('buckets', () => {
     )
 
     expect(periods[0]?.total).toBe(0.3)
+  })
+})
+
+describe('narrowing and totals', () => {
+  const prints = [
+    print(at(9, 12), 10, false, 'PLA'),
+    print(at(9, 13), 20.25, true, 'PETG'),
+    print(at(9, 14), null, true, 'PETG'),
+    { ...print(at(9, 14), 4, true, 'PLA'), projectId: 'blimp' },
+    // Outside the range.
+    print(at(5, 1), 99, true, 'PETG'),
+  ]
+
+  it('keeps what SHOW and FILAMENT ask for', () => {
+    const count = (show: Parameters<typeof shown>[1], filament = '') =>
+      prints.filter((p) => shown(p, show, filament)).length
+
+    expect(count('all')).toBe(5)
+    expect(count('personal')).toBe(1)
+    expect(count('projects')).toBe(4)
+    expect(count('project:blimp')).toBe(1)
+    expect(count('all', 'PETG')).toBe(3)
+    expect(count('personal', 'PETG')).toBe(0)
+  })
+
+  it('adds up the range by project, personal prints as one row, and by filament', () => {
+    const titles = new Map([
+      ['rover', 'Rover'],
+      ['blimp', 'Blimp'],
+    ])
+    const from = local(9, 1, 0)
+    const to = local(9, 15)
+
+    expect(breakdown(prints, from, to, 'project', titles)).toEqual([
+      { key: PERSONAL, name: 'Personal prints', prints: 1, grams: 10 },
+      { key: 'rover', name: 'Rover', prints: 2, grams: 20.25 },
+      { key: 'blimp', name: 'Blimp', prints: 1, grams: 4 },
+    ])
+    expect(breakdown(prints, from, to, 'filament', titles)).toEqual([
+      { key: 'PLA', name: 'PLA', prints: 2, grams: 14 },
+      { key: 'PETG', name: 'PETG', prints: 2, grams: 20.25 },
+    ])
   })
 })
 
