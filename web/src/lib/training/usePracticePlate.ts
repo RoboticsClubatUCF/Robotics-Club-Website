@@ -233,6 +233,7 @@ export function usePracticePlate(parts: Map<PartName, Float32Array> | null, allo
       return Promise.resolve({ fileName: draft.fileName })
     },
     canSubmit: allowSubmission,
+    practice: true,
     saving: false,
     unsaved: false,
     notice,

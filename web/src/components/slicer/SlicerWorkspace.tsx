@@ -913,6 +913,7 @@ export function WorkspaceView({
           seconds={slice.estimatedSeconds}
           projects={projects}
           allowance={allowance}
+          practice={plate.practice === true}
           busy={sending === 'sending'}
           onSubmit={(details) => {
             void send(details)

@@ -385,6 +385,7 @@ describe('a sliced plate', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'REQUEST PRINT' }))
     const dialog = screen.getByRole('dialog')
     expect(within(dialog).getByText(/17 g past what you have left/i)).toBeInTheDocument()
+    expect(within(dialog).queryByText(/Practice only/)).not.toBeInTheDocument()
 
     fireEvent.change(within(dialog).getByLabelText(/special requests/i), { target: { value: 'Black please' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'SEND IT' }))

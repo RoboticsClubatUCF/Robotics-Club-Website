@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
 import type { ApiDraftSlice } from '../../lib/api/api'
@@ -36,5 +36,12 @@ describe('REQUEST PRINT availability', () => {
     render(<ReadyWorkspace />)
     fireEvent.click(screen.getByRole('button', { name: 'REQUEST PRINT' }))
     expect(screen.getByRole('dialog', { name: 'Send this plate to the officers?' })).toBeInTheDocument()
+  })
+
+  it('warns in the request dialog that a practice plate is never submitted', () => {
+    render(<ReadyWorkspace />)
+    fireEvent.click(screen.getByRole('button', { name: 'REQUEST PRINT' }))
+    const dialog = screen.getByRole('dialog', { name: 'Send this plate to the officers?' })
+    expect(within(dialog).getByText('Practice only. Nothing will actually be submitted or printed.')).toHaveClass('text-error')
   })
 })

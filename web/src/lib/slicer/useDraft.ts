@@ -50,6 +50,8 @@ export interface PlateSource {
   submit: (details: { projectId: string | null; notes: string }) => Promise<{ fileName: string }>
   /** Practice plates allow simulated requests only in the sending module. */
   canSubmit?: boolean
+  /** The training's plate: sending it reaches no officer, which the request dialog says. */
+  practice?: boolean
   saving: boolean
   unsaved: boolean
   notice: string | null

@@ -14,6 +14,7 @@ export function SubmitDialog({
   seconds,
   projects,
   allowance,
+  practice = false,
   busy,
   onSubmit,
   onDismiss,
@@ -22,6 +23,8 @@ export function SubmitDialog({
   seconds: number | null
   projects: ApiMyProject[]
   allowance: ApiPrintAllowance | null
+  /** The training's plate, which goes nowhere. */
+  practice?: boolean
   busy: boolean
   onSubmit: (details: { projectId: string | null; notes: string }) => void
   onDismiss: () => void
@@ -45,6 +48,11 @@ export function SubmitDialog({
       }}
       onDismiss={onDismiss}
     >
+      {practice && (
+        <p className="border-error/40 bg-error/5 text-error mb-4 border px-3 py-2 text-sm leading-[1.6]">
+          Practice only. Nothing will actually be submitted or printed.
+        </p>
+      )}
       <p className="text-dim mb-4 text-sm leading-[1.6]">
         About {duration(seconds)} and {charge} g. An officer downloads the sliced file and prints
         it; you can take it back to edit until they start.
