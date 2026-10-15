@@ -13,8 +13,9 @@ interface Shown {
 }
 
 /**
- * What a callout shouldn't sit over: the toolbar, the house, a phone's drawer buttons, and the
- * task's slices, which DONE under NEXT would cover just when there's something to compare.
+ * What a callout keeps off where another side will do: the toolbar, the house, a phone's drawer
+ * buttons, and the task's slices, which DONE under NEXT would cover just when there's something to
+ * compare. Where nothing else fits it covers them anyway.
  */
 const AVOID = ['tools', 'house', 'drawer:settings', 'drawer:objects', 'slice-log']
 

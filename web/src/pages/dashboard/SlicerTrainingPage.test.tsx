@@ -548,6 +548,8 @@ describe('practice', () => {
       expect.stringMatching(/^4 Infill pattern: Gyroid · 7\.02 g \(−0\.26\)/),
       expect.stringMatching(/^5 Top surface pattern: Concentric · 7\.02 g · 10 min · 60 layers$/),
     ])
+    // DONE shows after several slices too, even where it covers part of the log.
+    expect(callout()).toBe('DONECompare your slices, then press NEXT.')
     await waitFor(() => expect(readProgress('u1').done).toContain('try-strength'))
     expect(new Set(readProgress('u1').done)).toEqual(new Set(ids))
     expect(readProgress('u1').restarted).toBeUndefined()

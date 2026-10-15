@@ -12,7 +12,6 @@ export function TaskStrip({
   brief,
   hint,
   complete,
-  doneNote,
   announce,
   children,
   onStartOver,
@@ -23,8 +22,6 @@ export function TaskStrip({
   brief?: ReactNode
   hint?: ReactNode
   complete: boolean
-  /** Said beside DONE, for a finished task the callout has stood aside for. */
-  doneNote?: string
   /** The goal just met and the next one, said to a screen reader. */
   announce: string
   children?: ReactNode
@@ -43,7 +40,6 @@ export function TaskStrip({
               TRY IT · {title.toUpperCase()}
             </h1>
             {complete && <span className="text-success font-mono text-[10.5px] tracking-[0.1em]">DONE</span>}
-            {complete && doneNote && <span className="text-base-content text-[12.5px]">{doneNote}</span>}
           </div>
           {brief && <p className="text-dim mt-1 text-[13.5px] leading-[1.5] text-pretty">{brief}</p>}
           {hint && (

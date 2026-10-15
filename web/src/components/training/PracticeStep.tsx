@@ -69,9 +69,8 @@ export function PracticeStep({
 
   const next = achieved.findIndex((done) => !done)
   const goal = next === -1 ? null : step.goals[next]!
-  // Done after several slices, the strip says so beside DONE instead of a callout under NEXT, which
-  // would cover YOUR SLICES just when there's something to compare, or over the plate, which would
-  // cover the preview's PATHS.
+  // Several slices in, DONE says to compare them. It may cover part of YOUR SLICES, but it takes no
+  // pointer, and a task without it reads as unfinished.
   const compare = goal === null && practice.log.slices.length > 1
   const aims = goal ? (typeof goal.aim === 'function' ? goal.aim(state) : (goal.aim ?? [])) : [{ at: 'next' }]
 
@@ -84,7 +83,6 @@ export function PracticeStep({
         brief={step.brief}
         hint={step.hint}
         complete={goal === null}
-        doneNote={compare ? 'Compare your slices, then press NEXT.' : undefined}
         announce={announce}
         onStartOver={() => {
           onStartOver()
@@ -98,15 +96,13 @@ export function PracticeStep({
       >
         <SliceLog log={practice.log} />
       </TaskStrip>
-      {!compare && (
-        <GoalCallout
-          key={`${String(round)}-${String(next)}`}
-          label={goal ? `STEP ${String(next + 1)} OF ${String(step.goals.length)}` : 'DONE'}
-          text={goal ? goal.text : 'Press NEXT to carry on.'}
-          aims={aims}
-          state={state}
-        />
-      )}
+      <GoalCallout
+        key={`${String(round)}-${String(next)}`}
+        label={goal ? `STEP ${String(next + 1)} OF ${String(step.goals.length)}` : 'DONE'}
+        text={goal ? goal.text : compare ? 'Compare your slices, then press NEXT.' : 'Press NEXT to carry on.'}
+        aims={aims}
+        state={state}
+      />
       <WorkspaceView
         key={round}
         plateKey="practice"
