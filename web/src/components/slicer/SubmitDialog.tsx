@@ -1,5 +1,6 @@
 import { useId, useState } from 'react'
 import type { ApiMyProject, ApiPrintAllowance } from '../../lib/api/api'
+import { grams as gramsText, roundGrams } from '../../lib/printing'
 import { chargedGrams, duration } from '../../lib/slicer/estimate'
 import { ConfirmDialog } from '../shared/ConfirmDialog'
 import { labelClass } from '../shared/formChrome'
@@ -34,7 +35,7 @@ export function SubmitDialog({
   const [notes, setNotes] = useState('')
   const charge = chargedGrams(grams)
   const personal = projectId === ''
-  const over = personal && allowance ? charge - allowance.remainingGrams : 0
+  const over = personal && allowance ? roundGrams(charge - allowance.remainingGrams) : 0
 
   return (
     <ConfirmDialog
@@ -54,7 +55,7 @@ export function SubmitDialog({
         </p>
       )}
       <p className="text-dim mb-4 text-sm leading-[1.6]">
-        About {duration(seconds)} and {charge} g. An officer downloads the sliced file and prints
+        About {duration(seconds)} and {gramsText(charge)}. An officer downloads the sliced file and prints
         it; you can take it back to edit until they start.
       </p>
 
@@ -82,8 +83,8 @@ export function SubmitDialog({
           : !allowance
             ? `Comes out of your allowance for the semester.`
             : over > 0
-              ? `That's ${String(over)} g past what you have left. An officer still has to approve it, and you pay for the ${String(over)} g over.`
-              : `Leaves ${String(allowance.remainingGrams - charge)} g of your allowance.`}
+              ? `That's ${gramsText(over)} past what you have left. An officer still has to approve it, and you pay for the ${gramsText(over)} over.`
+              : `Leaves ${gramsText(allowance.remainingGrams - charge)} of your allowance.`}
       </p>
 
       <label htmlFor={`${id}-notes`} className={labelClass}>

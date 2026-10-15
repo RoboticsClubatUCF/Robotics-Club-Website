@@ -67,7 +67,7 @@ const SEASON_NAMES = {
 } as const
 
 /** "Fall 2026". */
-export function termLabel(term: ApiTerm): string {
+export function termLabel(term: Pick<ApiTerm, 'year' | 'season'>): string {
   return `${SEASON_NAMES[term.season]} ${term.year}`
 }
 

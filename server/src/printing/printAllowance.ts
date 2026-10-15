@@ -1,5 +1,6 @@
 import { prisma } from '../core/db.js'
 import { env } from '../core/env.js'
+import type { Prisma } from '../generated/prisma/client.js'
 import { PrintRequestStatus } from '../generated/prisma/enums.js'
 import type { Season } from '../generated/prisma/enums.js'
 import { currentTerm, getTerm } from '../membership/semester.js'
@@ -41,12 +42,22 @@ export interface PrintAllowance {
   term: Term
 }
 
-const build = (usedGrams: number, term: Term): PrintAllowance => ({
-  limitGrams: env.PERSONAL_PRINT_GRAMS,
-  usedGrams,
-  remainingGrams: env.PERSONAL_PRINT_GRAMS - usedGrams,
-  term,
-})
+/**
+ * Grams to the hundredth, the column's precision. Arithmetic on two such figures in floating point
+ * can come out as 0.30000000000000004, so anything sent or compared goes through this.
+ */
+export const roundGrams = (grams: number): number => Math.round(grams * 100) / 100
+
+/** Summed in Postgres as `numeric`, so exact; only the subtraction happens out here. */
+const build = (spent: Prisma.Decimal | null, term: Term): PrintAllowance => {
+  const usedGrams = spent === null ? 0 : spent.toNumber()
+  return {
+    limitGrams: env.PERSONAL_PRINT_GRAMS,
+    usedGrams,
+    remainingGrams: roundGrams(env.PERSONAL_PRINT_GRAMS - usedGrams),
+    term,
+  }
+}
 
 /** The `where` all of this turns on, in one place so the two readers agree. */
 const spentIn = (term: TermKey) => ({
@@ -82,7 +93,7 @@ export async function allowanceIn(
     getTerm(term.termYear, term.termSeason),
   ])
 
-  return build(spent._sum.gramsUsed ?? 0, dates)
+  return build(spent._sum.gramsUsed, dates)
 }
 
 /** One member's balance for the term we are in now — the member's own view. */
@@ -142,10 +153,7 @@ export async function allowancesFor(
 
   const dates = new Map(terms)
   const used = new Map(
-    spent.map((row) => [
-      allowanceKey(row.userId, row),
-      row._sum.gramsUsed ?? 0,
-    ]),
+    spent.map((row) => [allowanceKey(row.userId, row), row._sum.gramsUsed]),
   )
 
   return new Map(
@@ -154,7 +162,7 @@ export async function allowancesFor(
       // Non-null: every distinct term in `wanted` was just looked up above.
       const term = dates.get(`${pair.termYear}:${pair.termSeason}`)!
 
-      return [key, build(used.get(key) ?? 0, term)]
+      return [key, build(used.get(key) ?? null, term)]
     }),
   )
 }

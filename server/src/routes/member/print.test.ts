@@ -517,6 +517,22 @@ describe('the material allowance', () => {
     })
   })
 
+  it('keeps grams to the hundredth, and adds them up exactly', async () => {
+    const first = await submit()
+    const second = await submit()
+
+    const done = await patchStatus(first, { status: 'DONE', gramsUsed: 0.1 })
+    expect(await done.json()).toMatchObject({ gramsUsed: 0.1 })
+    // Anything finer than the column holds is rounded, not refused.
+    await patchStatus(second, { status: 'DONE', gramsUsed: 0.197 })
+
+    // 0.1 + 0.2 in floating point is 0.30000000000000004.
+    expect(await allowance()).toMatchObject({
+      usedGrams: 0.3,
+      remainingGrams: env.PERSONAL_PRINT_GRAMS - 0.3,
+    })
+  })
+
   /** The club's decision, and the one that makes the honour system work. */
   it('leaves the balance alone for a project print', async () => {
     const id = await submit({ projectId: myProjectId })
@@ -812,6 +828,24 @@ describe('the officer queue', () => {
     expect(after.startedAt).toEqual(started)
   })
 
+  it('stamps when a print was settled, done or declined', async () => {
+    const done = await submit()
+    await patchStatus(done, { status: 'PRINTING' })
+    expect(
+      (await prisma.printRequest.findUniqueOrThrow({ where: { id: done } })).settledAt,
+    ).toBeNull()
+    await patchStatus(done, { status: 'DONE', gramsUsed: 12 })
+
+    const declined = await submit()
+    await patchStatus(declined, { status: 'REJECTED' })
+
+    const rows = await prisma.printRequest.findMany({
+      where: { id: { in: [done, declined] } },
+      select: { settledAt: true },
+    })
+    expect(rows.every((row) => row.settledAt !== null)).toBe(true)
+  })
+
   it('does not move the start time when a printing job is touched again', async () => {
     const id = await submit()
     await patchStatus(id, { status: 'PRINTING' })
@@ -952,7 +986,7 @@ describe('my history', () => {
   it('keeps a settled request readable after its file is gone', async () => {
     const created = await upload(memberCookie, 'part.stl', asciiStl())
     const { id } = (await created.json()) as { id: string }
-    await patchStatus(id, { status: 'DONE', gramsUsed: 18 })
+    await patchStatus(id, { status: 'DONE', gramsUsed: 18.25 })
 
     const response = await app.request('/api/me/print-requests', {
       headers: { cookie: memberCookie },
@@ -963,9 +997,86 @@ describe('my history', () => {
       fileId: string | null
     }[]
 
+    // The grams as a number: the column is a `numeric`, which JSON would send as "18.25".
     expect(mine.find((r) => r.id === id)).toMatchObject({
       fileName: 'part.stl',
       fileId: null,
+      gramsUsed: 18.25,
     })
+  })
+})
+
+describe('the filament graph', () => {
+  /** Settled in 2035, where no real print is, so the assertions can pick out this suite's rows. */
+  const OURS = '2035-'
+
+  const finished = (settledAt: string, data: Record<string, unknown> = {}) =>
+    prisma.printRequest.create({
+      data: {
+        userId: memberId,
+        fileName: 'graph.stl',
+        fileSize: 10,
+        process: 'FDM',
+        status: PrintRequestStatus.DONE,
+        gramsUsed: 10,
+        settledAt: new Date(settledAt),
+        termYear: term.termYear,
+        termSeason: term.termSeason,
+        ...data,
+      },
+    })
+
+  type Usage = {
+    terms: Record<'current' | 'last', { year: number; season: string; from: string; to: string }>
+    projects: { id: string; title: string }[]
+    prints: { settledAt: string; grams: number | null; projectId: string | null; filament: string }[]
+  }
+
+  const usage = (cookie = officerCookie) =>
+    app.request('/api/officer/print-usage', { headers: { cookie } })
+
+  it('is officer-only', async () => {
+    expect((await usage(memberCookie)).status).toBe(403)
+  })
+
+  it('lists finished filament prints, oldest first, with their project and filament', async () => {
+    await finished('2035-03-02T15:00:00.000Z', { gramsUsed: 42.5, projectId: myProjectId })
+    await finished('2035-02-01T15:00:00.000Z', { gramsUsed: 12.25 })
+    // Printed in PETG, though PLA was asked for.
+    await finished('2035-02-05T15:00:00.000Z', { material: 'PLA', printedMaterial: 'PETG' })
+    // A sliced plate goes by the filament label it was sent with.
+    await finished('2035-02-06T15:00:00.000Z', {
+      slicedWith: { printer: 'CC1', process: 'Standard', filament: 'PLA Silk' },
+    })
+    // Resin, printed as resin, and not finished.
+    await finished('2035-02-02T15:00:00.000Z', { process: 'SLA', material: 'ABS_LIKE_RESIN' })
+    await finished('2035-02-03T15:00:00.000Z', { printedProcess: 'SLA' })
+    await finished('2035-02-04T15:00:00.000Z', {
+      status: PrintRequestStatus.REJECTED,
+      gramsUsed: null,
+    })
+
+    const response = await usage()
+
+    expect(response.status).toBe(200)
+    const { prints, projects } = (await response.json()) as Usage
+    expect(prints.filter((print) => print.settledAt.startsWith(OURS))).toEqual([
+      { settledAt: '2035-02-01T15:00:00.000Z', grams: 12.25, projectId: null, filament: 'PLA' },
+      { settledAt: '2035-02-05T15:00:00.000Z', grams: 10, projectId: null, filament: 'PETG' },
+      { settledAt: '2035-02-06T15:00:00.000Z', grams: 10, projectId: null, filament: 'PLA Silk' },
+      { settledAt: '2035-03-02T15:00:00.000Z', grams: 42.5, projectId: myProjectId, filament: 'PLA' },
+    ])
+    expect(projects).toContainEqual({ id: myProjectId, title: 'Print Fixture Rover' })
+  })
+
+  it('dates this semester and the last so they meet, with today in this one', async () => {
+    const { terms } = (await (await usage()).json()) as Usage
+    const now = Date.now()
+
+    expect(terms.current).toMatchObject({ year: term.termYear, season: term.termSeason })
+    expect(Date.parse(terms.current.from)).toBe(Date.parse(terms.last.to) + 1)
+    expect(Date.parse(terms.current.from)).toBeLessThanOrEqual(now)
+    expect(Date.parse(terms.current.to)).toBeGreaterThanOrEqual(now)
+    expect(Date.parse(terms.last.from)).toBeLessThan(Date.parse(terms.last.to))
   })
 })

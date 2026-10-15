@@ -816,7 +816,7 @@ export type ApiPrintRequest = {
   printedMaterial: PrintMaterial | null
   printedInfillPattern: InfillPattern | null
   printedInfillDensity: number | null
-  /** Whole grams, written by the officer at settlement. Null until then. */
+  /** Grams to the hundredth, written by the officer at settlement. Null until then. */
   gramsUsed: number | null
   /** The project it is for, or null for a personal print — and that null is
       the budget rule: personal prints come out of the allowance, project ones
@@ -829,7 +829,7 @@ export type ApiPrintRequest = {
   slicedWith: ApiSlicedWith | null
   overrides: Record<string, number | boolean | string> | null
   /** Orca's figures for the plate that was sent. MARK DONE charges the grams,
-      rounded up, unless the officer gives another figure. */
+      to the hundredth, unless the officer gives another figure. */
   estimatedGrams: number | null
   estimatedSeconds: number | null
   /** When it joined the queue. */
@@ -1021,6 +1021,37 @@ export type ApiPrintQueueItem = ApiPrintRequest & {
   allowance: ApiPrintAllowance | null
   /** A sliced plate's .3mf is ready to download, or null when there isn't one. */
   sliceFile: { layers: number | null; filamentMeters: number | null } | null
+}
+
+/**
+ * One finished filament print. `grams` is null when an officer settled it without a figure;
+ * `projectId` is null on a personal print. `filament` is the label a sliced plate was sent with,
+ * or the material an older request was printed in: "PLA", "PETG".
+ */
+export type ApiPrintUsage = {
+  settledAt: string
+  grams: number | null
+  projectId: string | null
+  filament: string
+}
+
+/**
+ * A semester as the filament graph's presets use it: from the moment the term before it ended
+ * to its own last day, so the break before a term counts towards it.
+ */
+export type ApiUsageTerm = {
+  year: number
+  season: Season
+  from: string
+  to: string
+}
+
+/** `GET /api/officer/print-usage`: every finished filament print, oldest first. */
+export type ApiPrintUsageDesk = {
+  terms: { current: ApiUsageTerm; last: ApiUsageTerm }
+  /** Every project one of the prints is for. */
+  projects: { id: string; title: string }[]
+  prints: ApiPrintUsage[]
 }
 
 /**

@@ -1,3 +1,4 @@
+import { roundGrams } from '../printing'
 import { ROLES, type Role } from './preview'
 
 /** Orca's print time, the way the workspace and the queue say it: "2 h 14 min", "9 min". */
@@ -8,8 +9,8 @@ export function duration(seconds: number | null): string {
   return hours > 0 ? `${String(hours)} h ${String(minutes % 60)} min` : `${String(minutes)} min`
 }
 
-/** What MARK DONE charges by default: the estimate in whole grams, rounded up. */
-export const chargedGrams = (estimate: number): number => Math.ceil(estimate)
+/** What MARK DONE charges by default: the estimate to the hundredth of a gram. */
+export const chargedGrams = (estimate: number): number => roundGrams(estimate)
 
 /**
  * Orca's estimate shared out by the filament each kind of path extrudes in the G-code, so the

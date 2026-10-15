@@ -60,6 +60,9 @@ const OfficerPrintQueuePage = lazy(async () => ({
 const OfficerSlicerProfilesPage = lazy(async () => ({
   default: (await import('./pages/officer/OfficerSlicerProfilesPage')).OfficerSlicerProfilesPage,
 }))
+const OfficerPrintUsagePage = lazy(async () => ({
+  default: (await import('./pages/officer/OfficerPrintUsagePage')).OfficerPrintUsagePage,
+}))
 const OfficerProjectsPage = lazy(async () => ({
   default: (await import('./pages/officer/OfficerProjectsPage')).OfficerProjectsPage,
 }))
@@ -207,6 +210,7 @@ function App() {
               {/* Under the queue, like the survey's questions under the survey: the same
                   officers, one rail row, and PRINT QUEUE stays lit while it's open. */}
               <Route path="officer/print/profiles" element={<OfficerSlicerProfilesPage />} />
+              <Route path="officer/print/usage" element={<OfficerPrintUsagePage />} />
               <Route path="officer/equipment" element={<OfficerEquipmentPage />} />
             </Route>
             {/* Dues moved inside the dashboard. This stays because the address is out in

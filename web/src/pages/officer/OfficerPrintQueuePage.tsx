@@ -40,6 +40,7 @@ import {
   isCancel,
   materialsFor,
   plateCount,
+  roundGrams,
   settingsLine,
   slicedLine,
 } from '../../lib/printing'
@@ -175,6 +176,15 @@ interface Draft {
   infillDensity: number | null
 }
 
+/** What's in the USED box, to the hundredth the server keeps, or null when it's empty. */
+const typedGrams = (draft: Draft): number | null =>
+  draft.gramsUsed.trim() === '' ? null : roundGrams(Number(draft.gramsUsed))
+
+/** What MARK DONE would charge: the box, or Orca's estimate when a sliced plate's box is empty. */
+const chargedOn = (request: ApiPrintQueueItem, draft: Draft): number | null =>
+  typedGrams(draft) ??
+  (request.estimatedGrams === null ? null : chargedGrams(request.estimatedGrams))
+
 export function OfficerPrintQueuePage() {
   const { user, membership } = useOutletContext<DashboardContext>()
   const id = useId()
@@ -258,7 +268,7 @@ export function OfficerPrintQueuePage() {
   /** Do it, having asked where asking was warranted. */
   const send = ({ request, status, draft, over, pressed }: Pending) => {
     const officerNote = draft.officerNote.trim()
-    const gramsUsed = draft.gramsUsed.trim() === '' ? null : Number(draft.gramsUsed)
+    const gramsUsed = typedGrams(draft)
 
     // Only when it actually differs. Sending the ask back unchanged would fill
     // the `printed*` columns on every job and lose "was this changed?".
@@ -323,10 +333,8 @@ export function OfficerPrintQueuePage() {
     draft: Draft,
     { pressed, grams }: Origin,
   ) => {
-    const typed = draft.gramsUsed.trim() === '' ? null : Number(draft.gramsUsed)
     // Left empty on a sliced plate, the server charges Orca's estimate; so does this check.
-    const gramsUsed =
-      typed ?? (request.estimatedGrams === null ? null : chargedGrams(request.estimatedGrams))
+    const gramsUsed = chargedOn(request, draft)
 
     if (status === 'DONE' && request.allowance && gramsUsed === null) {
       // Said here rather than let through to the 400, because the officer is
@@ -350,7 +358,7 @@ export function OfficerPrintQueuePage() {
      */
     const over =
       status === 'DONE' && request.allowance && gramsUsed !== null
-        ? gramsUsed - request.allowance.remainingGrams
+        ? roundGrams(gramsUsed - request.allowance.remainingGrams)
         : 0
 
     const terminal = status === 'DONE' || status === 'REJECTED'
@@ -367,9 +375,12 @@ export function OfficerPrintQueuePage() {
       <FormEyebrow>/ MANAGE · PRINT QUEUE</FormEyebrow>
       <FormHeading>3D print queue.</FormHeading>
 
-      <div className="mb-5">
+      <div className="mb-5 flex flex-wrap gap-2.5">
         <Link to="/dashboard/officer/print/profiles" className={quietButton}>
           SLICER PROFILES
+        </Link>
+        <Link to="/dashboard/officer/print/usage" className={quietButton}>
+          FILAMENT USAGE
         </Link>
       </div>
 
@@ -585,8 +596,8 @@ function QueueRow({
   // truth and the `printed*` columns stay null.
   const [draft, setDraft] = useState<Draft>({
     officerNote: request.officerNote ?? '',
-    // A sliced plate's box starts on Orca's estimate, rounded up: MARK DONE with nothing typed
-    // charges exactly that, and the officer can still change it.
+    // A sliced plate's box starts on Orca's estimate: MARK DONE with nothing typed charges exactly
+    // that, and the officer can still change it.
     gramsUsed:
       request.gramsUsed !== null
         ? String(request.gramsUsed)
@@ -614,15 +625,10 @@ function QueueRow({
   const label = STATUS_LABEL[request.status]
   const settled = request.status === 'DONE' || request.status === 'REJECTED'
   const sliced = request.slicedWith !== null
-  const typed =
-    draft.gramsUsed.trim() === ''
-      ? request.estimatedGrams === null
-        ? null
-        : chargedGrams(request.estimatedGrams)
-      : Number(draft.gramsUsed)
+  const typed = chargedOn(request, draft)
   const over =
     request.allowance && typed !== null
-      ? typed - request.allowance.remainingGrams
+      ? roundGrams(typed - request.allowance.remainingGrams)
       : 0
   const field = 'select border-rule bg-base-200 h-8 min-h-8 py-0 text-[12px]'
 
@@ -816,7 +822,8 @@ function QueueRow({
                 type="number"
                 min={0}
                 max={100000}
-                inputMode="numeric"
+                step={0.01}
+                inputMode="decimal"
                 value={draft.gramsUsed}
                 onChange={(event) => {
                   set('gramsUsed', event.target.value)
@@ -827,12 +834,6 @@ function QueueRow({
                 disabled={busy}
               />
             </label>
-            {/* The exact figure, beside the rounded one in the box. */}
-            {request.estimatedGrams !== null && (
-              <span className="text-faint font-mono text-[10px] tracking-[0.12em]">
-                ORCA: {request.estimatedGrams.toFixed(1)} G
-              </span>
-            )}
           </div>
 
           {/* Before the press, not after the 409. The server checks it again
