@@ -93,7 +93,17 @@ const desk = (prints: ApiPrintUsage[] = PRINTS): ApiPrintUsageDesk => ({
   prints,
 })
 
-const summary = () => screen.getByText(/, from \d+ prints?:/)
+/** The four figures over the graph, by label. */
+const figures = () =>
+  Object.fromEntries(
+    ['TOTAL', 'PRINTS', 'PERSONAL', 'PROJECTS'].map((term) => [
+      term,
+      screen.getByText(term, { selector: 'dt' }).nextElementSibling?.textContent,
+    ]),
+  )
+const openWeeks = () => {
+  fireEvent.click(screen.getByText(/TOTALS BY WEEK/))
+}
 const weeks = () => screen.getByRole('table', { name: /per week/i })
 const totalsTable = () => screen.getByRole('table', { name: /filament by/i })
 const totalsNames = () =>
@@ -110,17 +120,22 @@ describe('the filament graph', () => {
     vi.stubGlobal('fetch', stubFetch({ '/officer/print-usage': desk() }))
     renderPage()
 
-    expect(await screen.findByText(/in Fall 2026 so far/)).toHaveTextContent(
-      '42.75 g in Fall 2026 so far, from 3 prints: 12.5 g personal, 30.25 g for projects.',
-    )
+    expect(await screen.findByText('Fall 2026 so far')).toBeInTheDocument()
+    expect(figures()).toEqual({
+      TOTAL: '42.75 g',
+      PRINTS: '3',
+      PERSONAL: '12.5 g',
+      PROJECTS: '30.25 g',
+    })
+    expect(screen.getByText('1 with no grams recorded')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'THIS SEMESTER' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByText(/^Week of /)).toBeInTheDocument()
-    expect(screen.getByText(/1 finished print has no grams recorded/)).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: /filament per week/i })).toBeInTheDocument()
     // FROM and TO show what the preset covers.
     expect(screen.getByLabelText('FROM')).toHaveValue(toDateInput(new Date(ago(60))))
     expect(screen.getByLabelText('TO')).toHaveValue(toDateInput(new Date()))
 
     // Only the weeks that had prints.
+    openWeeks()
     const rows = within(weeks()).getAllByRole('row')
     expect(rows).toHaveLength(2)
     expect(rows[1]).toHaveTextContent('42.75 g')
@@ -130,13 +145,15 @@ describe('the filament graph', () => {
     const stub = stubFetch({ '/officer/print-usage': desk() })
     vi.stubGlobal('fetch', stub)
     renderPage()
-    await screen.findByText(/in Fall 2026 so far/)
+    await screen.findByText('Fall 2026 so far')
 
     fireEvent.click(screen.getByRole('button', { name: 'LAST SEMESTER' }))
-    expect(summary()).toHaveTextContent('20 g in Summer 2026, from 1 print: 20 g personal, 0 g for projects.')
+    expect(screen.getByText('Summer 2026')).toBeInTheDocument()
+    expect(figures()).toEqual({ TOTAL: '20 g', PRINTS: '1', PERSONAL: '20 g', PROJECTS: '0 g' })
 
     fireEvent.click(screen.getByRole('button', { name: 'ALL TIME' }))
-    expect(summary()).toHaveTextContent(/^62\.75 g since .+, from 4 prints:/)
+    expect(screen.getByText(/^Since /)).toBeInTheDocument()
+    expect(figures()).toMatchObject({ TOTAL: '62.75 g', PRINTS: '4' })
 
     expect(stub).toHaveBeenCalledTimes(1)
   })
@@ -144,12 +161,13 @@ describe('the filament graph', () => {
   it('takes a range of its own from FROM and TO', async () => {
     vi.stubGlobal('fetch', stubFetch({ '/officer/print-usage': desk() }))
     renderPage()
-    await screen.findByText(/in Fall 2026 so far/)
+    await screen.findByText('Fall 2026 so far')
 
     const today = toDateInput(new Date())
     fireEvent.change(screen.getByLabelText('FROM'), { target: { value: today } })
 
-    expect(summary()).toHaveTextContent(/^42\.75 g from .+ to .+, from 3 prints:/)
+    expect(screen.getByText(/^\w{3} \d+, \d{4} to \w{3} \d+, \d{4}$/)).toBeInTheDocument()
+    expect(figures()).toMatchObject({ TOTAL: '42.75 g', PRINTS: '3' })
     for (const preset of ['THIS SEMESTER', 'LAST SEMESTER', 'ALL TIME']) {
       expect(screen.getByRole('button', { name: preset })).toHaveAttribute('aria-pressed', 'false')
     }
@@ -164,7 +182,7 @@ describe('the filament graph', () => {
   it('narrows everything to what SHOW and FILAMENT pick', async () => {
     vi.stubGlobal('fetch', stubFetch({ '/officer/print-usage': desk() }))
     renderPage()
-    await screen.findByText(/in Fall 2026 so far/)
+    await screen.findByText('Fall 2026 so far')
     const show = (value: string) => {
       fireEvent.change(screen.getByLabelText('SHOW'), { target: { value } })
     }
@@ -179,18 +197,16 @@ describe('the filament graph', () => {
     ).toEqual(['Any filament', 'PETG', 'PLA'])
 
     show('personal')
-    expect(summary()).toHaveTextContent(
-      '12.5 g in Fall 2026 so far, from 1 print: 12.5 g personal, 0 g for projects.',
-    )
+    expect(figures()).toEqual({ TOTAL: '12.5 g', PRINTS: '1', PERSONAL: '12.5 g', PROJECTS: '0 g' })
     expect(screen.queryByText(/no grams recorded/)).not.toBeInTheDocument()
 
     show('project:rover')
-    expect(summary()).toHaveTextContent(/^30\.25 g in Fall 2026 so far, from 2 prints:/)
-    expect(screen.getByText(/1 finished print has no grams recorded/)).toBeInTheDocument()
+    expect(figures()).toMatchObject({ TOTAL: '30.25 g', PRINTS: '2' })
+    expect(screen.getByText('1 with no grams recorded')).toBeInTheDocument()
 
     show('all')
     filament('PLA')
-    expect(summary()).toHaveTextContent(/^12\.5 g in Fall 2026 so far, from 1 print:/)
+    expect(figures()).toMatchObject({ TOTAL: '12.5 g', PRINTS: '1' })
 
     show('project:rover')
     expect(
@@ -201,7 +217,7 @@ describe('the filament graph', () => {
   it('totals the range by project or filament, and sorts by any column', async () => {
     vi.stubGlobal('fetch', stubFetch({ '/officer/print-usage': desk(WITH_BLIMP) }))
     renderPage()
-    await screen.findByText(/in Fall 2026 so far/)
+    await screen.findByText('Fall 2026 so far')
 
     // Most grams first.
     expect(totalsNames()).toEqual(['Rover', 'Personal prints', 'Blimp'])
@@ -231,33 +247,65 @@ describe('the filament graph', () => {
   it('shows only a row picked in the totals', async () => {
     vi.stubGlobal('fetch', stubFetch({ '/officer/print-usage': desk(WITH_BLIMP) }))
     renderPage()
-    await screen.findByText(/in Fall 2026 so far/)
+    await screen.findByText('Fall 2026 so far')
 
     fireEvent.click(within(totalsTable()).getByRole('button', { name: 'Rover' }))
     expect(screen.getByLabelText('SHOW')).toHaveValue('project:rover')
-    expect(summary()).toHaveTextContent(/^30\.25 g in Fall 2026 so far/)
+    expect(figures()).toMatchObject({ TOTAL: '30.25 g' })
 
     fireEvent.change(screen.getByLabelText('SHOW'), { target: { value: 'all' } })
     fireEvent.click(screen.getByRole('button', { name: 'FILAMENT' }))
     fireEvent.click(within(totalsTable()).getByRole('button', { name: 'PLA' }))
     expect(screen.getByLabelText('FILAMENT')).toHaveValue('PLA')
-    expect(summary()).toHaveTextContent(/^20\.5 g in Fall 2026 so far, from 2 prints:/)
+    expect(figures()).toMatchObject({ TOTAL: '20.5 g', PRINTS: '2' })
   })
 
-  it('reads out another week from the keyboard', async () => {
+  it('shows a week in a tooltip over its column, and moves by keyboard', async () => {
     vi.stubGlobal('fetch', stubFetch({ '/officer/print-usage': desk() }))
     renderPage()
-    await screen.findByText(/in Fall 2026 so far/)
-
-    const readout = screen.getByText(/^Week of /).parentElement!
-    expect(readout).toHaveTextContent('42.75 g · 3 prints')
+    await screen.findByText('Fall 2026 so far')
 
     const chart = screen.getByRole('group', { name: /filament per week/i })
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+
+    fireEvent.focus(chart)
+    const tip = screen.getByRole('tooltip')
+    expect(tip).toHaveTextContent(/^Week of .+42\.75 g3 prints12\.5 g personal, 30\.25 g for projects$/)
+    expect(chart).toHaveAttribute('aria-describedby', tip.id)
+
     fireEvent.keyDown(chart, { key: 'ArrowLeft' })
-    expect(readout).toHaveTextContent('0 g · 0 prints')
+    expect(screen.getByRole('tooltip')).toHaveTextContent(/0 g0 prints$/)
 
     fireEvent.keyDown(chart, { key: 'End' })
-    expect(readout).toHaveTextContent('42.75 g · 3 prints')
+    expect(screen.getByRole('tooltip')).toHaveTextContent('42.75 g3 prints')
+
+    fireEvent.blur(chart)
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+  })
+
+  it('folds the weeks away, then lists them five at a time', async () => {
+    // A print in each of the last seven weeks.
+    const spread: ApiPrintUsage[] = Array.from({ length: 7 }, (_, week) => ({
+      settledAt: ago(week * 7),
+      grams: 10,
+      projectId: null,
+      filament: 'PLA',
+    }))
+    vi.stubGlobal('fetch', stubFetch({ '/officer/print-usage': desk(spread) }))
+    renderPage()
+    await screen.findByText('Fall 2026 so far')
+
+    const fold = screen.getByText(/TOTALS BY WEEK/).closest('details')
+    expect(fold).not.toHaveAttribute('open')
+    expect(fold).toHaveTextContent(/TOTALS BY WEEK\s*7/)
+
+    openWeeks()
+    expect(within(weeks()).getAllByRole('row')).toHaveLength(6)
+
+    fireEvent.click(screen.getByRole('button', { name: 'LOAD MORE' }))
+    expect(within(weeks()).getAllByRole('row')).toHaveLength(8)
+    expect(screen.queryByRole('button', { name: 'LOAD MORE' })).not.toBeInTheDocument()
+    expect(weeks()).toHaveFocus()
   })
 
   it('says when nothing was finished', async () => {

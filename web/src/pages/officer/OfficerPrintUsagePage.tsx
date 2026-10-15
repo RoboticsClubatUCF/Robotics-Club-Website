@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useOutletContext } from 'react-router'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
 import { DuesLocked } from '../../components/dashboard/DuesLocked'
@@ -7,7 +7,7 @@ import { UsageBreakdown } from '../../components/dashboard/UsageBreakdown'
 import { UsageChart } from '../../components/dashboard/UsageChart'
 import { FilterChips } from '../../components/shared/FilterChips'
 import { FormEyebrow, FormHeading, FormPanel, measureClass } from '../../components/shared/formChrome'
-import { quietButton } from '../../components/slicer/slicerChrome'
+import { quietButton, smallQuietButton } from '../../components/slicer/slicerChrome'
 import type { ApiPrintUsageDesk } from '../../lib/api/api'
 import { useApi } from '../../lib/api/useApi'
 import { isOfficer } from '../../lib/auth/session'
@@ -57,8 +57,6 @@ const caption =
 const selectField =
   'select border-rule bg-base-200 h-11 min-h-11 w-auto max-w-[16rem] py-0 text-[13px] wide:h-8 wide:min-h-8'
 
-const printsLabel = (count: number) => (count === 1 ? '1 print' : `${String(count)} prints`)
-
 export function OfficerPrintUsagePage() {
   const { user, membership } = useOutletContext<DashboardContext>()
 
@@ -72,37 +70,37 @@ export function OfficerPrintUsagePage() {
 }
 
 /**
- * The range as dates, and the words for it in "42 g in Fall 2026 so far". A custom range with a
- * missing or backwards date has no dates, only the sentence saying what to fix.
+ * The range as dates, its name over the figures ("Fall 2026 so far") and in the empty state's
+ * sentence ("in Fall 2026 so far"). A custom range with a missing or backwards date has no
+ * dates, only the sentence saying what to fix.
  */
 function resolve(
   range: Range,
   desk: ApiPrintUsageDesk,
   now: Date,
-): { from: Date; to: Date; phrase: string } | { problem: string } {
+): { from: Date; to: Date; label: string; phrase: string } | { problem: string } {
   if (range.kind === 'custom') {
     const from = fromDateInput(range.from)
     const to = fromDateInput(range.to, true)
     if (!from || !to) return { problem: 'Pick a date for FROM and for TO.' }
     if (from > to) return { problem: 'FROM is after TO. Pick an earlier start.' }
-    return {
-      from,
-      // Days still to come would draw as nothing used.
-      to: to > now ? now : to,
-      phrase: `from ${longDate(from.toISOString())} to ${longDate(to.toISOString())}`,
-    }
+    const span = `${longDate(from.toISOString())} to ${longDate(to.toISOString())}`
+    // Days still to come would draw as nothing used.
+    return { from, to: to > now ? now : to, label: span, phrase: `from ${span}` }
   }
   const { current, last } = desk.terms
   if (range.kind === 'this') {
-    return { from: new Date(current.from), to: now, phrase: `in ${termLabel(current)} so far` }
+    const label = `${termLabel(current)} so far`
+    return { from: new Date(current.from), to: now, label, phrase: `in ${label}` }
   }
   if (range.kind === 'last') {
-    return { from: new Date(last.from), to: new Date(last.to), phrase: `in ${termLabel(last)}` }
+    const label = termLabel(last)
+    return { from: new Date(last.from), to: new Date(last.to), label, phrase: `in ${label}` }
   }
   const first = desk.prints[0]?.settledAt
   return first
-    ? { from: new Date(first), to: now, phrase: `since ${longDate(first)}` }
-    : { from: now, to: now, phrase: 'yet' }
+    ? { from: new Date(first), to: now, label: `Since ${longDate(first)}`, phrase: `since ${longDate(first)}` }
+    : { from: now, to: now, label: 'All time', phrase: 'yet' }
 }
 
 /** Its own component so the fetch only happens past the gates above. */
@@ -260,25 +258,13 @@ function Usage() {
             </p>
           ) : (
             <>
-              <p className="text-dim mb-6 text-sm leading-[1.7] text-pretty">
-                <strong className="text-base-content">{grams(sum.total)}</strong> {dates.phrase},
-                from {printsLabel(sum.prints)}: {grams(sum.personal)} personal,{' '}
-                {grams(sum.project)} for projects.
-              </p>
+              <UsageFigures label={dates.label} sum={sum} />
 
               <UsageChart
                 key={`${range.kind}:${fromValue}:${toValue}`}
                 periods={graph.periods}
                 scale={graph.scale}
               />
-
-              {sum.unmeasured > 0 && (
-                <p className="text-faint mt-5 text-[12.5px] leading-[1.6]">
-                  {sum.unmeasured === 1
-                    ? '1 finished print has no grams recorded and isn’t in the graph.'
-                    : `${String(sum.unmeasured)} finished prints have no grams recorded and aren’t in the graph.`}
-                </p>
-              )}
 
               {byWhat && (
                 <UsageBreakdown
@@ -290,13 +276,67 @@ function Usage() {
                 />
               )}
 
-              <UsageTable periods={graph.periods} scale={graph.scale} />
+              <UsageTable
+                key={`${range.kind}:${fromValue}:${toValue}:${show}:${filament}`}
+                periods={graph.periods}
+                scale={graph.scale}
+              />
             </>
           )
         )}
       </FormPanel>
     </>
   )
+}
+
+/**
+ * The range's totals, one figure a cell, ruled the way the landing page's stat strip is. Prints
+ * with no grams are counted in PRINTS and said under it, since no total includes them.
+ */
+function UsageFigures({ label, sum }: { label: string; sum: ReturnType<typeof totals> }) {
+  const figures = [
+    { term: 'TOTAL', value: grams(sum.total), accent: true },
+    {
+      term: 'PRINTS',
+      value: String(sum.prints),
+      note: sum.unmeasured > 0 ? `${String(sum.unmeasured)} with no grams recorded` : undefined,
+    },
+    { term: 'PERSONAL', value: grams(sum.personal) },
+    { term: 'PROJECTS', value: grams(sum.project) },
+  ]
+  return (
+    <section aria-label={label} className="mb-8 max-w-[60rem]">
+      <p className="text-faint mb-2 font-mono text-[10px] font-medium tracking-[0.16em] uppercase">
+        {label}
+      </p>
+      <dl className="bg-rule border-rule grid grid-cols-2 gap-px border wide:grid-cols-4">
+        {figures.map((figure) => (
+          <div key={figure.term} className="bg-base-200 px-4 py-3.5">
+            <dt className="text-faint font-mono text-[10px] font-medium tracking-[0.16em]">
+              {figure.term}
+            </dt>
+            <dd
+              className={`mt-2 text-xl leading-none font-semibold whitespace-nowrap wide:text-2xl ${
+                figure.accent ? 'text-primary' : 'text-base-content'
+              }`}
+            >
+              {figure.value}
+            </dd>
+            {figure.note && (
+              <dd className="text-faint mt-1.5 text-[11.5px] leading-[1.4]">{figure.note}</dd>
+            )}
+          </div>
+        ))}
+      </dl>
+    </section>
+  )
+}
+
+const SCALE_NAME: Record<UsageScale, string> = {
+  day: 'DAY',
+  week: 'WEEK',
+  month: 'MONTH',
+  year: 'YEAR',
 }
 
 const SCALE_HEADING: Record<UsageScale, string> = {
@@ -306,43 +346,83 @@ const SCALE_HEADING: Record<UsageScale, string> = {
   year: 'YEAR',
 }
 
+const PAGE = 5
+
 /**
- * The graph's numbers for the periods that had prints, newest first: what a screen reader gets,
- * and the exact figures.
+ * The graph's numbers for the periods that had prints, newest first: the exact figures, and what
+ * a screen reader gets. Folded away until asked for, then five at a time. Key it by range and
+ * filters, so a new range starts at five again.
  */
 function UsageTable({ periods, scale }: { periods: UsageBucket[]; scale: UsageScale }) {
+  const [count, setCount] = useState(PAGE)
+  const table = useRef<HTMLTableElement>(null)
   const cell = 'text-dim py-2 pl-2 text-right font-mono whitespace-nowrap tabular-nums wide:pl-3'
   const rows = periods.filter((period) => period.prints > 0).reverse()
+
+  const more = () => {
+    setCount((current) => current + PAGE)
+    // The button goes once the last rows are in; focus goes to the table rather than the page.
+    if (count + PAGE >= rows.length) table.current?.focus()
+  }
+
   return (
-    <div className="mt-8 max-w-[44rem] overflow-x-auto">
-      <table className="w-full text-left text-[12px] wide:text-[13px]">
-        <caption className="text-faint mb-2 caption-top text-left font-mono text-[10px] font-medium tracking-[0.16em] uppercase">
-          Filament per {scale}, newest first
-        </caption>
-        <thead>
-          <tr className="border-rule text-faint border-b font-mono text-[10px] tracking-[0.14em]">
-            <th className="py-2 pr-2 font-medium wide:pr-3">{SCALE_HEADING[scale]}</th>
-            {/* On a phone the readout above gives the count, and the other four fit. */}
-            <th className="hidden py-2 pl-2 text-right font-medium wide:table-cell wide:pl-3">PRINTS</th>
-            <th className="py-2 pl-2 text-right font-medium wide:pl-3">PERSONAL</th>
-            <th className="py-2 pl-2 text-right font-medium wide:pl-3">PROJECTS</th>
-            <th className="py-2 pl-2 text-right font-medium wide:pl-3">TOTAL</th>
-          </tr>
-        </thead>
-        <tbody className="divide-rule divide-y">
-          {rows.map((period) => (
-            <tr key={period.start.getTime()}>
-              <th scope="row" className="text-base-content py-2 pr-2 font-normal whitespace-nowrap wide:pr-3">
-                {periodDate(period.start, scale)}
+    <details className="group border-rule mt-8 max-w-[44rem] border-t">
+      <summary className="hover:text-primary text-faint flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 py-3 font-mono text-[10px] font-medium tracking-[0.16em] transition-colors duration-200 marker:content-none wide:min-h-0">
+        <span>
+          TOTALS BY {SCALE_NAME[scale]}
+          <span className="text-dim ml-2 tabular-nums">{rows.length}</span>
+        </span>
+        <span
+          aria-hidden="true"
+          className="text-primary text-base leading-none transition-transform duration-200 group-open:rotate-45"
+        >
+          +
+        </span>
+      </summary>
+
+      <div className="group-open:animate-reveal overflow-x-auto pb-1">
+        <table
+          ref={table}
+          tabIndex={-1}
+          className="focus-visible:outline-primary w-full text-left text-[12px] focus-visible:outline-2 wide:text-[13px]"
+        >
+          <caption className="sr-only">Filament per {scale}, newest first</caption>
+          <thead>
+            <tr className="border-rule text-faint border-b font-mono text-[10px] tracking-[0.14em]">
+              <th className="py-2 pr-2 font-medium wide:pr-3">{SCALE_HEADING[scale]}</th>
+              {/* On a phone the graph's tooltip gives the count, and the other four fit. */}
+              <th className="hidden py-2 pl-2 text-right font-medium wide:table-cell wide:pl-3">
+                PRINTS
               </th>
-              <td className={`${cell} hidden wide:table-cell`}>{period.prints}</td>
-              <td className={cell}>{grams(period.personal)}</td>
-              <td className={cell}>{grams(period.project)}</td>
-              <td className={`${cell} text-base-content`}>{grams(period.total)}</td>
+              <th className="py-2 pl-2 text-right font-medium wide:pl-3">PERSONAL</th>
+              <th className="py-2 pl-2 text-right font-medium wide:pl-3">PROJECTS</th>
+              <th className="py-2 pl-2 text-right font-medium wide:pl-3">TOTAL</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody className="divide-rule divide-y">
+            {rows.slice(0, count).map((period) => (
+              <tr key={period.start.getTime()}>
+                <th
+                  scope="row"
+                  className="text-base-content py-2 pr-2 font-normal whitespace-nowrap wide:pr-3"
+                >
+                  {periodDate(period.start, scale)}
+                </th>
+                <td className={`${cell} hidden wide:table-cell`}>{period.prints}</td>
+                <td className={cell}>{grams(period.personal)}</td>
+                <td className={cell}>{grams(period.project)}</td>
+                <td className={`${cell} text-base-content`}>{grams(period.total)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {count < rows.length && (
+          <button type="button" onClick={more} className={`${smallQuietButton} mt-3`}>
+            LOAD MORE
+          </button>
+        )}
+      </div>
+    </details>
   )
 }

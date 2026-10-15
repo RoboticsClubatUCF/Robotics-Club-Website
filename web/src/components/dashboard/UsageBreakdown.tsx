@@ -55,12 +55,15 @@ export function UsageBreakdown({
         onClick={() => {
           sortBy(key)
         }}
-        className={`hover:text-primary focus-visible:outline-primary min-h-11 cursor-pointer tracking-[0.14em] focus-visible:outline-2 focus-visible:outline-offset-2 wide:min-h-0 ${
+        className={`hover:text-primary focus-visible:outline-primary min-h-11 cursor-pointer tracking-[0.14em] whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2 wide:min-h-0 ${
           sort.key === key ? 'text-base-content' : ''
         }`}
       >
         {label}
-        {sort.key === key && <span aria-hidden="true"> {sort.descending ? '↓' : '↑'}</span>}
+        {/* Always there, so a column doesn't change width when it becomes the sort. */}
+        <span aria-hidden="true" className={`ml-1 ${sort.key === key ? '' : 'invisible'}`}>
+          {sort.key === key && !sort.descending ? '↑' : '↓'}
+        </span>
       </button>
     </th>
   )
