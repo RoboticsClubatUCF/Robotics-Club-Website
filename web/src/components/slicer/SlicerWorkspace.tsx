@@ -16,6 +16,7 @@ import { restingFaces } from '../../lib/slicer/faces'
 import { primeMesh, useMeshes } from '../../lib/slicer/meshes'
 import { autoOrient, layFlat } from '../../lib/slicer/orient'
 import { choiceProblem, defaultChoice, printerOf } from '../../lib/slicer/profiles'
+import { vaseRefusal } from '../../lib/slicer/processSettings'
 import { boxOn, fitOn, sizeOf } from '../../lib/slicer/plate'
 import { type Box, type FitProblem, canonicalQuat } from '../../lib/slicer/plateTransform'
 import { ACCEPTED_MODELS, MeshError, parseStl } from '../../lib/slicer/stl'
@@ -574,6 +575,12 @@ export function WorkspaceView({
 
   const placementWarning = [...problems.entries()][0]
   const overlapping = [...warnings.values()].filter((w) => w === 'overlaps').length
+  // Orca refuses these, or slices something else, and the worker would only say so after a wait.
+  const vase = vaseRefusal(
+    printerOf(workspace.profiles, local.printerId)?.processes.find((p) => p.id === local.processId)?.values ?? {},
+    local.overrides,
+    objects.length,
+  )
   const sliceBlocked = !draft
     ? 'Add a model first.'
     : !editable
@@ -588,7 +595,7 @@ export function WorkspaceView({
               ? 'A STEP file is still converting.'
               : placementWarning
                 ? `${objects.find((o) => o.id === placementWarning[0])?.name ?? 'An object'} ${FIT_PROBLEM[placementWarning[1]]}.`
-                : null
+                : vase
 
   if (plate.load.status !== 'ready') return <Unavailable load={plate.load.status} onRetry={() => void plate.reload()} />
 
@@ -620,6 +627,9 @@ export function WorkspaceView({
           dismiss: () => setBackFromQueue(false),
         }
       : null
+
+  // The status line under the plate says why SLICE PLATE is off, unless a notice is up.
+  const showsBlock = !notice && sliceBlocked !== null && objects.length > 0
 
   const drawerClass = (which: 'settings' | 'objects') =>
     `bg-base-100 border-rule min-h-0 overflow-y-auto ${
@@ -660,7 +670,7 @@ export function WorkspaceView({
             }}
             disabled={!editable || slicing || slicingNow || sliceBlocked !== null}
             title={sliceBlocked ?? undefined}
-            aria-describedby={sliceBlocked ? `${id}-status` : undefined}
+            aria-describedby={showsBlock ? `${id}-status` : undefined}
             className={sliced ? quietButton : loudButton}
           >
             {slicing || slicingNow ? 'SLICING…' : 'SLICE PLATE'}
@@ -807,7 +817,9 @@ export function WorkspaceView({
         className="border-rule bg-base-100 flex h-16 shrink-0 items-start justify-between gap-3 overflow-y-auto border-t px-4 py-2 text-[12.5px] leading-[1.5] wide:h-12"
       >
         <span className={notice ? 'text-base-content' : 'text-dim'}>
-          {notice ? notice.text : !editable ? (
+          {notice ? (
+            notice.text
+          ) : !editable ? (
             <>
               This plate has been sent.{' '}
               <Link to="/dashboard/print" className="text-primary underline underline-offset-2">
@@ -815,7 +827,9 @@ export function WorkspaceView({
               </Link>{' '}
               to change it.
             </>
-          ) : (sliceBlocked && objects.length > 0) ? sliceBlocked : overlapping > 0 ? (
+          ) : showsBlock ? (
+            sliceBlocked
+          ) : overlapping > 0 ? (
             `${String(overlapping)} objects overlap and would print joined. Spread them out or press Arrange.`
           ) : null}
         </span>

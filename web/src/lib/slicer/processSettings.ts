@@ -278,3 +278,35 @@ export const TABS: { key: SettingTab; label: string }[] = [
   { key: 'support', label: 'Support' },
   { key: 'others', label: 'Others' },
 ]
+
+/** What Orca 2.4.2 sets these to in vase mode, whatever the process or the member says. */
+const VASE_FORCES: [key: string, value: SettingValue][] = [
+  ['wall_loops', 1],
+  ['sparse_infill_density', 0],
+  ['top_shell_layers', 0],
+]
+
+/**
+ * Why Orca won't slice this in vase mode, or null: the server's `vaseRefusal`, which the worker and
+ * the SLICE route ask too, run against the same vectors. Orca slices one object, refuses vase mode
+ * with supports on, and forces one wall, no infill and no top, so a member's own value for one of
+ * those can't be what prints. The workspace keeps SLICE PLATE off with this sentence.
+ */
+export function vaseRefusal(
+  process: Record<string, SettingValue>,
+  overrides: ProcessOverrides,
+  copies: number,
+): string | null {
+  const value = (key: string) => overrides[key] ?? process[key]
+  if (value('spiral_mode') !== true) return null
+  if (copies > 1) return 'Vase mode prints one object at a time. Remove the other copies or turn it off.'
+  if (value('enable_support') === true) {
+    return "Vase mode can't have supports. Switch Supports off in the Support tab, or turn Vase mode off."
+  }
+  const names = VASE_FORCES.filter(([key, forced]) => overrides[key] !== undefined && overrides[key] !== forced).map(
+    ([key]) => byKey.get(key)!.label,
+  )
+  if (names.length === 0) return null
+  const list = names.length === 1 ? names[0]! : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]!}`
+  return `Vase mode prints one wall, with no infill or top. Reset ${list}, or turn Vase mode off.`
+}

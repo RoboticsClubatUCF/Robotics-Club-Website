@@ -860,6 +860,26 @@ describe('slicing', () => {
     expect((await submit(replaced)).status).toBe(409)
   })
 
+  it('refuses vase mode Orca won’t slice, saying what to change, before anything is queued', async () => {
+    const draft = await newDraft()
+    const vase = async (revision: number, overrides: Record<string, unknown>) =>
+      (await (
+        await send('PATCH', `/api/print/drafts/${draft.id}`, { revision, overrides })
+      ).json()) as Draft
+
+    // The fixture processes have supports on, like the club's.
+    const supported = await slice(await vase(1, { spiral_mode: true }))
+    expect(supported.status).toBe(409)
+    expect(((await supported.json()) as { error: string }).error).toMatch(/can't have supports/)
+
+    const walls = await slice(await vase(2, { spiral_mode: true, enable_support: false, wall_loops: 4 }))
+    expect(walls.status).toBe(409)
+    expect(((await walls.json()) as { error: string }).error).toContain('Reset Walls')
+    expect(await prisma.printSlice.count({ where: { requestId: draft.id } })).toBe(0)
+
+    expect((await slice(await vase(3, { spiral_mode: true, enable_support: false }))).status).toBe(200)
+  })
+
   it('refuses while another of the member’s plates is slicing', async () => {
     const first = await newDraft()
     const second = await newDraft()

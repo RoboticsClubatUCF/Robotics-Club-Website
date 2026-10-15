@@ -6,6 +6,7 @@ import {
   orcaOverrides,
   processOverrides,
   toOrca,
+  vaseRefusal,
 } from './processSettings.js'
 
 const vectors = JSON.parse(
@@ -20,6 +21,12 @@ const vectors = JSON.parse(
     orca: Record<string, string>
   }[]
   invalid: Record<string, unknown>[]
+  vase: {
+    process: Record<string, number | boolean | string>
+    overrides: Record<string, number | boolean | string>
+    copies: number
+    refusal: string | null
+  }[]
 }
 
 // The same vectors run against web/src/lib/slicer/processSettings.ts, so the workspace and the
@@ -51,5 +58,12 @@ describe('processOverrides', () => {
     const keys = PROCESS_SETTINGS.map((def) => def.key)
     expect(new Set(keys).size).toBe(keys.length)
     expect(keys).not.toContain('nozzle_temperature')
+  })
+})
+
+// The workspace runs the same cases, so it blocks SLICE PLATE with the sentence the worker would give.
+describe('vaseRefusal', () => {
+  it.each(vectors.vase)('$overrides with $copies copies', ({ process, overrides, copies, refusal }) => {
+    expect(vaseRefusal(process, overrides, copies)).toBe(refusal)
   })
 })

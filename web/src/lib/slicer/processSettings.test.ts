@@ -7,6 +7,7 @@ import {
   overridesLine,
   parseOverrides,
   toOrca,
+  vaseRefusal,
 } from './processSettings'
 
 // The same vectors run against server/src/printing/processSettings.ts. CI fails if the two copies
@@ -14,6 +15,12 @@ import {
 const vectors = JSON.parse(raw) as {
   valid: { input: Record<string, unknown>; stored: Record<string, unknown>; orca: Record<string, string> }[]
   invalid: Record<string, unknown>[]
+  vase: {
+    process: Record<string, number | boolean | string>
+    overrides: Record<string, number | boolean | string>
+    copies: number
+    refusal: string | null
+  }[]
 }
 
 describe('parseOverrides', () => {
@@ -32,6 +39,13 @@ describe('parseOverrides', () => {
       const sample = def.kind === 'bool' ? true : def.kind === 'choice' ? def.choices[0]!.value : def.max
       expect(fromOrca(def, toOrca(def, sample))).toEqual(sample)
     }
+  })
+})
+
+// The worker and the SLICE route give the same sentence, so the workspace can say it first.
+describe('vaseRefusal', () => {
+  it.each(vectors.vase)('$overrides with $copies copies', ({ process, overrides, copies, refusal }) => {
+    expect(vaseRefusal(process, overrides, copies)).toBe(refusal)
   })
 })
 

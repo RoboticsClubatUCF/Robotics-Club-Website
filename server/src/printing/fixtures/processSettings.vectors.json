@@ -132,5 +132,176 @@
       "wall_loops": 2,
       "layer_height": null
     }
+  ],
+  "vase": [
+    {
+      "process": {
+        "enable_support": true,
+        "spiral_mode": false,
+        "wall_loops": 2,
+        "sparse_infill_density": 15,
+        "top_shell_layers": 5
+      },
+      "overrides": {},
+      "copies": 3,
+      "refusal": null
+    },
+    {
+      "process": {
+        "enable_support": true,
+        "spiral_mode": false,
+        "wall_loops": 2,
+        "sparse_infill_density": 15,
+        "top_shell_layers": 5
+      },
+      "overrides": {
+        "wall_loops": 4,
+        "enable_support": false
+      },
+      "copies": 1,
+      "refusal": null
+    },
+    {
+      "process": {
+        "enable_support": true,
+        "spiral_mode": false,
+        "wall_loops": 2,
+        "sparse_infill_density": 15,
+        "top_shell_layers": 5
+      },
+      "overrides": {
+        "spiral_mode": true
+      },
+      "copies": 1,
+      "refusal": "Vase mode can't have supports. Switch Supports off in the Support tab, or turn Vase mode off."
+    },
+    {
+      "process": {
+        "enable_support": false,
+        "spiral_mode": false,
+        "wall_loops": 2,
+        "sparse_infill_density": 15,
+        "top_shell_layers": 5
+      },
+      "overrides": {
+        "spiral_mode": true
+      },
+      "copies": 1,
+      "refusal": null
+    },
+    {
+      "process": {
+        "enable_support": true,
+        "spiral_mode": false,
+        "wall_loops": 2,
+        "sparse_infill_density": 15,
+        "top_shell_layers": 5
+      },
+      "overrides": {
+        "spiral_mode": true,
+        "enable_support": false
+      },
+      "copies": 1,
+      "refusal": null
+    },
+    {
+      "process": {
+        "enable_support": true,
+        "spiral_mode": false,
+        "wall_loops": 2,
+        "sparse_infill_density": 15,
+        "top_shell_layers": 5
+      },
+      "overrides": {
+        "spiral_mode": true,
+        "enable_support": false
+      },
+      "copies": 2,
+      "refusal": "Vase mode prints one object at a time. Remove the other copies or turn it off."
+    },
+    {
+      "process": {
+        "enable_support": true,
+        "spiral_mode": false,
+        "wall_loops": 2,
+        "sparse_infill_density": 15,
+        "top_shell_layers": 5
+      },
+      "overrides": {
+        "spiral_mode": true
+      },
+      "copies": 2,
+      "refusal": "Vase mode prints one object at a time. Remove the other copies or turn it off."
+    },
+    {
+      "process": {
+        "enable_support": true,
+        "spiral_mode": false,
+        "wall_loops": 2,
+        "sparse_infill_density": 15,
+        "top_shell_layers": 5
+      },
+      "overrides": {
+        "spiral_mode": true,
+        "enable_support": false,
+        "wall_loops": 4
+      },
+      "copies": 1,
+      "refusal": "Vase mode prints one wall, with no infill or top. Reset Walls, or turn Vase mode off."
+    },
+    {
+      "process": {
+        "enable_support": true,
+        "spiral_mode": false,
+        "wall_loops": 2,
+        "sparse_infill_density": 15,
+        "top_shell_layers": 5
+      },
+      "overrides": {
+        "spiral_mode": true,
+        "enable_support": false,
+        "sparse_infill_density": 50,
+        "raft_layers": 2,
+        "fuzzy_skin": "external"
+      },
+      "copies": 1,
+      "refusal": "Vase mode prints one wall, with no infill or top. Reset Infill density, or turn Vase mode off."
+    },
+    {
+      "process": {
+        "enable_support": true,
+        "spiral_mode": false,
+        "wall_loops": 2,
+        "sparse_infill_density": 15,
+        "top_shell_layers": 5
+      },
+      "overrides": {
+        "spiral_mode": true,
+        "enable_support": false,
+        "wall_loops": 4,
+        "sparse_infill_density": 50,
+        "top_shell_layers": 10
+      },
+      "copies": 1,
+      "refusal": "Vase mode prints one wall, with no infill or top. Reset Walls, Infill density and Top layers, or turn Vase mode off."
+    },
+    {
+      "process": {
+        "enable_support": true,
+        "spiral_mode": false,
+        "wall_loops": 2,
+        "sparse_infill_density": 15,
+        "top_shell_layers": 5
+      },
+      "overrides": {
+        "spiral_mode": true,
+        "enable_support": false,
+        "wall_loops": 1,
+        "sparse_infill_density": 0,
+        "top_shell_layers": 0
+      },
+      "copies": 1,
+      "refusal": null
+    }
   ]
 }

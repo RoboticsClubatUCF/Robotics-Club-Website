@@ -5,7 +5,7 @@ import { ArchiveError, readSlicedProject } from './sliceArchive.js'
 import { PreviewError, buildPreview } from './gcodePreview.js'
 import { type ProjectHeader, readProjectHeader, writeProject } from './orcaProject.js'
 import { type FitProblem, fitProblem, placementAffine } from './plateTransform.js'
-import { orcaOverrides } from './processSettings.js'
+import { orcaOverrides, vaseRefusal } from './processSettings.js'
 import type { SliceProfiles } from './profiles.js'
 import { runProcess } from './runProcess.js'
 import type { ClaimedSlice, SliceOutput } from './sliceJobs.js'
@@ -20,7 +20,9 @@ import { triangleCount, writeBinaryStl } from './stl.js'
  * go into the plate's project, which the second run slices with arranging and orienting off, so
  * every copy stays exactly where the member put it.
  *
- * Every message a member can see is written here. Orca's own output goes to the worker's log.
+ * Every message a member can see is written here, except vase mode's, which the workspace and the
+ * SLICE route give first (`vaseRefusal` in `processSettings.ts`). Orca's own output goes to the
+ * worker's log.
  */
 
 export interface SliceFailure {
@@ -43,7 +45,6 @@ export const FAILURES = {
   tooSlow: 'Slicing took too long. Use fewer copies or a simpler model.',
   needsSupports: 'Part of the model starts in mid-air. Turn supports on or lay it flat.',
   unreadable: "Orca couldn't read one of the models.",
-  vase: 'Vase mode prints one object at a time. Remove the other copies or turn it off.',
   failed: 'Orca refused to slice this plate. Try different settings, or ask an officer.',
   setup: "The slicer isn't set up right. An officer has to look at it.",
 } as const
@@ -250,9 +251,9 @@ export class OrcaRunner {
     const { spec } = job
     const bed = profiles.printer.info.bed
 
-    if (spec.overrides['spiral_mode'] === true && spec.objects.length > 1) {
-      return { failure: FAILURES.vase, retryable: false }
-    }
+    // Orca would refuse it as a broken setup, or slice something other than what was asked.
+    const vase = vaseRefusal(profiles.process.info.values, spec.overrides, spec.objects.length)
+    if (vase) return { failure: vase, retryable: false }
 
     let triangles = 0
     const placed = []

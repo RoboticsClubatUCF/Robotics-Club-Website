@@ -27,12 +27,13 @@ import {
   printStorageBytes,
   storageCapBytes,
 } from '../../printing/printLifecycle.js'
-import { processOverrides } from '../../printing/processSettings.js'
+import { processOverrides, vaseRefusal } from '../../printing/processSettings.js'
 import {
   type PlateChoice,
   checkChoice,
   choiceLabels,
   missingChoice,
+  processInfo,
   slicedWith,
   workspaceProfiles,
 } from '../../printing/profiles.js'
@@ -788,12 +789,19 @@ printDrafts.post(
       if (!spec || spec.objects.length === 0) {
         throw new HTTPException(409, { message: 'Put something on the plate first.' })
       }
-      if (spec.overrides['spiral_mode'] === true && spec.objects.length > 1) {
-        throw new HTTPException(409, {
-          message:
-            'Vase mode prints one object at a time. Remove the other copies or turn it off.',
-        })
-      }
+      // The workspace blocks these first; a stale tab or a direct call still mustn't queue a job
+      // Orca would refuse as a broken setup.
+      const chosen = await tx.slicerProfile.findUnique({
+        where: { id: spec.profiles.process.id },
+        select: { info: true },
+      })
+      const values = processInfo.safeParse(chosen?.info)
+      const vase = vaseRefusal(
+        values.success ? values.data.values : {},
+        spec.overrides,
+        spec.objects.length,
+      )
+      if (vase) throw new HTTPException(409, { message: vase })
       const triangles = new Map(models.map((model) => [model.id, model.triangles ?? 0]))
       const placed = spec.objects.reduce(
         (sum, object) => sum + (triangles.get(object.modelId) ?? 0),

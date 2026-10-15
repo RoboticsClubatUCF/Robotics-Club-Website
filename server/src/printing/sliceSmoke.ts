@@ -18,7 +18,7 @@ import { gunzipSync } from 'fflate'
 import { env } from '../core/env.js'
 import { FAILURES, OrcaRunner, type SliceFailure, orcaVersion } from './orcaRunner.js'
 import { type Placement, placedBox, placementAffine } from './plateTransform.js'
-import type { ProcessOverrides } from './processSettings.js'
+import { type ProcessOverrides, vaseRefusal } from './processSettings.js'
 import { CLUB_BUNDLES, type FILAMENTS, type PROCESSES, clubProfiles, presetsIn } from './clubProfiles.js'
 import { ProfileError, StockProfiles, resolvePreset, sha256 } from './profileResolve.js'
 import { testSlice } from './profileWork.js'
@@ -265,12 +265,45 @@ async function main() {
       name: 'vase mode with two copies',
       material: 'PLA',
       preset: 'STANDARD',
-      overrides: { spiral_mode: true },
+      overrides: { spiral_mode: true, enable_support: false },
       objects: [
         { model: 'cylinder', placement: at(80, 128) },
         { model: 'cylinder', placement: at(160, 128) },
       ],
-      refusal: FAILURES.vase,
+      refusal: vaseRefusal({}, { spiral_mode: true }, 2)!,
+    },
+    // The club's processes have supports on, which Orca refuses with vase mode as a bad setup.
+    {
+      name: 'vase mode with the process’s supports',
+      material: 'PLA',
+      preset: 'STANDARD',
+      overrides: { spiral_mode: true },
+      objects: [{ model: 'cylinder', placement: at(128, 128) }],
+      refusal: vaseRefusal({ enable_support: true }, { spiral_mode: true }, 1)!,
+    },
+    // Orca forces one wall in vase mode, so the sliced file wouldn't have the member's four.
+    {
+      name: 'vase mode with four walls',
+      material: 'PLA',
+      preset: 'Q',
+      overrides: { spiral_mode: true, enable_support: false, wall_loops: 4 },
+      objects: [{ model: 'cylinder', placement: at(128, 128) }],
+      refusal: vaseRefusal({}, { spiral_mode: true, wall_loops: 4 }, 1)!,
+    },
+    // What it allows, Orca slices: the process's own walls, infill and top, and the forced values set.
+    {
+      name: 'vase mode with supports off',
+      material: 'PETG',
+      preset: 'QS',
+      overrides: { spiral_mode: true, enable_support: false, raft_layers: 2, fuzzy_skin: 'external' },
+      objects: [{ model: 'cylinder', placement: at(128, 128) }],
+    },
+    {
+      name: 'vase mode with one wall, no infill and no top set',
+      material: 'PLA',
+      preset: 'STANDARD',
+      overrides: { spiral_mode: true, enable_support: false, wall_loops: 1, sparse_infill_density: 0, top_shell_layers: 0 },
+      objects: [{ model: 'cylinder', placement: at(128, 128) }],
     },
   ]
 
