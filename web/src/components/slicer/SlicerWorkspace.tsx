@@ -17,7 +17,7 @@ import { primeMesh, useMeshes } from '../../lib/slicer/meshes'
 import { autoOrient, layFlat } from '../../lib/slicer/orient'
 import { choiceProblem, defaultChoice, printerOf } from '../../lib/slicer/profiles'
 import { vaseRefusal } from '../../lib/slicer/processSettings'
-import { boxOn, fitOn, sizeOf } from '../../lib/slicer/plate'
+import { boxOn, fitOn, overhangOn, sizeOf } from '../../lib/slicer/plate'
 import { type Box, type FitProblem, canonicalQuat } from '../../lib/slicer/plateTransform'
 import { ACCEPTED_MODELS, MeshError, parseStl } from '../../lib/slicer/stl'
 import type { Role } from '../../lib/slicer/preview'
@@ -43,6 +43,9 @@ const FIT_PROBLEM: Record<FitProblem, string> = {
 }
 
 const IDENTITY = { qx: 0, qy: 0, qz: 0, qw: 1, sx: 1, sy: 1, sz: 1 }
+
+/** Overhang in mm², seen from below, that warns with Supports off. Less is a chamfer's edge or mesh noise. */
+const MIN_OVERHANG = 10
 
 /** How many plate edits Ctrl+Z can step back through. */
 const UNDO_DEPTH = 30
@@ -614,12 +617,31 @@ export function WorkspaceView({
 
   const placementWarning = [...problems.entries()][0]
   const overlapping = [...warnings.values()].filter((w) => w === 'overlaps').length
+  const processValues =
+    printerOf(workspace.profiles, local.printerId)?.processes.find((p) => p.id === local.processId)?.values ?? {}
+  const setting = (key: string) => local.overrides[key] ?? processValues[key]
   // Orca refuses these, or slices something else, and the worker would only say so after a wait.
-  const vase = vaseRefusal(
-    printerOf(workspace.profiles, local.printerId)?.processes.find((p) => p.id === local.processId)?.values ?? {},
-    local.overrides,
-    objects.length,
-  )
+  const vase = vaseRefusal(processValues, local.overrides, objects.length)
+  // Orca slices these, and the overhang prints in mid-air. A warning, not a refusal: somebody may
+  // want the sag, or a short bridge that prints fine.
+  const threshold = Number(setting('support_threshold_angle') ?? 0)
+  const unsupported =
+    setting('enable_support') === false
+      ? objects.filter((object) => {
+          const positions = meshes.get(object.modelId)
+          return positions !== undefined && overhangOn(positions, object, threshold) >= MIN_OVERHANG
+        })
+      : []
+  const plateWarning = [
+    overlapping > 0 ? `${String(overlapping)} objects overlap and would print joined. Spread them out or press Arrange.` : null,
+    unsupported.length === 1
+      ? `Part of ${unsupported[0]!.name} would print in mid-air. Switch Supports on in the Support tab, or turn it.`
+      : unsupported.length > 1
+        ? `Parts of ${String(unsupported.length)} objects would print in mid-air. Switch Supports on in the Support tab, or turn them.`
+        : null,
+  ]
+    .filter((line) => line !== null)
+    .join(' ')
   const sliceBlocked = !draft
     ? 'Add a model first.'
     : !editable
@@ -872,7 +894,7 @@ export function WorkspaceView({
         aria-label="Plate status"
         className="border-rule bg-base-100 flex h-16 shrink-0 items-start justify-between gap-3 overflow-y-auto border-t px-4 py-2 text-[12.5px] leading-[1.5] wide:h-12"
       >
-        <span className={notice ? 'text-base-content' : 'text-dim'}>
+        <span className={notice ? 'text-base-content' : editable && !showsBlock && plateWarning ? 'text-warning' : 'text-dim'}>
           {notice ? (
             notice.text
           ) : !editable ? (
@@ -885,9 +907,9 @@ export function WorkspaceView({
             </>
           ) : showsBlock ? (
             sliceBlocked
-          ) : overlapping > 0 ? (
-            `${String(overlapping)} objects overlap and would print joined. Spread them out or press Arrange.`
-          ) : null}
+          ) : (
+            plateWarning || null
+          )}
         </span>
         {notice && (
           <button
