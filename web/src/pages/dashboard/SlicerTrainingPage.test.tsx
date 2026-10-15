@@ -613,12 +613,13 @@ describe('finishing', () => {
     renderPage(context(false, reload))
 
     fireEvent.click(screen.getByRole('button', { name: 'FINISH THE TRAINING' }))
+    // Progress is stored by an effect after the render, which can land after `reload` is called.
     await waitFor(() => {
       expect(reload).toHaveBeenCalled()
+      expect(readProgress('u1').done).toContain('finish')
     })
     const call = fetch.mock.calls.find((c) => urlOf(c[0]).includes('/print/training'))
     expect(call?.[1]?.method).toBe('POST')
-    expect(readProgress('u1').done).toContain('finish')
   })
 
   it('says so when the server can’t be reached', async () => {
