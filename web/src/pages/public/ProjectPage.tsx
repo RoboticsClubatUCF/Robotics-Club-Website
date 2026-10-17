@@ -315,8 +315,8 @@ function ReadView({
           <ul className="divide-y divide-rule border border-rule">
             {project.members.map((member) => {
               /* Rank, then whatever they typed — and never the club title. This row
-                 used to print `User.title`, the club-wide one nothing in the product
-                 writes, so an officer's "Lab Manager" turned up on a rover roster
+                 used to print `User.title`, the club-wide one meant for `/members`,
+                 so an officer's "Lab Manager" turned up on a rover roster
                  meaning nothing. It printed no rank at all, so the person running the
                  build was indistinguishable from everybody else. `memberLabel` is the
                  one place that order of preference lives. */

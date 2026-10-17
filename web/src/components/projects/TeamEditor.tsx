@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { patchJson } from '../../lib/api/api'
+import { useEffect, useRef, useState } from 'react'
+import { ApiError, patchJson } from '../../lib/api/api'
 import type { ApiProjectDetail, ApiProjectTeamMember } from '../../lib/api/api'
 import { memberLabel } from '../../lib/projects/projectRoles'
 import type { ProjectRoster } from '../../lib/projects/useProjectRoster'
@@ -44,13 +44,16 @@ export function TeamEditor({
    * The typed titles, keyed by user.
    *
    * Held here rather than in the roster, because the roster is the server's answer and this is what
-   * somebody is in the middle of typing. Seeded when the read lands, and only then — seeding from
-   * an empty roster would blank every box the moment it arrived.
+   * somebody is in the middle of typing. Seeded once, when the read lands — seeding from an empty
+   * roster would blank every box the moment it arrived, and re-seeding on every roster change
+   * would wipe a refused row's typing when the rows saved around it move the baseline.
    */
   const [titles, setTitles] = useState<Record<string, string>>({})
+  const seeded = useRef(false)
 
   useEffect(() => {
-    if (!roster.ready) return
+    if (!roster.ready || seeded.current) return
+    seeded.current = true
     setTitles(
       Object.fromEntries(
         roster.members.map((member) => [member.userId, member.title ?? '']),
@@ -65,22 +68,53 @@ export function TeamEditor({
   useSectionSave(registry, 'team', {
     dirty: changed.length > 0,
     save: async () => {
-      for (const member of changed) {
-        await patchJson(`/projects/${project.id}/members/${member.userId}`, {
-          title: (titles[member.userId] ?? '').trim() || null,
-        })
-      }
+      const saved = new Map<string, string | null>()
 
-      // The roster is this section's baseline, so it has to move with the save —
-      // otherwise every box goes on reporting itself as unsaved. Sent up rather
-      // than held here because the documents section reads the same list.
-      onRoster(
-        roster.members.map((member) =>
-          changed.some((row) => row.userId === member.userId)
-            ? { ...member, title: (titles[member.userId] ?? '').trim() || null }
-            : member,
-        ),
-      )
+      try {
+        for (const member of changed) {
+          const title = (titles[member.userId] ?? '').trim() || null
+
+          try {
+            await patchJson(`/projects/${project.id}/members/${member.userId}`, {
+              title,
+            })
+          } catch (error) {
+            // Named, because this saves a row at a time and the server's sentence
+            // ("Lead titles are only for this project's leads.") says what but not
+            // whose.
+            if (error instanceof ApiError && error.detail) {
+              throw new ApiError(error.status, error.message, {
+                cause: error,
+                detail: `${member.fullName} — ${error.detail}`,
+              })
+            }
+            throw error
+          }
+
+          saved.set(member.userId, title)
+        }
+      } finally {
+        // The roster is this section's baseline, so it moves with every row that went
+        // through, refusal or not. Otherwise a saved row edited back to its old value
+        // reads as unchanged and is never re-sent. The box takes the stored, trimmed
+        // value so it matches. Sent up rather than held here because the documents
+        // section reads the same list.
+        if (saved.size > 0) {
+          onRoster(
+            roster.members.map((member) =>
+              saved.has(member.userId)
+                ? { ...member, title: saved.get(member.userId) ?? null }
+                : member,
+            ),
+          )
+          setTitles((held) => ({
+            ...held,
+            ...Object.fromEntries(
+              [...saved].map(([userId, title]) => [userId, title ?? '']),
+            ),
+          }))
+        }
+      }
     },
   })
 
@@ -150,9 +184,8 @@ export function TeamEditor({
       )}
 
       <p className="mt-3 text-[11px] leading-[1.5] text-pretty text-faint">
-        Free text, printed beside the name on the public page. Who leads the project is
-        set by officers on the roles desk, and who leads a team on the project&rsquo;s own
-        manage page.
+        Printed beside the name on the public page. Lead and officer titles need the
+        matching role, which is set on the roles desk and the manage page.
       </p>
     </section>
   )

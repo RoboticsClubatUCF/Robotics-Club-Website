@@ -673,9 +673,10 @@ content.get('/projects/:slug', async (c) => {
          * plus the team's name is what the page draws instead, and it's the one
          * label here that means something.
          *
-         * `User.title` is the club-wide one — "Lab Manager" — written by nothing in
-         * the product. An officer's club seat has no bearing on what they do on
-         * somebody's rover, and printing it beside their name said it did.
+         * `User.title` is the club-wide one, written by the member or an officer for
+         * `/members`. What somebody calls themselves in the club has no bearing on
+         * what they do on somebody's rover, and printing it beside their name said it
+         * did.
          *
          * `ProjectMember.title` stays: project-scoped, free text, grants nothing.
          */

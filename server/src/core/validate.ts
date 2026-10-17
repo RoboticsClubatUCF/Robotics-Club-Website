@@ -231,3 +231,26 @@ export const socialUrl = (max = 300) =>
 
       return url
     })
+
+/**
+ * Format characters: zero-width spaces, soft hyphens, direction overrides. They draw
+ * nothing, so "Le​ad" shows as "Lead" while reading as two words to anything that
+ * checks it. Stripped before a title is checked or stored.
+ */
+export const stripInvisible = (text: string) => text.replace(/\p{Cf}/gu, '')
+
+/**
+ * A title's shape, for both kinds: `User.title`, the line under somebody's name on
+ * `/members` (written on `PATCH /api/account/profile` and the roles desk's
+ * `PATCH /api/officer/members/:id/title`), and `ProjectMember.title`. What it may say is
+ * `membership/titles.ts`. Here rather than in `account.ts` because `officer.ts` importing
+ * that file closes an import cycle through `projectManage.ts`. Blank is null, as a
+ * cleared bio is.
+ */
+export const titleField = z
+  .string()
+  .overwrite(stripInvisible)
+  .trim()
+  .max(80)
+  .nullable()
+  .transform((value) => value || null)

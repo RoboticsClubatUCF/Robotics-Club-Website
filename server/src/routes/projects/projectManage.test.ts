@@ -105,6 +105,11 @@ const clearRows = async () => {
     })
   }
 
+  // Terms before their people: `userId` is `SetNull`, and an orphaned closed term would
+  // land on the public archive. The past-seat title case makes one.
+  await prisma.officerTerm.deleteMany({
+    where: { user: { email: { startsWith: PREFIX } } },
+  })
   await prisma.user.deleteMany({ where: { email: { startsWith: PREFIX } } })
 }
 
@@ -2147,16 +2152,157 @@ describe("a member's display title", () => {
   })
 
   it('is set by the lead and read back off the roster', async () => {
-    const response = await patch({ title: 'Software Lead' })
+    const response = await patch({ title: 'Chassis Wiring' })
 
     expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({ title: 'Software Lead' })
+    expect(await response.json()).toMatchObject({ title: 'Chassis Wiring' })
 
     const team = await request('GET', `/api/projects/${projectId}/team`, leadCookie)
     const body = (await team.json()) as { members: { userId: string; title: string | null }[] }
     expect(body.members.find((m) => m.userId === paidId)?.title).toBe(
-      'Software Lead',
+      'Chassis Wiring',
     )
+  })
+
+  const storedTitle = async (userId = paidId) =>
+    (
+      await prisma.projectMember.findUniqueOrThrow({
+        where: { projectId_userId: { projectId, userId } },
+      })
+    ).title
+
+  /** The roster prints a plain member's title where a lead's rank would go, so a
+      "Lead" there would read as one. */
+  it('refuses a lead title to a plain member', async () => {
+    const response = await patch({ title: 'Software Lead' })
+
+    expect(response.status).toBe(400)
+    expect(await storedTitle()).toBeNull()
+  })
+
+  it('allows it in the same write that makes them team lead', async () => {
+    const team = await prisma.team.create({
+      data: { projectId, name: 'Software' },
+      select: { id: true },
+    })
+
+    const response = await patch({
+      teamId: team.id,
+      rank: 'TEAM_LEAD',
+      title: 'Software Lead',
+    })
+
+    expect(response.status).toBe(200)
+    expect(await storedTitle()).toBe('Software Lead')
+  })
+
+  it('refuses an office to anybody not on the board', async () => {
+    expect((await patch({ title: 'Treasurer' })).status).toBe(400)
+
+    await prisma.projectMember.create({ data: { projectId, userId: officerId } })
+    const officerRow = await request(
+      'PATCH',
+      `/api/projects/${projectId}/members/${officerId}`,
+      leadCookie,
+      { title: 'Treasurer' },
+    )
+    expect(officerRow.status).toBe(200)
+    expect(await storedTitle(officerId)).toBe('Treasurer')
+  })
+
+  it('refuses an obscene title', async () => {
+    expect((await patch({ title: 'fvck it' })).status).toBe(400)
+    expect(await storedTitle()).toBeNull()
+  })
+
+  /** A past seat is allowed as a club title on /members, not on a project's roster. */
+  it('refuses a former officer their past seat here', async () => {
+    await prisma.officerTerm.create({
+      data: {
+        userId: paidId,
+        fullName: 'PM Paid',
+        position: 'TREASURER',
+        source: 'MANUAL',
+        startedAt: new Date('2022-08-20T00:00:00.000Z'),
+        endedAt: new Date('2023-05-05T00:00:00.000Z'),
+      },
+    })
+
+    expect((await patch({ title: 'Treasurer, 2022–2023' })).status).toBe(400)
+  })
+
+  /** Otherwise promote, name, demote leaves a plain member carrying "Software Lead". */
+  it('takes a lead title away with the rank', async () => {
+    const team = await prisma.team.create({
+      data: { projectId, name: 'Software' },
+      select: { id: true },
+    })
+    await patch({ teamId: team.id, rank: 'TEAM_LEAD', title: 'Software Lead' })
+
+    const response = await patch({ rank: 'MEMBER' })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ rank: 'MEMBER', title: null })
+    expect(await storedTitle()).toBeNull()
+  })
+
+  it('keeps a title that claims nothing when the rank goes', async () => {
+    const team = await prisma.team.create({
+      data: { projectId, name: 'Software' },
+      select: { id: true },
+    })
+    await patch({ teamId: team.id, rank: 'TEAM_LEAD', title: 'Wiring' })
+    await patch({ rank: 'MEMBER' })
+
+    expect(await storedTitle()).toBe('Wiring')
+  })
+
+  it('takes it away when the team goes, too', async () => {
+    const team = await prisma.team.create({
+      data: { projectId, name: 'Software' },
+      select: { id: true },
+    })
+    await patch({ teamId: team.id, rank: 'TEAM_LEAD', title: 'Software Lead' })
+
+    const response = await request('DELETE', `/api/teams/${team.id}`, leadCookie)
+
+    expect(response.status).toBe(200)
+    expect(await storedTitle()).toBeNull()
+  })
+
+  it('takes it away when an officer stands a lead down', async () => {
+    await request(
+      'PATCH',
+      `/api/projects/${projectId}/members/${leadId}`,
+      leadCookie,
+      { title: 'Rover Lead' },
+    )
+
+    const response = await request(
+      'PATCH',
+      `/api/officer/projects/${projectId}/members/${leadId}/rank`,
+      officerCookie,
+      { rank: 'MEMBER' },
+    )
+
+    expect(response.status).toBe(200)
+    expect(await storedTitle(leadId)).toBeNull()
+  })
+
+  /** Their rank and team stay the officers'. Their own title box in the editor doesn't. */
+  it("lets the lead set their own title, and still not their rank", async () => {
+    const ownRow = (body: unknown) =>
+      request(
+        'PATCH',
+        `/api/projects/${projectId}/members/${leadId}`,
+        leadCookie,
+        body,
+      )
+
+    expect((await ownRow({ title: 'Rover Lead' })).status).toBe(200)
+    expect(await storedTitle(leadId)).toBe('Rover Lead')
+    expect((await ownRow({ rank: 'MEMBER' })).status).toBe(403)
+    expect((await ownRow({ rank: 'MEMBER', title: 'Rover Lead' })).status).toBe(403)
   })
 
   it('ignores the old `role` key rather than storing it', async () => {

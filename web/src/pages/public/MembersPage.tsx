@@ -253,8 +253,10 @@ function MemberCard({
           {member.fullName}
         </div>
 
+        {/* Members write this themselves, so a long word with no spaces in it has to
+            break inside a 166px phone card rather than run under the next one. */}
         {member.title && (
-          <div className="text-dim mt-1.5 text-[13px] leading-snug">
+          <div className="text-dim mt-1.5 text-[13px] leading-snug wrap-anywhere">
             {member.title}
           </div>
         )}

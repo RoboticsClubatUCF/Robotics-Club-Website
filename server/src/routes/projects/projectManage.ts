@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
-import { validate, webUrl } from '../../core/validate.js'
+import { titleField, validate, webUrl } from '../../core/validate.js'
 import {
   isOfficer,
   membershipOf,
@@ -49,6 +49,12 @@ import {
   startOfCampusDay,
 } from '../../projects/meetings.js'
 import { getTerm } from '../../membership/semester.js'
+import {
+  clearLapsedLeadTitles,
+  isLeadRank,
+  leadTitleLapses,
+  projectTitleProblem,
+} from '../../membership/titles.js'
 import { TERM_PAIRED, termFields, termsAgree } from '../../projects/projectTerm.js'
 import { rateLimit } from '../../core/rateLimit.js'
 import {
@@ -1591,6 +1597,11 @@ projectManage.delete(
     prisma.team.delete({ where: { id: team.id } }),
   ])
 
+  await clearLapsedLeadTitles(
+    team.projectId,
+    demoted.map((member) => member.userId),
+  )
+
   pushRolesFor(
     demoted.map((member) => member.userId),
     `${team.name} was deleted`,
@@ -1618,7 +1629,7 @@ projectManage.delete(
 const editMember = z.object({
   teamId: z.uuid().nullable().optional(),
   rank: z.enum([ProjectMemberRank.TEAM_LEAD, ProjectMemberRank.MEMBER]).optional(),
-  title: z.string().trim().max(80).nullable().optional(),
+  title: titleField.optional(),
 })
 
 projectManage.patch(
@@ -1638,7 +1649,16 @@ projectManage.patch(
       throw new HTTPException(404, { message: 'They are not on this project.' })
     }
 
-    if (target.rank === ProjectMemberRank.PROJECT_LEAD) {
+    // A lead's team and rank are the officers' to change, and nobody else's row is
+    // another lead's to touch. Their own title is theirs: it's the one box on their row
+    // in the project editor, and refusing it failed that editor's whole SAVE.
+    const caller = c.get('user')
+    if (
+      target.rank === ProjectMemberRank.PROJECT_LEAD &&
+      (patch.rank !== undefined ||
+        patch.teamId !== undefined ||
+        (userId !== caller.id && !isOfficer(caller)))
+    ) {
       throw new HTTPException(403, {
         message: 'Project leads are appointed and changed by officers.',
       })
@@ -1670,9 +1690,36 @@ projectManage.patch(
       })
     }
 
+    // Against the rank they'll hold after this write, so promoting somebody and naming
+    // them "Software Lead" can go in one patch.
+    if (patch.title !== undefined) {
+      const problem = await projectTitleProblem(
+        userId,
+        resulting.rank,
+        patch.title,
+      )
+      if (problem) throw new HTTPException(400, { message: problem })
+    }
+
+    // A demotion takes a lead title with it, in the same write. Otherwise promoting
+    // somebody, naming them "Software Lead" and demoting them again leaves a plain
+    // member carrying it.
+    let data: typeof patch = patch
+    if (
+      patch.title === undefined &&
+      isLeadRank(target.rank) &&
+      !isLeadRank(resulting.rank)
+    ) {
+      const { title } = await prisma.projectMember.findUniqueOrThrow({
+        where: { projectId_userId: { projectId: project.id, userId } },
+        select: { title: true },
+      })
+      if (await leadTitleLapses(userId, title)) data = { ...patch, title: null }
+    }
+
     const membership = await prisma.projectMember.update({
       where: { projectId_userId: { projectId: project.id, userId } },
-      data: patch,
+      data,
       select: { userId: true, title: true, rank: true, teamId: true },
     })
 
