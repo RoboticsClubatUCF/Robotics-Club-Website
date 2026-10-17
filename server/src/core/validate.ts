@@ -231,3 +231,17 @@ export const socialUrl = (max = 300) =>
 
       return url
     })
+
+/**
+ * `User.title`, the line under somebody's name on `/members`. Free text that grants
+ * nothing, so it's the member's own to write on `PATCH /api/account/profile`; an officer
+ * can overwrite or clear it with `PATCH /api/officer/members/:id/title`. Here rather than
+ * in `account.ts` because `officer.ts` importing that file closes an import cycle through
+ * `projectManage.ts`. Blank is null, as a cleared bio is.
+ */
+export const titleField = z
+  .string()
+  .trim()
+  .max(80)
+  .nullable()
+  .transform((value) => value || null)

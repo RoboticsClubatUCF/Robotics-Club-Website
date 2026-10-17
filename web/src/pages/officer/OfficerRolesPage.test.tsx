@@ -93,6 +93,7 @@ const ROWAN = {
   discordUsername: null,
   role: 'MEMBER' as const,
   duesPaidThrough: null,
+  title: null as string | null,
 }
 
 const TEAM_VIEW = {
@@ -134,6 +135,16 @@ function stubDesk(over: Record<string, unknown> = {}) {
           member: { id: 'u2', fullName: 'Rowan Chen' },
           paidThrough: '2035-12-14T04:59:59.999Z',
           status: 'ACTIVE',
+        })
+      )
+    }
+    if (url.endsWith('/title')) {
+      return (
+        (over.title as Promise<Response> | undefined) ??
+        json({
+          id: 'u2',
+          fullName: 'Rowan Chen',
+          title: (bodyOf(init) as { title: string | null }).title,
         })
       )
     }
@@ -259,6 +270,9 @@ const leadPanel = () =>
 
 const teamPanel = () =>
   within(screen.getByText('APPOINT OR STAND DOWN A TEAM LEAD').closest('div')!)
+
+const titlePanel = () =>
+  within(screen.getByText('SET OR CLEAR A TITLE').closest('div')!)
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -390,6 +404,138 @@ describe('granting a membership', () => {
     expect(
       screen.getByText(/Rowan Chen is covered through December 13, 2035/),
     ).toBeInTheDocument()
+  })
+})
+
+describe('setting a title', () => {
+  /** `query` varies when a case picks twice: the box keeps what was typed, and a
+      change to the same value is no change to React. */
+  const pick = async (query = 'rowan') => {
+    fireEvent.change(titlePanel().getByLabelText('WHOSE TITLE'), {
+      target: { value: query },
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400)
+    })
+    fireEvent.click(titlePanel().getByRole('button', { name: /Rowan Chen/ }))
+  }
+
+  const titleCalls = (fetchMock: ReturnType<typeof stubDesk>) =>
+    fetchMock.mock.calls.filter(([input]) => urlOf(input).endsWith('/title'))
+
+  /** The form, not SAVE TITLE: jsdom doesn't carry a submit button's click to it.
+      It's also what Enter in the box does. */
+  const submit = async () => {
+    await act(async () => {
+      fireEvent.submit(titlePanel().getByLabelText('TITLE').closest('form')!)
+      await vi.advanceTimersByTimeAsync(0)
+    })
+  }
+
+  it('starts from their title and sends the trimmed edit', async () => {
+    vi.useFakeTimers()
+    const fetchMock = stubDesk({ member: { ...ROWAN, title: 'Self-Appointed Overlord' } })
+    vi.stubGlobal('fetch', fetchMock)
+    renderPage()
+
+    await pick()
+    const box = titlePanel().getByLabelText('TITLE')
+    expect(box).toHaveValue('Self-Appointed Overlord')
+    // Picking lands the keyboard in the box, the next thing to type in.
+    expect(box).toHaveFocus()
+
+    fireEvent.change(box, { target: { value: ' Rover Lead ' } })
+    await submit()
+
+    const [[input, init]] = titleCalls(fetchMock)
+    expect(urlOf(input)).toContain('/officer/members/u2/title')
+    expect(init?.method).toBe('PATCH')
+    expect(bodyOf(init)).toEqual({ title: 'Rover Lead' })
+    expect(
+      screen.getByText("Rowan Chen's title is now “Rover Lead”."),
+    ).toBeInTheDocument()
+    // Still picked, showing what was saved, and the keyboard is left in the box
+    // rather than on the page behind a button that just went disabled.
+    expect(box).toHaveValue('Rover Lead')
+    expect(box).toHaveFocus()
+    expect(titlePanel().getByRole('button', { name: 'SAVE TITLE' })).toBeDisabled()
+  })
+
+  it('clears it with null', async () => {
+    vi.useFakeTimers()
+    const fetchMock = stubDesk({ member: { ...ROWAN, title: 'Self-Appointed Overlord' } })
+    vi.stubGlobal('fetch', fetchMock)
+    renderPage()
+
+    await pick()
+    await act(async () => {
+      fireEvent.click(titlePanel().getByRole('button', { name: 'CLEAR IT' }))
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    expect(bodyOf(titleCalls(fetchMock)[0][1])).toEqual({ title: null })
+    expect(screen.getByText('Rowan Chen has no title now.')).toBeInTheDocument()
+  })
+
+  it('offers neither button until something would change', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', stubDesk())
+    renderPage()
+
+    expect(titlePanel().getByRole('button', { name: 'SAVE TITLE' })).toBeDisabled()
+
+    await pick()
+
+    // Nobody has a title yet, so there's nothing to clear and nothing typed to save.
+    expect(titlePanel().getByRole('button', { name: 'SAVE TITLE' })).toBeDisabled()
+    expect(titlePanel().getByRole('button', { name: 'CLEAR IT' })).toBeDisabled()
+  })
+
+  it('sends nothing when Enter is pressed on an unchanged title', async () => {
+    vi.useFakeTimers()
+    const fetchMock = stubDesk({ member: { ...ROWAN, title: 'Self-Appointed Overlord' } })
+    vi.stubGlobal('fetch', fetchMock)
+    renderPage()
+
+    await pick()
+    await submit()
+
+    expect(titleCalls(fetchMock)).toHaveLength(0)
+  })
+
+  it('drops the last status line when somebody else is picked', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', stubDesk({ member: { ...ROWAN, title: 'Self-Appointed Overlord' } }))
+    renderPage()
+
+    await pick()
+    await act(async () => {
+      fireEvent.click(titlePanel().getByRole('button', { name: 'CLEAR IT' }))
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(screen.getByText('Rowan Chen has no title now.')).toBeInTheDocument()
+
+    fireEvent.click(titlePanel().getByRole('button', { name: 'CHANGE' }))
+    await pick('chen')
+
+    expect(screen.queryByText('Rowan Chen has no title now.')).not.toBeInTheDocument()
+  })
+
+  it('prints the server’s refusal', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal(
+      'fetch',
+      stubDesk({ title: json({ error: 'No such member' }, 404) }),
+    )
+    renderPage()
+
+    await pick()
+    fireEvent.change(titlePanel().getByLabelText('TITLE'), {
+      target: { value: 'Rover Lead' },
+    })
+    await submit()
+
+    expect(titlePanel().getByText('No such member')).toBeInTheDocument()
   })
 })
 

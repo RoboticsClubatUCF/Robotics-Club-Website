@@ -3,7 +3,7 @@ import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
-import { socialUrl, validate } from '../../core/validate.js'
+import { socialUrl, titleField, validate } from '../../core/validate.js'
 import { prisma } from '../../core/db.js'
 import { heldFileIds } from '../../printing/printLifecycle.js'
 import { checkDiscordHandle, isHandleShaped, normaliseHandle } from '../../discord/discord.js'
@@ -30,7 +30,7 @@ import { DISCORD_TAKEN, handleStatus, uniqueConflict } from './signup.js'
  * The account, as its owner manages it.
  *
  *   GET    /api/account                -> the editable profile
- *   PATCH  /api/account/profile        { fullName?, bio?, gradYear? }
+ *   PATCH  /api/account/profile        { fullName?, bio?, gradYear?, title? }
  *   PATCH  /api/account/profile-link   { profileUrl }       -> { profileUrl }
  *   POST   /api/account/discord-check  { discordUsername }  -> { status }
  *   POST   /api/account/discord        { discordUsername }  -> { user }
@@ -117,6 +117,7 @@ const profileSelect = {
   photoZoom: true,
   bio: true,
   gradYear: true,
+  title: true,
   profileUrl: true,
   acknowledgementAcceptedAt: true,
 } as const
@@ -181,6 +182,9 @@ account.patch(
         .nullable()
         .transform((value) => value || null),
       gradYear: gradYearField.nullable(),
+      /** Optional so a tab still holding the bundle from before the field existed
+          saves the other three rather than failing. */
+      title: titleField.optional(),
     }),
   ),
   async (c) => {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
 import { DuesLocked } from '../../components/dashboard/DuesLocked'
@@ -62,15 +62,16 @@ export function OfficerRolesPage() {
       <FormEyebrow>/ MANAGE · ROLES</FormEyebrow>
       <FormHeading>Who runs what.</FormHeading>
 
-      {/* Four decisions of the same shape, and an officer opens this page to make one
+      {/* Five decisions of the same shape, and an officer opens this page to make one
           of them — they aren't steps. Side by side wherever there's room, so appointing
           a lead doesn't mean scrolling past the board. `items-start`: the seat panel is
-          eight chairs and a checklist, the three around it are a picker and two buttons. */}
+          eight chairs and a checklist, the ones around it are a picker and two buttons. */}
       <div className="grid-fluid items-start gap-5 [--col-min:29rem]">
         <GrantMembership />
         <OfficerSeats />
         <AppointLead />
         <AppointTeamLead />
+        <SetTitle />
       </div>
     </>
   )
@@ -81,8 +82,10 @@ const panelLabel =
 const selectClass = 'select border-rule bg-base-200 w-full text-sm'
 const primaryButton =
   'btn btn-primary btn-cta px-5 py-2.5 text-[12px] font-semibold disabled:opacity-60'
+/* The `disabled:` colours undo `text-base-content`, which otherwise beats DaisyUI's own
+   disabled look and leaves a dead button reading as a live one. */
 const secondaryButton =
-  'btn btn-outline h-auto min-h-0 border-base-content/28 px-5 py-2.5 text-[12px] font-semibold text-base-content hover:border-base-content hover:bg-base-content/6 hover:text-base-content disabled:opacity-60'
+  'btn btn-outline h-auto min-h-0 border-base-content/28 px-5 py-2.5 text-[12px] font-semibold text-base-content hover:border-base-content hover:bg-base-content/6 hover:text-base-content disabled:opacity-60 disabled:border-base-content/15 disabled:text-base-content/40 disabled:cursor-default'
 
 const explain = (error: unknown) =>
   explainApiError(error, {
@@ -92,10 +95,11 @@ const explain = (error: unknown) =>
 type Message = { tone: 'error' | 'success'; text: string } | null
 
 /** The one status line every panel here renders, always present so nothing
-    below it moves when it fills. */
+    below it moves when it fills. `wrap-anywhere` because it can quote a title
+    somebody typed with no spaces in it. */
 function Status({ message }: { message: Message }) {
   return (
-    <p role="status" className="min-h-4 text-[13px]">
+    <p role="status" className="min-h-4 text-[13px] wrap-anywhere">
       {message && (
         <span
           className={message.tone === 'error' ? 'text-error' : 'text-success'}
@@ -399,6 +403,141 @@ function GrantMembership() {
           </p>
         </ConfirmDialog>
       )}
+    </FormPanel>
+  )
+}
+
+/**
+ * Overwriting or clearing the line under somebody's name on `/members`.
+ *
+ * Members write their own on the profile page and this writes the same column, so it's a
+ * correction rather than a lock: they can change it again. The box starts from what they
+ * have, so fixing a typo isn't retyping the rest.
+ */
+function SetTitle() {
+  const id = useId()
+  const box = useRef<HTMLInputElement>(null)
+  const [member, setMember] = useState<ApiOfficerMember | null>(null)
+  const [title, setTitle] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<Message>(null)
+
+  const pick = (picked: ApiOfficerMember | null) => {
+    setMember(picked)
+    setTitle(picked?.title ?? '')
+  }
+
+  // Once somebody is picked their box is the next thing to type in. It was disabled a
+  // moment ago, so it can only take focus after it has rendered enabled.
+  const pickedId = member?.id
+  useEffect(() => {
+    if (pickedId) box.current?.focus()
+  }, [pickedId])
+
+  const save = (next: string | null) => {
+    if (!member || busy) return
+
+    setBusy(true)
+    setMessage(null)
+
+    patchJson<{ title: string | null }>(`/officer/members/${member.id}/title`, {
+      title: next,
+    })
+      .then((result) => {
+        setMessage({
+          tone: 'success',
+          text:
+            result.title === null
+              ? `${member.fullName} has no title now.`
+              : `${member.fullName}'s title is now “${result.title}”.`,
+        })
+        // They stay picked, with what was saved in the box. The button pressed is
+        // disabled now, so focus goes back to the box rather than to the page.
+        pick({ ...member, title: result.title })
+        box.current?.focus()
+      })
+      .catch((error: unknown) => {
+        setMessage({ tone: 'error', text: explain(error) })
+        box.current?.focus()
+      })
+      .finally(() => {
+        setBusy(false)
+      })
+  }
+
+  const unchanged = member !== null && title.trim() === (member.title ?? '')
+
+  return (
+    <FormPanel>
+      <p className={panelLabel}>SET OR CLEAR A TITLE</p>
+      <p className="text-dim mb-4 text-[13px] leading-[1.6] text-pretty">
+        The line under somebody&rsquo;s name on the public roster. Members write
+        their own; this overwrites it.
+      </p>
+
+      <div className="space-y-4">
+        <MemberSearch
+          picked={member}
+          onPick={(picked) => {
+            // A line about the last person shouldn't sit under the next one's box.
+            setMessage(null)
+            pick(picked)
+          }}
+          disabled={busy}
+          label="WHOSE TITLE"
+        />
+
+        {/* A form so Enter in the box saves, as it does on the profile page. */}
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (!unchanged) save(title.trim() || null)
+          }}
+        >
+          <div>
+            <label htmlFor={`${id}-title`} className={labelClass}>
+              TITLE
+            </label>
+            {/* Not disabled while a save is out: a disabled box can't take the focus
+                the save hands back to it. */}
+            <input
+              ref={box}
+              id={`${id}-title`}
+              type="text"
+              maxLength={80}
+              value={title}
+              disabled={!member}
+              onChange={(event) => {
+                setTitle(event.target.value)
+              }}
+              className={fieldClass}
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="submit"
+              disabled={busy || !member || unchanged}
+              className={primaryButton}
+            >
+              SAVE TITLE
+            </button>
+            <button
+              type="button"
+              disabled={busy || !member || member.title === null}
+              onClick={() => {
+                save(null)
+              }}
+              className={secondaryButton}
+            >
+              CLEAR IT
+            </button>
+          </div>
+        </form>
+
+        <Status message={message} />
+      </div>
     </FormPanel>
   )
 }

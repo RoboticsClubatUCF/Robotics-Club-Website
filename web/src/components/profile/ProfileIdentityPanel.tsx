@@ -12,13 +12,14 @@ import {
 } from './profileChrome'
 
 /**
- * Name, bio and graduation year — one form and one save, because they are one thought. Somebody
- * updating their year has usually just changed their bio too.
+ * Name, title, bio and graduation year — one form and one save, because they are one thought.
+ * Somebody updating their year has usually just changed their bio too.
  *
- * All three appear on the public roster, which is why they are the member's own to edit — and since
- * that page lists every account, everybody editing this is already on it. The two that are not here
- * are `title` and `slug`: a club title is the board's to award, and a slug gives somebody a profile
- * page of their own. Neither is a fact about themselves that they are best placed to state.
+ * All four appear on the public roster, which is why they are the member's own to edit — and since
+ * that page lists every account, everybody editing this is already on it. The title is free text
+ * that grants nothing, and an officer can overwrite or clear it from the roles desk; a seat on the
+ * board is a separate fact on the officer term. The one that is not here is `slug`, which gives
+ * somebody a profile page of their own and isn't theirs to state.
  */
 export function ProfileIdentityPanel({
   account,
@@ -31,6 +32,7 @@ export function ProfileIdentityPanel({
   const id = useId()
 
   const [fullName, setFullName] = useState(account.fullName)
+  const [title, setTitle] = useState(account.title ?? '')
   const [bio, setBio] = useState(account.bio ?? '')
   const [gradYear, setGradYear] = useState(
     account.gradYear === null ? '' : String(account.gradYear),
@@ -47,6 +49,9 @@ export function ProfileIdentityPanel({
 
     patchJson<ApiAccountUser>('/account/profile', {
       fullName: fullName.trim(),
+      // Only when they changed it. A tab opened before an officer cleared or
+      // replaced it would otherwise put the old one back on a bio fix.
+      ...(title.trim() === (account.title ?? '') ? {} : { title: title.trim() }),
       bio: bio.trim(),
       // An empty field is "no answer", not a year. `null` is what the column
       // holds for everybody who has never said.
@@ -59,6 +64,7 @@ export function ProfileIdentityPanel({
         adopt(user)
         onSaved({
           fullName: user.fullName,
+          title: title.trim() || null,
           bio: bio.trim() || null,
           gradYear: gradYear.trim() === '' ? null : Number(gradYear),
         })
@@ -95,6 +101,27 @@ export function ProfileIdentityPanel({
           <p className={`${noteClass} mt-1.5`}>
             What the roster, your projects and the club&rsquo;s messages call
             you.
+          </p>
+        </div>
+
+        <div>
+          <label htmlFor={`${id}-title`} className={labelClass}>
+            TITLE
+          </label>
+          <input
+            id={`${id}-title`}
+            name="title"
+            type="text"
+            maxLength={80}
+            value={title}
+            onChange={(event) => {
+              setTitle(event.target.value)
+            }}
+            className={fieldClass}
+          />
+          <p className={`${noteClass} mt-1.5`}>
+            Up to 80 characters, shown under your name on the public roster.
+            Officers can change it.
           </p>
         </div>
 
