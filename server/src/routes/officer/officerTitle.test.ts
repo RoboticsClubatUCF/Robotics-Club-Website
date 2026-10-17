@@ -34,8 +34,10 @@ const PAID_THROUGH = new Date(2099, 11, 31)
 const clearWindows = () =>
   prisma.rateLimit.deleteMany({ where: { key: { startsWith: 'officer:' } } })
 
-const clearRows = () =>
-  prisma.user.deleteMany({ where: { email: { startsWith: PREFIX } } })
+const clearRows = async () => {
+  await prisma.project.deleteMany({ where: { slug: { startsWith: PREFIX } } })
+  await prisma.user.deleteMany({ where: { email: { startsWith: PREFIX } } })
+}
 
 async function cookieFor(userId: string): Promise<string> {
   const { token } = await createSession(userId)
@@ -97,11 +99,43 @@ afterAll(async () => {
 
 describe('PATCH /api/officer/members/:id/title', () => {
   it('overwrites the title a member set', async () => {
-    const response = await setTitle(officerCookie, memberId, ' Rover Lead ')
+    const response = await setTitle(officerCookie, memberId, ' Chassis Wiring ')
 
     expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({ id: memberId, title: 'Rover Lead' })
+    expect(await response.json()).toMatchObject({ id: memberId, title: 'Chassis Wiring' })
+    expect(await titleOf(memberId)).toBe('Chassis Wiring')
+  })
+
+  /** The rules judge the person, not the officer typing: the desk is no way round them. */
+  it('cannot hand a member an office or a lead title', async () => {
+    for (const title of ['Treasurer', 'Rover Lead', 'Sh1t poster']) {
+      const response = await setTitle(officerCookie, memberId, title)
+      expect(response.status).toBe(400)
+    }
+    expect(await titleOf(memberId)).toBe('Self-Appointed Overlord')
+  })
+
+  it('can give a lead title to somebody who leads a project', async () => {
+    await prisma.project.create({
+      data: {
+        slug: `${PREFIX}rover`,
+        title: 'Title Rover',
+        termYear: 2035,
+        termSeason: 'FALL',
+        members: { create: { userId: memberId, rank: 'PROJECT_LEAD' } },
+      },
+    })
+
+    expect((await setTitle(officerCookie, memberId, 'Rover Lead')).status).toBe(200)
     expect(await titleOf(memberId)).toBe('Rover Lead')
+  })
+
+  /** A title from before the rules can always be taken away. */
+  it('can clear a title that breaks the rules', async () => {
+    await prisma.user.update({ where: { id: memberId }, data: { title: 'President' } })
+
+    expect((await setTitle(officerCookie, memberId, null)).status).toBe(200)
+    expect(await titleOf(memberId)).toBeNull()
   })
 
   it('clears it on null or blank', async () => {
@@ -130,7 +164,7 @@ describe('PATCH /api/officer/members/:id/title', () => {
   })
 
   it('refuses a member, even on their own row', async () => {
-    expect((await setTitle(memberCookie, memberId, 'Club President')).status).toBe(403)
+    expect((await setTitle(memberCookie, memberId, 'Chassis Wiring')).status).toBe(403)
     expect(await titleOf(memberId)).toBe('Self-Appointed Overlord')
   })
 })

@@ -456,6 +456,15 @@ describe('placing members, as the project lead', () => {
       { role: 'renamed' },
     )
     expect(response.status).toBe(403)
+
+    // A lead may title their own row, not a fellow lead's.
+    const titled = await request(
+      'PATCH',
+      `/api/projects/${projectA}/members/${memberIds.stranger}`,
+      'leadA',
+      { title: 'Renamed' },
+    )
+    expect(titled.status).toBe(403)
   })
 
   it("refuses another project's team, in words rather than a constraint error", async () => {

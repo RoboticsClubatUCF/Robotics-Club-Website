@@ -259,7 +259,7 @@ public block in `src/app.ts`, so no shared-cache headers reach them.
 | Route | Notes |
 | --- | --- |
 | `GET /api/account` | Editable profile, plus `passwordSet` and `pendingEmail` |
-| `PATCH /api/account/profile` | `{ fullName, bio, gradYear, title? }` → `{ user }`. `title` is the line under their name on `/members`, up to 80 characters; blank clears it |
+| `PATCH /api/account/profile` | `{ fullName, bio, gradYear, title? }` → `{ user }`. `title` is the line under their name on `/members`, up to 80 characters; blank clears it. 400 for an obscene title, an office without officer standing, or a lead title from somebody who leads nothing (`src/membership/titles.ts`) |
 | `PATCH /api/account/profile-link` | `{ profileUrl }`, null to clear. Checked against an allowlist of platforms (`socialUrl` in `src/core/validate.ts`) because it's printed in a public `href` |
 | `POST /api/account/discord-check` | Signup's check, excusing the caller's own handle |
 | `POST /api/account/discord` | `{ discordUsername }` → `{ user }`. 422 `not_found`, 503 `unavailable` |
@@ -314,7 +314,7 @@ public block in `src/app.ts`, so no shared-cache headers reach them.
 | `POST /api/projects/:id/documents` · `PATCH`/`DELETE /documents/:docId` · `POST /documents/:docId/file` | Project lead. Publish, edit, withdraw or revise a document |
 | `DELETE /api/projects/:id` | Project lead. Deletes uploaded gallery images and the cover too |
 | `POST /api/projects/:id/teams` · `PATCH`/`DELETE /api/teams/:id` | Project lead |
-| `PATCH` / `DELETE /api/projects/:id/members/:userId` | Project lead (officers too). Rank up to `TEAM_LEAD`; `title` is free text |
+| `PATCH` / `DELETE /api/projects/:id/members/:userId` | Project lead (officers too). Rank up to `TEAM_LEAD`; `title` is free text under the same rules as the profile's, with a lead title needing a lead rank on this project. A lead may change their own row's title, nothing else on it |
 | `POST` / `DELETE /api/teams/:id/members/:userId` | Team lead, own team, plain members only |
 | `POST /api/events` · `PATCH`/`DELETE /api/events/:id` | The team's lead, the project's lead, or an officer for club-wide events (no `projectId`). Created unpublished; only officers publish. Can't move between projects |
 | `GET`/`POST /api/projects/:id/tasks` · `PATCH`/`DELETE /api/tasks/:id` | Leads, scoped to their team. `POST` refuses a project not running this term (409, checked before permissions). Edits and deletes aren't restricted |
@@ -333,7 +333,7 @@ All officer-only (`requireOfficer`, which includes the dues check).
 | `PATCH /api/officer/projects/:id/members/:userId/rank` | `PROJECT_LEAD` or `MEMBER`. 409 naming the incumbent |
 | `GET /api/officer/members` | `?query=` (2+ characters), matching name, email or Discord handle; ten results |
 | `POST /api/officer/members/:id/membership` | Grant a term with no money: a zero-amount `DuesPayment` recording who granted it |
-| `PATCH /api/officer/members/:id/title` | `{ title }`, null or blank to clear. Overwrites the title a member set on their profile; they can still change it afterwards |
+| `PATCH /api/officer/members/:id/title` | `{ title }`, null or blank to clear. Overwrites the title a member set on their profile; they can still change it afterwards. The profile's rules apply to the person being titled, so the desk can't hand out an office or a lead title either |
 | `GET /api/officer/survey` · `/survey/export.csv` | Tallies per live question with every option including zeroes, plus responded/outstanding counts. The CSV has names and contacts, is `no-store`, and prefixes cells starting `=`, `+`, `-` or `@` with an apostrophe |
 | `GET`/`POST /api/officer/survey/questions` · `PUT`/`DELETE /questions/:id` | `PUT` takes the whole question and its ordered options; missing options are retired if answered, deleted otherwise. Changing `kind` after answers is a 409. `DELETE` returns `{ removed: 'archived' \| 'deleted' }` |
 | `POST /api/officer/survey/questions/:id/restore` · `POST /survey/reorder` | Restore appends to the end. Reorder needs the full live set (409 otherwise) |

@@ -12,6 +12,7 @@ import { env } from '../../core/env.js'
 import { deleteIfStored, looksLikeImage, storeFile } from '../../files/files.js'
 import { FileKind } from '../../generated/prisma/enums.js'
 import { sendEmailChange } from '../../email/mail.js'
+import { clubTitleProblem } from '../../membership/titles.js'
 import { hashPassword, verifyPassword } from '../../auth/password.js'
 import { rateLimit } from '../../core/rateLimit.js'
 import {
@@ -188,9 +189,16 @@ account.patch(
     }),
   ),
   async (c) => {
+    const body = c.req.valid('json')
+
+    if (body.title !== undefined) {
+      const problem = await clubTitleProblem(c.get('user').id, body.title)
+      if (problem) throw new HTTPException(400, { message: problem })
+    }
+
     const user = await prisma.user.update({
       where: { id: c.get('user').id },
-      data: c.req.valid('json'),
+      data: body,
       select: profileSelect,
     })
 

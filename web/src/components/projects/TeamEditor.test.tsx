@@ -174,6 +174,95 @@ describe('TeamEditor', () => {
     expect(screen.getByText('SAVED')).toBeInTheDocument()
   })
 
+  /**
+   * The server refuses some titles, and the section saves one row at a time. So the sentence
+   * carries whose title it was, the refused box keeps what was typed, and the rows that went
+   * through move their baseline: the next SAVE sends only the refused one, and a saved row
+   * edited back to its old value is a change again.
+   */
+  it('names whose title was refused, and keeps the rest in step', async () => {
+    let refuse = true
+    const fetchMock = vi.fn((input: string | URL | Request, _init?: RequestInit) =>
+      refuse && urlOf(input).includes('/members/u3')
+        ? Promise.resolve(
+            new Response(
+              JSON.stringify({ error: 'Lead titles are only for this project’s leads.' }),
+              { status: 400, headers: { 'Content-Type': 'application/json' } },
+            ),
+          )
+        : ok(),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    show()
+
+    fireEvent.change(screen.getByLabelText('Title for Ada Lovelace'), {
+      target: { value: 'Frame' },
+    })
+    fireEvent.change(screen.getByLabelText('Title for Rowan Chen'), {
+      target: { value: 'Rover Lead' },
+    })
+    await saveIt()
+
+    expect(
+      screen.getByText(/Rowan Chen — Lead titles are only for this project’s leads\./),
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText('Title for Rowan Chen')).toHaveValue('Rover Lead')
+    expect(screen.getByLabelText('Title for Ada Lovelace')).toHaveValue('Frame')
+    expect(screen.getByText('UNSAVED')).toBeInTheDocument()
+
+    // Ada's went through. Typing her old (empty) title back is a change, and is sent.
+    refuse = false
+    fireEvent.change(screen.getByLabelText('Title for Ada Lovelace'), {
+      target: { value: '' },
+    })
+    fireEvent.change(screen.getByLabelText('Title for Rowan Chen'), {
+      target: { value: 'Wiring' },
+    })
+    fetchMock.mockClear()
+    await saveIt()
+
+    expect(fetchMock.mock.calls.map(([input]) => urlOf(input).split('/members/')[1])).toEqual([
+      'u2',
+      'u3',
+    ])
+    expect(screen.getByText('SAVED')).toBeInTheDocument()
+  })
+
+  it('sends only the refused row when nothing else changed', async () => {
+    let refuse = true
+    const fetchMock = vi.fn((input: string | URL | Request, _init?: RequestInit) =>
+      refuse && urlOf(input).includes('/members/u3')
+        ? Promise.resolve(
+            new Response(JSON.stringify({ error: 'No.' }), {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            }),
+          )
+        : ok(),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    show()
+
+    fireEvent.change(screen.getByLabelText('Title for Ada Lovelace'), {
+      target: { value: 'Frame' },
+    })
+    fireEvent.change(screen.getByLabelText('Title for Rowan Chen'), {
+      target: { value: 'Rover Lead' },
+    })
+    await saveIt()
+
+    refuse = false
+    fireEvent.change(screen.getByLabelText('Title for Rowan Chen'), {
+      target: { value: 'Wiring' },
+    })
+    fetchMock.mockClear()
+    await saveIt()
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(urlOf(fetchMock.mock.calls[0][0])).toContain('/members/u3')
+  })
+
   /** Only the rows that changed. Three members and one edit is one request, not
       three — this section shares a budget with four others under one press. */
   it('writes only the rows that changed', async () => {

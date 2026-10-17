@@ -521,6 +521,27 @@ describe('setting a title', () => {
     expect(screen.queryByText('Rowan Chen has no title now.')).not.toBeInTheDocument()
   })
 
+  /** The title rules judge the person, so the desk says who it judged. */
+  it('names the member in a title refusal', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal(
+      'fetch',
+      stubDesk({ title: json({ error: 'Officer titles are only for officers.' }, 400) }),
+    )
+    renderPage()
+
+    await pick()
+    fireEvent.change(titlePanel().getByLabelText('TITLE'), {
+      target: { value: 'Treasurer' },
+    })
+    await submit()
+
+    expect(
+      titlePanel().getByText('Rowan Chen — Officer titles are only for officers.'),
+    ).toBeInTheDocument()
+    expect(titlePanel().getByLabelText('TITLE')).toHaveValue('Treasurer')
+  })
+
   it('prints the server’s refusal', async () => {
     vi.useFakeTimers()
     vi.stubGlobal(

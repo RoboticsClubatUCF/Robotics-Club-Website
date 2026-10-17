@@ -13,7 +13,13 @@ import {
   FormPanel,
   labelClass,
 } from '../../components/shared/formChrome'
-import { deleteJson, getJson, patchJson, postJson } from '../../lib/api/api'
+import {
+  ApiError,
+  deleteJson,
+  getJson,
+  patchJson,
+  postJson,
+} from '../../lib/api/api'
 import type {
   ApiBoardSeat,
   ApiOfficerDesk,
@@ -457,7 +463,15 @@ function SetTitle() {
         box.current?.focus()
       })
       .catch((error: unknown) => {
-        setMessage({ tone: 'error', text: explain(error) })
+        // A 400 is the title rules judging the person, so it says who: "Officer
+        // titles are only for officers" read alone, by an officer, says nothing.
+        setMessage({
+          tone: 'error',
+          text:
+            error instanceof ApiError && error.status === 400 && error.detail
+              ? `${member.fullName} — ${error.detail}`
+              : explain(error),
+        })
         box.current?.focus()
       })
       .finally(() => {

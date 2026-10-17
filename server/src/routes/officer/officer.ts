@@ -59,6 +59,10 @@ import {
   termBefore,
 } from '../../membership/semester.js'
 import { type AuthEnv, originGuard, requireAuth } from '../../auth/session.js'
+import {
+  clearLapsedLeadTitles,
+  clubTitleProblem,
+} from '../../membership/titles.js'
 import { grantMembership } from '../member/dues.js'
 import { HOLDING } from '../member/equipment.js'
 import { printSelect, withGrams } from '../member/print.js'
@@ -468,6 +472,11 @@ officer.patch(
     // `projects/projectLead.ts` — one place that sentence is true, and closing the
     // race it used to have needs a transaction this handler has no reason to open.
     const membership = await appointLead(projectId, userId, rank)
+
+    // Standing a lead down takes a lead title on this project with it.
+    if (rank !== ProjectMemberRank.PROJECT_LEAD) {
+      await clearLapsedLeadTitles(projectId, [userId])
+    }
 
     pushRoles(
       userId,
@@ -1367,9 +1376,15 @@ officer.patch(
 
     if (!member) throw new HTTPException(404, { message: 'No such member' })
 
+    // Judged against the person it describes, so the desk can't hand a member an
+    // office or a lead title either.
+    const { title } = c.req.valid('json')
+    const problem = await clubTitleProblem(id, title)
+    if (problem) throw new HTTPException(400, { message: problem })
+
     const updated = await prisma.user.update({
       where: { id },
-      data: { title: c.req.valid('json').title },
+      data: { title },
       select: { id: true, fullName: true, title: true },
     })
 

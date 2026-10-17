@@ -120,8 +120,9 @@ export function ProfileIdentityPanel({
             className={fieldClass}
           />
           <p className={`${noteClass} mt-1.5`}>
-            Up to 80 characters, shown under your name on the public roster.
-            Officers can change it.
+            Shown under your name on the public roster, up to 80 characters.
+            Lead and officer titles need the matching role, and officers can
+            change yours.
           </p>
         </div>
 

@@ -148,6 +148,8 @@ const clearRows = async () => {
     where: { user: { email: { in: EMAILS } } },
   })
   await prisma.equipment.deleteMany({ where: { name: { startsWith: PREFIX } } })
+  // The lead-title case's project; its memberships go with it.
+  await prisma.project.deleteMany({ where: { slug: { startsWith: PREFIX } } })
   await prisma.user.deleteMany({ where: { email: { in: EMAILS } } })
   await prisma.storedFile.deleteMany({
     where: { originalName: { startsWith: PREFIX } },
@@ -254,10 +256,10 @@ describe('PATCH /api/account/profile', () => {
   it('saves a title, and stores a cleared one as null', async () => {
     const profile = { fullName: 'Test Account', bio: null, gradYear: null }
 
-    await json('PATCH', '/api/account/profile', { ...profile, title: ' Rover Lead ' })
+    await json('PATCH', '/api/account/profile', { ...profile, title: ' Chassis Wiring ' })
     expect(
       (await prisma.user.findUniqueOrThrow({ where: { id: myId } })).title,
-    ).toBe('Rover Lead')
+    ).toBe('Chassis Wiring')
 
     await json('PATCH', '/api/account/profile', { ...profile, title: '  ' })
     expect(
@@ -291,6 +293,102 @@ describe('PATCH /api/account/profile', () => {
     })
 
     expect(response.status).toBe(400)
+  })
+})
+
+/**
+ * The rules in `membership/titles.ts`, behind the member's own route. What's pinned is
+ * that standing is read from the database, not from the words alone: the same "Rover
+ * Lead" is refused and then allowed once the row says they lead something.
+ */
+describe('what a member may call themselves', () => {
+  const setTitle = (title: string) =>
+    json('PATCH', '/api/account/profile', {
+      fullName: 'Test Account',
+      bio: null,
+      gradYear: null,
+      title,
+    })
+
+  const storedTitle = async () =>
+    (await prisma.user.findUniqueOrThrow({ where: { id: myId } })).title
+
+  it('refuses an obscene title and stores nothing', async () => {
+    const response = await setTitle('Sh1t poster')
+
+    expect(response.status).toBe(400)
+    expect(await response.text()).toContain('isn’t allowed')
+    expect(await storedTitle()).toBeNull()
+  })
+
+  it('refuses an office to a member without one', async () => {
+    const response = await setTitle('Club President')
+
+    expect(response.status).toBe(400)
+    expect(await response.text()).toContain('only for officers')
+    expect(await storedTitle()).toBeNull()
+  })
+
+  it('lets somebody on the board use an office, seat or role', async () => {
+    await prisma.user.update({ where: { id: myId }, data: { role: 'OFFICER' } })
+
+    expect((await setTitle('Treasurer')).status).toBe(200)
+    expect(await storedTitle()).toBe('Treasurer')
+  })
+
+  /** The advisor's case: on the board as a plain `MEMBER`, through an open term. */
+  it('counts an open officer term as standing', async () => {
+    await prisma.officerTerm.create({
+      data: {
+        userId: myId,
+        fullName: 'Test Account',
+        position: null,
+        source: 'MANUAL',
+        startedAt: new Date('2035-01-01T00:00:00.000Z'),
+      },
+    })
+
+    expect((await setTitle('Faculty Advisor')).status).toBe(200)
+  })
+
+  it('allows a lead title only to somebody who leads', async () => {
+    expect((await setTitle('Rover Lead')).status).toBe(400)
+
+    await prisma.project.create({
+      data: {
+        slug: `${PREFIX}rover`,
+        title: 'Account Rover',
+        termYear: 2035,
+        termSeason: 'FALL',
+        members: { create: { userId: myId, rank: 'TEAM_LEAD' } },
+      },
+    })
+
+    expect((await setTitle('Rover Lead')).status).toBe(200)
+    expect(await storedTitle()).toBe('Rover Lead')
+  })
+
+  /** A zero-width space draws nothing, so "Le​ad" would show as "Lead" while
+      reading as two words. It's stripped before the check and before storage. */
+  it('strips invisible characters before checking and storing', async () => {
+    expect((await setTitle('Rover Le​ad')).status).toBe(400)
+
+    expect((await setTitle('Wir​ing­')).status).toBe(200)
+    expect(await storedTitle()).toBe('Wiring')
+  })
+
+  /** Checked on write only. A title from before the rules doesn't stop a bio fix. */
+  it('lets a profile save go through around a title from before the rules', async () => {
+    await prisma.user.update({ where: { id: myId }, data: { title: 'Club President' } })
+
+    const response = await json('PATCH', '/api/account/profile', {
+      fullName: 'Test Account',
+      bio: 'Still here.',
+      gradYear: null,
+    })
+
+    expect(response.status).toBe(200)
+    expect(await storedTitle()).toBe('Club President')
   })
 })
 
