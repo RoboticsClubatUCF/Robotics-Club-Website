@@ -79,8 +79,12 @@ export function SiteNav() {
       <nav className="navbar px-page gap-3 py-4 wide:gap-6 wide:py-5">
         {/* The site root, not `#top`. A masthead is the way back to the home page from
             wherever you are, and `#top` would only scroll you to the top of the page you
-            were already on. */}
-        <Link to="/" className="flex min-w-0 flex-1 items-center gap-2.5 wide:gap-3.5">
+            were already on.
+            `mr-auto` rather than `flex-1`: the margin soaks up the free space, so the link
+            stays the size of the lockup and the empty middle of the bar isn't a link home.
+            Everything after it is `shrink-0`, so on a short bar it's still the masthead
+            that gives way. */}
+        <Link to="/" className="mr-auto flex min-w-0 items-center gap-2.5 wide:gap-3.5">
           <BrandMark className="w-8 shrink-0 wide:w-10" />
           <span className="min-w-0">
             <span className="block text-[13px] leading-none font-bold tracking-[0.06em]">
@@ -98,7 +102,7 @@ export function SiteNav() {
         {/* Two lists, a rule, and the gold button after them. The lists are labelled as
             well as separated: the rule says "these are two kinds of thing" to everyone who
             can see it, and the labels say the same to everyone who cannot. */}
-        <div className={`hidden items-center wide:flex ${rowGap}`}>
+        <div className={`hidden shrink-0 items-center wide:flex ${rowGap}`}>
           <ul
             aria-label="Sections of this page"
             className={`flex items-center ${rowGap}`}
