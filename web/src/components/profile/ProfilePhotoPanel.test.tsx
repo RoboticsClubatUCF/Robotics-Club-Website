@@ -31,6 +31,7 @@ const account: ApiAccount = {
   profileUrl: null,
   bio: null,
   gradYear: null,
+  title: null,
   acknowledgementAcceptedAt: null,
   passwordSet: true,
   pendingEmail: null,

@@ -320,9 +320,9 @@ describe('GET /api/projects', () => {
    * The roster says who leads, and not what they do in the club.
    *
    * `rank` is the column every permission on a project is decided by, and the page prints
-   * it. `User.title` used to ride along beside it — the club-wide title, written by nothing
-   * in the product, which is how an officer's "Lab Manager" ended up on somebody's rover
-   * page meaning nothing there.
+   * it. `User.title` used to ride along beside it — the club-wide title, meant for
+   * `/members` — which is how an officer's "Lab Manager" ended up on somebody's rover page
+   * meaning nothing there.
    */
   it('carries a member rank and team, and not their club title', async () => {
     const [first] = await get<Project[]>('/api/projects?limit=1')

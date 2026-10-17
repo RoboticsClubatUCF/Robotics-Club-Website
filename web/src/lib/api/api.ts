@@ -758,6 +758,9 @@ export type ApiOfficerMember = {
   /** So the roles desk can say where somebody stands before granting them a
       term. Null for anybody who has never paid or been granted one. */
   duesPaidThrough: string | null
+  /** The line under their name on `/members`, so the title panel starts from
+      what's there. */
+  title: string | null
 }
 
 /**
@@ -1633,6 +1636,9 @@ export type ApiSession = { user: ApiUser | null }
 export type ApiAccount = ApiUser & {
   bio: string | null
   gradYear: number | null
+  /** The line under their name on `/members`. Theirs to write; an officer can
+      overwrite or clear it on the roles desk. */
+  title: string | null
   /**
    * Where their photograph points on the public pages, or null. Here rather than on
    * the session for the reason `bio` is: the nav bar's avatar goes to the dashboard

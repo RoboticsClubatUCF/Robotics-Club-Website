@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
-import { validate } from '../../core/validate.js'
+import { titleField, validate } from '../../core/validate.js'
 import { requireOfficer } from '../../auth/authz.js'
 import { prisma } from '../../core/db.js'
 import {
@@ -71,6 +71,7 @@ import { printSelect, withGrams } from '../member/print.js'
  *   PATCH /api/officer/projects/:id/members/:userId/rank -> appoint or demote a project lead
  *   GET   /api/officer/members?query=                    -> find a person, for the pickers
  *   POST  /api/officer/members/:id/membership            -> grant a term, no money involved
+ *   PATCH /api/officer/members/:id/title                 -> overwrite or clear somebody's title
  *   GET   /api/officer/print-queue?status=&all=          -> the 3D print queue
  *   PATCH /api/officer/print/:id                         -> move one through it, and record what it cost
  *   GET   /api/officer/print/:id/slice-file              -> a sliced filament plate's .3mf
@@ -1283,6 +1284,8 @@ officer.get(
         // them a term. Granting one to a member already paid through spring isn't
         // harmful — it extends rather than resets — but it's a decision made blind.
         duesPaidThrough: true,
+        // So the title panel starts from what's there rather than a blank box.
+        title: true,
       },
     })
 
@@ -1335,6 +1338,42 @@ officer.post(
       paidThrough: standing.paidThrough?.toISOString() ?? null,
       status: standing.status,
     })
+  },
+)
+
+// ------------------------------------------------------------------- titles
+
+/**
+ * The board's say over the line under somebody's name on `/members`.
+ *
+ * Members write their own on the profile page; this overwrites or clears it. It's the
+ * same column and there's no lock, so the member can change it again afterwards. An
+ * officer who needs a title to stay put is having a conversation, not changing a setting.
+ */
+officer.patch(
+  '/members/:id/title',
+  originGuard,
+  requireAuth,
+  requireOfficer,
+  writes,
+  validate('json', z.object({ title: titleField })),
+  async (c) => {
+    const id = c.req.param('id')
+
+    const member = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true },
+    })
+
+    if (!member) throw new HTTPException(404, { message: 'No such member' })
+
+    const updated = await prisma.user.update({
+      where: { id },
+      data: { title: c.req.valid('json').title },
+      select: { id: true, fullName: true, title: true },
+    })
+
+    return c.json(updated)
   },
 )
 

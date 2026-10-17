@@ -250,6 +250,48 @@ describe('PATCH /api/account/profile', () => {
     expect(row.bio).toBeNull()
     expect(row.gradYear).toBeNull()
   })
+
+  it('saves a title, and stores a cleared one as null', async () => {
+    const profile = { fullName: 'Test Account', bio: null, gradYear: null }
+
+    await json('PATCH', '/api/account/profile', { ...profile, title: ' Rover Lead ' })
+    expect(
+      (await prisma.user.findUniqueOrThrow({ where: { id: myId } })).title,
+    ).toBe('Rover Lead')
+
+    await json('PATCH', '/api/account/profile', { ...profile, title: '  ' })
+    expect(
+      (await prisma.user.findUniqueOrThrow({ where: { id: myId } })).title,
+    ).toBeNull()
+  })
+
+  /** A tab still holding the bundle from before the field existed sends no
+      `title`, and that must not wipe one an officer or the member set. */
+  it('leaves the title alone when the field is not sent', async () => {
+    await prisma.user.update({ where: { id: myId }, data: { title: 'Kept' } })
+
+    const response = await json('PATCH', '/api/account/profile', {
+      fullName: 'Test Account',
+      bio: null,
+      gradYear: null,
+    })
+
+    expect(response.status).toBe(200)
+    expect(
+      (await prisma.user.findUniqueOrThrow({ where: { id: myId } })).title,
+    ).toBe('Kept')
+  })
+
+  it('refuses a title over 80 characters', async () => {
+    const response = await json('PATCH', '/api/account/profile', {
+      fullName: 'Test Account',
+      bio: null,
+      gradYear: null,
+      title: 'x'.repeat(81),
+    })
+
+    expect(response.status).toBe(400)
+  })
 })
 
 /**

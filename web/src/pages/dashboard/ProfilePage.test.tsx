@@ -42,6 +42,7 @@ const account: ApiAccount = {
   ...user,
   bio: 'Builds things.',
   gradYear: 2027,
+  title: 'Rover Lead',
   profileUrl: null,
   acknowledgementAcceptedAt: '2026-08-01T12:00:00.000Z',
   passwordSet: true,
@@ -186,7 +187,7 @@ describe('ProfilePage', () => {
     expect(screen.getByRole('button', { name: /^sign out$/i })).toBeInTheDocument()
   })
 
-  it('saves the name, bio and year in one write', async () => {
+  it('saves the name, title, bio and year in one write', async () => {
     const stub = stubApi({
       '/account/profile': {
         body: { user: { ...user, fullName: 'Rowan Renamed' } },
@@ -196,6 +197,10 @@ describe('ProfilePage', () => {
 
     const name = await screen.findByDisplayValue('Rowan Test')
     fireEvent.change(name, { target: { value: 'Rowan Renamed' } })
+    // Starts from the stored title, so this is an edit rather than a retype.
+    fireEvent.change(screen.getByDisplayValue('Rover Lead'), {
+      target: { value: ' Arm Lead ' },
+    })
 
     await act(async () => {
       // Submit the form, not the button: jsdom does not carry a click on a
@@ -210,10 +215,33 @@ describe('ProfilePage', () => {
     expect(init?.method).toBe('PATCH')
     expect(bodyOf(init)).toEqual({
       fullName: 'Rowan Renamed',
+      title: 'Arm Lead',
       bio: 'Builds things.',
       gradYear: 2027,
     })
     expect(await screen.findByText('Saved.')).toBeInTheDocument()
+  })
+
+  /** A tab opened before an officer changed the title mustn't put the old one
+      back when somebody only fixes their name. */
+  it('leaves the title out of the write when it was not touched', async () => {
+    const stub = stubApi({
+      '/account/profile': { body: { user: { ...user, fullName: 'Rowan Renamed' } } },
+    })
+    renderProfile()
+
+    const name = await screen.findByDisplayValue('Rowan Test')
+    fireEvent.change(name, { target: { value: 'Rowan Renamed' } })
+
+    await act(async () => {
+      fireEvent.submit(name.closest('form')!)
+    })
+
+    const [, init] = stub.mock.calls.find(([input]) =>
+      urlOf(input).includes('/account/profile'),
+    )!
+
+    expect(bodyOf(init)).not.toHaveProperty('title')
   })
 
   /**

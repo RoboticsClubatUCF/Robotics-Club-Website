@@ -368,8 +368,8 @@ describe('ProjectPage', () => {
   /**
    * The roster says who runs the build, and stops saying what they do in the club.
    *
-   * It printed `User.title` beside the name — the club-wide title, written by nothing in the
-   * product — so an officer's "Lab Manager" turned up on a rover page meaning nothing there. And
+   * It printed `User.title` beside the name — the club-wide title, meant for `/members` — so
+   * an officer's "Lab Manager" turned up on a rover page meaning nothing there. And
    * it printed no rank at all: `rank` sorted the lead to the top and said nothing about why.
    */
   it('names the lead and the team lead, and not a club title', async () => {
