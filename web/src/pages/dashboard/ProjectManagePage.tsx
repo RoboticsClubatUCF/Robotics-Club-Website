@@ -6,6 +6,7 @@ import { EventCalendarCheckbox } from '../../components/shared/EventCalendarChec
 import { DuesLocked } from '../../components/dashboard/DuesLocked'
 import { duesLocked } from '../../lib/dues/dues'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
+import { SubMenu } from '../../components/shared/SubMenu'
 import {
   FormEyebrow,
   FormHeading,
@@ -188,6 +189,21 @@ function ResolveBySlug({ slug }: { slug: string }) {
   )
 }
 
+type LeadTab = 'roster' | 'schedule' | 'tasks' | 'settings'
+
+const PROJECT_LEAD_TABS: readonly { value: LeadTab; label: string }[] = [
+  { value: 'roster', label: 'ROSTER & TEAMS' },
+  { value: 'schedule', label: 'SCHEDULE & EVENTS' },
+  { value: 'tasks', label: 'TASK BOARD' },
+  { value: 'settings', label: 'SETTINGS & ACCESS' },
+]
+
+const TEAM_LEAD_TABS: readonly { value: LeadTab; label: string }[] = [
+  { value: 'roster', label: 'TEAM ROSTER' },
+  { value: 'schedule', label: 'TEAM EVENTS' },
+  { value: 'tasks', label: 'TASK BOARD' },
+]
+
 function Manage({
   projectId,
   rank,
@@ -202,6 +218,7 @@ function Manage({
   officer: boolean
 }) {
   const { reloadProjects, membership } = useOutletContext<DashboardContext>()
+  const [tab, setTab] = useState<LeadTab>('roster')
   const [view, setView] = useState<ApiState<ApiProjectTeamView>>({
     status: 'loading',
   })
@@ -264,30 +281,97 @@ function Manage({
       <FormEyebrow>/ PROJECT · MANAGE</FormEyebrow>
       <FormHeading>{project.title}</FormHeading>
 
-      {/* Eight sections, none of which reads on from the one above — a lead comes here to do one
-          of them. Stacked, that meant scrolling past four panels to reach the fifth while the
-          right half of the screen stayed empty. `items-start` keeps the short ones short: DISCORD
-          ROLE is four lines and has no business being as tall as the roster. */}
-      <div className="grid-fluid items-start gap-5 [--col-min:30rem]">
-        {rank === 'PROJECT_LEAD' ? (
-          <>
-            <MembersSection teams={teams} members={members} projectId={projectId} projectSlug={project.slug} reload={load} />
-            <TeamsSection teams={teams} members={members} projectId={projectId} reload={load} />
-            <EventsSection projectId={projectId} teams={teams} rank={rank} myTeamId={myTeamId} />
-            <TasksSection projectId={projectId} teams={teams} members={members} rank={rank} myTeamId={myTeamId} canCreate={canCreateTasks} />
-            <MeetingSection project={project} reload={load} officer={officer} />
-            {hasSchedule(project) && (
-              <UpcomingMeetingsSection
-                /* Keyed on the saved schedule, so saving a new one refetches the list. */
-                key={JSON.stringify(draftBody(draftOf(project)))}
-                projectId={projectId}
-              />
-            )}
+      <SubMenu
+        label="Project management sections"
+        options={rank === 'PROJECT_LEAD' ? PROJECT_LEAD_TABS : TEAM_LEAD_TABS}
+        value={tab}
+        onChange={setTab}
+      />
+
+      {rank === 'PROJECT_LEAD' ? (
+        <>
+          <div
+            className={
+              tab === 'roster'
+                ? 'grid grid-cols-1 items-start gap-5 wide:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]'
+                : 'hidden'
+            }
+          >
+            <MembersSection
+              teams={teams}
+              members={members}
+              projectId={projectId}
+              projectSlug={project.slug}
+              reload={load}
+            />
+            <TeamsSection
+              teams={teams}
+              members={members}
+              projectId={projectId}
+              reload={load}
+            />
+          </div>
+
+          <div
+            className={
+              tab === 'schedule'
+                ? 'grid grid-cols-1 items-start gap-5 wide:grid-cols-2'
+                : 'hidden'
+            }
+          >
+            <div className="space-y-5">
+              <MeetingSection project={project} reload={load} officer={officer} />
+              {hasSchedule(project) && (
+                <UpcomingMeetingsSection
+                  /* Keyed on the saved schedule, so saving a new one refetches the list. */
+                  key={JSON.stringify(draftBody(draftOf(project)))}
+                  projectId={projectId}
+                />
+              )}
+            </div>
+            <EventsSection
+              projectId={projectId}
+              teams={teams}
+              rank={rank}
+              myTeamId={myTeamId}
+            />
+          </div>
+
+          <div className={tab === 'tasks' ? 'max-w-[52rem]' : 'hidden'}>
+            <TasksSection
+              projectId={projectId}
+              teams={teams}
+              members={members}
+              rank={rank}
+              myTeamId={myTeamId}
+              canCreate={canCreateTasks}
+            />
+          </div>
+
+          <div
+            className={
+              tab === 'settings'
+                ? 'grid grid-cols-1 items-start gap-5 wide:grid-cols-2'
+                : 'hidden'
+            }
+          >
             <DiscordRoleSection project={project} reload={load} />
-            <DangerSection projectId={projectId} title={project.title} reloadProjects={reloadProjects} />
-          </>
-        ) : (
-          <>
+            <DangerSection
+              projectId={projectId}
+              title={project.title}
+              reloadProjects={reloadProjects}
+            />
+          </div>
+        </>
+      ) : (
+        <>
+          <div
+            className={
+              tab === 'roster'
+                ? 'grid grid-cols-1 items-start gap-5 wide:grid-cols-2'
+                : 'hidden'
+            }
+          >
             <TeamLeadSection
               projectId={projectId}
               projectSlug={project.slug}
@@ -296,11 +380,29 @@ function Manage({
               members={members}
               reload={load}
             />
-            <EventsSection projectId={projectId} teams={teams} rank={rank} myTeamId={myTeamId} />
-            <TasksSection projectId={projectId} teams={teams} members={members} rank={rank} myTeamId={myTeamId} canCreate={canCreateTasks} />
-          </>
-        )}
-      </div>
+          </div>
+
+          <div className={tab === 'schedule' ? 'max-w-[52rem]' : 'hidden'}>
+            <EventsSection
+              projectId={projectId}
+              teams={teams}
+              rank={rank}
+              myTeamId={myTeamId}
+            />
+          </div>
+
+          <div className={tab === 'tasks' ? 'max-w-[52rem]' : 'hidden'}>
+            <TasksSection
+              projectId={projectId}
+              teams={teams}
+              members={members}
+              rank={rank}
+              myTeamId={myTeamId}
+              canCreate={canCreateTasks}
+            />
+          </div>
+        </>
+      )}
     </>
   )
 }
@@ -553,6 +655,7 @@ function TeamsSection({
 }) {
   const { message, busy, run } = useSectionStatus()
   const [editing, setEditing] = useState<ApiTeam | null>(null)
+  const [showNew, setShowNew] = useState(false)
   const nameId = useId()
 
   // Both forms carry the same two fields, so they read them the same way.
@@ -580,6 +683,7 @@ function TeamsSection({
         description: description || null,
       })
       form.reset()
+      setShowNew(false)
       await reload()
     })
   }
@@ -617,9 +721,21 @@ function TeamsSection({
 
   return (
     <FormPanel>
-      <p className="text-faint mb-4 font-mono text-[10px] font-medium tracking-[0.16em]">
-        TEAMS
-      </p>
+      <header className="mb-4 flex items-center justify-between gap-3">
+        <p className="text-faint font-mono text-[10px] font-medium tracking-[0.16em]">
+          TEAMS
+        </p>
+        <button
+          type="button"
+          aria-expanded={showNew}
+          onClick={() => {
+            setShowNew((open) => !open)
+          }}
+          className={smallButton}
+        >
+          {showNew ? 'CLOSE' : '+ NEW TEAM'}
+        </button>
+      </header>
 
       {teams.length > 0 && (
         <ul className="divide-rule mb-4 divide-y">
@@ -714,7 +830,16 @@ function TeamsSection({
         </ul>
       )}
 
-      <form onSubmit={create} className="space-y-3">
+      {teams.length === 0 && !showNew && (
+        <p className="text-dim text-sm leading-[1.7]">
+          No sub-teams yet. Click + NEW TEAM to split the roster into sub-teams.
+        </p>
+      )}
+
+      <form
+        onSubmit={create}
+        className={showNew ? 'border-rule space-y-3 border-t pt-4' : 'hidden'}
+      >
         <div>
           <label htmlFor={nameId} className={labelClass}>
             NEW TEAM
@@ -777,8 +902,10 @@ function EventsSection({
   const { message, setMessage, busy, run } = useSectionStatus()
   const [events, setEvents] = useState<ApiMeEvent[] | null>(null)
   const [editing, setEditing] = useState<ApiMeEvent | null>(null)
+  const [showForm, setShowForm] = useState(false)
   const [deleting, setDeleting] = useState<ApiMeEvent | null>(null)
   const formId = useId()
+  const formOpen = showForm || editing !== null
 
   const load = useCallback(async () => {
     const all = await getJson<ApiMeEvent[]>(
@@ -859,6 +986,7 @@ function EventsSection({
         })
       }
       form.reset()
+      setShowForm(false)
       await load()
     })
   }
@@ -879,9 +1007,27 @@ function EventsSection({
 
   return (
     <FormPanel>
-      <p className="text-faint mb-4 font-mono text-[10px] font-medium tracking-[0.16em]">
-        EVENTS
-      </p>
+      <header className="mb-4 flex items-center justify-between gap-3">
+        <p className="text-faint font-mono text-[10px] font-medium tracking-[0.16em]">
+          EVENTS
+        </p>
+        <button
+          type="button"
+          aria-expanded={formOpen}
+          onClick={() => {
+            if (formOpen) {
+              setShowForm(false)
+              setEditing(null)
+              setMessage('')
+            } else {
+              setShowForm(true)
+            }
+          }}
+          className={smallButton}
+        >
+          {formOpen ? 'CLOSE' : '+ SCHEDULE EVENT'}
+        </button>
+      </header>
 
       {events === null ? (
         <p className="text-dim mb-4 text-sm leading-[1.7]">
@@ -947,13 +1093,13 @@ function EventsSection({
         onChange={() => {
           if (message) setMessage('')
         }}
-        className="space-y-3"
+        className={formOpen ? 'border-rule space-y-3 border-t pt-4' : 'hidden'}
       >
         <p className={labelClass}>
           {editing ? `EDITING — ${editing.title.toUpperCase()}` : 'NEW EVENT'}
         </p>
 
-        <div className="grid gap-3 wide:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 wide:grid-cols-2">
           <input
             aria-label="Event title"
             name="title"
@@ -1105,6 +1251,7 @@ function EventsSection({
               className={smallButton}
               onClick={() => {
                 setEditing(null)
+                setShowForm(false)
                 setMessage('')
               }}
             >
@@ -1167,7 +1314,9 @@ function TasksSection({
   const { message, busy, run } = useSectionStatus()
   const [tasks, setTasks] = useState<ApiTask[] | null>(null)
   const [editing, setEditing] = useState<ApiTask | null>(null)
+  const [showForm, setShowForm] = useState(false)
   const formId = useId()
+  const formOpen = showForm || editing !== null
 
   const load = useCallback(async () => {
     setTasks(await getJson<ApiTask[]>(`/projects/${projectId}/tasks`))
@@ -1224,6 +1373,7 @@ function TasksSection({
         })
       }
       form.reset()
+      setShowForm(false)
       await load()
     })
   }
@@ -1249,9 +1399,28 @@ function TasksSection({
 
   return (
     <FormPanel>
-      <p className="text-faint mb-4 font-mono text-[10px] font-medium tracking-[0.16em]">
-        TASKS
-      </p>
+      <header className="mb-4 flex items-center justify-between gap-3">
+        <p className="text-faint font-mono text-[10px] font-medium tracking-[0.16em]">
+          TASKS
+        </p>
+        {canCreate && (
+          <button
+            type="button"
+            aria-expanded={formOpen}
+            onClick={() => {
+              if (formOpen) {
+                setShowForm(false)
+                setEditing(null)
+              } else {
+                setShowForm(true)
+              }
+            }}
+            className={smallButton}
+          >
+            {formOpen ? 'CLOSE' : '+ NEW TASK'}
+          </button>
+        )}
+      </header>
 
       {tasks === null ? (
         <p className="text-dim mb-4 text-sm leading-[1.7]">
@@ -1327,12 +1496,16 @@ function TasksSection({
           tidy up.
         </p>
       ) : (
-      <form key={editing?.id ?? 'new'} onSubmit={submit} className="space-y-3">
+      <form
+        key={editing?.id ?? 'new'}
+        onSubmit={submit}
+        className={formOpen ? 'border-rule space-y-3 border-t pt-4' : 'hidden'}
+      >
         <p className={labelClass}>
           {editing ? `EDITING — ${editing.title.toUpperCase()}` : 'NEW TASK'}
         </p>
 
-        <div className="grid gap-3 wide:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 wide:grid-cols-2">
           <input
             aria-label="Task title"
             name="title"
@@ -1427,6 +1600,7 @@ function TasksSection({
               className={smallButton}
               onClick={() => {
                 setEditing(null)
+                setShowForm(false)
               }}
             >
               CANCEL
@@ -2012,6 +2186,7 @@ function DangerSection({
   reloadProjects: () => Promise<void>
 }) {
   const { message, busy, run } = useSectionStatus()
+  const [open, setOpen] = useState(false)
   const navigate = useNavigate()
 
   const destroy = () =>
@@ -2034,56 +2209,72 @@ function DangerSection({
    */
   return (
     <div className="border-error/40 bg-error/5 border p-5">
-      <p className="text-error mb-3 font-mono text-[10px] font-medium tracking-[0.16em]">
-        DELETE THIS PROJECT
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-error mb-1 font-mono text-[10px] font-medium tracking-[0.16em]">
+            DELETE THIS PROJECT
+          </p>
+          <p className="text-dim text-[13px] leading-[1.6] text-pretty">
+            This deletes {title} for <strong>everyone on it</strong>, not just for
+            you, and it cannot be undone.
+          </p>
+        </div>
 
-      <p className="text-dim mb-3 text-[13px] leading-[1.7] text-pretty">
-        This deletes {title} for <strong>everyone on it</strong>, not just for
-        you, and it cannot be undone.
-      </p>
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => {
+            setOpen((current) => !current)
+          }}
+          className="border-error/40 text-error hover:border-error hover:bg-error/10 min-h-11 shrink-0 cursor-pointer border px-4 py-2 font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 wide:min-h-0"
+        >
+          {open ? 'HIDE DETAILS' : 'REVIEW PROJECT DELETION'}
+        </button>
+      </div>
 
-      <p className="text-faint mb-2 text-[12px] leading-[1.6]">What goes with it:</p>
+      <div className={open ? 'border-error/25 mt-4 border-t pt-4' : 'hidden'}>
+        <p className="text-faint mb-2 text-[12px] leading-[1.6]">What goes with it:</p>
 
-      {/* Named one by one rather than summarised, the same rule the account panel follows: a lead
-          is entitled to delete all of this and isn't entitled to be surprised by it. Every line is
-          something the delete route actually destroys — the two file sweeps in particular, which
-          are bytes no other copy exists of. */}
-      <ul className="text-faint mb-3 list-disc space-y-1 pl-5 text-[12px] leading-[1.6]">
-        <li>its roster and its teams, and every task on them</li>
-        <li>every event it has scheduled, on every calendar they appear on</li>
-        <li>
-          its gallery, its cover and every published document — the club keeps no
-          other copy of those files
-        </li>
-        <li>its write-up, its resource links and its page on the public site</li>
-      </ul>
+        {/* Named one by one rather than summarised, the same rule the account panel follows: a lead
+            is entitled to delete all of this and isn't entitled to be surprised by it. Every line is
+            something the delete route actually destroys — the two file sweeps in particular, which
+            are bytes no other copy exists of. */}
+        <ul className="text-faint mb-3 list-disc space-y-1 pl-5 text-[12px] leading-[1.6]">
+          <li>its roster and its teams, and every task on them</li>
+          <li>every event it has scheduled, on every calendar they appear on</li>
+          <li>
+            its gallery, its cover and every published document — the club keeps no
+            other copy of those files
+          </li>
+          <li>its write-up, its resource links and its page on the public site</li>
+        </ul>
 
-      <p className="text-faint mb-4 text-[12px] leading-[1.6] text-pretty">
-        Everyone on it loses the project&rsquo;s Discord role. If the build is
-        simply over, set its status to <strong>COMPLETED</strong> or{' '}
-        <strong>ARCHIVED</strong> instead — that keeps the page and takes it off
-        this term&rsquo;s list.
-      </p>
+        <p className="text-faint mb-4 text-[12px] leading-[1.6] text-pretty">
+          Everyone on it loses the project&rsquo;s Discord role. If the build is
+          simply over, set its status to <strong>COMPLETED</strong> or{' '}
+          <strong>ARCHIVED</strong> instead — that keeps the page and takes it off
+          this term&rsquo;s list.
+        </p>
 
-      <button
-        type="button"
-        disabled={busy}
-        className="btn btn-outline border-error/40 text-error hover:border-error hover:bg-error/10 hover:text-error h-auto min-h-0 cursor-pointer px-5 py-2.5 text-[11px] font-semibold tracking-[0.04em] disabled:opacity-50"
-        onClick={() => void destroy()}
-      >
-        DELETE THIS PROJECT
-      </button>
+        <button
+          type="button"
+          disabled={busy}
+          className="btn btn-outline border-error/40 text-error hover:border-error hover:bg-error/10 hover:text-error h-auto min-h-0 cursor-pointer px-5 py-2.5 text-[11px] font-semibold tracking-[0.04em] disabled:opacity-50"
+          onClick={() => void destroy()}
+        >
+          DELETE THIS PROJECT
+        </button>
 
-      {/* Said before the press as well as during it. The prompt is the guard;
-          this is what stops somebody meeting it by surprise. */}
-      <p className="text-faint mt-2 text-[12px] leading-[1.6]">
-        You will be asked to type the project&rsquo;s name to confirm.
-      </p>
+        {/* Said before the press as well as during it. The prompt is the guard;
+            this is what stops somebody meeting it by surprise. */}
+        <p className="text-faint mt-2 text-[12px] leading-[1.6]">
+          You will be asked to type the project&rsquo;s name to confirm.
+        </p>
 
-      <p role="status" className="text-error mt-2 min-h-4 text-[12px]">
-        {message}
-      </p>
+        <p role="status" className="text-error mt-2 min-h-4 text-[12px]">
+          {message}
+        </p>
+      </div>
     </div>
   )
 }

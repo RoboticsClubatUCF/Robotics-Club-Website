@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate, useOutletContext } from 'react-router'
+import { useNavigate, useOutletContext, useSearchParams } from 'react-router'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
 import { DeleteAccountPanel } from '../../components/profile/DeleteAccountPanel'
 import { ProfileDiscordPanel } from '../../components/profile/ProfileDiscordPanel'
@@ -16,6 +16,7 @@ import {
   panelLabelClass,
 } from '../../components/profile/profileChrome'
 import { Avatar } from '../../components/shared/Avatar'
+import { SubMenu } from '../../components/shared/SubMenu'
 import {
   FormEyebrow,
   FormHeading,
@@ -27,24 +28,25 @@ import { longDate } from '../../lib/format/formats'
 import { useSession } from '../../lib/auth/session'
 import type { ApiState } from '../../lib/api/useApi'
 
+type ProfileTab = 'profile' | 'survey' | 'security'
+
+const PROFILE_TABS: readonly { value: ProfileTab; label: string }[] = [
+  { value: 'profile', label: 'PROFILE & STANDING' },
+  { value: 'survey', label: 'MEMBER SURVEY' },
+  { value: 'security', label: 'SECURITY & ACCOUNT' },
+]
+
 /**
  * The account page.
  *
- * It used to be a placeholder with one real button on it — signing out had to live somewhere, and
- * the bottom of the overview was the wrong somewhere. Every other thing it said was coming now
- * exists: the name, the photo, the Discord handle, the address, the password, and leaving.
- *
  * One account read, and a panel per decision. The page owns the `GET /api/account` loader; each
  * panel owns its own save, busy state and answer line, because they're separate decisions rather
- * than one form with several parts. A single SAVE at the bottom would mean changing a bio and a
- * password in the same press.
+ * than one form with several parts.
  *
- * `ProfileSurveyPanel` is the one that reads something the page didn't: the member survey is
- * another table behind another route, and widening the account payload for one panel would be the
- * wrong trade.
- *
- * The panels adopt their answer into the session context rather than refetching — the nav bar and
- * the rail are watching it, and a round trip is a visible flicker in both.
+ * Grouped under a horizontal sub-menu (`PROFILE & STANDING`, `MEMBER SURVEY`, `SECURITY & ACCOUNT`)
+ * with two-column vertical stacks inside so expanding the photo framer or loading the survey never
+ * pushes unrelated panels into another column. Signing out sits in the page header so it's always
+ * reachable without scrolling.
  *
  * Never dues-gated. Being behind on dues isn't a reason somebody can't change their password or
  * leave.
@@ -53,7 +55,11 @@ export function ProfilePage() {
   const { user, membership } = useOutletContext<DashboardContext>()
   const { signOut } = useSession()
   const navigate = useNavigate()
+  const [params] = useSearchParams()
 
+  const [tab, setTab] = useState<ProfileTab>(
+    params.has('emailToken') ? 'security' : 'profile',
+  )
   const [account, setAccount] = useState<ApiState<ApiAccount>>({
     status: 'loading',
   })
@@ -104,117 +110,26 @@ export function ProfilePage() {
     <>
       <FormEyebrow>/ PROFILE</FormEyebrow>
 
-      <div className="mb-7 flex items-center gap-4">
-        <Avatar
-          fullName={user.fullName}
-          photoUrl={user.photoUrl}
-          framing={{
-            focalX: user.photoFocalX,
-            focalY: user.photoFocalY,
-            zoom: user.photoZoom,
-          }}
-          tone="outline"
-          className="size-14 text-lg"
-        />
-        {/* The heading's own bottom margin would fight the row it is in. */}
-        <div className="min-w-0 [&_h1]:mb-0">
-          <FormHeading>{user.fullName}</FormHeading>
-        </div>
-      </div>
-
-      {/* Columns rather than a stack, and it costs this page nothing: the whole point of the
-          account page is that each panel is its own decision with its own save, so they were never
-          a sequence to be read down.
-
-          Multi-column rather than `grid-fluid`, and this is the one page that wants it. A grid
-          aligns rows, so every card in a row is followed by as much empty space as the tallest
-          card leaves over — and the panels here run from three lines of text to a framed square,
-          so YOUR STANDING sat above a hole the height of the photo well. Column flow puts each
-          panel directly under the last one in its column.
-
-          The trade is that reading goes down a column and then down the next. Nothing here is
-          sequential, and tab order still follows the markup. `[&>*]` because the panels are
-          components: the margin and the no-break rule have to reach children this page doesn't
-          render itself. */}
-      <div className="columns-[24rem] gap-x-5 [&>*]:mb-5 [&>*]:break-inside-avoid">
-        {/* The facts nobody edits here, first, because they are the answer to
-            "is this the right account" — which is the question somebody opening
-            this page is usually asking. */}
-        <FormPanel>
-          <p className={panelLabelClass}>YOUR STANDING</p>
-          <dl className="divide-rule divide-y">
-            <PanelFact label="ROLE" value={user.role.replace(/_/g, ' ')} />
-            <PanelFact
-              label="MEMBER AGREEMENT"
-              value={
-                account.status === 'ready'
-                  ? account.data.acknowledgementAcceptedAt
-                    ? `Accepted ${longDate(account.data.acknowledgementAcceptedAt)}`
-                    : 'No record — your account predates the form'
-                  : null
-              }
-            />
-          </dl>
-          {/* PUBLIC PROFILE used to be the third row here, printing a `/members/:slug` address or
-              "No profile page yet". It said the second to almost everybody and could say nothing
-              else — a slug is an officer's to set and that page is still unbuilt — so it was a row
-              nobody could act on. PROFILE LINK, below, is what it asked for. */}
-          {/* Two rows, two different origins, so the line names them rather
-              than covering both with "an officer sets these" — which is now
-              half wrong: nobody set the agreement, it was accepted. */}
-          <p className={`${noteClass} mt-3`}>
-            An officer sets your role. The agreement is the one you accepted
-            when you signed up.
-          </p>
-        </FormPanel>
-
-        {/* Second, before the account loads: it reads the standing the dashboard already has,
-            and it's the one panel here that holds something up elsewhere. */}
-        <ProfileTrainingPanel userId={user.id} membership={membership} />
-
-        {account.status === 'loading' && (
-          <div aria-busy="true" className="space-y-5">
-            {/* Sized to what it replaces, so nothing reflows when it lands. */}
-            <div className="border-rule bg-base-200 h-64 border" />
-            <div className="border-rule bg-base-200 h-40 border" />
+      <div className="mb-7 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-4">
+          <Avatar
+            fullName={user.fullName}
+            photoUrl={user.photoUrl}
+            framing={{
+              focalX: user.photoFocalX,
+              focalY: user.photoFocalY,
+              zoom: user.photoZoom,
+            }}
+            tone="outline"
+            className="size-14 text-lg"
+          />
+          {/* The heading's own bottom margin would fight the row it is in. */}
+          <div className="min-w-0 [&_h1]:mb-0">
+            <FormHeading>{user.fullName}</FormHeading>
           </div>
-        )}
+        </div>
 
-        {account.status === 'error' && (
-          <FormPanel tone="accent">
-            <p className="text-dim text-sm leading-[1.7] text-pretty">
-              We couldn&rsquo;t load your account just now. Try again in a
-              moment.
-            </p>
-          </FormPanel>
-        )}
-
-        {account.status === 'ready' && (
-          <>
-            <ProfileIdentityPanel account={account.data} onSaved={merge} />
-            <ProfilePhotoPanel account={account.data} onSaved={merge} />
-            {/* Straight after the photo, because it is what the photo does. */}
-            <ProfileLinkPanel account={account.data} onSaved={merge} />
-            <ProfileDiscordPanel account={account.data} onSaved={merge} />
-            <ProfileEmailPanel account={account.data} onSaved={merge} />
-            <ProfilePasswordPanel />
-            {/* Last, and the only panel that reads a resource of its own — the survey is another
-                table with another route. It also renders nothing until it knows, which is why it
-                sits at the end: a panel that appears late would push the ones after it around. The
-                one panel here that doesn't save anything, either; it prints the answers back and
-                sends you to `/dashboard/survey` to change them. */}
-            <ProfileSurveyPanel gradYear={account.data.gradYear} />
-          </>
-        )}
-      </div>
-
-      {/* The two ways out, below the panels and in a grid of their own so that
-          widening the page cannot slide the red box up alongside a field
-          somebody is editing. Signing out first: it is the one people are
-          looking for, and the one that is not destructive. */}
-      <div className="grid-fluid mt-10 items-start gap-5 [--col-min:24rem]">
-        <div>
-          <p className={panelLabelClass}>SIGN OUT</p>
+        <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
             disabled={leaving}
@@ -223,14 +138,118 @@ export function ProfilePage() {
           >
             {leaving ? 'SIGNING OUT…' : 'SIGN OUT'}
           </button>
-          <p className={`${noteClass} mt-3`}>
-            Ends this session on this device only.
-          </p>
+        </div>
+      </div>
+
+      <SubMenu
+        label="Account sections"
+        options={PROFILE_TABS}
+        value={tab}
+        onChange={setTab}
+      />
+
+      {account.status === 'error' && (
+        <div className="mb-5 max-w-[46rem]">
+          <FormPanel tone="accent">
+            <p className="text-dim text-sm leading-[1.7] text-pretty">
+              We couldn&rsquo;t load your account just now. Try again in a
+              moment.
+            </p>
+          </FormPanel>
+        </div>
+      )}
+
+      {/* Tab 1: Public identity and club standing in two vertical columns so
+          expanding the photo crop never jumps panels across columns. */}
+      <div
+        className={
+          tab === 'profile'
+            ? 'grid grid-cols-1 items-start gap-5 wide:grid-cols-2'
+            : 'hidden'
+        }
+      >
+        <div className="space-y-5">
+          {account.status === 'loading' && (
+            <div aria-busy="true" className="space-y-5">
+              <div className="border-rule bg-base-200 h-64 border" />
+              <div className="border-rule bg-base-200 h-40 border" />
+            </div>
+          )}
+
+          {account.status === 'ready' && (
+            <>
+              <ProfileIdentityPanel account={account.data} onSaved={merge} />
+              <ProfileLinkPanel account={account.data} onSaved={merge} />
+            </>
+          )}
         </div>
 
-        {/* Last on the page, and behind its own colour. Everything above it is
-            something somebody might do on a Tuesday; this is not. */}
-        <DeleteAccountPanel fullName={user.fullName} />
+        <div className="space-y-5">
+          {account.status === 'ready' && (
+            <>
+              <ProfilePhotoPanel account={account.data} onSaved={merge} />
+              <ProfileDiscordPanel account={account.data} onSaved={merge} />
+            </>
+          )}
+
+          <FormPanel>
+            <p className={panelLabelClass}>YOUR STANDING</p>
+            <dl className="divide-rule divide-y">
+              <PanelFact label="ROLE" value={user.role.replace(/_/g, ' ')} />
+              <PanelFact
+                label="MEMBER AGREEMENT"
+                value={
+                  account.status === 'ready'
+                    ? account.data.acknowledgementAcceptedAt
+                      ? `Accepted ${longDate(account.data.acknowledgementAcceptedAt)}`
+                      : 'No record — your account predates the form'
+                    : null
+                }
+              />
+            </dl>
+            <p className={`${noteClass} mt-3`}>
+              An officer sets your role. The agreement is the one you accepted
+              when you signed up.
+            </p>
+          </FormPanel>
+
+          <ProfileTrainingPanel userId={user.id} membership={membership} />
+        </div>
+      </div>
+
+      {/* Tab 2: Member survey answers and link back to the survey editor. */}
+      <div className={tab === 'survey' ? 'max-w-[46rem]' : 'hidden'}>
+        {account.status === 'loading' && (
+          <div aria-busy="true" className="border-rule bg-base-200 h-48 border" />
+        )}
+        {account.status === 'ready' && (
+          <ProfileSurveyPanel gradYear={account.data.gradYear} />
+        )}
+      </div>
+
+      {/* Tab 3: Email, password, and account deletion behind action buttons. */}
+      <div
+        className={
+          tab === 'security'
+            ? 'grid grid-cols-1 items-start gap-5 wide:grid-cols-2'
+            : 'hidden'
+        }
+      >
+        <div className="space-y-5">
+          {account.status === 'loading' && (
+            <div aria-busy="true" className="border-rule bg-base-200 h-48 border" />
+          )}
+          {account.status === 'ready' && (
+            <>
+              <ProfileEmailPanel account={account.data} onSaved={merge} />
+              <ProfilePasswordPanel />
+            </>
+          )}
+        </div>
+
+        <div className="space-y-5">
+          <DeleteAccountPanel fullName={user.fullName} />
+        </div>
       </div>
     </>
   )

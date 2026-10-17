@@ -247,13 +247,11 @@ export function MemberSurveyPage() {
         </p>
       )}
 
-      {/* The groups sit side by side wherever there's room. They're five unrelated questions
-          rather than a form to be filled in order, so a single column down a monitor was making a
-          two-minute survey look like a long one. `items-start`, because a shirt size stretched to
-          the height of the allergen list is mostly empty box. */}
+      {/* A single vertical column capped at reading measure so questions are answered
+          top-to-bottom without zigzagging across rows of uneven heights. */}
       <form
         onSubmit={submit}
-        className="grid-fluid items-start gap-5 [--col-min:21rem]"
+        className="max-w-[46rem] space-y-5"
       >
         <SurveyFields
           id={id}
@@ -270,12 +268,7 @@ export function MemberSurveyPage() {
           }}
         />
 
-        {/* Across the foot of the grid, not in the next free cell: it submits
-            all of it, and a button that had drifted into the third column
-            beside a question would read as belonging to that question. Capped,
-            because `submitClass` is `w-full` and a gold bar the width of a
-            monitor is not a button. */}
-        <div className="col-span-full max-w-[26rem]">
+        <div className="max-w-[26rem]">
           <button type="submit" disabled={busy} className={submitClass}>
             {busy
               ? 'SAVING…'

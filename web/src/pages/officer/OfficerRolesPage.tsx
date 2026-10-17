@@ -6,6 +6,7 @@ import { OfficerOnly } from '../../components/dashboard/OfficerOnly'
 import { isOfficer } from '../../lib/auth/session'
 import { ConfirmDialog } from '../../components/shared/ConfirmDialog'
 import { MemberSearch } from '../../components/shared/MemberSearch'
+import { SubMenu } from '../../components/shared/SubMenu'
 import {
   fieldClass,
   FormEyebrow,
@@ -35,6 +36,14 @@ import { seatLabel } from '../../lib/officerTerms'
 import { duesLocked, formatDate } from '../../lib/dues/dues'
 import { useApi } from '../../lib/api/useApi'
 
+type RolesTab = 'board' | 'leads' | 'members'
+
+const ROLES_TABS: readonly { value: RolesTab; label: string }[] = [
+  { value: 'board', label: 'OFFICER BOARD' },
+  { value: 'leads', label: 'PROJECT & TEAM LEADS' },
+  { value: 'members', label: 'MEMBERSHIP & TITLES' },
+]
+
 /**
  * The roles desk: who is what, and who runs what.
  *
@@ -52,6 +61,7 @@ import { useApi } from '../../lib/api/useApi'
  */
 export function OfficerRolesPage() {
   const { user, membership } = useOutletContext<DashboardContext>()
+  const [tab, setTab] = useState<RolesTab>('board')
 
   // Dues before role, because a lapsed officer is an officer and the sentence they need
   // is about a payment rather than about the board.
@@ -68,15 +78,36 @@ export function OfficerRolesPage() {
       <FormEyebrow>/ MANAGE · ROLES</FormEyebrow>
       <FormHeading>Who runs what.</FormHeading>
 
-      {/* Five decisions of the same shape, and an officer opens this page to make one
-          of them — they aren't steps. Side by side wherever there's room, so appointing
-          a lead doesn't mean scrolling past the board. `items-start`: the seat panel is
-          eight chairs and a checklist, the ones around it are a picker and two buttons. */}
-      <div className="grid-fluid items-start gap-5 [--col-min:29rem]">
-        <GrantMembership />
+      <SubMenu
+        label="Roles sections"
+        options={ROLES_TABS}
+        value={tab}
+        onChange={setTab}
+      />
+
+      <div className={tab === 'board' ? 'max-w-[46rem]' : 'hidden'}>
         <OfficerSeats />
+      </div>
+
+      <div
+        className={
+          tab === 'leads'
+            ? 'grid grid-cols-1 items-start gap-5 wide:grid-cols-2'
+            : 'hidden'
+        }
+      >
         <AppointLead />
         <AppointTeamLead />
+      </div>
+
+      <div
+        className={
+          tab === 'members'
+            ? 'grid grid-cols-1 items-start gap-5 wide:grid-cols-2'
+            : 'hidden'
+        }
+      >
+        <GrantMembership />
         <SetTitle />
       </div>
     </>
@@ -237,7 +268,7 @@ function SearchPicker({
           ordered so the rows an officer wants are at the top, and a picker that looks
           empty until you guess a word is worse than the drop-down it replaced. */}
       {hint === null && (
-        <ul className="border-rule divide-rule mt-3 divide-y border">
+        <ul className="border-rule divide-rule mt-3 max-h-56 divide-y overflow-y-auto border">
           {matches.length === 0 && (
             <li className="text-faint px-3 py-2.5 text-[13px]">
               Nothing matches that.

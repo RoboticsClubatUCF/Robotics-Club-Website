@@ -13,6 +13,7 @@ import {
   PanelStatus,
   ProfilePanel,
   noteClass,
+  panelQuietClass,
   panelSaveClass,
   type PanelMessage,
 } from './profileChrome'
@@ -41,13 +42,15 @@ export function ProfileEmailPanel({
   const id = useId()
   const [params, setParams] = useSearchParams()
 
+  const token = params.get('emailToken')
+  const [open, setOpen] = useState(
+    Boolean(token || account.pendingEmail !== null),
+  )
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<PanelMessage>(null)
   const [pending, setPending] = useState(account.pendingEmail)
-
-  const token = params.get('emailToken')
   /**
    * The token this panel has already posted.
    *
@@ -118,6 +121,7 @@ export function ProfileEmailPanel({
         onSaved({ pendingEmail: answer.email })
         setEmail('')
         setPassword('')
+        setOpen(false)
         setMessage({
           tone: 'ok',
           text: `Check ${answer.email} — the link is good for ${answer.expiresInMinutes} minutes. Nothing changes until you follow it.`,
@@ -145,7 +149,21 @@ export function ProfileEmailPanel({
         </p>
       )}
 
-      <form onSubmit={ask} className="flex flex-col gap-4">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => {
+          setOpen(!open)
+        }}
+        className={panelQuietClass}
+      >
+        {open ? 'CLOSE' : 'CHANGE EMAIL ADDRESS'}
+      </button>
+
+      <form
+        onSubmit={ask}
+        className={open ? 'mt-4 flex flex-col gap-4' : 'hidden'}
+      >
         <div>
           <label htmlFor={`${id}-email`} className={labelClass}>
             NEW EMAIL

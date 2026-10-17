@@ -458,7 +458,7 @@ export function OfficerPrintQueuePage() {
                an officer working through a Sunday's requests could see two at a time on a monitor
                with room for six. `items-start` so a job with a long note doesn't stretch its
                neighbours. */
-            <ul className="grid-fluid items-start gap-4 [--col-min:28rem]">
+            <ul className="grid grid-cols-1 items-start gap-4 wide:grid-cols-2">
               {rows.map((request) => (
                 <QueueRow
                   key={request.id}
@@ -592,6 +592,7 @@ function QueueRow({
 }) {
   const asked = actualSettings(request)
   const gramsRef = useRef<HTMLInputElement>(null)
+  const [adjustOpen, setAdjustOpen] = useState(false)
   // Starts on what was asked for, so an officer who changes nothing sends the
   // truth and the `printed*` columns stay null.
   const [draft, setDraft] = useState<Draft>({
@@ -725,94 +726,7 @@ function QueueRow({
             </p>
           )}
 
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            {!sliced && (
-              <>
-            <span className="text-faint font-mono text-[10px] tracking-[0.14em]">
-              PRINTED AS
-            </span>
-
-            <select
-              aria-label={`Printer used for ${request.fileName}`}
-              value={draft.process}
-              disabled={busy}
-              onChange={(event) => {
-                const process = event.target.value as PrintProcess
-                // The material has to follow the machine, and resin has no
-                // infill to carry over.
-                setDraft((current) => ({
-                  ...current,
-                  process,
-                  material: materialsFor(process)[0]!.value,
-                  infillPattern: hasInfill(process)
-                    ? (current.infillPattern ?? 'GRID')
-                    : null,
-                  infillDensity: hasInfill(process)
-                    ? (current.infillDensity ?? DEFAULT_INFILL_DENSITY)
-                    : null,
-                }))
-              }}
-              className={field}
-            >
-              <option value="FDM">FDM</option>
-              <option value="SLA">SLA</option>
-            </select>
-
-            <select
-              aria-label={`Material used for ${request.fileName}`}
-              value={draft.material}
-              disabled={busy}
-              onChange={(event) => {
-                set('material', event.target.value as PrintMaterial)
-              }}
-              className={field}
-            >
-              {materialsFor(draft.process).map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-
-            {hasInfill(draft.process) && (
-              <>
-                <select
-                  aria-label={`Infill density used for ${request.fileName}`}
-                  value={String(draft.infillDensity ?? DEFAULT_INFILL_DENSITY)}
-                  disabled={busy}
-                  onChange={(event) => {
-                    set('infillDensity', Number(event.target.value))
-                  }}
-                  className={field}
-                >
-                  {INFILL_DENSITIES.map((density) => (
-                    <option key={density} value={density}>
-                      {density}%
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  aria-label={`Infill pattern used for ${request.fileName}`}
-                  value={draft.infillPattern ?? 'GRID'}
-                  disabled={busy}
-                  onChange={(event) => {
-                    set('infillPattern', event.target.value as InfillPattern)
-                  }}
-                  className={field}
-                >
-                  {INFILL_PATTERNS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </>
-            )}
-
-              </>
-            )}
-
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
             <label className="flex items-center gap-1.5">
               <span className="text-faint font-mono text-[10px] tracking-[0.14em]">
                 USED
@@ -834,7 +748,113 @@ function QueueRow({
                 disabled={busy}
               />
             </label>
+
+            {!sliced && (
+              <button
+                type="button"
+                aria-expanded={adjustOpen}
+                disabled={busy}
+                onClick={() => {
+                  setAdjustOpen((open) => !open)
+                }}
+                className="text-faint hover:text-primary cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50"
+              >
+                {adjustOpen ? 'HIDE SETTINGS' : 'ADJUST SETTINGS'}
+              </button>
+            )}
           </div>
+
+          {!sliced && (
+            <div
+              className={
+                adjustOpen
+                  ? 'border-rule bg-base-200/60 mt-2 flex flex-wrap items-center gap-2 border p-2.5'
+                  : 'hidden'
+              }
+            >
+              <span className="text-faint font-mono text-[10px] tracking-[0.14em]">
+                PRINTED AS
+              </span>
+
+              <select
+                aria-label={`Printer used for ${request.fileName}`}
+                value={draft.process}
+                disabled={busy}
+                onChange={(event) => {
+                  const process = event.target.value as PrintProcess
+                  // The material has to follow the machine, and resin has no
+                  // infill to carry over.
+                  setDraft((current) => ({
+                    ...current,
+                    process,
+                    material: materialsFor(process)[0]!.value,
+                    infillPattern: hasInfill(process)
+                      ? (current.infillPattern ?? 'GRID')
+                      : null,
+                    infillDensity: hasInfill(process)
+                      ? (current.infillDensity ?? DEFAULT_INFILL_DENSITY)
+                      : null,
+                  }))
+                }}
+                className={field}
+              >
+                <option value="FDM">FDM</option>
+                <option value="SLA">SLA</option>
+              </select>
+
+              <select
+                aria-label={`Material used for ${request.fileName}`}
+                value={draft.material}
+                disabled={busy}
+                onChange={(event) => {
+                  set('material', event.target.value as PrintMaterial)
+                }}
+                className={field}
+              >
+                {materialsFor(draft.process).map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+
+              {hasInfill(draft.process) && (
+                <>
+                  <select
+                    aria-label={`Infill density used for ${request.fileName}`}
+                    value={String(draft.infillDensity ?? DEFAULT_INFILL_DENSITY)}
+                    disabled={busy}
+                    onChange={(event) => {
+                      set('infillDensity', Number(event.target.value))
+                    }}
+                    className={field}
+                  >
+                    {INFILL_DENSITIES.map((density) => (
+                      <option key={density} value={density}>
+                        {density}%
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    aria-label={`Infill pattern used for ${request.fileName}`}
+                    value={draft.infillPattern ?? 'GRID'}
+                    disabled={busy}
+                    onChange={(event) => {
+                      set('infillPattern', event.target.value as InfillPattern)
+                    }}
+                    className={field}
+                  >
+                    {INFILL_PATTERNS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              )}
+            </div>
+          )}
 
           {/* Before the press, not after the 409. The server checks it again
               and is the one that actually refuses — this is so the officer

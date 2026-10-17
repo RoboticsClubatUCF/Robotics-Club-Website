@@ -49,38 +49,53 @@ export function DashboardPage() {
       <FormEyebrow>/ OVERVIEW</FormEyebrow>
       <FormHeading>Hello, {firstName}.</FormHeading>
 
-      {/* One grid for the whole page, rather than a status block and a prompt stacked
-          full-width above a grid of panels. Every cell in here is the same kind of thing
-          — something true about this person right now — and the two at the top only sat
-          apart because the page was a column. As many columns as the screen has room
-          for; the reading order down the markup is unchanged. */}
-      <div className="grid-fluid mt-8 gap-5">
-        <Membership state={membership} />
+      {/* Status strip at the top (standing, lab status, and an unanswered survey
+          prompt) above a two-column work area (your projects & tasks on the left,
+          open club projects & answered survey on the right). Explicit columns with
+          `items-start` prevent short status cards from stretching to match tall lists. */}
+      <div className="mt-8 grid grid-cols-1 items-start gap-5 wide:grid-cols-2">
+        <div className="space-y-5">
+          <Membership state={membership} />
 
-        {/* One prompt here, and it's about money. The survey used to take this slot
-            whenever it was owed, because it outranked dues on the server and telling
-            somebody to pay would have sent them to a page the gate then refused. It shuts
-            nothing now. */}
-        {duesLocked(membership, user.role) && (
-          <FormPanel tone="accent">
-            <p className="mb-1.5 text-sm font-semibold">
-              Pay your dues to unlock the rest of this.
-            </p>
-            <p className="text-dim text-sm leading-[1.7] text-pretty">
-              3D printing, equipment and anything you run are locked until then.
-              Your projects and rank are untouched.
-            </p>
-          </FormPanel>
-        )}
+          {/* One prompt here, and it's about money. The survey used to take this slot
+              whenever it was owed, because it outranked dues on the server and telling
+              somebody to pay would have sent them to a page the gate then refused. It shuts
+              nothing now. */}
+          {duesLocked(membership, user.role) && (
+            <FormPanel tone="accent">
+              <p className="mb-1.5 text-sm font-semibold">
+                Pay your dues to unlock the rest of this.
+              </p>
+              <p className="text-dim text-sm leading-[1.7] text-pretty">
+                3D printing, equipment and anything you run are locked until then.
+                Your projects and rank are untouched.
+              </p>
+            </FormPanel>
+          )}
+        </div>
 
-        {/* Ahead of the rest, because it's the only panel here that's different this
-            evening from what it was this morning — and for an officer it's the one thing
-            on the page that's a press rather than a link. */}
-        <LabPanel user={user} membership={membership} />
-        <MyProjects projects={projects} />
-        <OpenProjects />
-        <MyTasks />
-        <SurveyPanel pending={surveyPending} asking={askingForSurvey} />
+        <div className="space-y-5">
+          {/* Ahead of the rest, because it's the only panel here that's different this
+              evening from what it was this morning — and for an officer it's the one thing
+              on the page that's a press rather than a link. */}
+          <LabPanel user={user} membership={membership} />
+          {surveyPending && (
+            <SurveyPanel pending={surveyPending} asking={askingForSurvey} />
+          )}
+        </div>
+      </div>
+
+      <div className="mt-5 grid grid-cols-1 items-start gap-5 wide:grid-cols-2">
+        <div className="space-y-5">
+          <MyProjects projects={projects} />
+          <MyTasks />
+        </div>
+        <div className="space-y-5">
+          <OpenProjects />
+          {!surveyPending && (
+            <SurveyPanel pending={surveyPending} asking={askingForSurvey} />
+          )}
+        </div>
       </div>
 
       {/* The page ends on the calendar. It used to end on a link to the Discord and a
@@ -127,28 +142,23 @@ function Membership({ state }: { state: DashboardContext['membership'] }) {
   const membership = state.data
   const gap = coverGap(membership)
 
-  // One element, not a fragment: this is a cell of the page's grid now, and a fragment
-  // would spill the button into a cell of its own halfway across the row from the panel
-  // it belongs to.
   return (
-    <div>
-      <MembershipPanel membership={membership} />
-
+    <MembershipPanel membership={membership}>
       {/* Shown whatever the status, so somebody reading this inside a free window can
           settle the term ahead now rather than being told to come back.
 
           The label follows `coverGap`, not `duesRequired`, and that distinction is the
           bug this replaced: `duesRequired` is false during a free window, so this said
           VIEW DUES & PAYMENTS to somebody with no access at all. */}
-      <div className="mt-5">
+      <div className="border-rule mt-5 border-t pt-4">
         <Link
           to="/dashboard/dues"
-          className="btn btn-primary btn-cta px-7 py-[15px] text-[13px] font-semibold"
+          className="btn btn-primary btn-cta px-6 py-3 text-[12px] font-semibold"
         >
           {gap ? LOCK_COPY[gap].cta : 'VIEW DUES & PAYMENTS'}
         </Link>
       </div>
-    </div>
+    </MembershipPanel>
   )
 }
 

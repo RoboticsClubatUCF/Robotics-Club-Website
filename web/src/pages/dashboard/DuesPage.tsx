@@ -324,9 +324,15 @@ export function DuesPage() {
           second is a receipt drawer — it belongs beside the page rather than a screen
           below it. Everything to do with paying stays in one column and in order,
           because that half is a sequence: standing, then the free window, then the
-          plans. `--col-min` is high enough that a laptop keeps them stacked; Stripe's
-          own form lands in this column and wants the room. */}
-      <div className="grid-fluid items-start gap-8 [--col-min:31rem]">
+          plans. When there is no payment history yet, cap the single column so it
+          does not stretch across the whole screen. */}
+      <div
+        className={
+          history.length > 0
+            ? 'grid grid-cols-1 items-start gap-8 wide:grid-cols-2'
+            : 'max-w-[38rem]'
+        }
+      >
         <div>
           <div className="mb-8">
             <MembershipPanel membership={membership} />

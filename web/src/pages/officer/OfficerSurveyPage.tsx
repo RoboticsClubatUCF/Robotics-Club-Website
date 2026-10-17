@@ -159,7 +159,7 @@ function Results() {
       )}
       {ready && (
         <>
-          <dl aria-label="Survey totals" className="mb-5 grid gap-3 sm:grid-cols-3">
+          <dl aria-label="Survey totals" className="mb-5 grid grid-cols-1 gap-3 wide:grid-cols-3">
             {[
               ['Matching responses', data.responded],
               ['All survey responses', data.totalResponded],

@@ -6,6 +6,7 @@ import {
   PanelStatus,
   ProfilePanel,
   noteClass,
+  panelQuietClass,
   panelSaveClass,
   type PanelMessage,
 } from './profileChrome'
@@ -25,6 +26,7 @@ const MIN_LENGTH = 10
 export function ProfilePasswordPanel() {
   const id = useId()
 
+  const [open, setOpen] = useState(false)
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
   const [again, setAgain] = useState('')
@@ -53,6 +55,7 @@ export function ProfilePasswordPanel() {
         setCurrent('')
         setNext('')
         setAgain('')
+        setOpen(false)
         setMessage({
           tone: 'ok',
           text:
@@ -75,7 +78,26 @@ export function ProfilePasswordPanel() {
 
   return (
     <ProfilePanel label="PASSWORD">
-      <form onSubmit={save} className="flex flex-col gap-4">
+      <p className={`${noteClass} mb-4`}>
+        Changing it signs you out on every other device, and leaves you signed
+        in here.
+      </p>
+
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => {
+          setOpen(!open)
+        }}
+        className={panelQuietClass}
+      >
+        {open ? 'CLOSE' : 'SET A NEW PASSWORD'}
+      </button>
+
+      <form
+        onSubmit={save}
+        className={open ? 'mt-4 flex flex-col gap-4' : 'hidden'}
+      >
         <div>
           <label htmlFor={`${id}-current`} className={labelClass}>
             CURRENT PASSWORD
@@ -145,11 +167,6 @@ export function ProfilePasswordPanel() {
             {saving ? 'SAVING…' : 'CHANGE MY PASSWORD'}
           </button>
         </div>
-
-        <p className={noteClass}>
-          Changing it signs you out on every other device, and leaves you signed
-          in here.
-        </p>
       </form>
 
       <PanelStatus message={message} />

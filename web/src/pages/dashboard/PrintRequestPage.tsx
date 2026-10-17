@@ -190,14 +190,9 @@ function PrintRequestForm({
         </p>
       )}
 
-      {/* Two halves wherever there's room: what you're asking for on one side, what you've already
-          asked for on the other. They're the two things somebody opens this page to do and neither
-          follows from the other, so stacking them only ever meant scrolling past a form to check
-          on a print. The allowance stays with the form — it decides the infill you type into it.
-
-          `--col-min` is set well above the width either half needs, so a laptop keeps the single
-          column: two 30rem columns of dense form is worse than one 60rem one. */}
-      <div className="grid-fluid items-start gap-5 [--col-min:32rem]">
+      {/* Two halves at `wide`: what you're asking for on one side, what you've already
+          asked for on the other. */}
+      <div className="grid grid-cols-1 items-start gap-5 wide:grid-cols-2">
         <div className="space-y-5">
           <Allowance allowance={allowance} />
           <Filament drafts={drafts} reload={load} trained={trained} />
@@ -449,6 +444,7 @@ function RequestForm({
 }) {
   const id = useId()
   const [state, setState] = useState<FormState>({ status: 'idle' })
+  const [open, setOpen] = useState(false)
   // The file comes off the input rather than out of `new FormData(form)`, unlike every other form
   // here. The body is built by hand anyway so the request says exactly what it sends, and a file
   // input needs its `value` cleared explicitly — `form.reset()` alone leaves the filename sitting
@@ -505,14 +501,29 @@ function RequestForm({
 
   return (
     <FormPanel>
-      <form onSubmit={submit}>
-        <p className="text-faint mb-2 font-mono text-[10px] font-medium tracking-[0.16em]">
-          RESIN — AN OFFICER SLICES IT
-        </p>
-        <p className="text-dim mb-5 text-[13px] leading-[1.6] text-pretty">
-          Fine detail and smooth faces, in {resin.label}. Slower, and worth it for small parts.
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-faint mb-1 font-mono text-[10px] font-medium tracking-[0.16em]">
+            RESIN — AN OFFICER SLICES IT
+          </p>
+          <p className="text-dim text-[13px] leading-[1.6] text-pretty">
+            Fine detail and smooth faces, in {resin.label}. Slower, and worth it for small parts.
+          </p>
+        </div>
 
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => {
+            setOpen((current) => !current)
+          }}
+          className="border-rule text-dim hover:border-primary hover:text-primary min-h-11 shrink-0 cursor-pointer border px-4 py-2 font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 wide:min-h-0"
+        >
+          {open ? 'CLOSE' : 'REQUEST A RESIN PRINT'}
+        </button>
+      </div>
+
+      <form onSubmit={submit} className={open ? 'border-rule mt-5 border-t pt-5' : 'hidden'}>
         <div className="mb-5">
           <label htmlFor={`${id}-file`} className={labelClass}>
             THE MODEL — STL OR STEP

@@ -11,6 +11,7 @@ import { Status } from '../../components/shared/Status'
 import { useSectionStatus } from '../../lib/useSectionStatus'
 import { ConfirmDialog } from '../../components/shared/ConfirmDialog'
 import { ImageFramer } from '../../components/shared/ImageFramer'
+import { SubMenu } from '../../components/shared/SubMenu'
 import {
   FormEyebrow,
   FormHeading,
@@ -42,6 +43,15 @@ import { linesFromText, linesToText } from '../../lib/textLines'
 import { frameStyle, safeFraming, type Framing } from '../../lib/media/imageFraming'
 import { moveItem } from '../../lib/projects/projectGallery'
 import { imageSrc, isStoredUpload } from '../../lib/media/storedFiles'
+
+type FrontPageTab = 'photos' | 'copy' | 'faqs' | 'partners'
+
+const FRONT_PAGE_TABS: readonly { value: FrontPageTab; label: string }[] = [
+  { value: 'photos', label: 'HERO PHOTOS' },
+  { value: 'copy', label: 'HEADLINE & COPY' },
+  { value: 'faqs', label: 'FAQ' },
+  { value: 'partners', label: 'PARTNER PROGRAMS' },
+]
 
 /**
  * `/dashboard/officer/front-page` — the landing page, as far as it is content.
@@ -94,13 +104,26 @@ export function OfficerFrontPagePage() {
  * other — a slow answer for the FAQ must not hold up an officer rearranging photographs.
  */
 function Desk() {
+  const [tab, setTab] = useState<FrontPageTab>('photos')
+
   return (
     <>
       <FormEyebrow>/ MANAGE · FRONT PAGE</FormEyebrow>
       <FormHeading>What the front page shows, and what it says.</FormHeading>
 
-      <Photos />
-      <Words />
+      <SubMenu
+        label="Front page sections"
+        options={FRONT_PAGE_TABS}
+        value={tab}
+        onChange={setTab}
+      />
+
+      <div className={tab === 'photos' ? '' : 'hidden'}>
+        <Photos />
+      </div>
+      <div className={tab === 'photos' ? 'hidden' : ''}>
+        <Words activeTab={tab} />
+      </div>
     </>
   )
 }
@@ -264,7 +287,7 @@ function Photos() {
 
   return (
     <>
-      <div className="grid-fluid mb-6 grid items-start gap-6 [--col-min:24rem]">
+      <div className="mb-6 grid grid-cols-1 items-start gap-6 wide:grid-cols-2">
         <section>
           <p className={`${panelLabel} mb-4`}>/ PHOTOS</p>
 
@@ -516,7 +539,7 @@ function Photos() {
  * is `s-maxage=300`, so without it an officer who rewrites the headline and reloads can be
  * handed the answer from before they did.
  */
-function Words() {
+function Words({ activeTab }: { activeTab: FrontPageTab }) {
   const [page, setPage] = useState<ApiFrontPage | null>(null)
   const [loadError, setLoadError] = useState('')
 
@@ -553,24 +576,30 @@ function Words() {
 
   return (
     <>
-      <Copy
-        page={page}
-        onSaved={(saved) => {
-          setPage({ ...page, ...saved })
-        }}
-      />
-      <Questions
-        faqs={page.faqs}
-        onChange={(faqs) => {
-          setPage({ ...page, faqs })
-        }}
-      />
-      <Partners
-        partners={page.partners}
-        onChange={(partners) => {
-          setPage({ ...page, partners })
-        }}
-      />
+      <div className={activeTab === 'copy' ? '' : 'hidden'}>
+        <Copy
+          page={page}
+          onSaved={(saved) => {
+            setPage({ ...page, ...saved })
+          }}
+        />
+      </div>
+      <div className={activeTab === 'faqs' ? 'max-w-[54rem]' : 'hidden'}>
+        <Questions
+          faqs={page.faqs}
+          onChange={(faqs) => {
+            setPage({ ...page, faqs })
+          }}
+        />
+      </div>
+      <div className={activeTab === 'partners' ? 'max-w-[54rem]' : 'hidden'}>
+        <Partners
+          partners={page.partners}
+          onChange={(partners) => {
+            setPage({ ...page, partners })
+          }}
+        />
+      </div>
     </>
   )
 }
@@ -624,10 +653,10 @@ function Copy({
     partnersIntro.trim() === ''
 
   return (
-    <section className="border-rule mt-9 border-t pt-9">
+    <section>
       <p className={`${panelLabel} mb-4`}>/ THE HEADLINE</p>
 
-      <div className="grid-fluid grid items-start gap-6 [--col-min:24rem]">
+      <div className="grid grid-cols-1 items-start gap-6 wide:grid-cols-2">
         <div className="grid gap-4">
           <div>
             <label className={labelClass} htmlFor={`${id}-headline`}>
@@ -771,6 +800,7 @@ function Questions({
 
   const [question, setQuestion] = useState('')
   const [answer, setAnswer] = useState('')
+  const [addOpen, setAddOpen] = useState(false)
   const [doomed, setDoomed] = useState<ApiFaq | null>(null)
 
   const full = faqs.length >= MAX_FAQS
@@ -811,6 +841,7 @@ function Questions({
       onChange([...faqs, added])
       setQuestion('')
       setAnswer('')
+      setAddOpen(false)
     })
 
   const patch = (faq: ApiFaq, body: Partial<ApiFaq>) =>
@@ -830,8 +861,21 @@ function Questions({
     })
 
   return (
-    <section className="border-rule mt-9 border-t pt-9">
-      <p className={`${panelLabel} mb-4`}>/ QUESTIONS</p>
+    <section>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <p className={panelLabel}>/ QUESTIONS</p>
+        <button
+          type="button"
+          aria-expanded={addOpen}
+          disabled={full}
+          onClick={() => {
+            setAddOpen((open) => !open)
+          }}
+          className={button}
+        >
+          {addOpen ? 'CLOSE' : '+ NEW QUESTION'}
+        </button>
+      </div>
 
       <div className="border-rule bg-base-200 mb-4 border p-4">
         <p className="text-dim text-[13px] leading-[1.6] text-pretty">
@@ -942,7 +986,11 @@ function Questions({
         </ul>
       )}
 
-      <div className="mt-4 grid gap-4">
+      <div
+        className={
+          addOpen ? 'border-rule mt-5 grid gap-4 border-t pt-5' : 'hidden'
+        }
+      >
         <div>
           <label className={labelClass} htmlFor={`${id}-question`}>
             A NEW QUESTION
@@ -1036,6 +1084,7 @@ function Partners({
 
   const [name, setName] = useState('')
   const [href, setHref] = useState('')
+  const [addOpen, setAddOpen] = useState(false)
   const [doomed, setDoomed] = useState<ApiPartnerProgram | null>(null)
 
   const full = partners.length >= MAX_PARTNERS
@@ -1085,6 +1134,7 @@ function Partners({
       onChange([...partners, added])
       setName('')
       setHref('')
+      setAddOpen(false)
     })
 
   const patch = (program: ApiPartnerProgram, body: Partial<ApiPartnerProgram>) =>
@@ -1126,8 +1176,21 @@ function Partners({
     })
 
   return (
-    <section className="border-rule mt-9 border-t pt-9">
-      <p className={`${panelLabel} mb-4`}>/ PARTNER PROGRAMS</p>
+    <section>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <p className={panelLabel}>/ PARTNER PROGRAMS</p>
+        <button
+          type="button"
+          aria-expanded={addOpen}
+          disabled={full}
+          onClick={() => {
+            setAddOpen((open) => !open)
+          }}
+          className={button}
+        >
+          {addOpen ? 'CLOSE' : '+ NEW PROGRAM'}
+        </button>
+      </div>
 
       <div className="border-rule bg-base-200 mb-4 border p-4">
         <p className="text-dim text-[13px] leading-[1.6] text-pretty">
@@ -1219,7 +1282,7 @@ function Partners({
                 </span>
               </div>
 
-              <div className="mt-2 grid gap-2 wide:grid-cols-2">
+              <div className="mt-2 grid grid-cols-1 gap-2 wide:grid-cols-2">
                 <input
                   type="text"
                   defaultValue={program.audience}
@@ -1338,56 +1401,60 @@ function Partners({
         </ul>
       )}
 
-      <div className="mt-4 grid gap-4 wide:grid-cols-2">
-        <div>
-          <label className={labelClass} htmlFor={`${id}-name`}>
-            A NEW PROGRAM
-          </label>
-          <input
-            id={`${id}-name`}
-            type="text"
-            value={name}
-            maxLength={80}
-            disabled={busy || full}
-            onChange={(event) => {
-              setName(event.target.value)
-            }}
-            className={fieldClass}
-          />
-        </div>
-
-        <div>
-          <label className={labelClass} htmlFor={`${id}-href`}>
-            ITS OWN SITE
-          </label>
-          <input
-            id={`${id}-href`}
-            type="url"
-            value={href}
-            maxLength={500}
-            placeholder="https://…"
-            disabled={busy || full}
-            onChange={(event) => {
-              setHref(event.target.value)
-            }}
-            className={fieldClass}
-          />
-        </div>
-      </div>
-
-      <button
-        type="button"
-        aria-label="Add a partner program"
-        onClick={() => void add()}
-        disabled={busy || full || name.trim() === '' || href.trim() === ''}
-        className={`${button} mt-2`}
+      <div
+        className={addOpen ? 'border-rule mt-5 border-t pt-5' : 'hidden'}
       >
-        ADD
-      </button>
-      <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
-        It lands with a line to fill in and a blurb to rewrite — both are on the
-        row, and both save when you click out of them.
-      </p>
+        <div className="grid grid-cols-1 gap-4 wide:grid-cols-2">
+          <div>
+            <label className={labelClass} htmlFor={`${id}-name`}>
+              A NEW PROGRAM
+            </label>
+            <input
+              id={`${id}-name`}
+              type="text"
+              value={name}
+              maxLength={80}
+              disabled={busy || full}
+              onChange={(event) => {
+                setName(event.target.value)
+              }}
+              className={fieldClass}
+            />
+          </div>
+
+          <div>
+            <label className={labelClass} htmlFor={`${id}-href`}>
+              ITS OWN SITE
+            </label>
+            <input
+              id={`${id}-href`}
+              type="url"
+              value={href}
+              maxLength={500}
+              placeholder="https://…"
+              disabled={busy || full}
+              onChange={(event) => {
+                setHref(event.target.value)
+              }}
+              className={fieldClass}
+            />
+          </div>
+        </div>
+
+        <button
+          type="button"
+          aria-label="Add a partner program"
+          onClick={() => void add()}
+          disabled={busy || full || name.trim() === '' || href.trim() === ''}
+          className={`${button} mt-2`}
+        >
+          ADD
+        </button>
+        <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
+          It lands with a line to fill in and a blurb to rewrite — both are on the
+          row, and both save when you click out of them.
+        </p>
+      </div>
 
       <p className="text-faint mt-3 font-mono text-[10px] font-medium tracking-[0.14em]">
         {partners.length} / {MAX_PARTNERS} PROGRAMS

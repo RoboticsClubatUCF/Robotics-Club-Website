@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { ApiMembership } from '../../lib/api/api'
 import {
   STATUS_CHIP,
@@ -21,10 +22,12 @@ import {
 export function MembershipPanel({
   membership,
   now = Date.now(),
+  children,
 }: {
   membership: ApiMembership
   /** Injectable so a test can pin the countdown to a known day. */
   now?: number
+  children?: ReactNode
 }) {
   const chip = STATUS_CHIP[membership.status]
 
@@ -51,6 +54,8 @@ export function MembershipPanel({
           usual dates and may be a few days out.
         </p>
       )}
+
+      {children}
     </div>
   )
 }

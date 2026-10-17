@@ -31,14 +31,14 @@ export function SurveyReportFilters({
     ((!value.from && !value.to) || (value.from && value.to && value.from > value.to))
   return (
     <form
-      className="mb-6 border border-rule bg-base-200 p-4 sm:p-5"
+      className="mb-6 border border-rule bg-base-200 p-4 wide:p-5"
       aria-label="Filter survey responses"
       onSubmit={(event) => {
         event.preventDefault()
         if (!invalid) onApply()
       }}
     >
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 wide:grid-cols-4">
         <div>
           <label className={labelClass} htmlFor={`${id}-period`}>
             DATE RANGE
@@ -135,7 +135,7 @@ export function SurveyReportFilters({
             </div>
           </>
         )}
-        <div className="sm:col-span-2">
+        <div className="wide:col-span-2">
           <label className={labelClass} htmlFor={`${id}-search`}>
             SEARCH MEMBERS OR ANSWERS
           </label>

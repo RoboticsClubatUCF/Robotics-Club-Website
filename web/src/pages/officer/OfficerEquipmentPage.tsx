@@ -194,7 +194,7 @@ export function OfficerEquipmentPage() {
           asked for, and deciding what the club lends at all. Side by side where there's room,
           because checking whether the club even owns a second one of something is a question the
           queue raises and the list answers. */}
-      <div className="grid-fluid items-start gap-5 [--col-min:34rem]">
+      <div className="grid grid-cols-1 items-start gap-5 wide:grid-cols-2">
         <LoanQueue />
         <Inventory />
       </div>
@@ -512,6 +512,7 @@ function Inventory() {
   const [showAll, setShowAll] = useState(false)
   /** The name box, held here so the duplicate check can watch it being typed. */
   const [name, setName] = useState('')
+  const [addOpen, setAddOpen] = useState(false)
   /** The item a DELETE is waiting on the officer confirming. */
   const [doomed, setDoomed] = useState<ApiOfficerEquipment | null>(null)
 
@@ -579,6 +580,7 @@ function Inventory() {
       .then(async () => {
         form.reset()
         setName('')
+        setAddOpen(false)
         await load()
       })
       .catch((error: unknown) => {
@@ -621,9 +623,21 @@ function Inventory() {
 
   return (
     <FormPanel>
-      <p className="text-faint mb-1 font-mono text-[10px] font-medium tracking-[0.16em]">
-        THE LENDING LIST
-      </p>
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-faint font-mono text-[10px] font-medium tracking-[0.16em]">
+          THE LENDING LIST
+        </p>
+        <button
+          type="button"
+          aria-expanded={addOpen}
+          onClick={() => {
+            setAddOpen((open) => !open)
+          }}
+          className={quietButton}
+        >
+          {addOpen ? 'CLOSE' : '+ ADD EQUIPMENT'}
+        </button>
+      </div>
       <p className="text-dim mb-4 text-[13px] leading-[1.6] text-pretty">
         <strong className="font-semibold text-base-content">Retiring</strong> takes
         something off the members' list and keeps its borrowing records.{' '}
@@ -794,7 +808,12 @@ function Inventory() {
           disappears the moment somebody types, so a form built out of them stops explaining itself
           exactly when it's being filled in — and "1" in an unlabelled box next to a name could be
           a quantity, a shelf number or a price. */}
-      <form onSubmit={add} className="space-y-4">
+      <form
+        onSubmit={add}
+        className={
+          addOpen ? 'border-rule mt-5 space-y-4 border-t pt-5' : 'hidden'
+        }
+      >
         <p className={labelClass}>ADD SOMETHING TO THE LIST</p>
 
         <div>
@@ -827,7 +846,7 @@ function Inventory() {
           )}
         </div>
 
-        <div className="grid-fluid gap-3 [--col-min:13rem]">
+        <div className="grid grid-cols-1 gap-3 wide:grid-cols-2">
           <div>
             <label htmlFor={`${id}-quantity`} className={labelClass}>
               HOW MANY THE CLUB HAS

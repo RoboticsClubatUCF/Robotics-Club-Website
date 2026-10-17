@@ -258,14 +258,9 @@ function DashboardShell({ user }: { user: ApiUser }) {
       <div data-skip-target tabIndex={-1} className="px-page min-w-0 py-9 outline-none wide:py-12">
         {/* Still left-aligned rather than centred in the remaining space: the rail is
             the left edge of the layout, and content that drifted away would put the
-            canyon between the two.
-
-            62rem was a reading measure applied to a whole section, which was the wrong
-            thing to measure — on anything wider than a laptop it left a third of the
-            screen empty while the pages inside stacked into one narrow column. The
-            measure belongs to the panels; this only has to stop the widest monitors
-            drawing a 2000px row of controls. */}
-        <div className="min-w-0 max-w-[112rem]">
+            canyon between the two. Capped at 82rem so two-column dashboard workspaces
+            have room to breathe without sprawling into three or four mismatched tiles. */}
+        <div className="min-w-0 max-w-[82rem]">
           {/* Every page under here is fetched on first use — see the note at the top
               of `App.tsx`. The boundary is inside the layout on purpose: the rail is
               what somebody navigates with, so it stays on screen while the next page

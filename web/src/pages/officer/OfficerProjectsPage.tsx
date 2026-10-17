@@ -18,6 +18,7 @@ import { LinkRows } from '../../components/projects/LinkRows'
 import { ProjectEditor } from '../../components/projects/ProjectEditor'
 import { useUnsavedGuard } from '../../components/projects/useUnsavedGuard'
 import { ConfirmDialog } from '../../components/shared/ConfirmDialog'
+import { SubMenu } from '../../components/shared/SubMenu'
 import { deleteJson, postJson } from '../../lib/api/api'
 import type {
   ApiManagedProject,
@@ -41,6 +42,14 @@ import {
   type NewImage,
 } from '../../lib/projects/projectDraft'
 import { useApi } from '../../lib/api/useApi'
+
+type ProjectsTab = 'list' | 'create' | 'duplicate'
+
+const PROJECTS_TABS: readonly { value: ProjectsTab; label: string }[] = [
+  { value: 'list', label: 'PROJECT DIRECTORY' },
+  { value: 'create', label: 'START A NEW BUILD' },
+  { value: 'duplicate', label: 'COPY PAST BUILD' },
+]
 
 /**
  * The projects desk: starting one, running last term's again, and reaching the management
@@ -69,6 +78,7 @@ const explain = (error: unknown) =>
 
 export function OfficerProjectsPage() {
   const { user, membership } = useOutletContext<DashboardContext>()
+  const [tab, setTab] = useState<ProjectsTab>('list')
 
   // Dues before role, because a lapsed officer is an officer and the sentence they need is
   // about a payment rather than about the board.
@@ -90,15 +100,23 @@ export function OfficerProjectsPage() {
       <FormEyebrow>/ MANAGE · PROJECTS</FormEyebrow>
       <FormHeading>Projects.</FormHeading>
 
-      {/* Two ways to end up with a project, and an officer is doing one of them — a new
-          build, or last term's again. Side by side once there's genuinely room for both,
-          which is what the high `--col-min` is for: the create panel turns into the full
-          project editor the moment it's pressed. `items-start`, since the panel beside it is
-          four fields. */}
-      <div className="grid-fluid items-start gap-5 [--col-min:34rem]">
-        <CreateProject />
-        <DuplicateProject />
+      <SubMenu
+        label="Projects sections"
+        options={PROJECTS_TABS}
+        value={tab}
+        onChange={setTab}
+      />
+
+      <div className={tab === 'list' ? 'max-w-[56rem]' : 'hidden'}>
         <EveryProject />
+      </div>
+
+      <div className={tab === 'create' ? 'max-w-[48rem]' : 'hidden'}>
+        <CreateProject />
+      </div>
+
+      <div className={tab === 'duplicate' ? 'max-w-[44rem]' : 'hidden'}>
+        <DuplicateProject />
       </div>
     </>
   )
@@ -265,7 +283,7 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
       </p>
 
       <form onSubmit={submit} className="space-y-4">
-        <div className="grid-fluid gap-4 [--col-min:14rem]">
+        <div className="grid grid-cols-1 gap-4 wide:grid-cols-2">
           <div>
             <label htmlFor={`${id}-title`} className={labelClass}>
               TITLE
@@ -319,7 +337,7 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
           </p>
         </div>
 
-        <div className="grid-fluid gap-4 [--col-min:14rem]">
+        <div className="grid grid-cols-1 gap-4 wide:grid-cols-2">
           <div>
             <label htmlFor={`${id}-season`} className={labelClass}>
               SEASON
@@ -773,7 +791,7 @@ function DuplicateForm({
           </select>
         </div>
 
-        <div className="grid-fluid gap-4 [--col-min:14rem]">
+        <div className="grid grid-cols-1 gap-4 wide:grid-cols-2">
           <div>
             {/* "NEW" on all four of these, because the create panel above is on screen at the
                 same time and carries a TITLE, a SLUG and a SEASON of its own. Two identical
@@ -818,7 +836,7 @@ function DuplicateForm({
           </div>
         </div>
 
-        <div className="grid-fluid gap-4 [--col-min:11rem]">
+        <div className="grid grid-cols-1 gap-4 wide:grid-cols-3">
           <div>
             <label htmlFor={`${id}-dup-season`} className={labelClass}>
               NEW SEASON — THE LABEL

@@ -201,10 +201,10 @@ function EquipmentCatalogue() {
       </p>
 
       {/* Asking for something and keeping track of what you've got are the two halves of this
-          page, and neither waits on the other — so where there's room they sit side by side. The
+          page, and neither waits on the other — so at `wide` they sit side by side. The
           catalogue is the taller half by a long way, which is why the columns start at the top
           instead of stretching to match. */}
-      <div className="grid-fluid items-start gap-5 [--col-min:32rem]">
+      <div className="grid grid-cols-1 items-start gap-6 wide:grid-cols-2">
         <BorrowForm items={items} openLoans={openLoans} onSent={load} />
         <MyLoans loans={loans} onChange={load} />
       </div>
@@ -389,7 +389,7 @@ function BorrowForm({
         </p>
       )}
 
-      <fieldset className="grid-fluid gap-4 [--col-min:15rem]" disabled={sending}>
+      <fieldset className="grid grid-cols-1 gap-3 wide:grid-cols-2" disabled={sending}>
         <legend className="sr-only">What to borrow</legend>
 
         {shown.map((item) => {
@@ -595,7 +595,7 @@ function BorrowWindow({
         {item.name} goes out for up to {capPhrase(item.maxLoanDays)} at a time.
       </p>
 
-      <fieldset className="grid-fluid mb-4 gap-3 [--col-min:15rem]" disabled={disabled}>
+      <fieldset className="mb-4 grid grid-cols-1 gap-3 wide:grid-cols-2" disabled={disabled}>
         <legend className="sr-only">When you want it</legend>
 
         {[
@@ -627,7 +627,7 @@ function BorrowWindow({
         ))}
       </fieldset>
 
-      <div className="grid-fluid gap-3 [--col-min:13rem]">
+      <div className="grid grid-cols-1 gap-3 wide:grid-cols-2">
         {later && (
           <div>
             <label htmlFor={`${id}-start`} className={labelClass}>

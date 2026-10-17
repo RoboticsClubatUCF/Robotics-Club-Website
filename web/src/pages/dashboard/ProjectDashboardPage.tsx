@@ -122,12 +122,8 @@ function ProjectHome({ membership }: { membership: ApiMyProject }) {
         </p>
       )}
 
-      {/* Who is on it beside what is left to do, where there is room. They are
-          the two questions this page answers and they are asked together —
-          "who is picking that up" needs both halves on screen at once, and
-          stacked the second one starts below the fold on a project with three
-          teams. */}
-      <div className="grid-fluid items-start gap-5 [--col-min:26rem]">
+      {/* Who is on it beside what is left to do, at `wide`. */}
+      <div className="grid grid-cols-1 items-start gap-5 wide:grid-cols-2">
         <Roster projectId={project.id} />
         <TaskBoard projectId={project.id} />
       </div>

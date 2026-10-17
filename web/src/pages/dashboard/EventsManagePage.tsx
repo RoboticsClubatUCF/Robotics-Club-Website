@@ -122,12 +122,15 @@ function Events({
   const [events, setEvents] = useState<ApiMeEvent[] | null>(null)
   const [failed, setFailed] = useState(false)
   const [editing, setEditing] = useState<ApiMeEvent | null>(null)
+  const [showForm, setShowForm] = useState(false)
   const [deleting, setDeleting] = useState<ApiMeEvent | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<Message>(null)
   const [when, setWhen] = useState('')
   const [until, setUntil] = useState('')
   const [saves, setSaves] = useState(0)
+
+  const formOpen = showForm || editing !== null
 
   /**
    * This term, for the one warning this page gives.
@@ -275,6 +278,7 @@ function Events({
       setSaves((count) => count + 1)
       setWhen('')
       setUntil('')
+      setShowForm(false)
       setMessage({ tone: 'success', text: 'Saved.' })
       await reload()
     })
@@ -302,14 +306,41 @@ function Events({
 
   return (
     <>
-      <FormEyebrow>/ MANAGE · EVENTS</FormEyebrow>
-      <FormHeading>Events</FormHeading>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <FormEyebrow>/ MANAGE · EVENTS</FormEyebrow>
+          <FormHeading>Events</FormHeading>
+        </div>
 
-      {/* The calendar on one side and the form on the other, wherever there's room for both.
-          Editing is what makes it worth the split: EDIT fills this form from a row in that
-          list, and stacked they're far enough apart that pressing it looks like nothing
-          happened. `items-start` keeps the form at the top of its column. */}
-      <div className="grid-fluid items-start gap-5 [--col-min:30rem]">
+        <button
+          type="button"
+          aria-expanded={formOpen}
+          onClick={() => {
+            if (formOpen) {
+              setShowForm(false)
+              setEditing(null)
+              setMessage(null)
+              setWhen('')
+              setUntil('')
+            } else {
+              setShowForm(true)
+            }
+          }}
+          className="btn btn-primary btn-cta shrink-0 px-5 py-2.5 text-[12px] font-semibold"
+        >
+          {formOpen ? 'CLOSE FORM' : '+ SCHEDULE EVENT'}
+        </button>
+      </div>
+
+      {/* The calendar on one side and the form on the other when creating or editing.
+          `items-start` keeps the form at the top of its column. */}
+      <div
+        className={
+          formOpen
+            ? 'grid grid-cols-1 items-start gap-5 wide:grid-cols-2'
+            : 'max-w-[52rem]'
+        }
+      >
         <FormPanel>
           <p className={panelLabel}>ON THE CALENDAR</p>
 
@@ -391,65 +422,104 @@ function Events({
           )}
         </FormPanel>
 
-        <FormPanel>
-          {/* `key` swaps the form wholesale between "new" and "editing", which is what lets
-              the uncontrolled inputs pick up an event's values as their defaults. */}
-          <form
-            key={editing?.id ?? `new-${String(saves)}`}
-            onSubmit={submit}
-            // A refusal is about what was typed, so it goes once the typing changes.
-            onChange={() => {
-              if (message?.tone === 'error') setMessage(null)
-            }}
-            className="space-y-4"
-          >
-            <p className={panelLabel}>
-              {editing ? `EDITING — ${editing.title.toUpperCase()}` : 'NEW EVENT'}
-            </p>
+        <div className={formOpen ? '' : 'hidden'}>
+          <FormPanel>
+            {/* `key` swaps the form wholesale between "new" and "editing", which is what lets
+                the uncontrolled inputs pick up an event's values as their defaults. */}
+            <form
+              key={editing?.id ?? `new-${String(saves)}`}
+              onSubmit={submit}
+              // A refusal is about what was typed, so it goes once the typing changes.
+              onChange={() => {
+                if (message?.tone === 'error') setMessage(null)
+              }}
+              className="space-y-4"
+            >
+              <p className={panelLabel}>
+                {editing ? `EDITING — ${editing.title.toUpperCase()}` : 'NEW EVENT'}
+              </p>
 
-            {/* Where it hangs is fixed once it exists — moving an event between projects is
-                deleting and recreating it, which keeps the permission question
-                one-dimensional on the server. */}
-            {!editing && (
-              <div className="grid-fluid gap-4 [--col-min:14rem]">
-                <div>
-                  <label htmlFor={`${id}-project`} className={labelClass}>
-                    PROJECT
-                  </label>
-                  <select
-                    id={`${id}-project`}
-                    name="project"
-                    className={selectClass}
-                    disabled={busy}
-                    defaultValue={officer ? CLUB_WIDE : (leads[0]?.project.id ?? '')}
-                  >
-                    {officer && (
-                      <option value={CLUB_WIDE}>Club-wide — no project</option>
+              {/* Where it hangs is fixed once it exists — moving an event between projects is
+                  deleting and recreating it, which keeps the permission question
+                  one-dimensional on the server. */}
+              {!editing && (
+                <div className="grid grid-cols-1 gap-4 wide:grid-cols-2">
+                  <div>
+                    <label htmlFor={`${id}-project`} className={labelClass}>
+                      PROJECT
+                    </label>
+                    <select
+                      id={`${id}-project`}
+                      name="project"
+                      className={selectClass}
+                      disabled={busy}
+                      defaultValue={officer ? CLUB_WIDE : (leads[0]?.project.id ?? '')}
+                    >
+                      {officer && (
+                        <option value={CLUB_WIDE}>Club-wide — no project</option>
+                      )}
+                      {leads.map(({ project, rank, team }) => (
+                        <option key={project.id} value={project.id}>
+                          {project.title}{!officer && rank === 'TEAM_LEAD' && team ? ` — ${team.name}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    {officer && leads.length === 0 && (
+                      <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
+                        You lead no projects, so this is the club&rsquo;s calendar.
+                        A project&rsquo;s own events are made on its manage page.
+                      </p>
                     )}
-                    {leads.map(({ project, rank, team }) => (
-                      <option key={project.id} value={project.id}>
-                        {project.title}{!officer && rank === 'TEAM_LEAD' && team ? ` — ${team.name}` : ''}
-                      </option>
-                    ))}
-                  </select>
-                  {officer && leads.length === 0 && (
-                    <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
-                      You lead no projects, so this is the club&rsquo;s calendar.
-                      A project&rsquo;s own events are made on its manage page.
-                    </p>
-                  )}
-                </div>
+                  </div>
 
+                  <div>
+                    <label htmlFor={`${id}-type`} className={labelClass}>
+                      TYPE
+                    </label>
+                    <select
+                      id={`${id}-type`}
+                      name="type"
+                      className={selectClass}
+                      disabled={busy}
+                      defaultValue="MEETING"
+                    >
+                      {EVENT_TYPES.map((type) => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label htmlFor={`${id}-title`} className={labelClass}>
+                  TITLE
+                </label>
+                <input
+                  id={`${id}-title`}
+                  name="title"
+                  required
+                  maxLength={160}
+                  placeholder="Design review"
+                  defaultValue={editing?.title ?? ''}
+                  className={fieldClass}
+                  disabled={busy}
+                />
+              </div>
+
+              {editing && (
                 <div>
-                  <label htmlFor={`${id}-type`} className={labelClass}>
+                  <label htmlFor={`${id}-type-edit`} className={labelClass}>
                     TYPE
                   </label>
                   <select
-                    id={`${id}-type`}
+                    id={`${id}-type-edit`}
                     name="type"
                     className={selectClass}
                     disabled={busy}
-                    defaultValue="MEETING"
+                    defaultValue={editing.type}
                   >
                     {EVENT_TYPES.map((type) => (
                       <option key={type} value={type}>
@@ -458,235 +528,199 @@ function Events({
                     ))}
                   </select>
                 </div>
-              </div>
-            )}
-
-            <div>
-              <label htmlFor={`${id}-title`} className={labelClass}>
-                TITLE
-              </label>
-              <input
-                id={`${id}-title`}
-                name="title"
-                required
-                maxLength={160}
-                placeholder="Design review"
-                defaultValue={editing?.title ?? ''}
-                className={fieldClass}
-                disabled={busy}
-              />
-            </div>
-
-            {editing && (
-              <div>
-                <label htmlFor={`${id}-type-edit`} className={labelClass}>
-                  TYPE
-                </label>
-                <select
-                  id={`${id}-type-edit`}
-                  name="type"
-                  className={selectClass}
-                  disabled={busy}
-                  defaultValue={editing.type}
-                >
-                  {EVENT_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* Start and end on rows of their own, so the order holds on a phone where each
-                field takes a line. Widths go on the wrappers because `fieldClass` carries
-                `w-full`, which beat them on the inputs and clipped the time behind its clock
-                icon. */}
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-end gap-4">
-                <div className="w-44">
-                  <label htmlFor={`${id}-date`} className={labelClass}>
-                    START DATE
-                  </label>
-                  <input
-                    id={`${id}-date`}
-                    name="date"
-                    type="date"
-                    required
-                    defaultValue={editing ? toDateInput(editing.startsAt) : ''}
-                    className={fieldClass}
-                    disabled={busy}
-                    onChange={(change) => {
-                      setWhen(change.target.value)
-                    }}
-                  />
-                </div>
-                <div className="w-36">
-                  <label htmlFor={`${id}-start`} className={labelClass}>
-                    START TIME
-                  </label>
-                  <input
-                    id={`${id}-start`}
-                    name="start"
-                    type="time"
-                    defaultValue={editing ? toTimeInput(editing.startsAt) : ''}
-                    className={fieldClass}
-                    disabled={busy}
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-end gap-4">
-                <div className="w-44">
-                  <label htmlFor={`${id}-end-date`} className={labelClass}>
-                    END DATE
-                  </label>
-                  <input
-                    id={`${id}-end-date`}
-                    name="endDate"
-                    type="date"
-                    defaultValue={editing ? toEndDateInput(editing) : ''}
-                    aria-describedby={`${id}-end-date-hint`}
-                    className={fieldClass}
-                    disabled={busy}
-                    onChange={(change) => {
-                      setUntil(change.target.value)
-                    }}
-                  />
-                </div>
-                <div className="w-36">
-                  <label htmlFor={`${id}-end`} className={labelClass}>
-                    END TIME
-                  </label>
-                  <input
-                    id={`${id}-end`}
-                    name="end"
-                    type="time"
-                    defaultValue={
-                      editing?.endsAt ? toTimeInput(editing.endsAt) : ''
-                    }
-                    className={fieldClass}
-                    disabled={busy}
-                  />
-                </div>
-              </div>
-
-              <p
-                id={`${id}-end-date-hint`}
-                className="text-faint text-[12px] leading-[1.5]"
-              >
-                Leave the end date empty for a one-day event.
-              </p>
-            </div>
-
-            <label className="flex cursor-pointer items-center gap-2.5">
-              <input
-                type="checkbox"
-                name="allDay"
-                defaultChecked={editing?.allDay ?? false}
-                disabled={busy}
-                className="checkbox checkbox-sm border-rule"
-              />
-              <span className="text-dim text-[13px]">
-                All day — ignore the times above
-              </span>
-            </label>
-
-            <div className="grid-fluid gap-4 [--col-min:14rem]">
-              <div>
-                <label htmlFor={`${id}-location`} className={labelClass}>
-                  WHERE
-                </label>
-                <input
-                  id={`${id}-location`}
-                  name="location"
-                  maxLength={160}
-                  placeholder="ENG2 Lab"
-                  defaultValue={editing?.location ?? ''}
-                  className={fieldClass}
-                  disabled={busy}
-                />
-              </div>
-              <div>
-                <label htmlFor={`${id}-registration`} className={labelClass}>
-                  SIGN-UP LINK
-                </label>
-                <input
-                  id={`${id}-registration`}
-                  name="registrationUrl"
-                  type="url"
-                  maxLength={500}
-                  placeholder="https://…"
-                  defaultValue={editing?.registrationUrl ?? ''}
-                  className={fieldClass}
-                  disabled={busy}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor={`${id}-description`} className={labelClass}>
-                DETAIL
-              </label>
-              <textarea
-                id={`${id}-description`}
-                name="description"
-                rows={3}
-                maxLength={5000}
-                defaultValue={editing?.description ?? ''}
-                className={`${fieldClass} h-auto py-2 leading-[1.6]`}
-                disabled={busy}
-              />
-            </div>
-
-            {canPublish && (
-              <EventCalendarCheckbox published={editing?.published} disabled={busy} />
-            )}
-
-            {/* Advisory, not a refusal. The halt is about the weekly meetings the site
-                generates; a competition that genuinely falls in finals week is the club's
-                business, and refusing it would be the page overruling the person who knows. */}
-            {finalsWarning && (
-              <p className="text-warning text-[13px] leading-[1.5] text-pretty">
-                {finalsWarning}
-              </p>
-            )}
-
-            <div className="flex flex-wrap items-center gap-3">
-              <button type="submit" className={primaryButton} disabled={busy}>
-                {busy ? 'SAVING…' : editing ? 'SAVE CHANGES' : 'CREATE EVENT'}
-              </button>
-
-              {editing && (
-                <button
-                  type="button"
-                  className={smallButton}
-                  disabled={busy}
-                  onClick={() => {
-                    setEditing(null)
-                    setMessage(null)
-                    setWhen('')
-                    setUntil('')
-                  }}
-                >
-                  STOP EDITING
-                </button>
               )}
-            </div>
-          </form>
 
-          <p role="status" className="mt-4 min-h-4 text-[13px]">
-            {message && (
-              <span
-                className={
-                  message.tone === 'error' ? 'text-error' : 'text-success'
-                }
-              >
-                {message.text}
-              </span>
-            )}
-          </p>
-        </FormPanel>
+              {/* Start and end on rows of their own, so the order holds on a phone where each
+                  field takes a line. Widths go on the wrappers because `fieldClass` carries
+                  `w-full`, which beat them on the inputs and clipped the time behind its clock
+                  icon. */}
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-end gap-4">
+                  <div className="w-44">
+                    <label htmlFor={`${id}-date`} className={labelClass}>
+                      START DATE
+                    </label>
+                    <input
+                      id={`${id}-date`}
+                      name="date"
+                      type="date"
+                      required
+                      defaultValue={editing ? toDateInput(editing.startsAt) : ''}
+                      className={fieldClass}
+                      disabled={busy}
+                      onChange={(change) => {
+                        setWhen(change.target.value)
+                      }}
+                    />
+                  </div>
+                  <div className="w-36">
+                    <label htmlFor={`${id}-start`} className={labelClass}>
+                      START TIME
+                    </label>
+                    <input
+                      id={`${id}-start`}
+                      name="start"
+                      type="time"
+                      defaultValue={editing ? toTimeInput(editing.startsAt) : ''}
+                      className={fieldClass}
+                      disabled={busy}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-end gap-4">
+                  <div className="w-44">
+                    <label htmlFor={`${id}-end-date`} className={labelClass}>
+                      END DATE
+                    </label>
+                    <input
+                      id={`${id}-end-date`}
+                      name="endDate"
+                      type="date"
+                      defaultValue={editing ? toEndDateInput(editing) : ''}
+                      aria-describedby={`${id}-end-date-hint`}
+                      className={fieldClass}
+                      disabled={busy}
+                      onChange={(change) => {
+                        setUntil(change.target.value)
+                      }}
+                    />
+                  </div>
+                  <div className="w-36">
+                    <label htmlFor={`${id}-end`} className={labelClass}>
+                      END TIME
+                    </label>
+                    <input
+                      id={`${id}-end`}
+                      name="end"
+                      type="time"
+                      defaultValue={
+                        editing?.endsAt ? toTimeInput(editing.endsAt) : ''
+                      }
+                      className={fieldClass}
+                      disabled={busy}
+                    />
+                  </div>
+                </div>
+
+                <p
+                  id={`${id}-end-date-hint`}
+                  className="text-faint text-[12px] leading-[1.5]"
+                >
+                  Leave the end date empty for a one-day event.
+                </p>
+              </div>
+
+              <label className="flex cursor-pointer items-center gap-2.5">
+                <input
+                  type="checkbox"
+                  name="allDay"
+                  defaultChecked={editing?.allDay ?? false}
+                  disabled={busy}
+                  className="checkbox checkbox-sm border-rule"
+                />
+                <span className="text-dim text-[13px]">
+                  All day — ignore the times above
+                </span>
+              </label>
+
+              <div className="grid grid-cols-1 gap-4 wide:grid-cols-2">
+                <div>
+                  <label htmlFor={`${id}-location`} className={labelClass}>
+                    WHERE
+                  </label>
+                  <input
+                    id={`${id}-location`}
+                    name="location"
+                    maxLength={160}
+                    placeholder="ENG2 Lab"
+                    defaultValue={editing?.location ?? ''}
+                    className={fieldClass}
+                    disabled={busy}
+                  />
+                </div>
+                <div>
+                  <label htmlFor={`${id}-registration`} className={labelClass}>
+                    SIGN-UP LINK
+                  </label>
+                  <input
+                    id={`${id}-registration`}
+                    name="registrationUrl"
+                    type="url"
+                    maxLength={500}
+                    placeholder="https://…"
+                    defaultValue={editing?.registrationUrl ?? ''}
+                    className={fieldClass}
+                    disabled={busy}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor={`${id}-description`} className={labelClass}>
+                  DETAIL
+                </label>
+                <textarea
+                  id={`${id}-description`}
+                  name="description"
+                  rows={3}
+                  maxLength={5000}
+                  defaultValue={editing?.description ?? ''}
+                  className={`${fieldClass} h-auto py-2 leading-[1.6]`}
+                  disabled={busy}
+                />
+              </div>
+
+              {canPublish && (
+                <EventCalendarCheckbox published={editing?.published} disabled={busy} />
+              )}
+
+              {/* Advisory, not a refusal. The halt is about the weekly meetings the site
+                  generates; a competition that genuinely falls in finals week is the club's
+                  business, and refusing it would be the page overruling the person who knows. */}
+              {finalsWarning && (
+                <p className="text-warning text-[13px] leading-[1.5] text-pretty">
+                  {finalsWarning}
+                </p>
+              )}
+
+              <div className="flex flex-wrap items-center gap-3">
+                <button type="submit" className={primaryButton} disabled={busy}>
+                  {busy ? 'SAVING…' : editing ? 'SAVE CHANGES' : 'CREATE EVENT'}
+                </button>
+
+                {editing && (
+                  <button
+                    type="button"
+                    className={smallButton}
+                    disabled={busy}
+                    onClick={() => {
+                      setEditing(null)
+                      setShowForm(false)
+                      setMessage(null)
+                      setWhen('')
+                      setUntil('')
+                    }}
+                  >
+                    STOP EDITING
+                  </button>
+                )}
+              </div>
+            </form>
+
+            <p role="status" className="mt-4 min-h-4 text-[13px]">
+              {message && (
+                <span
+                  className={
+                    message.tone === 'error' ? 'text-error' : 'text-success'
+                  }
+                >
+                  {message.text}
+                </span>
+              )}
+            </p>
+          </FormPanel>
+        </div>
       </div>
 
       {deleting && (

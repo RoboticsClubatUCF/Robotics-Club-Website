@@ -7,6 +7,7 @@ import { isOfficer } from '../../lib/auth/session'
 import { Status } from '../../components/shared/Status'
 import { useSectionStatus } from '../../lib/useSectionStatus'
 import { ConfirmDialog } from '../../components/shared/ConfirmDialog'
+import { SubMenu } from '../../components/shared/SubMenu'
 import {
   FormEyebrow,
   FormHeading,
@@ -37,6 +38,14 @@ import { moveItem } from '../../lib/projects/projectGallery'
 import { MAX_BENEFITS, MAX_IN_KIND, tierLabel } from '../../lib/sponsorship'
 import { linesFromText, linesToText } from '../../lib/textLines'
 import { imageSrc, isStoredUpload } from '../../lib/media/storedFiles'
+
+type SponsorsTab = 'sponsors' | 'tiers' | 'inkind'
+
+const SPONSORS_TABS: readonly { value: SponsorsTab; label: string }[] = [
+  { value: 'sponsors', label: 'SPONSORS' },
+  { value: 'tiers', label: 'TIERS & FINE PRINT' },
+  { value: 'inkind', label: 'OTHER WAYS TO HELP' },
+]
 
 /**
  * `/dashboard/officer/sponsors` — the whole of `/sponsors`, written by officers.
@@ -91,6 +100,7 @@ const rowAction =
 function Desk() {
   const [desk, setDesk] = useState<ApiSponsorDesk | null>(null)
   const [loadError, setLoadError] = useState('')
+  const [tab, setTab] = useState<SponsorsTab>('sponsors')
 
   /**
    * One read for the whole desk, matching the route: three fetches would be three loading
@@ -137,7 +147,14 @@ function Desk() {
       <FormEyebrow>/ MANAGE · SPONSORS</FormEyebrow>
       <FormHeading>Who backs the club, and what that costs.</FormHeading>
 
-      <div className="grid-fluid mb-6 grid items-start gap-6 [--col-min:26rem]">
+      <SubMenu
+        label="Sponsors sections"
+        options={SPONSORS_TABS}
+        value={tab}
+        onChange={setTab}
+      />
+
+      <div className={tab === 'sponsors' ? 'mb-6 max-w-[54rem]' : 'hidden'}>
         <SponsorList
           sponsors={desk.sponsors}
           tiers={desk.tiers.map(({ tier }) => tier)}
@@ -145,29 +162,37 @@ function Desk() {
             setDesk({ ...desk, sponsors })
           }}
         />
+      </div>
 
-        <div className="space-y-6">
-          <TierSheet
-            tiers={desk.tiers}
-            onChange={(tiers) => {
-              setDesk({ ...desk, tiers })
-            }}
-          />
+      <div
+        className={
+          tab === 'tiers'
+            ? 'mb-6 grid grid-cols-1 items-start gap-6 wide:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]'
+            : 'hidden'
+        }
+      >
+        <TierSheet
+          tiers={desk.tiers}
+          onChange={(tiers) => {
+            setDesk({ ...desk, tiers })
+          }}
+        />
 
-          <FinePrint
-            footnotes={desk.footnotes}
-            onChange={(footnotes) => {
-              setDesk({ ...desk, footnotes })
-            }}
-          />
+        <FinePrint
+          footnotes={desk.footnotes}
+          onChange={(footnotes) => {
+            setDesk({ ...desk, footnotes })
+          }}
+        />
+      </div>
 
-          <InKindList
-            rows={desk.inKind}
-            onChange={(inKind) => {
-              setDesk({ ...desk, inKind })
-            }}
-          />
-        </div>
+      <div className={tab === 'inkind' ? 'mb-6 max-w-[48rem]' : 'hidden'}>
+        <InKindList
+          rows={desk.inKind}
+          onChange={(inKind) => {
+            setDesk({ ...desk, inKind })
+          }}
+        />
       </div>
     </>
   )
@@ -241,6 +266,7 @@ function SponsorList({
   const { message, busy, run, setMessage } = useSectionStatus()
 
   const [query, setQuery] = useState('')
+  const [addOpen, setAddOpen] = useState(false)
   const [doomed, setDoomed] = useState<ApiManagedSponsor | null>(null)
   /** Whose logo panel is open, if any. One at a time. */
   const [logoFor, setLogoFor] = useState<string | null>(null)
@@ -355,6 +381,7 @@ function SponsorList({
       setWebsite('')
       setBlurb('')
       dropLogo()
+      setAddOpen(false)
       // The search is cleared too, or a company added while the list is narrowed lands outside
       // it — which looks exactly like an add that did nothing, right up until somebody adds it
       // a second time.
@@ -380,7 +407,19 @@ function SponsorList({
 
   return (
     <section>
-      <p className={`${panelLabel} mb-4`}>/ SPONSORS</p>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <p className={panelLabel}>/ SPONSORS</p>
+        <button
+          type="button"
+          aria-expanded={addOpen}
+          onClick={() => {
+            setAddOpen((open) => !open)
+          }}
+          className={button}
+        >
+          {addOpen ? 'CLOSE' : '+ ADD A SPONSOR'}
+        </button>
+      </div>
 
       <div className="border-rule bg-base-200 mb-4 border p-4">
         <p className="text-dim text-[13px] leading-[1.6] text-pretty">
@@ -557,7 +596,11 @@ function SponsorList({
         </ul>
       )}
 
-      <div className="mt-5 grid gap-3">
+      <div
+        className={
+          addOpen ? 'border-rule mt-5 grid gap-3 border-t pt-5' : 'hidden'
+        }
+      >
         <p className={panelLabel}>/ ADD A SPONSOR</p>
 
         <div>
@@ -1292,6 +1335,7 @@ function InKindList({
 
   const [title, setTitle] = useState('')
   const [blurb, setBlurb] = useState('')
+  const [addOpen, setAddOpen] = useState(false)
 
   const full = rows.length >= MAX_IN_KIND
 
@@ -1343,6 +1387,7 @@ function InKindList({
       onChange([...rows, added])
       setTitle('')
       setBlurb('')
+      setAddOpen(false)
     })
 
   const remove = (row: ApiInKindOffer) =>
@@ -1353,7 +1398,20 @@ function InKindList({
 
   return (
     <section>
-      <p className={`${panelLabel} mb-4`}>/ OTHER WAYS TO HELP</p>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <p className={panelLabel}>/ OTHER WAYS TO HELP</p>
+        <button
+          type="button"
+          aria-expanded={addOpen}
+          disabled={full}
+          onClick={() => {
+            setAddOpen((open) => !open)
+          }}
+          className={button}
+        >
+          {addOpen ? 'CLOSE' : '+ ADD A WAY TO HELP'}
+        </button>
+      </div>
 
       <div className="border-rule bg-base-200 mb-4 border p-4">
         <p className="text-dim text-[13px] leading-[1.6] text-pretty">
@@ -1435,7 +1493,11 @@ function InKindList({
         </ul>
       )}
 
-      <div className="mt-4 grid gap-3">
+      <div
+        className={
+          addOpen ? 'border-rule mt-4 grid gap-3 border-t pt-4' : 'hidden'
+        }
+      >
         <div className="flex flex-wrap gap-3">
           <div className="min-w-0 flex-1 basis-40">
             <label className={labelClass} htmlFor={`${id}-title`}>

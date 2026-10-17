@@ -301,7 +301,7 @@ function PickOne({
   }
 
   return (
-    <div className="grid-fluid gap-3 [--col-min:15rem]">
+    <div className="grid grid-cols-1 gap-3 wide:grid-cols-2">
       {question.options.map((option) => (
         <label
           key={option.id}
@@ -356,7 +356,7 @@ function TickAny({
     'checkbox checkbox-sm border-rule checked:border-primary checked:bg-primary checked:text-primary-content shrink-0'
 
   return (
-    <div className="grid-fluid gap-2.5 [--col-min:13rem]">
+    <div className="grid grid-cols-1 gap-2.5 wide:grid-cols-2">
       {question.options.map((option) => (
         <div key={option.id} className="flex items-center gap-3">
           <input

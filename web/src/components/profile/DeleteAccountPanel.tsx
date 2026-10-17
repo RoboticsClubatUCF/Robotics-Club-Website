@@ -5,7 +5,12 @@ import { explainApiError } from '../../lib/api/apiErrors'
 import { useSession } from '../../lib/auth/session'
 import { ConfirmDialog } from '../shared/ConfirmDialog'
 import { fieldClass, labelClass } from '../shared/formChrome'
-import { PanelStatus, noteClass, type PanelMessage } from './profileChrome'
+import {
+  PanelStatus,
+  noteClass,
+  panelQuietClass,
+  type PanelMessage,
+} from './profileChrome'
 
 /**
  * Deleting the account, and the warning in front of it.
@@ -29,6 +34,7 @@ export function DeleteAccountPanel({ fullName }: { fullName: string }) {
   const navigate = useNavigate()
   const id = useId()
 
+  const [expanded, setExpanded] = useState(false)
   const [asking, setAsking] = useState(false)
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
@@ -69,38 +75,53 @@ export function DeleteAccountPanel({ fullName }: { fullName: string }) {
         DELETE YOUR ACCOUNT
       </p>
 
-      <p className="text-dim mb-3 text-[13px] leading-[1.7] text-pretty">
+      <p className="text-dim mb-4 text-[13px] leading-[1.7] text-pretty">
         This removes you from the club&rsquo;s site entirely, and cannot be
         undone.
       </p>
 
-      <p className={`${noteClass} mb-2`}>What goes with it:</p>
-
-      {/* Named one by one rather than summarised. Somebody is entitled to
-          delete all of this; they are not entitled to be surprised by it. */}
-      <ul className={`${noteClass} mb-3 list-disc space-y-1 pl-5`}>
-        <li>your dues history, and the receipts for every payment</li>
-        <li>every 3D print request you have made, and any file still with it</li>
-        <li>every record of equipment you have borrowed</li>
-        <li>your place on every project and team you are part of</li>
-        <li>your photo, your bio, and your session on every device</li>
-      </ul>
-
-      <p className={`${noteClass} mb-4`}>
-        Terms you served on the officer board stay in the club&rsquo;s archive.
-        Rejoining later means signing up again from scratch.
-      </p>
-
       <button
         type="button"
-        disabled={busy}
+        aria-expanded={expanded}
         onClick={() => {
-          setAsking(true)
+          setExpanded(!expanded)
         }}
-        className="btn btn-outline border-error/40 text-error hover:border-error hover:bg-error/10 hover:text-error h-auto min-h-0 cursor-pointer px-5 py-2.5 text-[11px] font-semibold tracking-[0.04em] disabled:opacity-50"
+        className={panelQuietClass}
       >
-        DELETE MY ACCOUNT
+        {expanded ? 'HIDE DETAILS' : 'REVIEW ACCOUNT DELETION'}
       </button>
+
+      <div className={expanded ? 'mt-4' : 'hidden'}>
+        <p className={`${noteClass} mb-2`}>What goes with it:</p>
+
+        {/* Named one by one rather than summarised. Somebody is entitled to
+            delete all of this; they are not entitled to be surprised by it. */}
+        <ul className={`${noteClass} mb-3 list-disc space-y-1 pl-5`}>
+          <li>your dues history, and the receipts for every payment</li>
+          <li>
+            every 3D print request you have made, and any file still with it
+          </li>
+          <li>every record of equipment you have borrowed</li>
+          <li>your place on every project and team you are part of</li>
+          <li>your photo, your bio, and your session on every device</li>
+        </ul>
+
+        <p className={`${noteClass} mb-4`}>
+          Terms you served on the officer board stay in the club&rsquo;s
+          archive. Rejoining later means signing up again from scratch.
+        </p>
+
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            setAsking(true)
+          }}
+          className="btn btn-outline border-error/40 text-error hover:border-error hover:bg-error/10 hover:text-error h-auto min-h-0 cursor-pointer px-5 py-2.5 text-[11px] font-semibold tracking-[0.04em] disabled:opacity-50"
+        >
+          DELETE MY ACCOUNT
+        </button>
+      </div>
 
       <PanelStatus message={message} />
 

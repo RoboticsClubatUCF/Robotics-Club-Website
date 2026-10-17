@@ -488,7 +488,7 @@ function QuestionCard({
 
   return (
     <FormPanel>
-      <div className="flex flex-col items-start gap-3 sm:flex-row">
+      <div className="flex flex-col items-start gap-3 wide:flex-row">
         <div className="min-w-0 flex-1 wrap-anywhere">
           <p className="text-sm leading-[1.6] text-base-content">{question.prompt}</p>
           <p className={`${panelLabel} mt-1.5`}>

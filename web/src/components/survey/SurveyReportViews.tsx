@@ -30,7 +30,7 @@ export function TallyCharts({
   onRead: (questionId: string) => void
 }) {
   return (
-    <div className="grid-fluid items-start gap-5 [--col-min:20rem]">
+    <div className="grid grid-cols-1 items-start gap-5 wide:grid-cols-2">
       {data.questions.map((question) => (
         <FormPanel key={question.id}>
           <h2 className={heading}>{question.prompt.toUpperCase()}</h2>

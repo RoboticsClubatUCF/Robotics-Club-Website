@@ -382,3 +382,64 @@ describe('deleting the account', () => {
     expect(await screen.findByText(/the good oscilloscope/i)).toBeInTheDocument()
   })
 })
+
+describe('sub-navigation and progressive disclosure', () => {
+  it('switches between profile, survey, and security sub-menu tabs', async () => {
+    stubApi()
+    renderProfile()
+
+    await screen.findByDisplayValue('Rowan Test')
+
+    const profileTab = screen.getByRole('button', {
+      name: 'PROFILE & STANDING',
+    })
+    const surveyTab = screen.getByRole('button', { name: 'MEMBER SURVEY' })
+    const securityTab = screen.getByRole('button', {
+      name: 'SECURITY & ACCOUNT',
+    })
+
+    expect(profileTab).toHaveAttribute('aria-pressed', 'true')
+    expect(surveyTab).toHaveAttribute('aria-pressed', 'false')
+    expect(securityTab).toHaveAttribute('aria-pressed', 'false')
+
+    fireEvent.click(securityTab)
+    expect(securityTab).toHaveAttribute('aria-pressed', 'true')
+    expect(profileTab).toHaveAttribute('aria-pressed', 'false')
+
+    fireEvent.click(surveyTab)
+    expect(surveyTab).toHaveAttribute('aria-pressed', 'true')
+    expect(securityTab).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('toggles email change, password change, and account deletion details on demand', async () => {
+    stubApi()
+    renderProfile()
+
+    await screen.findByDisplayValue('Rowan Test')
+
+    const emailToggle = screen.getByRole('button', {
+      name: 'CHANGE EMAIL ADDRESS',
+    })
+    const passwordToggle = screen.getByRole('button', {
+      name: 'SET A NEW PASSWORD',
+    })
+    const deleteToggle = screen.getByRole('button', {
+      name: 'REVIEW ACCOUNT DELETION',
+    })
+
+    expect(emailToggle).toHaveAttribute('aria-expanded', 'false')
+    expect(passwordToggle).toHaveAttribute('aria-expanded', 'false')
+    expect(deleteToggle).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.click(emailToggle)
+    expect(
+      screen.getByRole('button', { name: 'CLOSE' }),
+    ).toHaveAttribute('aria-expanded', 'true')
+
+    fireEvent.click(deleteToggle)
+    expect(
+      screen.getByRole('button', { name: 'HIDE DETAILS' }),
+    ).toHaveAttribute('aria-expanded', 'true')
+  })
+})
+

@@ -233,7 +233,7 @@ function Archive() {
   }
 
   return (
-    <section className="px-page py-10 wide:py-14">
+    <>
       <FormEyebrow>/ MANAGE · OFFICERS</FormEyebrow>
       <FormHeading>Who has run this club</FormHeading>
 
@@ -414,7 +414,7 @@ function Archive() {
           )}
         </ConfirmDialog>
       )}
-    </section>
+    </>
   )
 }
 
@@ -651,7 +651,7 @@ function TermFields({
         </select>
       </div>
 
-      <div className="grid gap-4 wide:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 wide:grid-cols-2">
         <div>
           <label htmlFor={`${id}-from`} className={labelClass}>
             STARTED

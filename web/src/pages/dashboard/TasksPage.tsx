@@ -111,9 +111,11 @@ function Tasks({
   const [query, setQuery] = useState('')
   const [tasks, setTasks] = useState<ApiTask[] | null | 'loading'>('loading')
   const [editing, setEditing] = useState<ApiTask | null>(null)
+  const [showForm, setShowForm] = useState(false)
   const [pending, setPending] = useState<ApiTask | null>(null)
 
   const canWrite = officer || leads.length > 0
+  const formOpen = showForm || editing !== null
 
   /**
    * Where a new task may go, which isn't the same list as what somebody runs.
@@ -208,10 +210,51 @@ function Tasks({
 
   return (
     <>
-      <FormEyebrow>/ TASKS</FormEyebrow>
-      <FormHeading>
-        {canWrite ? 'What is owed, and who owes it.' : 'What you have been asked to do.'}
-      </FormHeading>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <FormEyebrow>/ TASKS</FormEyebrow>
+          <FormHeading>
+            {canWrite ? 'What is owed, and who owes it.' : 'What you have been asked to do.'}
+          </FormHeading>
+        </div>
+
+        {canWrite && (
+          <button
+            type="button"
+            aria-expanded={formOpen}
+            onClick={() => {
+              if (formOpen) {
+                setShowForm(false)
+                setEditing(null)
+              } else {
+                setShowForm(true)
+              }
+            }}
+            className="btn btn-primary btn-cta shrink-0 px-5 py-2.5 text-[12px] font-semibold"
+          >
+            {formOpen ? 'CLOSE FORM' : '+ NEW TASK'}
+          </button>
+        )}
+      </div>
+
+      {canWrite && (
+        <div className={formOpen ? 'mb-6' : 'hidden'}>
+          <TaskForm
+            officer={officer}
+            leads={writable}
+            editing={editing}
+            onCancel={() => {
+              setEditing(null)
+              setShowForm(false)
+            }}
+            onSaved={async () => {
+              setEditing(null)
+              setShowForm(false)
+              await load()
+            }}
+          />
+        </div>
+      )}
 
       <div className="mb-4 space-y-3">
         <FilterChips
@@ -283,7 +326,7 @@ function Tasks({
                   : 'Nothing on your list. Enjoy it.'}
             </p>
           ) : (
-            <ul className="grid-fluid items-start gap-4 [--col-min:28rem]">
+            <ul className="divide-rule divide-y">
               {rows.map((task) => (
                 <TaskRow
                   key={task.id}
@@ -304,23 +347,6 @@ function Tasks({
       <p role="status" className="text-error mt-3 min-h-4 text-[12px]">
         {message}
       </p>
-
-      {canWrite && (
-        <div className="mt-6">
-          <TaskForm
-            officer={officer}
-            leads={writable}
-            editing={editing}
-            onCancel={() => {
-              setEditing(null)
-            }}
-            onSaved={async () => {
-              setEditing(null)
-              await load()
-            }}
-          />
-        </div>
-      )}
 
       {pending && (
         <ConfirmDialog
@@ -379,7 +405,7 @@ function TaskRow({
     task.assignees.find((who) => who.onCalendar && mine) !== undefined
 
   return (
-    <li className="border-rule border-t pt-3">
+    <li className="py-4 first:pt-0 last:pb-0">
       <div className={settled ? 'opacity-50' : ''}>
         <div className="flex items-start justify-between gap-3">
           <p
@@ -688,7 +714,7 @@ function TaskForm({
       </p>
 
       <form key={editing?.id ?? 'new'} onSubmit={submit} className="space-y-3">
-        <div className="grid gap-3 wide:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 wide:grid-cols-2">
           <div>
             <label htmlFor={`${id}-project`} className={labelClass}>
               PROJECT
@@ -739,7 +765,7 @@ function TaskForm({
           </div>
         </div>
 
-        <div className="grid gap-3 wide:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 wide:grid-cols-2">
           <div className="flex gap-3">
             <div className="flex-1">
               <label htmlFor={`${id}-due`} className={labelClass}>

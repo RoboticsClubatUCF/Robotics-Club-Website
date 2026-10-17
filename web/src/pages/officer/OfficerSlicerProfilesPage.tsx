@@ -204,7 +204,7 @@ export function OfficerSlicerProfilesPage() {
       )}
 
       {load.status === 'loading' && (
-        <div aria-busy="true" className="grid-fluid gap-5 [--col-min:30rem]">
+        <div aria-busy="true" className="grid grid-cols-1 items-start gap-5 wide:grid-cols-2">
           {['w-1/3', 'w-1/4'].map((width) => (
             <div key={width}>
               <div className="bg-base-300 mb-2 h-3 w-24 animate-pulse rounded-[2px]" />
@@ -240,7 +240,7 @@ export function OfficerSlicerProfilesPage() {
       )}
 
       {desk && (
-        <div className="grid-fluid gap-5 [--col-min:30rem]">
+        <div className="grid grid-cols-1 items-start gap-5 wide:grid-cols-2">
           <section aria-labelledby="printers-heading">
             <h2 id="printers-heading" className="text-faint mb-2 font-mono text-[11px] font-medium tracking-[0.16em]">
               PRINTERS
