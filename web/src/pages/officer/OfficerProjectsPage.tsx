@@ -41,6 +41,8 @@ import {
   type NewImage,
 } from '../../lib/projects/projectDraft'
 import { useApi } from '../../lib/api/useApi'
+import { SubNav } from '../../components/dashboard/SubNav'
+import { PROJECTS_DESK_PAGES } from '../../lib/dashboard/subPages'
 
 /**
  * The projects desk: starting one, running last term's again, and reaching the management
@@ -67,19 +69,27 @@ const explain = (error: unknown) =>
     forbidden: 'The server does not agree you are an officer.',
   })
 
-export function OfficerProjectsPage() {
+type Part = 'all' | 'new' | 'again'
+
+const EYEBROW: Record<Part, string> = {
+  all: '/ MANAGE · PROJECTS',
+  new: '/ MANAGE · PROJECTS · NEW PROJECT',
+  again: '/ MANAGE · PROJECTS · RUN ONE AGAIN',
+}
+
+export function OfficerProjectsPage({ part }: { part: Part }) {
   const { user, membership } = useOutletContext<DashboardContext>()
 
   // Dues before role, because a lapsed officer is an officer and the sentence they need is
   // about a payment rather than about the board.
   if (duesLocked(membership, user.role)) {
-    return <DuesLocked eyebrow="/ MANAGE · PROJECTS" />
+    return <DuesLocked eyebrow={EYEBROW[part]} />
   }
 
   if (!isOfficer(user.role)) {
     return (
       <OfficerOnly
-        eyebrow="/ MANAGE · PROJECTS"
+        eyebrow={EYEBROW[part]}
         why="Deciding which projects the club runs is board business."
       />
     )
@@ -87,18 +97,17 @@ export function OfficerProjectsPage() {
 
   return (
     <>
-      <FormEyebrow>/ MANAGE · PROJECTS</FormEyebrow>
+      <FormEyebrow>{EYEBROW[part]}</FormEyebrow>
       <FormHeading>Projects.</FormHeading>
+      <SubNav label="Projects pages" pages={PROJECTS_DESK_PAGES} />
 
-      {/* Two ways to end up with a project, and an officer is doing one of them — a new
-          build, or last term's again. Side by side once there's genuinely room for both,
-          which is what the high `--col-min` is for: the create panel turns into the full
-          project editor the moment it's pressed. `items-start`, since the panel beside it is
-          four fields. */}
-      <div className="grid-fluid items-start gap-5 [--col-min:34rem]">
-        <CreateProject />
-        <DuplicateProject />
-        <EveryProject />
+      {/* The list first, since that's how an officer reaches a project to fix. Creating one
+          and running one again are their own sub-pages: the create form grows into the whole
+          project editor, and beside the list it made the page four screens long. */}
+      <div className="max-w-[46rem]">
+        {part === 'all' && <EveryProject />}
+        {part === 'new' && <CreateProject />}
+        {part === 'again' && <DuplicateProject />}
       </div>
     </>
   )
@@ -980,7 +989,7 @@ function EveryProject() {
           {running.length === 0 ? (
             <p className="text-dim text-sm leading-[1.7] text-pretty">
               {all.length === 0
-                ? 'There are no projects yet. Start one with the panel above.'
+                ? 'There are no projects yet. Start one under NEW PROJECT.'
                 : 'Nothing is running this semester.'}
             </p>
           ) : (

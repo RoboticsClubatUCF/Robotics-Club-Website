@@ -30,7 +30,10 @@ export function TallyCharts({
   onRead: (questionId: string) => void
 }) {
   return (
-    <div className="grid-fluid items-start gap-5 [--col-min:20rem]">
+    // Columns rather than a grid: a question with nine options beside one with two left a
+    // row-height hole under the short one. Each chart sits straight under the last in its
+    // column, and the order still reads down the markup.
+    <div className="columns-[20rem] gap-x-5 [&>*]:mb-5 [&>*]:break-inside-avoid">
       {data.questions.map((question) => (
         <FormPanel key={question.id}>
           <h2 className={heading}>{question.prompt.toUpperCase()}</h2>

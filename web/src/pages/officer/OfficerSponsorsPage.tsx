@@ -6,6 +6,8 @@ import { OfficerOnly } from '../../components/dashboard/OfficerOnly'
 import { isOfficer } from '../../lib/auth/session'
 import { Status } from '../../components/shared/Status'
 import { useSectionStatus } from '../../lib/useSectionStatus'
+import { SubNav } from '../../components/dashboard/SubNav'
+import { SPONSORS_PAGES } from '../../lib/dashboard/subPages'
 import { ConfirmDialog } from '../../components/shared/ConfirmDialog'
 import {
   FormEyebrow,
@@ -59,20 +61,28 @@ import { imageSrc, isStoredUpload } from '../../lib/media/storedFiles'
  * that has run out is a fact about a year, not a reason to erase the club's record of who
  * paid for the rover — so HIDE is the ordinary way off the list and the cross is for a typo.
  */
-export function OfficerSponsorsPage() {
+type Part = 'sponsors' | 'tiers' | 'other'
+
+const EYEBROW: Record<Part, string> = {
+  sponsors: '/ MANAGE · SPONSORS',
+  tiers: '/ MANAGE · SPONSORS · TIERS',
+  other: '/ MANAGE · SPONSORS · OTHER HELP',
+}
+
+export function OfficerSponsorsPage({ part }: { part: Part }) {
   const { user, membership } = useOutletContext<DashboardContext>()
 
   // Dues before role, the order every other desk uses: a lapsed officer is still an officer,
   // and the sentence they need is about a payment.
   if (duesLocked(membership, user.role)) {
-    return <DuesLocked eyebrow="/ MANAGE · SPONSORS" />
+    return <DuesLocked eyebrow={EYEBROW[part]} />
   }
 
   if (!isOfficer(user.role)) {
-    return <OfficerOnly eyebrow="/ MANAGE · SPONSORS" why="Who the club thanks in public, and what a sponsorship costs, is board business." />
+    return <OfficerOnly eyebrow={EYEBROW[part]} why="Who the club thanks in public, and what a sponsorship costs, is board business." />
   }
 
-  return <Desk />
+  return <Desk part={part} />
 }
 
 const button =
@@ -88,7 +98,11 @@ const panelLabel =
 const rowAction =
   'cursor-pointer px-2 font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50'
 
-function Desk() {
+/**
+ * One read for the whole desk, shared by its three sub-pages: the sponsors, what each tier
+ * costs with the fine print under it, and the help that isn't money.
+ */
+function Desk({ part }: { part: Part }) {
   const [desk, setDesk] = useState<ApiSponsorDesk | null>(null)
   const [loadError, setLoadError] = useState('')
 
@@ -120,8 +134,9 @@ function Desk() {
   if (desk === null) {
     return (
       <>
-        <FormEyebrow>/ MANAGE · SPONSORS</FormEyebrow>
+        <FormEyebrow>{EYEBROW[part]}</FormEyebrow>
         <FormHeading>Who backs the club.</FormHeading>
+        <SubNav label="Sponsors pages" pages={SPONSORS_PAGES} />
         <p
           aria-busy={loadError === ''}
           className="border-rule bg-base-200 text-faint border p-5 text-[13px]"
@@ -134,19 +149,26 @@ function Desk() {
 
   return (
     <>
-      <FormEyebrow>/ MANAGE · SPONSORS</FormEyebrow>
+      <FormEyebrow>{EYEBROW[part]}</FormEyebrow>
       <FormHeading>Who backs the club, and what that costs.</FormHeading>
+      <SubNav label="Sponsors pages" pages={SPONSORS_PAGES} />
 
-      <div className="grid-fluid mb-6 grid items-start gap-6 [--col-min:26rem]">
-        <SponsorList
-          sponsors={desk.sponsors}
-          tiers={desk.tiers.map(({ tier }) => tier)}
-          onChange={(sponsors) => {
-            setDesk({ ...desk, sponsors })
-          }}
-        />
+      {part === 'sponsors' && (
+        <div className="max-w-[56rem]">
+          <SponsorList
+            sponsors={desk.sponsors}
+            tiers={desk.tiers.map(({ tier }) => tier)}
+            onChange={(sponsors) => {
+              setDesk({ ...desk, sponsors })
+            }}
+          />
+        </div>
+      )}
 
-        <div className="space-y-6">
+      {/* The tiers in as many columns as fit, since each is the same shape, and the fine
+          print under them because it's printed under them on `/sponsors`. */}
+      {part === 'tiers' && (
+        <div className="space-y-8">
           <TierSheet
             tiers={desk.tiers}
             onChange={(tiers) => {
@@ -154,13 +176,19 @@ function Desk() {
             }}
           />
 
-          <FinePrint
-            footnotes={desk.footnotes}
-            onChange={(footnotes) => {
-              setDesk({ ...desk, footnotes })
-            }}
-          />
+          <div className="max-w-[46rem]">
+            <FinePrint
+              footnotes={desk.footnotes}
+              onChange={(footnotes) => {
+                setDesk({ ...desk, footnotes })
+              }}
+            />
+          </div>
+        </div>
+      )}
 
+      {part === 'other' && (
+        <div className="max-w-[46rem]">
           <InKindList
             rows={desk.inKind}
             onChange={(inKind) => {
@@ -168,7 +196,7 @@ function Desk() {
             }}
           />
         </div>
-      </div>
+      )}
     </>
   )
 }
@@ -1000,7 +1028,7 @@ function TierSheet({
     <section>
       <p className={`${panelLabel} mb-4`}>/ WHAT A SPONSORSHIP COSTS</p>
 
-      <div className="border-rule bg-base-200 mb-4 border p-4">
+      <div className="border-rule bg-base-200 mb-4 max-w-[46rem] border p-4">
         <p className="text-dim text-[13px] leading-[1.6] text-pretty">
           A tier appears on <code>/sponsors</code> once it is saved here, and a
           level nobody has priced is left off the sheet rather than shown with a
@@ -1009,7 +1037,7 @@ function TierSheet({
         </p>
       </div>
 
-      <div className="space-y-2">
+      <div className="grid-fluid gap-4 [--col-min:24rem]">
         {tiers.map(({ tier, offer }) => (
           <TierBlock
             key={tier}

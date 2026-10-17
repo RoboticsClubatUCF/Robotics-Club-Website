@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useId, useState } from 'react'
 import { Link, useOutletContext } from 'react-router'
 import { DashboardCalendar } from '../../components/dashboard/DashboardCalendar'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
@@ -49,38 +49,38 @@ export function DashboardPage() {
       <FormEyebrow>/ OVERVIEW</FormEyebrow>
       <FormHeading>Hello, {firstName}.</FormHeading>
 
-      {/* One grid for the whole page, rather than a status block and a prompt stacked
-          full-width above a grid of panels. Every cell in here is the same kind of thing
-          — something true about this person right now — and the two at the top only sat
-          apart because the page was a column. As many columns as the screen has room
-          for; the reading order down the markup is unchanged. */}
-      <div className="grid-fluid mt-8 gap-5">
-        <Membership state={membership} />
+      {/* Two columns that each stack, not a grid of rows. A grid row is as tall as its
+          tallest cell, so a long OPEN PROJECTS stretched MY PROJECTS into an empty box
+          beside it. On a phone the first column reads before the second, which keeps the
+          lab second. */}
+      <div className="grid-fluid mt-8 items-start gap-5 [--col-min:24rem]">
+        <div className="grid gap-5">
+          <Membership state={membership} />
 
-        {/* One prompt here, and it's about money. The survey used to take this slot
-            whenever it was owed, because it outranked dues on the server and telling
-            somebody to pay would have sent them to a page the gate then refused. It shuts
-            nothing now. */}
-        {duesLocked(membership, user.role) && (
-          <FormPanel tone="accent">
-            <p className="mb-1.5 text-sm font-semibold">
-              Pay your dues to unlock the rest of this.
-            </p>
-            <p className="text-dim text-sm leading-[1.7] text-pretty">
-              3D printing, equipment and anything you run are locked until then.
-              Your projects and rank are untouched.
-            </p>
-          </FormPanel>
-        )}
+          {/* One prompt here, and it's about money. The survey shuts nothing. */}
+          {duesLocked(membership, user.role) && (
+            <FormPanel tone="accent">
+              <p className="mb-1.5 text-sm font-semibold">
+                Pay your dues to unlock the rest of this.
+              </p>
+              <p className="text-dim text-sm leading-[1.7] text-pretty">
+                3D printing, equipment and anything you run are locked until then.
+                Your projects and rank are untouched.
+              </p>
+            </FormPanel>
+          )}
 
-        {/* Ahead of the rest, because it's the only panel here that's different this
-            evening from what it was this morning — and for an officer it's the one thing
-            on the page that's a press rather than a link. */}
-        <LabPanel user={user} membership={membership} />
-        <MyProjects projects={projects} />
-        <OpenProjects />
-        <MyTasks />
-        <SurveyPanel pending={surveyPending} asking={askingForSurvey} />
+          {/* Near the top, because it's the only panel here that's different this evening
+              from this morning, and for an officer it's a press rather than a link. */}
+          <LabPanel user={user} membership={membership} />
+          <MyTasks />
+        </div>
+
+        <div className="grid gap-5">
+          <MyProjects projects={projects} />
+          <SurveyPanel pending={surveyPending} asking={askingForSurvey} />
+          <OpenProjects />
+        </div>
       </div>
 
       {/* The page ends on the calendar. It used to end on a link to the Discord and a
@@ -127,9 +127,7 @@ function Membership({ state }: { state: DashboardContext['membership'] }) {
   const membership = state.data
   const gap = coverGap(membership)
 
-  // One element, not a fragment: this is a cell of the page's grid now, and a fragment
-  // would spill the button into a cell of its own halfway across the row from the panel
-  // it belongs to.
+  // One element, not a fragment, so the button stays under the panel it belongs to.
   return (
     <div>
       <MembershipPanel membership={membership} />
@@ -190,7 +188,7 @@ function MyProjects({ projects }: { projects: DashboardContext['projects'] }) {
                 never joined needs to be told where to; somebody between terms needs to
                 know the list is right rather than broken. */}
             {before === 0
-              ? "You're not on a project yet. Join one from the list beside this."
+              ? "You're not on a project yet. Join one from OPEN PROJECTS below."
               : "You're not on a project this semester. Projects run a term at a time."}
           </p>
         ) : (
@@ -359,6 +357,8 @@ function MyTasks() {
   )
 }
 
+const OPEN_PROJECTS_SHOWN = 5
+
 /**
  * Every project currently running, whoever is looking — the guest's window into what the
  * club is doing, and the member's way to a second project. Joining happens on the
@@ -371,6 +371,16 @@ function OpenProjects() {
   const state = useApi<ApiProject[]>(
     '/projects?status=IN_PROGRESS&term=current&limit=100',
   )
+  // The first few, and the rest behind a press. A term can run fourteen projects, and the
+  // whole list pushed the calendar a screen and a half down the page.
+  const [all, setAll] = useState(false)
+  const listId = useId()
+  const shown =
+    state.status === 'ready' && !all
+      ? state.data.slice(0, OPEN_PROJECTS_SHOWN)
+      : state.status === 'ready'
+        ? state.data
+        : []
 
   return (
     <FormPanel>
@@ -397,23 +407,40 @@ function OpenProjects() {
             Nothing is in progress right now.
           </p>
         ) : (
-          <ul className="space-y-3">
-            {state.data.map((project) => (
-              <li key={project.id}>
-                <Link
-                  to={`/projects/${project.slug}`}
-                  className="hover:text-primary text-sm font-semibold transition-colors duration-200"
-                >
-                  {project.title}
-                </Link>
-                {project.summary && (
-                  <p className="text-dim mt-0.5 text-[13px] leading-[1.5] text-pretty">
-                    {project.summary}
-                  </p>
-                )}
-              </li>
-            ))}
-          </ul>
+          <>
+            <ul id={listId} className="space-y-3">
+              {shown.map((project) => (
+                <li key={project.id}>
+                  <Link
+                    to={`/projects/${project.slug}`}
+                    className="hover:text-primary text-sm font-semibold transition-colors duration-200"
+                  >
+                    {project.title}
+                  </Link>
+                  {/* Two lines at most. The whole pitch is on the project's page. */}
+                  {project.summary && (
+                    <p className="text-dim mt-0.5 line-clamp-2 text-[13px] leading-[1.5] text-pretty">
+                      {project.summary}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+
+            {state.data.length > OPEN_PROJECTS_SHOWN && (
+              <button
+                type="button"
+                aria-expanded={all}
+                aria-controls={listId}
+                onClick={() => {
+                  setAll(!all)
+                }}
+                className="text-faint hover:text-primary mt-5 cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200"
+              >
+                {all ? 'SHOW FEWER' : `SHOW ALL ${state.data.length}`}
+              </button>
+            )}
+          </>
         ))}
     </FormPanel>
   )

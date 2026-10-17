@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
+import { flushSync } from 'react-dom'
 import { useSearchParams } from 'react-router'
 import {
   postJson,
@@ -13,6 +14,7 @@ import {
   PanelStatus,
   ProfilePanel,
   noteClass,
+  panelQuietClass,
   panelSaveClass,
   type PanelMessage,
 } from './profileChrome'
@@ -29,6 +31,9 @@ import {
  * on it, so the token is spent by a POST rather than by the GET that opened it — mail scanners
  * follow every link in an incoming message, and against a GET endpoint the confirmation would be
  * used up before anybody clicked it.
+ *
+ * The form stays behind CHANGE EMAIL. It's a once-a-degree change, and two empty fields on
+ * every visit read as something left unfinished.
  */
 export function ProfileEmailPanel({
   account,
@@ -46,6 +51,18 @@ export function ProfileEmailPanel({
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<PanelMessage>(null)
   const [pending, setPending] = useState(account.pendingEmail)
+  const [editing, setEditing] = useState(false)
+  const opener = useRef<HTMLButtonElement>(null)
+
+  /** Back to the button, with focus on it, so a keyboard user isn't dropped on the body. */
+  const close = () => {
+    flushSync(() => {
+      setEditing(false)
+      setEmail('')
+      setPassword('')
+    })
+    opener.current?.focus()
+  }
 
   const token = params.get('emailToken')
   /**
@@ -116,8 +133,7 @@ export function ProfileEmailPanel({
       .then((answer) => {
         setPending(answer.email)
         onSaved({ pendingEmail: answer.email })
-        setEmail('')
-        setPassword('')
+        close()
         setMessage({
           tone: 'ok',
           text: `Check ${answer.email} — the link is good for ${answer.expiresInMinutes} minutes. Nothing changes until you follow it.`,
@@ -145,54 +161,74 @@ export function ProfileEmailPanel({
         </p>
       )}
 
-      <form onSubmit={ask} className="flex flex-col gap-4">
-        <div>
-          <label htmlFor={`${id}-email`} className={labelClass}>
-            NEW EMAIL
-          </label>
-          <input
-            id={`${id}-email`}
-            name="email"
-            type="email"
-            required
-            maxLength={200}
-            autoComplete="email"
-            value={email}
-            onChange={(event) => {
-              setEmail(event.target.value)
-            }}
-            className={fieldClass}
-          />
-        </div>
+      {!editing ? (
+        <button
+          ref={opener}
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            setMessage(null)
+            setEditing(true)
+          }}
+          className={panelQuietClass}
+        >
+          CHANGE EMAIL
+        </button>
+      ) : (
+        <form onSubmit={ask} className="flex flex-col gap-4">
+          <div>
+            <label htmlFor={`${id}-email`} className={labelClass}>
+              NEW EMAIL
+            </label>
+            <input
+              id={`${id}-email`}
+              name="email"
+              type="email"
+              // The form only appears because somebody pressed CHANGE EMAIL.
+              autoFocus
+              required
+              maxLength={200}
+              autoComplete="email"
+              value={email}
+              onChange={(event) => {
+                setEmail(event.target.value)
+              }}
+              className={fieldClass}
+            />
+          </div>
 
-        <div>
-          <label htmlFor={`${id}-password`} className={labelClass}>
-            YOUR CURRENT PASSWORD
-          </label>
-          <input
-            id={`${id}-password`}
-            name="currentPassword"
-            type="password"
-            required
-            maxLength={200}
-            autoComplete="current-password"
-            value={password}
-            onChange={(event) => {
-              setPassword(event.target.value)
-            }}
-            className={fieldClass}
-          />
-          <p className={`${noteClass} mt-1.5`}>
-            Asked because this is the address you sign in with.
-          </p>
-        </div>
+          <div>
+            <label htmlFor={`${id}-password`} className={labelClass}>
+              YOUR CURRENT PASSWORD
+            </label>
+            <input
+              id={`${id}-password`}
+              name="currentPassword"
+              type="password"
+              required
+              maxLength={200}
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => {
+                setPassword(event.target.value)
+              }}
+              className={fieldClass}
+            />
+            <p className={`${noteClass} mt-1.5`}>
+              Asked because this is the address you sign in with.
+            </p>
+          </div>
 
-        <div>
-          <button type="submit" disabled={busy} className={panelSaveClass}>
-            {busy ? 'SENDING…' : 'SEND THE CONFIRMATION'}
-          </button>
-        </div>
-      </form>
+          <div className="flex flex-wrap gap-3">
+            <button type="submit" disabled={busy} className={panelSaveClass}>
+              {busy ? 'SENDING…' : 'SEND THE CONFIRMATION'}
+            </button>
+            <button type="button" disabled={busy} onClick={close} className={panelQuietClass}>
+              CANCEL
+            </button>
+          </div>
+        </form>
+      )}
 
       <PanelStatus message={message} />
     </ProfilePanel>

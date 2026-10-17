@@ -34,6 +34,17 @@ import { explainApiError } from '../../lib/api/apiErrors'
 import { seatLabel } from '../../lib/officerTerms'
 import { duesLocked, formatDate } from '../../lib/dues/dues'
 import { useApi } from '../../lib/api/useApi'
+import { SubNav } from '../../components/dashboard/SubNav'
+import { ROLES_PAGES } from '../../lib/dashboard/subPages'
+
+type Part = 'board' | 'leads' | 'grant' | 'titles'
+
+const EYEBROW: Record<Part, string> = {
+  board: '/ MANAGE · ROLES',
+  leads: '/ MANAGE · ROLES · LEADS',
+  grant: '/ MANAGE · ROLES · GRANT MEMBERSHIP',
+  titles: '/ MANAGE · ROLES · TITLES',
+}
 
 /**
  * The roles desk: who is what, and who runs what.
@@ -48,37 +59,44 @@ import { useApi } from '../../lib/api/useApi'
  * admin is a human in Prisma Studio. A control here would be a second answer to a
  * question that already has one, and the sweep would overwrite it within ten minutes.
  *
+ * Four sub-pages, one per kind of decision, because an officer opens the desk to make one of
+ * them and five forms at once tiled into a page of holes.
+ *
  * Every check on this page is presentation. The server re-checks on every request.
  */
-export function OfficerRolesPage() {
+export function OfficerRolesPage({ part }: { part: Part }) {
   const { user, membership } = useOutletContext<DashboardContext>()
 
   // Dues before role, because a lapsed officer is an officer and the sentence they need
   // is about a payment rather than about the board.
   if (duesLocked(membership, user.role)) {
-    return <DuesLocked eyebrow="/ MANAGE · ROLES" />
+    return <DuesLocked eyebrow={EYEBROW[part]} />
   }
 
   if (!isOfficer(user.role)) {
-    return <OfficerOnly eyebrow="/ MANAGE · ROLES" why="Granting membership and appointing leads is board business." />
+    return <OfficerOnly eyebrow={EYEBROW[part]} why="Granting membership and appointing leads is board business." />
   }
 
   return (
     <>
-      <FormEyebrow>/ MANAGE · ROLES</FormEyebrow>
+      <FormEyebrow>{EYEBROW[part]}</FormEyebrow>
       <FormHeading>Who runs what.</FormHeading>
+      <SubNav label="Roles pages" pages={ROLES_PAGES} />
 
-      {/* Five decisions of the same shape, and an officer opens this page to make one
-          of them — they aren't steps. Side by side wherever there's room, so appointing
-          a lead doesn't mean scrolling past the board. `items-start`: the seat panel is
-          eight chairs and a checklist, the ones around it are a picker and two buttons. */}
-      <div className="grid-fluid items-start gap-5 [--col-min:29rem]">
-        <GrantMembership />
-        <OfficerSeats />
-        <AppointLead />
-        <AppointTeamLead />
-        <SetTitle />
-      </div>
+      {/* The two lead forms sit side by side where there's room; every other sub-page is
+          one panel at a reading width. */}
+      {part === 'leads' ? (
+        <div className="grid-fluid max-w-[80rem] items-start gap-5 [--col-min:29rem]">
+          <AppointLead />
+          <AppointTeamLead />
+        </div>
+      ) : (
+        <div className="max-w-[46rem]">
+          {part === 'board' && <OfficerSeats />}
+          {part === 'grant' && <GrantMembership />}
+          {part === 'titles' && <SetTitle />}
+        </div>
+      )}
     </>
   )
 }

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useOutletContext } from 'react-router'
+import { useOutletContext } from 'react-router'
+import { SubNav } from '../../components/dashboard/SubNav'
+import { PRINT_QUEUE_PAGES } from '../../lib/dashboard/subPages'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
 import { DuesLocked } from '../../components/dashboard/DuesLocked'
 import { OfficerOnly } from '../../components/dashboard/OfficerOnly'
@@ -167,6 +169,7 @@ export function OfficerSlicerProfilesPage() {
     <>
       <FormEyebrow>{EYEBROW}</FormEyebrow>
       <FormHeading>Slicer profiles.</FormHeading>
+      <SubNav label="Print queue pages" pages={PRINT_QUEUE_PAGES} />
 
       <div className={`${measureClass} mb-6 flex flex-wrap items-center gap-3`}>
         <p className="text-dim w-full text-sm leading-[1.7] text-pretty">
@@ -188,9 +191,6 @@ export function OfficerSlicerProfilesPage() {
         >
           ADD FROM AN EXPORT
         </button>
-        <Link to="/dashboard/officer/print" className={quietButton}>
-          ‹ BACK TO THE QUEUE
-        </Link>
       </div>
 
       {desk && !desk.workerOnline && (

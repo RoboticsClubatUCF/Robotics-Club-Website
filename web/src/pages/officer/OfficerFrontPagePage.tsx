@@ -8,6 +8,8 @@ import { HeroSlideshow } from '../../components/home/HeroSlideshow'
 // Across folders rather than copied a fourth time. It has outgrown
 // `components/projects/` and belongs in `shared/`; moving it is its own change.
 import { Status } from '../../components/shared/Status'
+import { SubNav } from '../../components/dashboard/SubNav'
+import { FRONT_PAGE_PAGES } from '../../lib/dashboard/subPages'
 import { useSectionStatus } from '../../lib/useSectionStatus'
 import { ConfirmDialog } from '../../components/shared/ConfirmDialog'
 import { ImageFramer } from '../../components/shared/ImageFramer'
@@ -71,38 +73,42 @@ import { imageSrc, isStoredUpload } from '../../lib/media/storedFiles'
  * The editor is deliberately not the project gallery's, though it's plainly the same shape.
  * That one lives inside a larger form, is gated per project, and carries its own save
  * semantics. When a third slideshow appears, extract then.
+ *
+ * One sub-page per section. They were stacked down one page five screens long, and an officer
+ * fixing a typo in the FAQ scrolled past every photograph to reach it.
  */
-export function OfficerFrontPagePage() {
+export function OfficerFrontPagePage({ part }: { part: Part }) {
   const { user, membership } = useOutletContext<DashboardContext>()
 
   // Dues before role, the order every other desk uses: a lapsed officer is
   // still an officer, and the sentence they need is about a payment.
   if (duesLocked(membership, user.role)) {
-    return <DuesLocked eyebrow="/ MANAGE · FRONT PAGE" />
+    return <DuesLocked eyebrow={EYEBROW[part]} />
   }
 
   if (!isOfficer(user.role)) {
-    return <OfficerOnly eyebrow="/ MANAGE · FRONT PAGE" why="What the club leads with is board business." />
+    return <OfficerOnly eyebrow={EYEBROW[part]} why="What the club leads with is board business." />
   }
 
-  return <Desk />
-}
-
-/**
- * The whole screen: the eyebrow and heading, then the photographs, then the words. Two
- * components rather than one because they read from two routes and neither should wait on the
- * other — a slow answer for the FAQ must not hold up an officer rearranging photographs.
- */
-function Desk() {
   return (
     <>
-      <FormEyebrow>/ MANAGE · FRONT PAGE</FormEyebrow>
+      <FormEyebrow>{EYEBROW[part]}</FormEyebrow>
       <FormHeading>What the front page shows, and what it says.</FormHeading>
+      <SubNav label="Front page pages" pages={FRONT_PAGE_PAGES} />
 
-      <Photos />
-      <Words />
+      {/* The photographs and the words read from two routes, so neither waits on the other. */}
+      {part === 'photos' ? <Photos /> : <Words part={part} />}
     </>
   )
+}
+
+type Part = 'photos' | 'headline' | 'questions' | 'partners'
+
+const EYEBROW: Record<Part, string> = {
+  photos: '/ MANAGE · FRONT PAGE',
+  headline: '/ MANAGE · FRONT PAGE · HEADLINE',
+  questions: '/ MANAGE · FRONT PAGE · QUESTIONS',
+  partners: '/ MANAGE · FRONT PAGE · PARTNERS',
 }
 
 const button =
@@ -508,15 +514,14 @@ function Photos() {
 /**
  * The half of this desk that's words rather than pictures.
  *
- * One read for all three sections, because the route is one read: the headline, the FAQ and the
- * partner programs are one page's copy, and three fetches would be three loading states for a
- * screen that means nothing with any of them missing.
+ * One read for all three sub-pages, because the route is one read: the headline, the FAQ and the
+ * partner programs are one page's copy.
  *
  * Read from the public endpoint rather than an officer-only twin, but read `fresh` — that route
  * is `s-maxage=300`, so without it an officer who rewrites the headline and reloads can be
  * handed the answer from before they did.
  */
-function Words() {
+function Words({ part }: { part: Exclude<Part, 'photos'> }) {
   const [page, setPage] = useState<ApiFrontPage | null>(null)
   const [loadError, setLoadError] = useState('')
 
@@ -551,27 +556,35 @@ function Words() {
     )
   }
 
-  return (
-    <>
+  if (part === 'headline') {
+    return (
       <Copy
         page={page}
         onSaved={(saved) => {
           setPage({ ...page, ...saved })
         }}
       />
+    )
+  }
+
+  if (part === 'questions') {
+    return (
       <Questions
         faqs={page.faqs}
         onChange={(faqs) => {
           setPage({ ...page, faqs })
         }}
       />
-      <Partners
-        partners={page.partners}
-        onChange={(partners) => {
-          setPage({ ...page, partners })
-        }}
-      />
-    </>
+    )
+  }
+
+  return (
+    <Partners
+      partners={page.partners}
+      onChange={(partners) => {
+        setPage({ ...page, partners })
+      }}
+    />
   )
 }
 
@@ -624,7 +637,7 @@ function Copy({
     partnersIntro.trim() === ''
 
   return (
-    <section className="border-rule mt-9 border-t pt-9">
+    <section>
       <p className={`${panelLabel} mb-4`}>/ THE HEADLINE</p>
 
       <div className="grid-fluid grid items-start gap-6 [--col-min:24rem]">
@@ -830,7 +843,7 @@ function Questions({
     })
 
   return (
-    <section className="border-rule mt-9 border-t pt-9">
+    <section>
       <p className={`${panelLabel} mb-4`}>/ QUESTIONS</p>
 
       <div className="border-rule bg-base-200 mb-4 border p-4">
@@ -1126,7 +1139,7 @@ function Partners({
     })
 
   return (
-    <section className="border-rule mt-9 border-t pt-9">
+    <section>
       <p className={`${panelLabel} mb-4`}>/ PARTNER PROGRAMS</p>
 
       <div className="border-rule bg-base-200 mb-4 border p-4">

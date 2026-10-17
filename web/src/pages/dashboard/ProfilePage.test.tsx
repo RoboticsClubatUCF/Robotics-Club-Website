@@ -139,15 +139,18 @@ function stubApi(
   return stub
 }
 
-const renderProfile = () =>
+/** The three sub-pages are three routes onto the one component, as in `App.tsx`. */
+const renderAt = (at = '/dashboard/profile') =>
   render(
-    <MemoryRouter initialEntries={['/dashboard/profile']}>
+    <MemoryRouter initialEntries={[at]}>
       <SessionProvider>
         <Routes>
           <Route path="/" element={<p>the front page</p>} />
           <Route path="/login" element={<p>the login page</p>} />
           <Route path="/dashboard" element={<Shell />}>
-            <Route path="profile" element={<ProfilePage />} />
+            <Route path="profile" element={<ProfilePage part="profile" />} />
+            <Route path="profile/account" element={<ProfilePage part="account" />} />
+            <Route path="profile/membership" element={<ProfilePage part="membership" />} />
           </Route>
         </Routes>
       </SessionProvider>
@@ -159,6 +162,8 @@ afterEach(() => {
 })
 
 describe('ProfilePage', () => {
+  const renderProfile = renderAt
+
   it('fills the panels from the account it reads', async () => {
     stubApi()
     renderProfile()
@@ -166,7 +171,6 @@ describe('ProfilePage', () => {
     expect(await screen.findByDisplayValue('Rowan Test')).toBeInTheDocument()
     expect(screen.getByDisplayValue('Builds things.')).toBeInTheDocument()
     expect(screen.getByDisplayValue('2027')).toBeInTheDocument()
-    expect(screen.getByDisplayValue('rowan')).toBeInTheDocument()
     // PROFILE LINK replaced the PUBLIC PROFILE row that used to sit in YOUR STANDING. That row
     // printed "No profile page yet" to almost everybody and could print nothing else — a slug is an
     // officer's to set and `/members/:slug` is unbuilt — so what is asserted now is the field that
@@ -175,10 +179,20 @@ describe('ProfilePage', () => {
     expect(screen.getByLabelText('YOUR LINK')).toHaveValue('')
   })
 
+  /** Sign-in details are on ACCOUNT, apart from what other members see. */
+  it('puts how you sign in on its own page', async () => {
+    stubApi()
+    renderProfile('/dashboard/profile/account')
+
+    expect(await screen.findByDisplayValue('rowan')).toBeInTheDocument()
+    expect(screen.getByText('rowan@ucf.edu')).toBeInTheDocument()
+    expect(screen.queryByDisplayValue('Builds things.')).not.toBeInTheDocument()
+  })
+
   /** Every remote read on this site renders all three of its states. */
   it('says so when the account cannot be read, without blanking the page', async () => {
     stubApi({ '/api/account': { status: 500 } })
-    renderProfile()
+    renderProfile('/dashboard/profile/account')
 
     expect(
       await screen.findByText(/couldn.t load your account/i),
@@ -250,9 +264,12 @@ describe('ProfilePage', () => {
    */
   it('refuses a new password that does not match its confirmation', async () => {
     const stub = stubApi()
-    renderProfile()
+    renderProfile('/dashboard/profile/account')
 
-    const next = await screen.findByLabelText('NEW PASSWORD')
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'CHANGE PASSWORD' }),
+    )
+    const next = screen.getByLabelText('NEW PASSWORD')
     fireEvent.change(screen.getByLabelText('CURRENT PASSWORD'), {
       target: { value: 'whatever-it-is' },
     })
@@ -277,15 +294,56 @@ describe('ProfilePage', () => {
     stubApi({
       '/api/account': { body: { ...account, pendingEmail: 'new@ucf.edu' } },
     })
-    renderProfile()
+    renderProfile('/dashboard/profile/account')
 
     expect(await screen.findByText(/waiting on/i)).toBeInTheDocument()
     expect(screen.getByText('new@ucf.edu')).toBeInTheDocument()
   })
 
+  /**
+   * The forms are behind a press. Cancelling puts focus back on the button that opened them, or
+   * a keyboard user is left on the body.
+   */
+  it('keeps the email form behind CHANGE EMAIL', async () => {
+    stubApi()
+    renderProfile('/dashboard/profile/account')
+
+    const change = await screen.findByRole('button', { name: 'CHANGE EMAIL' })
+    expect(screen.queryByLabelText('NEW EMAIL')).not.toBeInTheDocument()
+
+    fireEvent.click(change)
+    expect(screen.getByLabelText('NEW EMAIL')).toHaveFocus()
+
+    fireEvent.click(screen.getByRole('button', { name: 'CANCEL' }))
+    expect(screen.queryByLabelText('NEW EMAIL')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'CHANGE EMAIL' })).toHaveFocus()
+  })
+
+  /**
+   * The confirmation link in people's inboxes still points at `/dashboard/profile`. It has to
+   * reach the panel that spends it.
+   */
+  it('takes an email-change link to ACCOUNT and confirms it there', async () => {
+    const stub = stubApi({
+      '/account/email/confirm': {
+        body: { user: { ...user, email: 'new@ucf.edu' } },
+      },
+    })
+    renderProfile('/dashboard/profile?emailToken=t0ken')
+
+    expect(await screen.findByText(/that is your address now/i)).toBeInTheDocument()
+    expect(screen.getByText('/ PROFILE · ACCOUNT')).toBeInTheDocument()
+
+    const confirms = stub.mock.calls.filter(([input]) =>
+      urlOf(input).includes('/account/email/confirm'),
+    )
+    expect(confirms).toHaveLength(1)
+    expect(bodyOf(confirms[0]![1])).toEqual({ token: 't0ken' })
+  })
+
   it('signs out and leaves the dashboard rather than the login page', async () => {
     const stub = stubApi()
-    renderProfile()
+    renderProfile('/dashboard/profile/account')
 
     fireEvent.click(await screen.findByRole('button', { name: /^sign out$/i }))
 
@@ -304,6 +362,8 @@ describe('ProfilePage', () => {
  * in front of it is part of the feature rather than decoration around it.
  */
 describe('deleting the account', () => {
+  const renderProfile = () => renderAt('/dashboard/profile/account')
+
   it('names what is destroyed rather than summarising it', async () => {
     stubApi()
     renderProfile()

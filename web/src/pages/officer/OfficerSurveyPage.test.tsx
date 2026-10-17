@@ -227,7 +227,7 @@ describe('OfficerSurveyPage', () => {
     renderPage()
 
     expect(
-      await screen.findByRole('link', { name: 'EDIT THE QUESTIONS' }),
+      await screen.findByRole('link', { name: 'QUESTIONS' }),
     ).toHaveAttribute('href', '/dashboard/officer/survey/questions')
   })
 

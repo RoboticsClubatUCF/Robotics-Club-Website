@@ -1,3 +1,4 @@
+import type { ComponentProps } from 'react'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Outlet, Route, Routes } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -173,12 +174,16 @@ const stubApi = (data: ApiSponsorDesk = desk(), written: unknown = sponsor()) =>
     return json(data)
   })
 
-const renderPage = (dashboard = context()) =>
+/** Each test names the sub-page its section lives on. */
+const renderPage = (
+  dashboard = context(),
+  part: ComponentProps<typeof OfficerSponsorsPage>['part'] = 'sponsors',
+) =>
   render(
     <MemoryRouter>
       <Routes>
         <Route element={<Outlet context={dashboard} />}>
-          <Route path="/" element={<OfficerSponsorsPage />} />
+          <Route path="/" element={<OfficerSponsorsPage part={part} />} />
         </Route>
       </Routes>
     </MemoryRouter>,
@@ -195,7 +200,7 @@ describe('OfficerSponsorsPage', () => {
   it('lists the sponsors with their tier and their words', async () => {
     vi.stubGlobal('fetch', stubApi())
 
-    renderPage()
+    renderPage(context(), 'sponsors')
 
     expect(
       await screen.findByLabelText('Name of Northgate Manufacturing'),
@@ -216,7 +221,7 @@ describe('OfficerSponsorsPage', () => {
   it('draws a block for every tier, published or not', async () => {
     vi.stubGlobal('fetch', stubApi())
 
-    renderPage()
+    renderPage(context(), 'tiers')
 
     expect(
       await screen.findByRole('heading', { name: 'PROCESSOR PATRON' }),
@@ -237,7 +242,7 @@ describe('OfficerSponsorsPage', () => {
     const stub = stubApi()
     vi.stubGlobal('fetch', stub)
 
-    renderPage()
+    renderPage(context(), 'tiers')
     await screen.findByRole('heading', { name: 'BOLT BACKER' })
 
     // Each tier is a region named by its own heading, which is what makes
@@ -279,7 +284,7 @@ describe('OfficerSponsorsPage', () => {
     const stub = stubApi()
     vi.stubGlobal('fetch', stub)
 
-    renderPage()
+    renderPage(context(), 'sponsors')
     await screen.findByLabelText('Name of Northgate Manufacturing')
 
     fireEvent.click(screen.getByRole('button', { name: 'HIDE' }))
@@ -306,7 +311,7 @@ describe('OfficerSponsorsPage', () => {
     )
     vi.stubGlobal('fetch', stub)
 
-    renderPage()
+    renderPage(context(), 'sponsors')
     await screen.findByText('[ NOBODY LISTED YET ]')
 
     fireEvent.change(screen.getByLabelText('NAME'), {
@@ -356,7 +361,7 @@ describe('OfficerSponsorsPage', () => {
     })
     vi.stubGlobal('fetch', stub)
 
-    renderPage()
+    renderPage(context(), 'sponsors')
     await screen.findByText('[ NOBODY LISTED YET ]')
 
     fireEvent.change(screen.getByLabelText('NAME'), {
@@ -408,7 +413,7 @@ describe('OfficerSponsorsPage', () => {
     )
     vi.stubGlobal('fetch', stub)
 
-    renderPage()
+    renderPage(context(), 'sponsors')
     await screen.findByText('[ NOBODY LISTED YET ]')
 
     fireEvent.change(screen.getByLabelText('NAME'), {
@@ -451,7 +456,7 @@ describe('OfficerSponsorsPage', () => {
     })
     vi.stubGlobal('fetch', stub)
 
-    renderPage()
+    renderPage(context(), 'sponsors')
     await screen.findByText('[ NOBODY LISTED YET ]')
 
     fireEvent.change(screen.getByLabelText('NAME'), {
@@ -488,7 +493,7 @@ describe('OfficerSponsorsPage', () => {
     const stub = stubApi()
     vi.stubGlobal('fetch', stub)
 
-    renderPage()
+    renderPage(context(), 'tiers')
     await screen.findByRole('heading', { name: 'BOLT BACKER' })
 
     const block = within(screen.getByRole('region', { name: 'BOLT BACKER' }))
@@ -513,7 +518,7 @@ describe('OfficerSponsorsPage', () => {
     const stub = stubApi(desk({ footnotes: '* old' }))
     vi.stubGlobal('fetch', stub)
 
-    renderPage()
+    renderPage(context(), 'tiers')
 
     const box = await screen.findByLabelText('PRINTED UNDER THE TIERS')
     expect(box).toHaveValue('* old')
@@ -540,7 +545,7 @@ describe('OfficerSponsorsPage', () => {
       ),
     )
 
-    renderPage()
+    renderPage(context(), 'other')
 
     expect(await screen.findByLabelText('Title of way 1')).toHaveValue(
       'Machine time',
@@ -552,7 +557,7 @@ describe('OfficerSponsorsPage', () => {
     const stub = stubApi()
     vi.stubGlobal('fetch', stub)
 
-    renderPage(context('MEMBER'))
+    renderPage(context('MEMBER'), 'sponsors')
 
     expect(
       screen.getByText('This desk belongs to the officers.'),
@@ -564,7 +569,7 @@ describe('OfficerSponsorsPage', () => {
   it('sends a lapsed officer to the dues page rather than refusing them', async () => {
     const stub = stubApi()
     vi.stubGlobal('fetch', stub)
-    renderPage(lapsed())
+    renderPage(lapsed(), 'sponsors')
 
     expect(screen.getByText('Your dues have lapsed.')).toBeInTheDocument()
     // Not the other sentence, which would be the wrong answer to the right
@@ -582,7 +587,7 @@ describe('OfficerSponsorsPage', () => {
     )
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
 
-    renderPage()
+    renderPage(context(), 'sponsors')
 
     expect(
       await screen.findByText("We couldn't reach the server."),

@@ -1,6 +1,12 @@
-import { useCallback, useEffect, useState } from 'react'
-import { useNavigate, useOutletContext } from 'react-router'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import {
+  Navigate,
+  useLocation,
+  useNavigate,
+  useOutletContext,
+} from 'react-router'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
+import { SubNav } from '../../components/dashboard/SubNav'
 import { DeleteAccountPanel } from '../../components/profile/DeleteAccountPanel'
 import { ProfileDiscordPanel } from '../../components/profile/ProfileDiscordPanel'
 import { ProfileEmailPanel } from '../../components/profile/ProfileEmailPanel'
@@ -12,52 +18,51 @@ import { ProfileSurveyPanel } from '../../components/profile/ProfileSurveyPanel'
 import { ProfileTrainingPanel } from '../../components/profile/ProfileTrainingPanel'
 import {
   PanelFact,
+  ProfilePanel,
   noteClass,
-  panelLabelClass,
+  panelQuietClass,
 } from '../../components/profile/profileChrome'
 import { Avatar } from '../../components/shared/Avatar'
 import {
   FormEyebrow,
   FormHeading,
   FormPanel,
-  secondaryClass,
 } from '../../components/shared/formChrome'
 import { ApiError, getJson, type ApiAccount } from '../../lib/api/api'
 import { longDate } from '../../lib/format/formats'
 import { useSession } from '../../lib/auth/session'
 import type { ApiState } from '../../lib/api/useApi'
+import { PROFILE_PAGES } from '../../lib/dashboard/subPages'
+
+type Part = 'profile' | 'account' | 'membership'
+
+const EYEBROW: Record<Part, string> = {
+  profile: '/ PROFILE',
+  account: '/ PROFILE · ACCOUNT',
+  membership: '/ PROFILE · MEMBERSHIP',
+}
 
 /**
- * The account page.
+ * The account pages: what other members see, how you sign in, and where you stand.
  *
- * It used to be a placeholder with one real button on it — signing out had to live somewhere, and
- * the bottom of the overview was the wrong somewhere. Every other thing it said was coming now
- * exists: the name, the photo, the Discord handle, the address, the password, and leaving.
+ * Three sub-pages rather than one wall of panels. Each panel is its own decision with its own
+ * save, so nothing here was ever a sequence, and nine of them at once tiled into columns of
+ * uneven holes. The routes share this component, so switching between them keeps the one
+ * account read.
  *
- * One account read, and a panel per decision. The page owns the `GET /api/account` loader; each
- * panel owns its own save, busy state and answer line, because they're separate decisions rather
- * than one form with several parts. A single SAVE at the bottom would mean changing a bio and a
- * password in the same press.
+ * Panels write their answer into the session and this page's copy rather than refetching: the
+ * nav and the rail are watching the session, and a refetch would blank half-typed input in
+ * the panels around it.
  *
- * `ProfileSurveyPanel` is the one that reads something the page didn't: the member survey is
- * another table behind another route, and widening the account payload for one panel would be the
- * wrong trade.
- *
- * The panels adopt their answer into the session context rather than refetching — the nav bar and
- * the rail are watching it, and a round trip is a visible flicker in both.
- *
- * Never dues-gated. Being behind on dues isn't a reason somebody can't change their password or
- * leave.
+ * Never dues-gated. Owing dues isn't a reason somebody can't change their password or leave.
  */
-export function ProfilePage() {
+export function ProfilePage({ part }: { part: Part }) {
   const { user, membership } = useOutletContext<DashboardContext>()
-  const { signOut } = useSession()
-  const navigate = useNavigate()
+  const { search } = useLocation()
 
   const [account, setAccount] = useState<ApiState<ApiAccount>>({
     status: 'loading',
   })
-  const [leaving, setLeaving] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -75,13 +80,7 @@ export function ProfilePage() {
     void load()
   }, [load])
 
-  /**
-   * Fold a panel's answer back into the page's copy.
-   *
-   * Cheaper than reloading, and steadier: a refetch would blank every other
-   * panel's fields back to their stored values while it was in flight, losing
-   * whatever somebody had half-typed in one of them.
-   */
+  /** Fold a panel's answer back into the page's copy, without a refetch. */
   const merge = useCallback((changed: Partial<ApiAccount>) => {
     setAccount((current) =>
       current.status === 'ready'
@@ -90,19 +89,17 @@ export function ProfilePage() {
     )
   }, [])
 
-  const signOutAndGoHome = async () => {
-    setLeaving(true)
-
-    // Off the dashboard *before* the session drops. The layout sends anyone
-    // signed out to the login page, and being shown a sign-in form is a strange
-    // answer to having just asked to sign out.
-    await navigate('/', { replace: true })
-    await signOut()
+  // The email-change link the server sends still points at `/dashboard/profile`, and it's in
+  // inboxes. The panel that spends the token lives on ACCOUNT now.
+  if (part === 'profile' && new URLSearchParams(search).has('emailToken')) {
+    return (
+      <Navigate to={{ pathname: '/dashboard/profile/account', search }} replace />
+    )
   }
 
   return (
     <>
-      <FormEyebrow>/ PROFILE</FormEyebrow>
+      <FormEyebrow>{EYEBROW[part]}</FormEyebrow>
 
       <div className="mb-7 flex items-center gap-4">
         <Avatar
@@ -122,116 +119,153 @@ export function ProfilePage() {
         </div>
       </div>
 
-      {/* Columns rather than a stack, and it costs this page nothing: the whole point of the
-          account page is that each panel is its own decision with its own save, so they were never
-          a sequence to be read down.
+      <SubNav label="Profile pages" pages={PROFILE_PAGES} />
 
-          Multi-column rather than `grid-fluid`, and this is the one page that wants it. A grid
-          aligns rows, so every card in a row is followed by as much empty space as the tallest
-          card leaves over — and the panels here run from three lines of text to a framed square,
-          so YOUR STANDING sat above a hole the height of the photo well. Column flow puts each
-          panel directly under the last one in its column.
-
-          The trade is that reading goes down a column and then down the next. Nothing here is
-          sequential, and tab order still follows the markup. `[&>*]` because the panels are
-          components: the margin and the no-break rule have to reach children this page doesn't
-          render itself. */}
-      <div className="columns-[24rem] gap-x-5 [&>*]:mb-5 [&>*]:break-inside-avoid">
-        {/* The facts nobody edits here, first, because they are the answer to
-            "is this the right account" — which is the question somebody opening
-            this page is usually asking. */}
-        <FormPanel>
-          <p className={panelLabelClass}>YOUR STANDING</p>
-          <dl className="divide-rule divide-y">
-            <PanelFact label="ROLE" value={user.role.replace(/_/g, ' ')} />
-            <PanelFact
-              label="MEMBER AGREEMENT"
-              value={
-                account.status === 'ready'
-                  ? account.data.acknowledgementAcceptedAt
-                    ? `Accepted ${longDate(account.data.acknowledgementAcceptedAt)}`
-                    : 'No record — your account predates the form'
-                  : null
-              }
-            />
-          </dl>
-          {/* PUBLIC PROFILE used to be the third row here, printing a `/members/:slug` address or
-              "No profile page yet". It said the second to almost everybody and could say nothing
-              else — a slug is an officer's to set and that page is still unbuilt — so it was a row
-              nobody could act on. PROFILE LINK, below, is what it asked for. */}
-          {/* Two rows, two different origins, so the line names them rather
-              than covering both with "an officer sets these" — which is now
-              half wrong: nobody set the agreement, it was accepted. */}
-          <p className={`${noteClass} mt-3`}>
-            An officer sets your role. The agreement is the one you accepted
-            when you signed up.
-          </p>
-        </FormPanel>
-
-        {/* Second, before the account loads: it reads the standing the dashboard already has,
-            and it's the one panel here that holds something up elsewhere. */}
-        <ProfileTrainingPanel userId={user.id} membership={membership} />
-
-        {account.status === 'loading' && (
-          <div aria-busy="true" className="space-y-5">
-            {/* Sized to what it replaces, so nothing reflows when it lands. */}
-            <div className="border-rule bg-base-200 h-64 border" />
-            <div className="border-rule bg-base-200 h-40 border" />
-          </div>
-        )}
-
-        {account.status === 'error' && (
-          <FormPanel tone="accent">
-            <p className="text-dim text-sm leading-[1.7] text-pretty">
-              We couldn&rsquo;t load your account just now. Try again in a
-              moment.
-            </p>
-          </FormPanel>
-        )}
-
-        {account.status === 'ready' && (
-          <>
-            <ProfileIdentityPanel account={account.data} onSaved={merge} />
-            <ProfilePhotoPanel account={account.data} onSaved={merge} />
-            {/* Straight after the photo, because it is what the photo does. */}
-            <ProfileLinkPanel account={account.data} onSaved={merge} />
-            <ProfileDiscordPanel account={account.data} onSaved={merge} />
-            <ProfileEmailPanel account={account.data} onSaved={merge} />
-            <ProfilePasswordPanel />
-            {/* Last, and the only panel that reads a resource of its own — the survey is another
-                table with another route. It also renders nothing until it knows, which is why it
-                sits at the end: a panel that appears late would push the ones after it around. The
-                one panel here that doesn't save anything, either; it prints the answers back and
-                sends you to `/dashboard/survey` to change them. */}
-            <ProfileSurveyPanel gradYear={account.data.gradYear} />
-          </>
-        )}
-      </div>
-
-      {/* The two ways out, below the panels and in a grid of their own so that
-          widening the page cannot slide the red box up alongside a field
-          somebody is editing. Signing out first: it is the one people are
-          looking for, and the one that is not destructive. */}
-      <div className="grid-fluid mt-10 items-start gap-5 [--col-min:24rem]">
-        <div>
-          <p className={panelLabelClass}>SIGN OUT</p>
-          <button
-            type="button"
-            disabled={leaving}
-            onClick={() => void signOutAndGoHome()}
-            className={`${secondaryClass} disabled:opacity-60`}
-          >
-            {leaving ? 'SIGNING OUT…' : 'SIGN OUT'}
-          </button>
-          <p className={`${noteClass} mt-3`}>
-            Ends this session on this device only.
-          </p>
-        </div>
-
-        {/* Last on the page, and behind its own colour. Everything above it is
-            something somebody might do on a Tuesday; this is not. */}
-        <DeleteAccountPanel fullName={user.fullName} />
-      </div>
+      {part === 'membership' ? (
+        <Columns
+          first={
+            <>
+              <Standing account={account} role={user.role} />
+              <ProfileTrainingPanel userId={user.id} membership={membership} />
+            </>
+          }
+          second={
+            account.status === 'ready' ? (
+              <ProfileSurveyPanel gradYear={account.data.gradYear} />
+            ) : (
+              <AccountState state={account} />
+            )
+          }
+        />
+      ) : part === 'account' ? (
+        <Columns
+          first={
+            account.status === 'ready' ? (
+              <>
+                <ProfileEmailPanel account={account.data} onSaved={merge} />
+                <ProfilePasswordPanel />
+                <ProfileDiscordPanel account={account.data} onSaved={merge} />
+              </>
+            ) : (
+              <AccountState state={account} />
+            )
+          }
+          // Neither needs the account read, so a failed one never takes away the way out.
+          second={
+            <>
+              <SignOut />
+              {/* Last, and behind its own colour. */}
+              <DeleteAccountPanel fullName={user.fullName} />
+            </>
+          }
+        />
+      ) : account.status !== 'ready' ? (
+        <AccountState state={account} />
+      ) : (
+        <Columns
+          first={<ProfileIdentityPanel account={account.data} onSaved={merge} />}
+          second={
+            <>
+              <ProfilePhotoPanel account={account.data} onSaved={merge} />
+              {/* Straight after the photo, because it is what the photo does. */}
+              <ProfileLinkPanel account={account.data} onSaved={merge} />
+            </>
+          }
+        />
+      )}
     </>
+  )
+}
+
+/**
+ * Two columns that each stack, so a short panel sits straight under the one above it instead
+ * of under a row-height hole. They fold to one column, first then second, when two won't fit.
+ */
+function Columns({ first, second }: { first: ReactNode; second: ReactNode }) {
+  return (
+    <div className="grid-fluid max-w-[80rem] items-start gap-5 [--col-min:24rem]">
+      <div className="grid gap-5">{first}</div>
+      <div className="grid gap-5">{second}</div>
+    </div>
+  )
+}
+
+function AccountState({ state }: { state: ApiState<ApiAccount> }) {
+  if (state.status === 'error') {
+    return (
+      <FormPanel tone="accent">
+        <p className="text-dim text-sm leading-[1.7] text-pretty">
+          We couldn&rsquo;t load your account just now. Try again in a moment.
+        </p>
+      </FormPanel>
+    )
+  }
+
+  // Sized to what it replaces, so nothing reflows when it lands.
+  return (
+    <div aria-busy="true" className="grid gap-5">
+      <div className="border-rule bg-base-200 h-64 border" />
+      <div className="border-rule bg-base-200 h-40 border" />
+    </div>
+  )
+}
+
+/** The facts nobody edits here: the answer to "is this the right account". */
+function Standing({
+  account,
+  role,
+}: {
+  account: ApiState<ApiAccount>
+  role: DashboardContext['user']['role']
+}) {
+  return (
+    <ProfilePanel label="YOUR STANDING">
+      <dl className="divide-rule divide-y">
+        <PanelFact label="ROLE" value={role.replace(/_/g, ' ')} />
+        <PanelFact
+          label="MEMBER AGREEMENT"
+          value={
+            account.status === 'ready'
+              ? account.data.acknowledgementAcceptedAt
+                ? `Accepted ${longDate(account.data.acknowledgementAcceptedAt)}`
+                : 'No record — your account predates the form'
+              : null
+          }
+        />
+      </dl>
+      <p className={`${noteClass} mt-3`}>
+        An officer sets your role. The agreement is the one you accepted when
+        you signed up.
+      </p>
+    </ProfilePanel>
+  )
+}
+
+function SignOut() {
+  const { signOut } = useSession()
+  const navigate = useNavigate()
+  const [leaving, setLeaving] = useState(false)
+
+  const signOutAndGoHome = async () => {
+    setLeaving(true)
+
+    // Off the dashboard before the session drops. The layout sends anyone signed out to the
+    // login page, which is a strange answer to having asked to sign out.
+    await navigate('/', { replace: true })
+    await signOut()
+  }
+
+  return (
+    <ProfilePanel label="SIGN OUT">
+      <button
+        type="button"
+        disabled={leaving}
+        onClick={() => void signOutAndGoHome()}
+        className={panelQuietClass}
+      >
+        {leaving ? 'SIGNING OUT…' : 'SIGN OUT'}
+      </button>
+      <p className={`${noteClass} mt-3`}>Ends this session on this device only.</p>
+    </ProfilePanel>
   )
 }

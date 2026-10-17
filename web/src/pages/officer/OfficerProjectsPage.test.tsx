@@ -1,3 +1,4 @@
+import type { ComponentProps } from 'react'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, Outlet, Route, Routes } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -138,21 +139,24 @@ const json = (body: unknown, status = 200) =>
     }),
   )
 
-const renderPage = (dashboard = context()) =>
+/** Each block names the sub-page its form lives on. */
+const renderPage = (
+  dashboard = context(),
+  part: ComponentProps<typeof OfficerProjectsPage>['part'] = 'all',
+) =>
   render(
     <MemoryRouter>
       <Routes>
         <Route element={<Outlet context={dashboard} />}>
-          <Route path="/" element={<OfficerProjectsPage />} />
+          <Route path="/" element={<OfficerProjectsPage part={part} />} />
         </Route>
       </Routes>
     </MemoryRouter>,
   )
 
 /**
- * The create panel, scoped — the duplicate panel is on screen at the same time, and both are
- * forms about a project. Its fields are labelled NEW TITLE and NEW SLUG so the two don't
- * collide, but scoping is still what makes these queries say which form they mean.
+ * The create panel, scoped. The duplicate form is on another sub-page now, but scoping is
+ * still what makes these queries say which form they mean.
  */
 const createPanel = () => within(screen.getByText('CREATE A PROJECT').closest('div')!)
 
@@ -296,7 +300,7 @@ describe('OfficerProjectsPage', () => {
     ['somebody who already leads a project', [mine('PROJECT_LEAD')]],
   ])('refuses %s', (_who, projects) => {
     vi.stubGlobal('fetch', stubDesk())
-    renderPage(context('MEMBER', projects))
+    renderPage(context('MEMBER', projects), 'new')
 
     expect(screen.queryByText('CREATE A PROJECT')).toBeNull()
     expect(screen.queryByText('APPOINT OR STAND DOWN A PROJECT LEAD')).toBeNull()
@@ -310,7 +314,7 @@ describe('OfficerProjectsPage', () => {
    */
   it('offers every section before the project exists', () => {
     vi.stubGlobal('fetch', stubDesk())
-    renderPage()
+    renderPage(context(), 'new')
 
     const panel = createPanel()
     expect(panel.getByLabelText('DESCRIPTION')).toBeInTheDocument()
@@ -332,7 +336,7 @@ describe('OfficerProjectsPage', () => {
   it('creates a project that meets on dates picked from the calendar', async () => {
     const fetchMock = stubDesk()
     vi.stubGlobal('fetch', fetchMock)
-    renderPage()
+    renderPage(context(), 'new')
     await act(async () => {})
 
     const panel = createPanel()
@@ -361,7 +365,7 @@ describe('OfficerProjectsPage', () => {
   it('sends the write-up with the project itself', async () => {
     const fetchMock = stubDesk()
     vi.stubGlobal('fetch', fetchMock)
-    renderPage()
+    renderPage(context(), 'new')
 
     const panel = createPanel()
     fireEvent.change(panel.getByLabelText('DESCRIPTION'), {
@@ -399,7 +403,7 @@ describe('OfficerProjectsPage', () => {
   it('sends the links and the pictures with the same press', async () => {
     const fetchMock = stubDesk()
     vi.stubGlobal('fetch', fetchMock)
-    renderPage()
+    renderPage(context(), 'new')
 
     const panel = createPanel()
 
@@ -451,7 +455,7 @@ describe('OfficerProjectsPage', () => {
   it('sends the framing a picture was given, with the picture', async () => {
     const fetchMock = stubDesk()
     vi.stubGlobal('fetch', fetchMock)
-    renderPage()
+    renderPage(context(), 'new')
 
     const panel = createPanel()
     fireEvent.change(panel.getByLabelText('OR ADD BY LINK'), {
@@ -492,7 +496,7 @@ describe('OfficerProjectsPage', () => {
         return json([])
       }),
     )
-    renderPage()
+    renderPage(context(), 'new')
 
     const panel = createPanel()
     fireEvent.change(panel.getByLabelText('OR ADD BY LINK'), {
@@ -513,7 +517,7 @@ describe('OfficerProjectsPage', () => {
 
   it('hands straight into setting the new project up', async () => {
     vi.stubGlobal('fetch', stubDesk())
-    renderPage()
+    renderPage(context(), 'new')
 
     await createProject()
 
@@ -531,7 +535,7 @@ describe('OfficerProjectsPage', () => {
    */
   it('carries every create field into the editor below', async () => {
     vi.stubGlobal('fetch', stubDesk())
-    renderPage()
+    renderPage(context(), 'new')
 
     await createProject()
 
@@ -553,7 +557,7 @@ describe('OfficerProjectsPage', () => {
    */
   it('says the project is already live', async () => {
     vi.stubGlobal('fetch', stubDesk())
-    renderPage()
+    renderPage(context(), 'new')
 
     await createProject()
 
@@ -568,7 +572,7 @@ describe('OfficerProjectsPage', () => {
   it('offers to delete a project made by mistake, after confirming', async () => {
     const fetchMock = stubDesk()
     vi.stubGlobal('fetch', fetchMock)
-    renderPage()
+    renderPage(context(), 'new')
 
     await createProject()
 
@@ -589,7 +593,7 @@ describe('OfficerProjectsPage', () => {
 
   it('goes back to a fresh form when the setup is finished', async () => {
     vi.stubGlobal('fetch', stubDesk())
-    renderPage()
+    renderPage(context(), 'new')
 
     await createProject()
     fireEvent.click(screen.getByRole('button', { name: 'FINISH — CREATE ANOTHER' }))
@@ -604,7 +608,7 @@ describe('OfficerProjectsPage', () => {
    */
   it('asks before finishing with the write-up unsaved', async () => {
     vi.stubGlobal('fetch', stubDesk())
-    renderPage()
+    renderPage(context(), 'new')
 
     await createProject()
 
@@ -639,7 +643,7 @@ describe('OfficerProjectsPage', () => {
         return json([])
       }),
     )
-    renderPage()
+    renderPage(context(), 'new')
 
     await createProject()
 
@@ -665,7 +669,7 @@ describe('duplicating a project', () => {
 
   it('names the term beside each project to copy from', async () => {
     vi.stubGlobal('fetch', stubDesk())
-    renderPage()
+    renderPage(context(), 'again')
     await act(async () => {})
 
     // A build run three years running is three rows with one name, so the
@@ -678,7 +682,7 @@ describe('duplicating a project', () => {
   it('sends the new slug and the term, and lands in the editor', async () => {
     const fetchMock = stubDesk()
     vi.stubGlobal('fetch', fetchMock)
-    renderPage()
+    renderPage(context(), 'again')
     await act(async () => {})
 
     pickSource()
@@ -716,7 +720,7 @@ describe('duplicating a project', () => {
   it('sends no term when neither field is filled', async () => {
     const fetchMock = stubDesk()
     vi.stubGlobal('fetch', fetchMock)
-    renderPage()
+    renderPage(context(), 'again')
     await act(async () => {})
 
     pickSource()
@@ -746,7 +750,7 @@ describe('duplicating a project', () => {
           : json({}),
     )
     vi.stubGlobal('fetch', fetchMock)
-    renderPage()
+    renderPage(context(), 'again')
     await act(async () => {})
 
     pickSource()
@@ -771,7 +775,7 @@ describe('the project Discord role', () => {
   it('sends what was typed into the create form', async () => {
     const fetchMock = stubDesk()
     vi.stubGlobal('fetch', fetchMock)
-    renderPage()
+    renderPage(context(), 'new')
     await act(async () => {})
 
     fireEvent.change(createPanel().getByLabelText('DISCORD ROLE'), {
@@ -794,7 +798,7 @@ describe('the project Discord role', () => {
     // would silently strip the crew role off next semester's row.
     const fetchMock = stubDesk()
     vi.stubGlobal('fetch', fetchMock)
-    renderPage()
+    renderPage(context(), 'again')
     await act(async () => {})
 
     fireEvent.change(duplicatePanel().getByLabelText('COPY FROM'), {
@@ -817,7 +821,7 @@ describe('the project Discord role', () => {
   it('sends a different role when the officer names one', async () => {
     const fetchMock = stubDesk()
     vi.stubGlobal('fetch', fetchMock)
-    renderPage()
+    renderPage(context(), 'again')
     await act(async () => {})
 
     fireEvent.change(duplicatePanel().getByLabelText('COPY FROM'), {
@@ -849,10 +853,16 @@ describe('the project Discord role', () => {
    */
   it('labels the two role fields differently', async () => {
     vi.stubGlobal('fetch', stubDesk())
-    renderPage()
+    const { unmount } = renderPage(context(), 'new')
     await act(async () => {})
 
     expect(screen.getByLabelText('DISCORD ROLE')).toBeInTheDocument()
+    expect(screen.queryByLabelText('NEW DISCORD ROLE')).not.toBeInTheDocument()
+    unmount()
+
+    renderPage(context(), 'again')
+    await act(async () => {})
+
     expect(screen.getByLabelText('NEW DISCORD ROLE')).toBeInTheDocument()
   })
 })
@@ -886,7 +896,7 @@ describe('reaching any project from the desk', () => {
 
   it('shows this semester and keeps older terms behind the button', async () => {
     vi.stubGlobal('fetch', stubDesk({ projects: [existing, running] }))
-    renderPage()
+    renderPage(context(), 'all')
     await act(async () => {})
 
     // `/dashboard/projects/...`, never `/dashboard/officer/...`: an `officer`
@@ -903,7 +913,7 @@ describe('reaching any project from the desk', () => {
 
   it('reveals the older terms on press, and hides them again', async () => {
     vi.stubGlobal('fetch', stubDesk({ projects: [existing, running] }))
-    renderPage()
+    renderPage(context(), 'all')
     await act(async () => {})
 
     fireEvent.click(everyPanel().getByRole('button', { name: 'SHOW PAST PROJECTS (1)' }))
@@ -923,7 +933,7 @@ describe('reaching any project from the desk', () => {
   it('says nothing is running rather than drawing an empty panel', async () => {
     // Only the 2034 project, and the term is FALL 2026.
     vi.stubGlobal('fetch', stubDesk({ projects: [existing] }))
-    renderPage()
+    renderPage(context(), 'all')
     await act(async () => {})
 
     const panel = everyPanel()
@@ -936,10 +946,13 @@ describe('reaching any project from the desk', () => {
 
   it('hides nothing while the term is still in flight', async () => {
     vi.stubGlobal('fetch', stubDesk({ projects: [existing, running] }))
-    renderPage({
-      ...context(),
-      membership: { status: 'loading' },
-    })
+    renderPage(
+      {
+        ...context(),
+        membership: { status: 'loading' },
+      },
+      'all',
+    )
     await act(async () => {})
 
     // An unanswered question must not read as "no projects this semester",
@@ -957,7 +970,7 @@ describe('reaching any project from the desk', () => {
         urlOf(input).includes('/projects?') ? json({ error: 'nope' }, 500) : json({}),
       ),
     )
-    renderPage()
+    renderPage(context(), 'all')
     await act(async () => {})
 
     expect(

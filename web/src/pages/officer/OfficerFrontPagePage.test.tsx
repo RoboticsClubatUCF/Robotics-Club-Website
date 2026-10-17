@@ -1,3 +1,4 @@
+import type { ComponentProps } from 'react'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Outlet, Route, Routes } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -167,12 +168,16 @@ const stubApi = (
     return Promise.reject(new Error(`no stub for ${url}`))
   })
 
-const renderPage = (dashboard = context()) =>
+/** Each test names the sub-page its section lives on. */
+const renderPage = (
+  dashboard = context(),
+  part: ComponentProps<typeof OfficerFrontPagePage>['part'] = 'photos',
+) =>
   render(
     <MemoryRouter>
       <Routes>
         <Route element={<Outlet context={dashboard} />}>
-          <Route path="/" element={<OfficerFrontPagePage />} />
+          <Route path="/" element={<OfficerFrontPagePage part={part} />} />
         </Route>
       </Routes>
     </MemoryRouter>,
@@ -189,7 +194,7 @@ describe('OfficerFrontPagePage', () => {
   it('lists the photos, with a caption box for each', async () => {
     vi.stubGlobal('fetch', stubApi())
 
-    renderPage()
+    renderPage(context(), 'photos')
 
     expect(
       await screen.findByLabelText('Caption for photo 1'),
@@ -202,7 +207,7 @@ describe('OfficerFrontPagePage', () => {
     const stub = stubApi()
     vi.stubGlobal('fetch', stub)
 
-    renderPage()
+    renderPage(context(), 'photos')
 
     await screen.findByLabelText('Caption for photo 1')
 
@@ -214,7 +219,7 @@ describe('OfficerFrontPagePage', () => {
     const stub = stubApi([LINKED])
     vi.stubGlobal('fetch', stub)
 
-    renderPage()
+    renderPage(context(), 'photos')
 
     await screen.findByLabelText('Caption for photo 1')
 
@@ -238,7 +243,7 @@ describe('OfficerFrontPagePage', () => {
     const stub = stubApi()
     vi.stubGlobal('fetch', stub)
 
-    renderPage()
+    renderPage(context(), 'photos')
 
     await screen.findByLabelText('Caption for photo 1')
 
@@ -262,7 +267,7 @@ describe('OfficerFrontPagePage', () => {
   it('moves a photo without waiting for the server to say so', async () => {
     vi.stubGlobal('fetch', stubApi())
 
-    renderPage()
+    renderPage(context(), 'photos')
 
     await screen.findByLabelText('Caption for photo 1')
 
@@ -279,7 +284,7 @@ describe('OfficerFrontPagePage', () => {
   it('says that an empty slideshow is a fine thing to leave', async () => {
     vi.stubGlobal('fetch', stubApi([]))
 
-    renderPage()
+    renderPage(context(), 'photos')
 
     expect(await screen.findByText('[ NO PHOTOS YET ]')).toBeInTheDocument()
     expect(screen.getByText(/rings and the wireframe mark/)).toBeInTheDocument()
@@ -291,7 +296,7 @@ describe('OfficerFrontPagePage', () => {
     )
     vi.stubGlobal('fetch', stubApi(full))
 
-    renderPage()
+    renderPage(context(), 'photos')
 
     await screen.findByLabelText('Caption for photo 1')
 
@@ -300,26 +305,30 @@ describe('OfficerFrontPagePage', () => {
     expect(screen.getByLabelText('ADD FROM YOUR COMPUTER')).toBeDisabled()
   })
 
-  it('says so rather than blanking when the photos will not load', async () => {
+  it('says so rather than blanking when a section will not load', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(() => Promise.reject(new TypeError('Failed to fetch'))),
     )
 
-    renderPage()
-
-    // Both halves, because both read and both failed — one message with the
-    // other half of the desk silently blank would be worse than two.
+    // Both halves read on their own, so each says so on its own sub-page.
+    const { unmount } = renderPage(context(), 'photos')
     expect(
-      await screen.findAllByText("We couldn't reach the server."),
-    ).toHaveLength(2)
+      await screen.findByText("We couldn't reach the server."),
+    ).toBeInTheDocument()
+    unmount()
+
+    renderPage(context(), 'headline')
+    expect(
+      await screen.findByText("We couldn't reach the server."),
+    ).toBeInTheDocument()
   })
 
   it('writes the headline as one sentence, on a SAVE', async () => {
     const stub = stubApi()
     vi.stubGlobal('fetch', stub)
 
-    renderPage()
+    renderPage(context(), 'headline')
 
     const first = await screen.findByLabelText('FIRST LINE')
     fireEvent.change(first, { target: { value: 'Building Something,' } })
@@ -346,7 +355,7 @@ describe('OfficerFrontPagePage', () => {
   it('shows where the headline breaks and which half is gold', async () => {
     vi.stubGlobal('fetch', stubApi())
 
-    renderPage()
+    renderPage(context(), 'headline')
 
     const accent = await screen.findByText('One Robot at a Time.')
     expect(accent.tagName).toBe('EM')
@@ -357,7 +366,7 @@ describe('OfficerFrontPagePage', () => {
     const stub = stubApi()
     vi.stubGlobal('fetch', stub)
 
-    renderPage()
+    renderPage(context(), 'questions')
 
     const question = await screen.findByLabelText('Question 1')
     fireEvent.change(question, { target: { value: 'Do I need any experience?' } })
@@ -379,7 +388,7 @@ describe('OfficerFrontPagePage', () => {
     const stub = stubApi()
     vi.stubGlobal('fetch', stub)
 
-    renderPage()
+    renderPage(context(), 'questions')
 
     const question = await screen.findByLabelText('Question 1')
     fireEvent.change(question, { target: { value: '   ' } })
@@ -393,7 +402,7 @@ describe('OfficerFrontPagePage', () => {
     const stub = stubApi()
     vi.stubGlobal('fetch', stub)
 
-    renderPage()
+    renderPage(context(), 'questions')
 
     fireEvent.click(await screen.findByRole('button', { name: 'Remove question 1' }))
 
@@ -410,7 +419,7 @@ describe('OfficerFrontPagePage', () => {
   it('says that emptying the partner list takes the section off the page', async () => {
     vi.stubGlobal('fetch', stubApi())
 
-    renderPage()
+    renderPage(context(), 'partners')
 
     expect(
       await screen.findByText(/comes off the front page altogether/i),
@@ -420,7 +429,7 @@ describe('OfficerFrontPagePage', () => {
   it('holds the artwork well open for a program that has none', async () => {
     vi.stubGlobal('fetch', stubApi())
 
-    renderPage()
+    renderPage(context(), 'partners')
 
     expect(await screen.findByText('[ IMAGE ]')).toBeInTheDocument()
     expect(
@@ -431,7 +440,7 @@ describe('OfficerFrontPagePage', () => {
   it('is closed to anybody who is not an officer', () => {
     vi.stubGlobal('fetch', stubApi())
 
-    renderPage(context('MEMBER'))
+    renderPage(context('MEMBER'), 'photos')
 
     expect(screen.getByText('This desk belongs to the officers.')).toBeInTheDocument()
   })

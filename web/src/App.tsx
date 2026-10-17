@@ -150,7 +150,11 @@ function App() {
                 and the sidebar, the children assume both. */}
             <Route path="dashboard" element={<DashboardLayout />}>
               <Route index element={<DashboardPage />} />
-              <Route path="profile" element={<ProfilePage />} />
+              {/* Sub-pages are routes rather than tabs, so the rail's dropdowns can link
+                  straight to one. The lists live in `lib/dashboard/subPages.ts`. */}
+              <Route path="profile" element={<ProfilePage part="profile" />} />
+              <Route path="profile/account" element={<ProfilePage part="account" />} />
+              <Route path="profile/membership" element={<ProfilePage part="membership" />} />
               {/* Reached from the profile page. The layout drops its rail for it, as for the slicer. */}
               <Route path="profile/training" element={<SlicerTrainingPage />} />
               {/* Ahead of dues in the rail as well as in the gate: this is the one page
@@ -176,8 +180,16 @@ function App() {
                   — and a reminder that a project slugged `past` would be unreachable. */}
               <Route path="projects/past" element={<PastProjectsPage />} />
               <Route path="projects/:slug" element={<ProjectDashboardPage />} />
-              <Route path="projects/:slug/manage" element={<ProjectManagePage />} />
-              <Route path="officer/roles" element={<OfficerRolesPage />} />
+              <Route path="projects/:slug/manage" element={<ProjectManagePage part="members" />} />
+              <Route path="projects/:slug/manage/teams" element={<ProjectManagePage part="teams" />} />
+              <Route path="projects/:slug/manage/tasks" element={<ProjectManagePage part="tasks" />} />
+              <Route path="projects/:slug/manage/events" element={<ProjectManagePage part="events" />} />
+              <Route path="projects/:slug/manage/meetings" element={<ProjectManagePage part="meetings" />} />
+              <Route path="projects/:slug/manage/settings" element={<ProjectManagePage part="settings" />} />
+              <Route path="officer/roles" element={<OfficerRolesPage part="board" />} />
+              <Route path="officer/roles/leads" element={<OfficerRolesPage part="leads" />} />
+              <Route path="officer/roles/grant" element={<OfficerRolesPage part="grant" />} />
+              <Route path="officer/roles/titles" element={<OfficerRolesPage part="titles" />} />
               {/* Beside ROLES because it's the other half of the same subject — that desk
                   decides who sits where today, this one is the record of who ever did.
                   `officers` rather than `archive` in the address: it's what the page it
@@ -189,7 +201,7 @@ function App() {
               />
               <Route path="officer/survey" element={<OfficerSurveyPage />} />
               {/* Under the survey desk rather than beside it: it's the same desk, and the
-                  rail already has a row for it. The two pages link to each other. */}
+                  rail lists both under SURVEY. */}
               <Route
                 path="officer/survey/questions"
                 element={<OfficerSurveyQuestionsPage />}
@@ -197,18 +209,22 @@ function App() {
               {/* The photographs beside the landing page's headline. Under `officer/`
                   like the rest of the desks — what the club leads with is a board
                   decision, and unlike EVENTS there's no per-project half of it. */}
-              <Route
-                path="officer/front-page"
-                element={<OfficerFrontPagePage />}
-              />
+              <Route path="officer/front-page" element={<OfficerFrontPagePage part="photos" />} />
+              <Route path="officer/front-page/headline" element={<OfficerFrontPagePage part="headline" />} />
+              <Route path="officer/front-page/questions" element={<OfficerFrontPagePage part="questions" />} />
+              <Route path="officer/front-page/partners" element={<OfficerFrontPagePage part="partners" />} />
               {/* Beside FRONT PAGE rather than PROJECTS, because it's the same kind of
                   thing: what the club says about itself on a public page. It writes all
                   three of `/sponsors`, which is why there's one desk and not three. */}
-              <Route path="officer/sponsors" element={<OfficerSponsorsPage />} />
-              <Route path="officer/projects" element={<OfficerProjectsPage />} />
+              <Route path="officer/sponsors" element={<OfficerSponsorsPage part="sponsors" />} />
+              <Route path="officer/sponsors/tiers" element={<OfficerSponsorsPage part="tiers" />} />
+              <Route path="officer/sponsors/other" element={<OfficerSponsorsPage part="other" />} />
+              <Route path="officer/projects" element={<OfficerProjectsPage part="all" />} />
+              <Route path="officer/projects/new" element={<OfficerProjectsPage part="new" />} />
+              <Route path="officer/projects/again" element={<OfficerProjectsPage part="again" />} />
               <Route path="officer/print" element={<OfficerPrintQueuePage />} />
               {/* Under the queue, like the survey's questions under the survey: the same
-                  officers, one rail row, and PRINT QUEUE stays lit while it's open. */}
+                  officers, and PRINT QUEUE stays lit while either is open. */}
               <Route path="officer/print/profiles" element={<OfficerSlicerProfilesPage />} />
               <Route path="officer/print/usage" element={<OfficerPrintUsagePage />} />
               <Route path="officer/equipment" element={<OfficerEquipmentPage />} />

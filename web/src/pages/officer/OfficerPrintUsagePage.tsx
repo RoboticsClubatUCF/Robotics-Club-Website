@@ -1,5 +1,7 @@
 import { useRef, useState } from 'react'
-import { Link, useOutletContext } from 'react-router'
+import { useOutletContext } from 'react-router'
+import { SubNav } from '../../components/dashboard/SubNav'
+import { PRINT_QUEUE_PAGES } from '../../lib/dashboard/subPages'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
 import { DuesLocked } from '../../components/dashboard/DuesLocked'
 import { OfficerOnly } from '../../components/dashboard/OfficerOnly'
@@ -7,7 +9,7 @@ import { UsageBreakdown } from '../../components/dashboard/UsageBreakdown'
 import { UsageChart } from '../../components/dashboard/UsageChart'
 import { FilterChips } from '../../components/shared/FilterChips'
 import { FormEyebrow, FormHeading, FormPanel, measureClass } from '../../components/shared/formChrome'
-import { quietButton, smallQuietButton } from '../../components/slicer/slicerChrome'
+import { smallQuietButton } from '../../components/slicer/slicerChrome'
 import type { ApiPrintUsageDesk } from '../../lib/api/api'
 import { useApi } from '../../lib/api/useApi'
 import { isOfficer } from '../../lib/auth/session'
@@ -140,14 +142,12 @@ function Usage() {
     <>
       <FormEyebrow>{EYEBROW}</FormEyebrow>
       <FormHeading>Filament usage.</FormHeading>
+      <SubNav label="Print queue pages" pages={PRINT_QUEUE_PAGES} />
 
-      <div className={`${measureClass} mb-6 flex flex-wrap items-center gap-3`}>
-        <p className="text-dim w-full text-sm leading-[1.7] text-pretty">
+      <div className={`${measureClass} mb-6`}>
+        <p className="text-dim text-sm leading-[1.7] text-pretty">
           Grams on finished filament prints, by the day they were marked done. Resin isn't counted.
         </p>
-        <Link to="/dashboard/officer/print" className={quietButton}>
-          ‹ BACK TO THE QUEUE
-        </Link>
       </div>
 
       <div className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-3">

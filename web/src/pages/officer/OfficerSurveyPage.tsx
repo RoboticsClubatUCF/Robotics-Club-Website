@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Link, useOutletContext, useSearchParams } from 'react-router'
+import { useOutletContext, useSearchParams } from 'react-router'
+import { SubNav } from '../../components/dashboard/SubNav'
+import { SURVEY_PAGES } from '../../lib/dashboard/subPages'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
 import { DuesLocked } from '../../components/dashboard/DuesLocked'
 import { OfficerOnly } from '../../components/dashboard/OfficerOnly'
@@ -113,14 +115,12 @@ function Results() {
             ? 'We couldn’t load that.'
             : 'What the club knows.'}
       </FormHeading>
+      <SubNav label="Survey pages" pages={SURVEY_PAGES} />
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <p className="max-w-[42rem] text-sm leading-[1.7] text-pretty text-dim">
           Explore the responses, narrow the group, and download the same results.
         </p>
         <div className="flex flex-wrap gap-3">
-          <Link to="/dashboard/officer/survey/questions" className={reportButton}>
-            EDIT THE QUESTIONS
-          </Link>
           <button
             type="button"
             className={reportButton}

@@ -1,3 +1,4 @@
+import type { ComponentProps } from 'react'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, Outlet, Route, Routes } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -75,12 +76,16 @@ const json = (body: unknown, status = 200) =>
     }),
   )
 
-const renderPage = (dashboard = context()) =>
+/** Each describe names the sub-page its panel lives on. */
+const renderPage = (
+  dashboard = context(),
+  part: ComponentProps<typeof OfficerRolesPage>['part'] = 'board',
+) =>
   render(
     <MemoryRouter>
       <Routes>
         <Route element={<Outlet context={dashboard} />}>
-          <Route path="/" element={<OfficerRolesPage />} />
+          <Route path="/" element={<OfficerRolesPage part={part} />} />
         </Route>
       </Routes>
     </MemoryRouter>,
@@ -282,7 +287,7 @@ afterEach(() => {
 describe('who may open it', () => {
   it('turns a member away', () => {
     vi.stubGlobal('fetch', stubDesk())
-    renderPage(context('MEMBER'))
+    renderPage(context('MEMBER'), 'grant')
 
     expect(
       screen.getByText('This desk belongs to the officers.'),
@@ -292,7 +297,7 @@ describe('who may open it', () => {
 
   it('lets an admin in', () => {
     vi.stubGlobal('fetch', stubDesk())
-    renderPage(context('ADMIN'))
+    renderPage(context('ADMIN'), 'grant')
 
     expect(screen.getByText('GRANT A MEMBERSHIP')).toBeInTheDocument()
   })
@@ -304,7 +309,7 @@ describe('who may open it', () => {
    */
   it('offers no way to make somebody an officer', () => {
     vi.stubGlobal('fetch', stubDesk())
-    renderPage(context('ADMIN'))
+    renderPage(context('ADMIN'), 'grant')
 
     expect(screen.queryByText(/MAKE.*OFFICER/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/CLUB ROLE/i)).not.toBeInTheDocument()
@@ -325,7 +330,7 @@ describe('granting a membership', () => {
   it('says where somebody stands before granting them anything', async () => {
     vi.useFakeTimers()
     vi.stubGlobal('fetch', stubDesk())
-    renderPage()
+    renderPage(context(), 'grant')
 
     await pick()
 
@@ -344,7 +349,7 @@ describe('granting a membership', () => {
         member: { ...ROWAN, duesPaidThrough: '2035-12-14T04:59:59.999Z' },
       }),
     )
-    renderPage()
+    renderPage(context(), 'grant')
 
     await pick()
 
@@ -356,7 +361,7 @@ describe('granting a membership', () => {
     vi.useFakeTimers()
     const fetchMock = stubDesk()
     vi.stubGlobal('fetch', fetchMock)
-    renderPage()
+    renderPage(context(), 'grant')
 
     await pick()
     fireEvent.click(grantPanel().getByRole('button', { name: 'GRANT IT' }))
@@ -376,7 +381,7 @@ describe('granting a membership', () => {
     vi.useFakeTimers()
     const fetchMock = stubDesk()
     vi.stubGlobal('fetch', fetchMock)
-    renderPage()
+    renderPage(context(), 'grant')
 
     await pick()
     fireEvent.change(grantPanel().getByLabelText('HOW LONG'), {
@@ -436,7 +441,7 @@ describe('setting a title', () => {
     vi.useFakeTimers()
     const fetchMock = stubDesk({ member: { ...ROWAN, title: 'Self-Appointed Overlord' } })
     vi.stubGlobal('fetch', fetchMock)
-    renderPage()
+    renderPage(context(), 'titles')
 
     await pick()
     const box = titlePanel().getByLabelText('TITLE')
@@ -465,7 +470,7 @@ describe('setting a title', () => {
     vi.useFakeTimers()
     const fetchMock = stubDesk({ member: { ...ROWAN, title: 'Self-Appointed Overlord' } })
     vi.stubGlobal('fetch', fetchMock)
-    renderPage()
+    renderPage(context(), 'titles')
 
     await pick()
     await act(async () => {
@@ -480,7 +485,7 @@ describe('setting a title', () => {
   it('offers neither button until something would change', async () => {
     vi.useFakeTimers()
     vi.stubGlobal('fetch', stubDesk())
-    renderPage()
+    renderPage(context(), 'titles')
 
     expect(titlePanel().getByRole('button', { name: 'SAVE TITLE' })).toBeDisabled()
 
@@ -495,7 +500,7 @@ describe('setting a title', () => {
     vi.useFakeTimers()
     const fetchMock = stubDesk({ member: { ...ROWAN, title: 'Self-Appointed Overlord' } })
     vi.stubGlobal('fetch', fetchMock)
-    renderPage()
+    renderPage(context(), 'titles')
 
     await pick()
     await submit()
@@ -506,7 +511,7 @@ describe('setting a title', () => {
   it('drops the last status line when somebody else is picked', async () => {
     vi.useFakeTimers()
     vi.stubGlobal('fetch', stubDesk({ member: { ...ROWAN, title: 'Self-Appointed Overlord' } }))
-    renderPage()
+    renderPage(context(), 'titles')
 
     await pick()
     await act(async () => {
@@ -528,7 +533,7 @@ describe('setting a title', () => {
       'fetch',
       stubDesk({ title: json({ error: 'Officer titles are only for officers.' }, 400) }),
     )
-    renderPage()
+    renderPage(context(), 'titles')
 
     await pick()
     fireEvent.change(titlePanel().getByLabelText('TITLE'), {
@@ -548,7 +553,7 @@ describe('setting a title', () => {
       'fetch',
       stubDesk({ title: json({ error: 'No such member' }, 404) }),
     )
-    renderPage()
+    renderPage(context(), 'titles')
 
     await pick()
     fireEvent.change(titlePanel().getByLabelText('TITLE'), {
@@ -576,7 +581,7 @@ describe('appointing a project lead', () => {
     vi.useFakeTimers()
     const fetchMock = stubDesk()
     vi.stubGlobal('fetch', fetchMock)
-    renderPage()
+    renderPage(context(), 'leads')
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0)
     })
@@ -617,7 +622,7 @@ describe('appointing a project lead', () => {
         ),
       }),
     )
-    renderPage()
+    renderPage(context(), 'leads')
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0)
     })
@@ -639,7 +644,7 @@ describe('appointing a project lead', () => {
     vi.useFakeTimers()
     const fetchMock = stubDesk()
     vi.stubGlobal('fetch', fetchMock)
-    renderPage()
+    renderPage(context(), 'leads')
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0)
     })
@@ -668,7 +673,7 @@ describe('the project picker', () => {
   const openPage = async () => {
     vi.useFakeTimers()
     vi.stubGlobal('fetch', stubDesk())
-    renderPage()
+    renderPage(context(), 'leads')
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0)
     })
@@ -768,7 +773,7 @@ describe('appointing a team lead', () => {
   it('offers the project roster once a project is picked', async () => {
     vi.useFakeTimers()
     vi.stubGlobal('fetch', stubDesk())
-    renderPage()
+    renderPage(context(), 'leads')
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0)
     })
@@ -794,7 +799,7 @@ describe('appointing a team lead', () => {
   it('narrows the roster as it is typed', async () => {
     vi.useFakeTimers()
     vi.stubGlobal('fetch', stubDesk())
-    renderPage()
+    renderPage(context(), 'leads')
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0)
     })
@@ -829,7 +834,7 @@ describe('appointing a team lead', () => {
     vi.useFakeTimers()
     const fetchMock = stubDesk()
     vi.stubGlobal('fetch', fetchMock)
-    renderPage()
+    renderPage(context(), 'leads')
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0)
     })
@@ -865,7 +870,7 @@ describe('appointing a team lead', () => {
     vi.useFakeTimers()
     const fetchMock = stubDesk()
     vi.stubGlobal('fetch', fetchMock)
-    renderPage()
+    renderPage(context(), 'leads')
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0)
     })
@@ -891,7 +896,7 @@ describe('appointing a team lead', () => {
     vi.useFakeTimers()
     const fetchMock = stubDesk()
     vi.stubGlobal('fetch', fetchMock)
-    renderPage()
+    renderPage(context(), 'leads')
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0)
     })
@@ -930,7 +935,7 @@ describe('the member picker', () => {
     vi.useFakeTimers()
     const fetchMock = stubDesk()
     vi.stubGlobal('fetch', fetchMock)
-    renderPage()
+    renderPage(context(), 'grant')
 
     await type('rowan')
 
@@ -946,7 +951,7 @@ describe('the member picker', () => {
     vi.useFakeTimers()
     const fetchMock = stubDesk()
     vi.stubGlobal('fetch', fetchMock)
-    renderPage()
+    renderPage(context(), 'grant')
 
     await type('r')
 
@@ -963,7 +968,7 @@ describe('the member picker', () => {
     vi.useFakeTimers()
     const fetchMock = stubDesk()
     vi.stubGlobal('fetch', fetchMock)
-    renderPage()
+    renderPage(context(), 'grant')
 
     const field = grantPanel().getByLabelText('WHO IS BEING COVERED')
     for (const value of ['ro', 'row', 'rowa', 'rowan']) {
@@ -992,7 +997,7 @@ describe('the member picker', () => {
 describe('OfficerRolesPage — the officer board', () => {
   it('lists who is on the board, seat and all', async () => {
     vi.stubGlobal('fetch', stubDesk())
-    renderPage()
+    renderPage(context(), 'board')
 
     expect(await screen.findByText('Rowan Chen')).toBeInTheDocument()
 
@@ -1014,7 +1019,7 @@ describe('OfficerRolesPage — the officer board', () => {
    */
   it('marks a seat that was given by hand', async () => {
     vi.stubGlobal('fetch', stubDesk())
-    renderPage()
+    renderPage(context(), 'board')
     await screen.findByText('Dr Alina Petrov')
 
     expect(seatPanel().getByText(/by hand/)).toBeInTheDocument()
@@ -1024,7 +1029,7 @@ describe('OfficerRolesPage — the officer board', () => {
     vi.useFakeTimers()
     const fetchMock = stubDesk()
     vi.stubGlobal('fetch', fetchMock)
-    renderPage()
+    renderPage(context(), 'board')
     // Deliberate flush rather than `findBy*`: this case runs on the fake clock
     // for the picker's debounce, and Testing Library polls by advancing that
     // same clock — it would spend its whole budget without the board landing.
@@ -1066,7 +1071,7 @@ describe('OfficerRolesPage — the officer board', () => {
     vi.useFakeTimers()
     const fetchMock = stubDesk()
     vi.stubGlobal('fetch', fetchMock)
-    renderPage()
+    renderPage(context(), 'board')
     // Deliberate flush rather than `findBy*`: this case runs on the fake clock
     // for the picker's debounce, and Testing Library polls by advancing that
     // same clock — it would spend its whole budget without the board landing.
@@ -1109,7 +1114,7 @@ describe('OfficerRolesPage — the officer board', () => {
         ),
       }),
     )
-    renderPage()
+    renderPage(context(), 'board')
     // Deliberate flush rather than `findBy*`: this case runs on the fake clock
     // for the picker's debounce, and Testing Library polls by advancing that
     // same clock — it would spend its whole budget without the board landing.
@@ -1137,7 +1142,7 @@ describe('OfficerRolesPage — the officer board', () => {
   it('confirms before standing somebody down', async () => {
     const fetchMock = stubDesk()
     vi.stubGlobal('fetch', fetchMock)
-    renderPage()
+    renderPage(context(), 'board')
     await screen.findByText('Rowan Chen')
 
     fireEvent.click(seatPanel().getAllByRole('button', { name: /stand down/i })[0]!)
@@ -1155,7 +1160,7 @@ describe('OfficerRolesPage — the officer board', () => {
    */
   it('warns that a synced officer will come straight back', async () => {
     vi.stubGlobal('fetch', stubDesk())
-    renderPage()
+    renderPage(context(), 'board')
     await screen.findByText('Rowan Chen')
 
     fireEvent.click(seatPanel().getAllByRole('button', { name: /stand down/i })[0]!)
@@ -1166,7 +1171,7 @@ describe('OfficerRolesPage — the officer board', () => {
   /** And not for one given by hand, which nothing will put back. */
   it('does not warn about a hand-appointed seat', async () => {
     vi.stubGlobal('fetch', stubDesk())
-    renderPage()
+    renderPage(context(), 'board')
     await screen.findByText('Dr Alina Petrov')
 
     const rows = seatPanel().getAllByRole('button', { name: /stand down/i })
@@ -1189,7 +1194,7 @@ describe('OfficerRolesPage — the officer board', () => {
 describe('OfficerRolesPage — handing the board over', () => {
   it('counts what is left to do, and names it while the list is short', async () => {
     vi.stubGlobal('fetch', stubDesk())
-    renderPage()
+    renderPage(context(), 'board')
     await screen.findByText('Rowan Chen')
 
     const todo = screen.getByText('STILL TO DO').closest('div')!
@@ -1219,7 +1224,7 @@ describe('OfficerRolesPage — handing the board over', () => {
     }))
 
     vi.stubGlobal('fetch', stubDesk({ board: full }))
-    renderPage()
+    renderPage(context(), 'board')
     await screen.findByText('Officer 0')
 
     expect(screen.queryByText('STILL TO DO')).not.toBeInTheDocument()
@@ -1233,7 +1238,7 @@ describe('OfficerRolesPage — handing the board over', () => {
     vi.useFakeTimers()
     const fetchMock = stubDesk()
     vi.stubGlobal('fetch', fetchMock)
-    renderPage()
+    renderPage(context(), 'board')
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0)
     })
@@ -1262,7 +1267,7 @@ describe('OfficerRolesPage — handing the board over', () => {
     vi.useFakeTimers()
     const fetchMock = stubDesk()
     vi.stubGlobal('fetch', fetchMock)
-    renderPage()
+    renderPage(context(), 'board')
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0)
     })
@@ -1295,7 +1300,7 @@ describe('OfficerRolesPage — handing the board over', () => {
     vi.useFakeTimers()
     const fetchMock = stubDesk()
     vi.stubGlobal('fetch', fetchMock)
-    renderPage()
+    renderPage(context(), 'board')
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0)
     })
@@ -1331,7 +1336,7 @@ describe('OfficerRolesPage — handing the board over', () => {
       'fetch',
       stubDesk({ seat: json({ id: 'ot9', succeeded: 'Dr Alina Petrov' }) }),
     )
-    renderPage()
+    renderPage(context(), 'board')
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0)
     })
@@ -1361,7 +1366,7 @@ describe('OfficerRolesPage — handing the board over', () => {
   it('does not offer to displace somebody by themselves', async () => {
     vi.useFakeTimers()
     vi.stubGlobal('fetch', stubDesk({ member: { ...ROWAN, id: 'u2' } }))
-    renderPage()
+    renderPage(context(), 'board')
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0)
     })

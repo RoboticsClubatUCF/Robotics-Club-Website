@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { Link, useOutletContext } from 'react-router'
+import { useOutletContext } from 'react-router'
+import { SubNav } from '../../components/dashboard/SubNav'
+import { SURVEY_PAGES } from '../../lib/dashboard/subPages'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
 import { DuesLocked } from '../../components/dashboard/DuesLocked'
 import { OfficerOnly } from '../../components/dashboard/OfficerOnly'
@@ -226,6 +228,7 @@ function Editor() {
       <div aria-busy="true">
         <FormEyebrow>/ MANAGE · SURVEY · QUESTIONS</FormEyebrow>
         <FormHeading>Reading the survey…</FormHeading>
+        <SubNav label="Survey pages" pages={SURVEY_PAGES} />
         <div className="border-rule bg-base-200 h-64 border" />
       </div>
     )
@@ -236,6 +239,7 @@ function Editor() {
       <>
         <FormEyebrow>/ MANAGE · SURVEY · QUESTIONS</FormEyebrow>
         <FormHeading>We couldn&rsquo;t load that.</FormHeading>
+        <SubNav label="Survey pages" pages={SURVEY_PAGES} />
         <p className={`${measureClass} text-dim text-sm leading-[1.7] text-pretty`}>
           {page.message}
         </p>
@@ -261,8 +265,9 @@ function Editor() {
     <>
       <FormEyebrow>/ MANAGE · SURVEY · QUESTIONS</FormEyebrow>
       <FormHeading>What the club asks.</FormHeading>
+      <SubNav label="Survey pages" pages={SURVEY_PAGES} />
 
-      <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
+      <div className="mb-7">
         <p className="text-dim max-w-[46rem] text-sm leading-[1.7] text-pretty">
           Every member answers this once before anything on the dashboard opens.
           <strong className="text-base-content">
@@ -273,12 +278,6 @@ function Editor() {
           are asked the new one next time they open the form.
         </p>
 
-        <Link
-          to="/dashboard/officer/survey"
-          className={`${button} shrink-0 px-5 py-2.5 text-[12px]`}
-        >
-          BACK TO THE ANSWERS
-        </Link>
       </div>
 
       {problem !== null && (

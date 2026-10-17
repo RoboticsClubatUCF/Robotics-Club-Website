@@ -1,4 +1,5 @@
-import { useId, useState, type FormEvent } from 'react'
+import { useId, useRef, useState, type FormEvent } from 'react'
+import { flushSync } from 'react-dom'
 import { postJson } from '../../lib/api/api'
 import { explainApiError } from '../../lib/api/apiErrors'
 import { fieldClass, labelClass } from '../shared/formChrome'
@@ -6,6 +7,7 @@ import {
   PanelStatus,
   ProfilePanel,
   noteClass,
+  panelQuietClass,
   panelSaveClass,
   type PanelMessage,
 } from './profileChrome'
@@ -21,6 +23,8 @@ const MIN_LENGTH = 10
  * Three fields rather than two. The confirmation is not ceremony: this form has no way to tell
  * somebody they mistyped, and the cost of a typo is being locked out of an account whose reset link
  * goes to an address they may be changing on the same page.
+ *
+ * Behind CHANGE PASSWORD, like the email form beside it.
  */
 export function ProfilePasswordPanel() {
   const id = useId()
@@ -30,6 +34,19 @@ export function ProfilePasswordPanel() {
   const [again, setAgain] = useState('')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<PanelMessage>(null)
+  const [editing, setEditing] = useState(false)
+  const opener = useRef<HTMLButtonElement>(null)
+
+  /** Back to the button, with focus on it, and nothing typed left behind. */
+  const close = () => {
+    flushSync(() => {
+      setEditing(false)
+      setCurrent('')
+      setNext('')
+      setAgain('')
+    })
+    opener.current?.focus()
+  }
 
   const save = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -50,9 +67,7 @@ export function ProfilePasswordPanel() {
       { currentPassword: current, newPassword: next },
     )
       .then((answer) => {
-        setCurrent('')
-        setNext('')
-        setAgain('')
+        close()
         setMessage({
           tone: 'ok',
           text:
@@ -75,82 +90,102 @@ export function ProfilePasswordPanel() {
 
   return (
     <ProfilePanel label="PASSWORD">
-      <form onSubmit={save} className="flex flex-col gap-4">
-        <div>
-          <label htmlFor={`${id}-current`} className={labelClass}>
-            CURRENT PASSWORD
-          </label>
-          <input
-            id={`${id}-current`}
-            name="currentPassword"
-            type="password"
-            required
-            maxLength={200}
-            autoComplete="current-password"
-            value={current}
-            onChange={(event) => {
-              setCurrent(event.target.value)
+      {!editing ? (
+        <>
+          <button
+            ref={opener}
+            type="button"
+            onClick={() => {
+              setMessage(null)
+              setEditing(true)
             }}
-            className={fieldClass}
-          />
-        </div>
-
-        <div>
-          <label htmlFor={`${id}-next`} className={labelClass}>
-            NEW PASSWORD
-          </label>
-          <input
-            id={`${id}-next`}
-            name="newPassword"
-            type="password"
-            required
-            minLength={MIN_LENGTH}
-            maxLength={200}
-            /* `new-password` is what tells a password manager to offer to
-               generate one rather than filling in what it already has. */
-            autoComplete="new-password"
-            value={next}
-            onChange={(event) => {
-              setNext(event.target.value)
-            }}
-            className={fieldClass}
-          />
-          <p className={`${noteClass} mt-1.5`}>
-            At least {MIN_LENGTH} characters. Length is the part that helps —
-            there are no rules about symbols.
-          </p>
-        </div>
-
-        <div>
-          <label htmlFor={`${id}-again`} className={labelClass}>
-            NEW PASSWORD AGAIN
-          </label>
-          <input
-            id={`${id}-again`}
-            name="newPasswordAgain"
-            type="password"
-            required
-            maxLength={200}
-            autoComplete="new-password"
-            value={again}
-            onChange={(event) => {
-              setAgain(event.target.value)
-            }}
-            className={fieldClass}
-          />
-        </div>
-
-        <div>
-          <button type="submit" disabled={saving} className={panelSaveClass}>
-            {saving ? 'SAVING…' : 'CHANGE MY PASSWORD'}
+            className={panelQuietClass}
+          >
+            CHANGE PASSWORD
           </button>
-        </div>
+          <p className={`${noteClass} mt-3`}>
+            Changing it signs you out on every other device, and leaves you
+            signed in here.
+          </p>
+        </>
+      ) : (
+        <form onSubmit={save} className="flex flex-col gap-4">
+          <div>
+            <label htmlFor={`${id}-current`} className={labelClass}>
+              CURRENT PASSWORD
+            </label>
+            <input
+              id={`${id}-current`}
+              name="currentPassword"
+              type="password"
+              // The form only appears because somebody pressed CHANGE PASSWORD.
+              autoFocus
+              required
+              maxLength={200}
+              autoComplete="current-password"
+              value={current}
+              onChange={(event) => {
+                setCurrent(event.target.value)
+              }}
+              className={fieldClass}
+            />
+          </div>
 
-        <p className={noteClass}>
-          Changing it signs you out on every other device, and leaves you signed
-          in here.
-        </p>
-      </form>
+          <div>
+            <label htmlFor={`${id}-next`} className={labelClass}>
+              NEW PASSWORD
+            </label>
+            <input
+              id={`${id}-next`}
+              name="newPassword"
+              type="password"
+              required
+              minLength={MIN_LENGTH}
+              maxLength={200}
+              /* `new-password` is what tells a password manager to offer to
+                 generate one rather than filling in what it already has. */
+              autoComplete="new-password"
+              value={next}
+              onChange={(event) => {
+                setNext(event.target.value)
+              }}
+              className={fieldClass}
+            />
+            <p className={`${noteClass} mt-1.5`}>
+              At least {MIN_LENGTH} characters. Length is the part that helps —
+              there are no rules about symbols.
+            </p>
+          </div>
+
+          <div>
+            <label htmlFor={`${id}-again`} className={labelClass}>
+              NEW PASSWORD AGAIN
+            </label>
+            <input
+              id={`${id}-again`}
+              name="newPasswordAgain"
+              type="password"
+              required
+              maxLength={200}
+              autoComplete="new-password"
+              value={again}
+              onChange={(event) => {
+                setAgain(event.target.value)
+              }}
+              className={fieldClass}
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <button type="submit" disabled={saving} className={panelSaveClass}>
+              {saving ? 'SAVING…' : 'CHANGE MY PASSWORD'}
+            </button>
+            <button type="button" disabled={saving} onClick={close} className={panelQuietClass}>
+              CANCEL
+            </button>
+          </div>
+        </form>
+      )}
 
       <PanelStatus message={message} />
     </ProfilePanel>

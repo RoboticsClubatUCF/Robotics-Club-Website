@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { MouseEvent } from 'react'
-import { Link, useOutletContext } from 'react-router'
+import { useOutletContext } from 'react-router'
+import { SubNav } from '../../components/dashboard/SubNav'
+import { PRINT_QUEUE_PAGES } from '../../lib/dashboard/subPages'
 import { DuesLocked } from '../../components/dashboard/DuesLocked'
 import { OfficerOnly } from '../../components/dashboard/OfficerOnly'
 import { isOfficer } from '../../lib/auth/session'
@@ -374,15 +376,7 @@ export function OfficerPrintQueuePage() {
     <>
       <FormEyebrow>/ MANAGE · PRINT QUEUE</FormEyebrow>
       <FormHeading>3D print queue.</FormHeading>
-
-      <div className="mb-5 flex flex-wrap gap-2.5">
-        <Link to="/dashboard/officer/print/profiles" className={quietButton}>
-          SLICER PROFILES
-        </Link>
-        <Link to="/dashboard/officer/print/usage" className={quietButton}>
-          FILAMENT USAGE
-        </Link>
-      </div>
+      <SubNav label="Print queue pages" pages={PRINT_QUEUE_PAGES} />
 
       <div className="mb-4">
         <FilterChips

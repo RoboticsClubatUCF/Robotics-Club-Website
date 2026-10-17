@@ -123,14 +123,15 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-const renderDashboard = () =>
+const renderDashboard = (at = '/dashboard') =>
   render(
-    <MemoryRouter initialEntries={['/dashboard']}>
+    <MemoryRouter initialEntries={[at]}>
       <SessionProvider>
         <Routes>
           <Route path="/login" element={<p>the login page</p>} />
           <Route path="/dashboard" element={<DashboardLayout />}>
             <Route index element={<p>overview marker</p>} />
+            <Route path="*" element={<p>page marker</p>} />
           </Route>
         </Routes>
       </SessionProvider>
@@ -242,7 +243,7 @@ describe('DashboardLayout', () => {
     expect(profile).toHaveTextContent('RT')
   })
 
-  it('lists my projects, with the manage link only for a lead', async () => {
+  it("folds a lead's project pages into a dropdown, and leaves a member's row plain", async () => {
     vi.stubGlobal(
       'fetch',
       stubFetch({
@@ -262,8 +263,97 @@ describe('DashboardLayout', () => {
 
     expect(await screen.findByRole('link', { name: 'ROVER' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'SUB' })).toBeInTheDocument()
-    // One manage link, not two: the second membership is a plain member's.
-    expect(screen.getAllByRole('link', { name: 'MANAGE' })).toHaveLength(1)
+    // One dropdown, not two: the second membership is a plain member's.
+    expect(screen.queryByRole('button', { name: 'SUB pages' })).not.toBeInTheDocument()
+
+    const toggle = screen.getByRole('button', { name: 'ROVER pages' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('link', { name: 'MEMBERS' })).not.toBeInTheDocument()
+
+    fireEvent.click(toggle)
+
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('link', { name: 'MEMBERS' })).toHaveAttribute(
+      'href',
+      '/dashboard/projects/rover/manage',
+    )
+  })
+
+  /** A team lead gets their own three pages; the project lead's are not offered. */
+  it("lists a team lead's pages under their project", async () => {
+    vi.stubGlobal(
+      'fetch',
+      stubFetch({
+        '/auth/me': { user: user() },
+        '/dues/status': duesStatus(),
+        '/me/projects': [
+          myProject({ rank: 'TEAM_LEAD', team: { id: 't1', name: 'Arm' } }),
+        ],
+      }),
+    )
+
+    renderDashboard()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'ROVER pages' }))
+
+    expect(screen.getByRole('link', { name: 'MY TEAM' })).toHaveAttribute(
+      'href',
+      '/dashboard/projects/rover/manage',
+    )
+    expect(screen.queryByRole('link', { name: 'SETTINGS' })).not.toBeInTheDocument()
+  })
+
+  /**
+   * Arriving on a sub-page opens its section, so the rail says where you are without a press.
+   * The others stay shut.
+   */
+  it('opens the section you are in, and marks the sub-page', async () => {
+    vi.stubGlobal(
+      'fetch',
+      stubFetch({
+        '/auth/me': { user: user({ role: 'OFFICER' }) },
+        '/me/projects': [],
+        '/dues/status': duesStatus(),
+      }),
+    )
+
+    renderDashboard('/dashboard/officer/roles/leads')
+
+    const roles = await screen.findByRole('button', { name: 'ROLES pages' })
+    expect(roles).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('link', { name: 'LEADS' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+    expect(screen.getByRole('button', { name: 'SPONSORS pages' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
+    expect(screen.queryByRole('link', { name: 'TIERS' })).not.toBeInTheDocument()
+  })
+
+  it('folds the account pages under the head of the rail', async () => {
+    vi.stubGlobal(
+      'fetch',
+      stubFetch({
+        '/auth/me': { user: user() },
+        '/me/projects': [],
+        '/dues/status': duesStatus(),
+      }),
+    )
+
+    renderDashboard()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Account pages' }))
+
+    expect(screen.getByRole('link', { name: 'ACCOUNT' })).toHaveAttribute(
+      'href',
+      '/dashboard/profile/account',
+    )
+    expect(screen.getByRole('link', { name: 'MEMBERSHIP' })).toHaveAttribute(
+      'href',
+      '/dashboard/profile/membership',
+    )
   })
 
   /**

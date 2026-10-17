@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { MemoryRouter, Outlet, Route, Routes } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ProjectManagePage } from './ProjectManagePage'
+import type { ManagePart } from '../../lib/dashboard/subPages'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
 import type {
   ApiManagedProject,
@@ -139,14 +140,18 @@ const stubDesk = (discordRoleId: string | null = null) =>
     return json([])
   })
 
-const renderPage = (fetchMock: ReturnType<typeof stubDesk>) => {
+/** Each block names the sub-page its section lives on. */
+const renderPage = (
+  fetchMock: ReturnType<typeof stubDesk>,
+  part: ManagePart = 'members',
+) => {
   vi.stubGlobal('fetch', fetchMock)
 
   return render(
     <MemoryRouter initialEntries={['/rover']}>
       <Routes>
         <Route element={<Outlet context={context()} />}>
-          <Route path="/:slug" element={<ProjectManagePage />} />
+          <Route path="/:slug" element={<ProjectManagePage part={part} />} />
         </Route>
       </Routes>
     </MemoryRouter>,
@@ -237,7 +242,7 @@ describe('public roster approvals', () => {
       <MemoryRouter initialEntries={['/rover']}>
         <Routes>
           <Route element={<Outlet context={ctx} />}>
-            <Route path="/:slug" element={<ProjectManagePage />} />
+            <Route path="/:slug" element={<ProjectManagePage part="members" />} />
           </Route>
         </Routes>
       </MemoryRouter>,
@@ -327,7 +332,7 @@ describe('public roster approvals', () => {
 describe('the project Discord role', () => {
   it('shows the role the project is actually carrying', async () => {
     const fetchMock = stubDesk('984535585270157362')
-    renderPage(fetchMock)
+    renderPage(fetchMock, 'settings')
     await act(async () => {})
 
     expect(panel().getByLabelText('ROLE ID')).toHaveValue('984535585270157362')
@@ -335,7 +340,7 @@ describe('the project Discord role', () => {
 
   it('saves a pasted role id', async () => {
     const fetchMock = stubDesk()
-    renderPage(fetchMock)
+    renderPage(fetchMock, 'settings')
     await act(async () => {})
 
     fireEvent.change(panel().getByLabelText('ROLE ID'), {
@@ -358,7 +363,7 @@ describe('the project Discord role', () => {
     // Two spellings of "no role" is a difference nobody can see and every
     // reader has to handle. The column takes null.
     const fetchMock = stubDesk('984535585270157362')
-    renderPage(fetchMock)
+    renderPage(fetchMock, 'settings')
     await act(async () => {})
 
     fireEvent.change(panel().getByLabelText('ROLE ID'), {
@@ -375,7 +380,7 @@ describe('the project Discord role', () => {
   })
 
   it('says what the field does, because pressing SAVE changes what people can see', async () => {
-    renderPage(stubDesk())
+    renderPage(stubDesk(), 'settings')
     await act(async () => {})
 
     expect(
@@ -397,7 +402,7 @@ describe('the project Discord role', () => {
             )
           : json([]),
     )
-    renderPage(fetchMock as unknown as ReturnType<typeof stubDesk>)
+    renderPage(fetchMock as unknown as ReturnType<typeof stubDesk>, 'settings')
     await act(async () => {})
 
     fireEvent.change(panel().getByLabelText('ROLE ID'), {
@@ -431,7 +436,7 @@ describe('the project Discord role', () => {
           ? json({ error: refusal }, 422)
           : json([]),
     )
-    renderPage(fetchMock as unknown as ReturnType<typeof stubDesk>)
+    renderPage(fetchMock as unknown as ReturnType<typeof stubDesk>, 'settings')
     await act(async () => {})
 
     fireEvent.change(panel().getByLabelText('ROLE ID'), {
@@ -453,7 +458,7 @@ describe('the project Discord role', () => {
    * panel stays short for the people who already know.
    */
   it('keeps the how-to behind a disclosure, closed', async () => {
-    renderPage(stubDesk())
+    renderPage(stubDesk(), 'settings')
     await screen.findByText('DISCORD ROLE')
 
     const guide = screen.getByText('WHERE DO I FIND THIS?')
@@ -467,7 +472,7 @@ describe('the project Discord role', () => {
   /** The half of the guide that is not instructions, and the half that stops
       somebody meeting the server's refusal at all. */
   it('warns against the club’s own roles, and against ranking', async () => {
-    renderPage(stubDesk())
+    renderPage(stubDesk(), 'settings')
     await screen.findByText('DISCORD ROLE')
 
     expect(screen.getByText(/Not one of the club/)).toBeInTheDocument()
@@ -496,7 +501,7 @@ describe('a finished build takes no new tasks', () => {
     })
 
   it('replaces the form with a sentence, and keeps the board', async () => {
-    renderPage(stubOldDesk() as unknown as ReturnType<typeof stubDesk>)
+    renderPage(stubOldDesk() as unknown as ReturnType<typeof stubDesk>, 'tasks')
 
     // The server answers 409 for a new task here, so the page says so instead
     // of drawing a form whose button could only be refused.
@@ -507,11 +512,11 @@ describe('a finished build takes no new tasks', () => {
 
     // TASKS is still a panel — what is on the board stays readable and
     // tickable, which is how a semester actually ends.
-    expect(screen.getByText('TASKS')).toBeInTheDocument()
+    expect(screen.getByText('TASKS', { selector: 'p' })).toBeInTheDocument()
   })
 
   it('draws the form for this semester’s build', async () => {
-    renderPage(stubDesk())
+    renderPage(stubDesk(), 'tasks')
 
     // The fixture project and the fixture term are both FALL 2035, so this is
     // the ordinary case and the form is there.
@@ -552,7 +557,9 @@ const stubTeams = () =>
     return json([])
   })
 
-const teams = () => within(screen.getByText('TEAMS').closest('div')!)
+// The panel's label, not the sub-page link of the same name.
+const teams = () =>
+  within(screen.getByText('TEAMS', { selector: 'p' }).closest('div')!)
 
 const wrote = (fetchMock: ReturnType<typeof stubTeams>, method: string) =>
   fetchMock.mock.calls.find(([, init]) => init?.method === method)
@@ -566,7 +573,7 @@ const wrote = (fetchMock: ReturnType<typeof stubTeams>, method: string) =>
  */
 describe('a project lead editing teams', () => {
   it('opens a team with the name and description it is carrying', async () => {
-    renderPage(stubTeams())
+    renderPage(stubTeams(), 'teams')
     await act(async () => {})
 
     const panel = teams()
@@ -580,7 +587,7 @@ describe('a project lead editing teams', () => {
 
   it('saves a rename and a description together', async () => {
     const fetchMock = stubTeams()
-    renderPage(fetchMock)
+    renderPage(fetchMock, 'teams')
     await act(async () => {})
 
     const panel = teams()
@@ -609,7 +616,7 @@ describe('a project lead editing teams', () => {
 
   it('sends null rather than an empty string for a cleared description', async () => {
     const fetchMock = stubTeams()
-    renderPage(fetchMock)
+    renderPage(fetchMock, 'teams')
     await act(async () => {})
 
     const panel = teams()
@@ -634,7 +641,7 @@ describe('a project lead editing teams', () => {
 
   it('cancels back to the row without writing anything', async () => {
     const fetchMock = stubTeams()
-    renderPage(fetchMock)
+    renderPage(fetchMock, 'teams')
     await act(async () => {})
 
     const panel = teams()
@@ -651,7 +658,7 @@ describe('a project lead editing teams', () => {
 
   it('creates a team with the description typed beside it', async () => {
     const fetchMock = stubTeams()
-    renderPage(fetchMock)
+    renderPage(fetchMock, 'teams')
     await act(async () => {})
 
     const panel = teams()
@@ -686,7 +693,7 @@ describe('a project lead editing teams', () => {
  */
 describe('deleting a project', () => {
   const openPage = async () => {
-    renderPage(stubDesk())
+    renderPage(stubDesk(), 'settings')
     await screen.findByText('DISCORD ROLE')
   }
 
@@ -839,7 +846,7 @@ const saveSchedule = () =>
 describe('the meeting schedule', () => {
   it('needs a first date for every other week, then saves it', async () => {
     const fetchMock = stubMeetings()
-    renderPage(fetchMock)
+    renderPage(fetchMock, 'meetings')
     await act(async () => {})
 
     fireEvent.change(schedulePanel().getByLabelText('EVERY'), {
@@ -872,7 +879,7 @@ describe('the meeting schedule', () => {
 
   it('sends a monthly weekday as the weeks and the days', async () => {
     const fetchMock = stubMeetings()
-    renderPage(fetchMock)
+    renderPage(fetchMock, 'meetings')
     await act(async () => {})
 
     fireEvent.click(schedulePanel().getByRole('radio', { name: 'MONTHLY' }))
@@ -902,7 +909,7 @@ describe('the meeting schedule', () => {
    */
   it('takes a list of dates clicked on the calendar', async () => {
     const fetchMock = stubMeetings()
-    renderPage(fetchMock)
+    renderPage(fetchMock, 'meetings')
     await act(async () => {})
 
     fireEvent.click(schedulePanel().getByRole('radio', { name: 'ON CHOSEN DATES' }))
@@ -952,7 +959,7 @@ describe('the meeting schedule', () => {
   it.each(['failed', 'pending'] as const)(
     'still takes dates when the term read has %s',
     async (term) => {
-      renderPage(stubMeetings(undefined, 200, term))
+      renderPage(stubMeetings(undefined, 200, term), 'meetings')
       await act(async () => {})
 
       fireEvent.click(schedulePanel().getByRole('radio', { name: 'ON CHOSEN DATES' }))
@@ -970,7 +977,7 @@ describe('the meeting schedule', () => {
   )
 
   it('hands focus to the next picked date when one is removed', async () => {
-    renderPage(stubMeetings())
+    renderPage(stubMeetings(), 'meetings')
     await act(async () => {})
 
     fireEvent.click(schedulePanel().getByRole('radio', { name: 'ON CHOSEN DATES' }))
@@ -986,7 +993,7 @@ describe('the meeting schedule', () => {
   })
 
   it('greys finals week and stops paging at the end of the term', async () => {
-    renderPage(stubMeetings())
+    renderPage(stubMeetings(), 'meetings')
     await act(async () => {})
 
     fireEvent.click(schedulePanel().getByRole('radio', { name: 'ON CHOSEN DATES' }))
@@ -1012,7 +1019,7 @@ describe('the meeting schedule', () => {
    * edge, the way a date grid works everywhere else.
    */
   it('moves between days with the arrow keys, into the next month', async () => {
-    renderPage(stubMeetings())
+    renderPage(stubMeetings(), 'meetings')
     await act(async () => {})
 
     fireEvent.click(schedulePanel().getByRole('radio', { name: 'ON CHOSEN DATES' }))
@@ -1043,7 +1050,7 @@ describe('the meeting schedule', () => {
    */
   it('gives a day its own hours, sending only the day that differs', async () => {
     const fetchMock = stubMeetings()
-    renderPage(fetchMock)
+    renderPage(fetchMock, 'meetings')
     await act(async () => {})
 
     expect(schedulePanel().getByRole('radio', { name: 'SAME EVERY DAY' })).toBeChecked()
@@ -1070,7 +1077,7 @@ describe('the meeting schedule', () => {
 
   it('names the day whose hours are backwards, and sends nothing', async () => {
     const fetchMock = stubMeetings()
-    renderPage(fetchMock)
+    renderPage(fetchMock, 'meetings')
     await act(async () => {})
 
     fireEvent.click(schedulePanel().getByRole('radio', { name: 'DIFFERENT BY DAY' }))
@@ -1089,7 +1096,7 @@ describe('the meeting schedule', () => {
 
   it('goes back to one set of hours for every day', async () => {
     const fetchMock = stubMeetings()
-    renderPage(fetchMock)
+    renderPage(fetchMock, 'meetings')
     await act(async () => {})
 
     fireEvent.click(schedulePanel().getByRole('radio', { name: 'DIFFERENT BY DAY' }))
@@ -1116,7 +1123,7 @@ describe('the meeting schedule', () => {
 
   /** The line under the pattern is the check on a mistake, so it carries the hours too. */
   it('reads each day’s hours back before saving', async () => {
-    renderPage(stubMeetings())
+    renderPage(stubMeetings(), 'meetings')
     await act(async () => {})
 
     expect(
@@ -1146,7 +1153,7 @@ describe('the meeting schedule', () => {
 
   /** With one day, SAME takes the HOURS choice away, and focus would go with it. */
   it('hands focus to FROM when the choice of hours goes away', async () => {
-    renderPage(stubMeetings())
+    renderPage(stubMeetings(), 'meetings')
     await act(async () => {})
 
     fireEvent.click(schedulePanel().getByRole('radio', { name: 'DIFFERENT BY DAY' }))
@@ -1162,7 +1169,7 @@ describe('the meeting schedule', () => {
   })
 
   it('offers no choice of hours for a single day', async () => {
-    renderPage(stubMeetings())
+    renderPage(stubMeetings(), 'meetings')
     await act(async () => {})
 
     fireEvent.click(schedulePanel().getByRole('checkbox', { name: 'Thursday' }))
@@ -1173,7 +1180,7 @@ describe('the meeting schedule', () => {
 
   it('gives a picked date its own hours', async () => {
     const fetchMock = stubMeetings()
-    renderPage(fetchMock)
+    renderPage(fetchMock, 'meetings')
     await act(async () => {})
 
     fireEvent.click(schedulePanel().getByRole('radio', { name: 'ON CHOSEN DATES' }))
@@ -1200,7 +1207,7 @@ describe('the meeting schedule', () => {
 
   it('asks before taking the schedule off, then sends no pattern', async () => {
     const fetchMock = stubMeetings()
-    renderPage(fetchMock)
+    renderPage(fetchMock, 'meetings')
     await act(async () => {})
 
     fireEvent.click(schedulePanel().getByRole('button', { name: 'REMOVE SCHEDULE' }))
@@ -1219,7 +1226,7 @@ describe('the meeting schedule', () => {
 
 describe('the upcoming meetings', () => {
   it('lists them, the cancelled one marked with its reason', async () => {
-    renderPage(stubMeetings())
+    renderPage(stubMeetings(), 'meetings')
     await act(async () => {})
 
     const list = meetingsPanel()
@@ -1231,7 +1238,7 @@ describe('the upcoming meetings', () => {
 
   it('cancels one with a reason, keyed on the campus date', async () => {
     const fetchMock = stubMeetings()
-    renderPage(fetchMock)
+    renderPage(fetchMock, 'meetings')
     await act(async () => {})
 
     fireEvent.click(meetingsPanel().getByRole('button', { name: /^Call off / }))
@@ -1250,7 +1257,7 @@ describe('the upcoming meetings', () => {
 
   it('puts a cancelled one back', async () => {
     const fetchMock = stubMeetings()
-    renderPage(fetchMock)
+    renderPage(fetchMock, 'meetings')
     await act(async () => {})
 
     await act(async () => {
@@ -1264,7 +1271,7 @@ describe('the upcoming meetings', () => {
 
   it('closes the reason without cancelling, and gives focus back to the row', async () => {
     const fetchMock = stubMeetings()
-    renderPage(fetchMock)
+    renderPage(fetchMock, 'meetings')
     await act(async () => {})
 
     const callOff = meetingsPanel().getByRole('button', { name: /^Call off / })
@@ -1293,7 +1300,7 @@ describe('the upcoming meetings', () => {
       <MemoryRouter initialEntries={['/rover']}>
         <Routes>
           <Route element={<Outlet context={context()} />}>
-            <Route path="/:slug" element={<ProjectManagePage />} />
+            <Route path="/:slug" element={<ProjectManagePage part="meetings" />} />
           </Route>
         </Routes>
       </MemoryRouter>,
@@ -1309,7 +1316,7 @@ describe('the upcoming meetings', () => {
   })
 
   it('says so when there are none left', async () => {
-    renderPage(stubMeetings([]))
+    renderPage(stubMeetings([]), 'meetings')
     await act(async () => {})
 
     expect(
@@ -1318,7 +1325,7 @@ describe('the upcoming meetings', () => {
   })
 
   it('says so when they will not load, rather than showing none', async () => {
-    renderPage(stubMeetings({ error: 'down' }, 500))
+    renderPage(stubMeetings({ error: 'down' }, 500), 'meetings')
     await act(async () => {})
 
     expect(
@@ -1340,7 +1347,7 @@ describe('the project events form', () => {
     const ctx = context()
     ctx.projects = { status: 'ready', data: [{ ...lead, rank, team: rank === 'TEAM_LEAD' ? { id: 't1', name: 'Software' } : null }] }
     render(<MemoryRouter initialEntries={['/rover']}><Routes>
-      <Route element={<Outlet context={ctx} />}><Route path="/:slug" element={<ProjectManagePage />} /></Route>
+      <Route element={<Outlet context={ctx} />}><Route path="/:slug" element={<ProjectManagePage part="events" />} /></Route>
     </Routes></MemoryRouter>)
     return fetchMock
   }
@@ -1372,7 +1379,7 @@ describe('the project events form', () => {
       published: true, projectId: 'p1', teamId: 't1', createdById: 'other',
       project: { slug: 'rover', title: 'Rover' }, team: { name: 'Software' },
     }])
-    const eventPanel = (await screen.findByText('EVENTS', { exact: true })).closest('div')!
+    const eventPanel = (await screen.findByText('EVENTS', { selector: 'p' })).closest('div')!
     fireEvent.click(await within(eventPanel).findByRole('button', { name: 'EDIT' }))
     const checkbox = within(eventPanel).getByRole('checkbox', { name: /main calendar/i })
     expect(checkbox).toBeChecked()
@@ -1385,7 +1392,7 @@ describe('the project events form', () => {
 
   it('sends an event that runs over several days', async () => {
     const fetchMock = stubDesk()
-    renderPage(fetchMock)
+    renderPage(fetchMock, 'events')
     await act(async () => {})
 
     const local = (value: string) => new Date(value).toISOString()

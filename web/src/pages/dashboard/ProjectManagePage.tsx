@@ -57,6 +57,8 @@ import { TASK_LABEL, isSettled } from '../../lib/tasks'
 import type { ApiState } from '../../lib/api/useApi'
 import { useApi } from '../../lib/api/useApi'
 import { isOfficer } from '../../lib/auth/session'
+import { SubNav } from '../../components/dashboard/SubNav'
+import { projectPages, type ManagePart } from '../../lib/dashboard/subPages'
 
 /**
  * The lead's side of a project: members, teams, the meeting schedule and its meetings.
@@ -67,6 +69,10 @@ import { isOfficer } from '../../lib/auth/session'
  *
  * Officers see the project-lead view of any project. They resolve the slug through the public
  * detail route because nothing guarantees they're on the project's member list at all.
+ *
+ * One sub-page per section. A lead comes here to do one thing, and eight panels in a grid
+ * left a lead scrolling past the roster to reach the schedule. The routes share this
+ * component, so moving between them keeps the one read of the team.
  */
 
 const smallButton =
@@ -86,7 +92,16 @@ function explain(error: unknown): string {
   return 'That change did not go through. Try again in a moment.'
 }
 
-export function ProjectManagePage() {
+const PART_LABEL: Record<ManagePart, string> = {
+  members: 'MEMBERS',
+  teams: 'TEAMS',
+  tasks: 'TASKS',
+  events: 'EVENTS',
+  meetings: 'MEETINGS',
+  settings: 'SETTINGS',
+}
+
+export function ProjectManagePage({ part }: { part: ManagePart }) {
   const { slug = '' } = useParams()
   const { user, projects, membership } = useOutletContext<DashboardContext>()
   const officer = isOfficer(user.role)
@@ -95,7 +110,7 @@ export function ProjectManagePage() {
   // has *not* lost their rank, and telling them this page belongs to the leads
   // would be false as well as alarming.
   if (duesLocked(membership, user.role)) {
-    return <DuesLocked eyebrow="/ PROJECT · MANAGE" />
+    return <DuesLocked eyebrow={`/ PROJECT · MANAGE · ${PART_LABEL[part]}`} />
   }
 
   if (projects.status === 'loading') {
@@ -147,17 +162,21 @@ export function ProjectManagePage() {
         rank={rank}
         myTeamId={mine.team?.id ?? null}
         officer={officer}
+        part={part}
+        // The rail lists a project's pages only while it's running and only for a lead,
+        // the same split it makes for MY PROJECTS.
+        inRail={mine.current && mine.rank !== 'MEMBER'}
       />
     )
   }
 
   // An officer with no membership row: find the id the long way round.
-  return <ResolveBySlug slug={slug} />
+  return <ResolveBySlug slug={slug} part={part} />
 }
 
 /** Only ever reached by an officer with no membership row — see the call
     site — which is why `officer` below is a constant rather than a prop. */
-function ResolveBySlug({ slug }: { slug: string }) {
+function ResolveBySlug({ slug, part }: { slug: string; part: ManagePart }) {
   const detail = useApi<ApiProjectDetail>(`/projects/${slug}`)
 
   if (detail.status === 'loading') {
@@ -184,6 +203,8 @@ function ResolveBySlug({ slug }: { slug: string }) {
       rank="PROJECT_LEAD"
       myTeamId={null}
       officer
+      part={part}
+      inRail={false}
     />
   )
 }
@@ -193,6 +214,8 @@ function Manage({
   rank,
   myTeamId,
   officer,
+  part,
+  inRail,
 }: {
   projectId: string
   rank: 'PROJECT_LEAD' | 'TEAM_LEAD'
@@ -200,6 +223,10 @@ function Manage({
   /** Whether to draw the one control on this page that is not a lead's: the
       switch that puts the project's meetings on the public calendar. */
   officer: boolean
+  part: ManagePart
+  /** Whether the rail already lists these sub-pages. When it doesn't, the page
+      lists them at every width. */
+  inRail: boolean
 }) {
   const { reloadProjects, membership } = useOutletContext<DashboardContext>()
   const [view, setView] = useState<ApiState<ApiProjectTeamView>>({
@@ -259,35 +286,42 @@ function Manage({
     term === null ||
     (project.termYear === term.year && project.termSeason === term.season)
 
+  const pages = projectPages(project.slug, rank)
+  const label =
+    rank === 'TEAM_LEAD' && part === 'members' ? 'MY TEAM' : PART_LABEL[part]
+  // A team lead has three of these. The rest are the project lead's, and a typed address
+  // gets a sentence rather than panels the server would refuse.
+  const leadOnly =
+    rank === 'TEAM_LEAD' &&
+    part !== 'members' &&
+    part !== 'tasks' &&
+    part !== 'events'
+
   return (
     <>
-      <FormEyebrow>/ PROJECT · MANAGE</FormEyebrow>
+      <FormEyebrow>{`/ PROJECT · MANAGE · ${label}`}</FormEyebrow>
       <FormHeading>{project.title}</FormHeading>
+      <SubNav
+        label="Project pages"
+        // Without the rail row there may be no dashboard page for this project either: an
+        // officer managing a project they aren't on.
+        pages={inRail ? pages : pages.slice(1)}
+        always={!inRail}
+      />
 
-      {/* Eight sections, none of which reads on from the one above — a lead comes here to do one
-          of them. Stacked, that meant scrolling past four panels to reach the fifth while the
-          right half of the screen stayed empty. `items-start` keeps the short ones short: DISCORD
-          ROLE is four lines and has no business being as tall as the roster. */}
-      <div className="grid-fluid items-start gap-5 [--col-min:30rem]">
-        {rank === 'PROJECT_LEAD' ? (
-          <>
+      {leadOnly ? (
+        <div className={measureClass}>
+          <FormPanel>
+            <p className="text-dim text-sm leading-[1.7] text-pretty">
+              That part of the project is for its project lead.
+            </p>
+          </FormPanel>
+        </div>
+      ) : part === 'members' ? (
+        <div className="max-w-[56rem]">
+          {rank === 'PROJECT_LEAD' ? (
             <MembersSection teams={teams} members={members} projectId={projectId} projectSlug={project.slug} reload={load} />
-            <TeamsSection teams={teams} members={members} projectId={projectId} reload={load} />
-            <EventsSection projectId={projectId} teams={teams} rank={rank} myTeamId={myTeamId} />
-            <TasksSection projectId={projectId} teams={teams} members={members} rank={rank} myTeamId={myTeamId} canCreate={canCreateTasks} />
-            <MeetingSection project={project} reload={load} officer={officer} />
-            {hasSchedule(project) && (
-              <UpcomingMeetingsSection
-                /* Keyed on the saved schedule, so saving a new one refetches the list. */
-                key={JSON.stringify(draftBody(draftOf(project)))}
-                projectId={projectId}
-              />
-            )}
-            <DiscordRoleSection project={project} reload={load} />
-            <DangerSection projectId={projectId} title={project.title} reloadProjects={reloadProjects} />
-          </>
-        ) : (
-          <>
+          ) : (
             <TeamLeadSection
               projectId={projectId}
               projectSlug={project.slug}
@@ -296,11 +330,39 @@ function Manage({
               members={members}
               reload={load}
             />
-            <EventsSection projectId={projectId} teams={teams} rank={rank} myTeamId={myTeamId} />
-            <TasksSection projectId={projectId} teams={teams} members={members} rank={rank} myTeamId={myTeamId} canCreate={canCreateTasks} />
-          </>
-        )}
-      </div>
+          )}
+        </div>
+      ) : part === 'teams' ? (
+        <div className="max-w-[56rem]">
+          <TeamsSection teams={teams} members={members} projectId={projectId} reload={load} />
+        </div>
+      ) : part === 'tasks' ? (
+        <div className="max-w-[56rem]">
+          <TasksSection projectId={projectId} teams={teams} members={members} rank={rank} myTeamId={myTeamId} canCreate={canCreateTasks} />
+        </div>
+      ) : part === 'events' ? (
+        <div className="max-w-[56rem]">
+          <EventsSection projectId={projectId} teams={teams} rank={rank} myTeamId={myTeamId} />
+        </div>
+      ) : part === 'meetings' ? (
+        // The schedule and the meetings it makes side by side where there's room, since
+        // cancelling one is done while looking at the pattern.
+        <div className="grid-fluid max-w-[80rem] items-start gap-5 [--col-min:30rem]">
+          <MeetingSection project={project} reload={load} officer={officer} />
+          {hasSchedule(project) && (
+            <UpcomingMeetingsSection
+              /* Keyed on the saved schedule, so saving a new one refetches the list. */
+              key={JSON.stringify(draftBody(draftOf(project)))}
+              projectId={projectId}
+            />
+          )}
+        </div>
+      ) : (
+        <div className="grid max-w-[46rem] gap-5">
+          <DiscordRoleSection project={project} reload={load} />
+          <DangerSection projectId={projectId} title={project.title} reloadProjects={reloadProjects} />
+        </div>
+      )}
     </>
   )
 }
