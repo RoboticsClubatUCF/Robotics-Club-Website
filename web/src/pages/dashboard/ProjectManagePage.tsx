@@ -58,6 +58,7 @@ import type { ApiState } from '../../lib/api/useApi'
 import { useApi } from '../../lib/api/useApi'
 import { isOfficer } from '../../lib/auth/session'
 import { SubNav } from '../../components/dashboard/SubNav'
+import { SubPage } from '../../components/dashboard/SubPage'
 import { projectPages, type ManagePart } from '../../lib/dashboard/subPages'
 
 /**
@@ -95,8 +96,8 @@ function explain(error: unknown): string {
 const PART_LABEL: Record<ManagePart, string> = {
   members: 'MEMBERS',
   teams: 'TEAMS',
-  tasks: 'TASKS',
-  events: 'EVENTS',
+  tasks: 'PROJECT TASKS',
+  events: 'PROJECT EVENTS',
   meetings: 'MEETINGS',
   settings: 'SETTINGS',
 }
@@ -309,7 +310,7 @@ function Manage({
         always={!inRail}
       />
 
-      {leadOnly ? (
+      {leadOnly && (
         <div className={measureClass}>
           <FormPanel>
             <p className="text-dim text-sm leading-[1.7] text-pretty">
@@ -317,7 +318,11 @@ function Manage({
             </p>
           </FormPanel>
         </div>
-      ) : part === 'members' ? (
+      )}
+
+      {/* Every sub-page this rank has stays mounted, so a half-written task or an unsaved
+          schedule survives a look at a sibling. */}
+      <SubPage shown={part === 'members'}>
         <div className="max-w-[56rem]">
           {rank === 'PROJECT_LEAD' ? (
             <MembersSection teams={teams} members={members} projectId={projectId} projectSlug={project.slug} reload={load} />
@@ -332,36 +337,45 @@ function Manage({
             />
           )}
         </div>
-      ) : part === 'teams' ? (
-        <div className="max-w-[56rem]">
-          <TeamsSection teams={teams} members={members} projectId={projectId} reload={load} />
-        </div>
-      ) : part === 'tasks' ? (
+      </SubPage>
+      <SubPage shown={part === 'tasks'}>
         <div className="max-w-[56rem]">
           <TasksSection projectId={projectId} teams={teams} members={members} rank={rank} myTeamId={myTeamId} canCreate={canCreateTasks} />
         </div>
-      ) : part === 'events' ? (
+      </SubPage>
+      <SubPage shown={part === 'events'}>
         <div className="max-w-[56rem]">
           <EventsSection projectId={projectId} teams={teams} rank={rank} myTeamId={myTeamId} />
         </div>
-      ) : part === 'meetings' ? (
-        // The schedule and the meetings it makes side by side where there's room, since
-        // cancelling one is done while looking at the pattern.
-        <div className="grid-fluid max-w-[80rem] items-start gap-5 [--col-min:30rem]">
-          <MeetingSection project={project} reload={load} officer={officer} />
-          {hasSchedule(project) && (
-            <UpcomingMeetingsSection
-              /* Keyed on the saved schedule, so saving a new one refetches the list. */
-              key={JSON.stringify(draftBody(draftOf(project)))}
-              projectId={projectId}
-            />
-          )}
-        </div>
-      ) : (
-        <div className="grid max-w-[46rem] gap-5">
-          <DiscordRoleSection project={project} reload={load} />
-          <DangerSection projectId={projectId} title={project.title} reloadProjects={reloadProjects} />
-        </div>
+      </SubPage>
+      {rank === 'PROJECT_LEAD' && (
+        <>
+          <SubPage shown={part === 'teams'}>
+            <div className="max-w-[56rem]">
+              <TeamsSection teams={teams} members={members} projectId={projectId} reload={load} />
+            </div>
+          </SubPage>
+          {/* The schedule and the meetings it makes side by side where there's room, since
+              cancelling one is done while looking at the pattern. */}
+          <SubPage shown={part === 'meetings'}>
+            <div className="grid-fluid max-w-[80rem] items-start gap-5 [--col-min:30rem]">
+              <MeetingSection project={project} reload={load} officer={officer} />
+              {hasSchedule(project) && (
+                <UpcomingMeetingsSection
+                  /* Keyed on the saved schedule, so saving a new one refetches the list. */
+                  key={JSON.stringify(draftBody(draftOf(project)))}
+                  projectId={projectId}
+                />
+              )}
+            </div>
+          </SubPage>
+          <SubPage shown={part === 'settings'}>
+            <div className="grid max-w-[46rem] gap-5">
+              <DiscordRoleSection project={project} reload={load} />
+              <DangerSection projectId={projectId} title={project.title} reloadProjects={reloadProjects} />
+            </div>
+          </SubPage>
+        </>
       )}
     </>
   )

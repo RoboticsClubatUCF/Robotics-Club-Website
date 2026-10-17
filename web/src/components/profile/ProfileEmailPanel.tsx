@@ -223,7 +223,16 @@ export function ProfileEmailPanel({
             <button type="submit" disabled={busy} className={panelSaveClass}>
               {busy ? 'SENDING…' : 'SEND THE CONFIRMATION'}
             </button>
-            <button type="button" disabled={busy} onClick={close} className={panelQuietClass}>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                // An error about what was typed means nothing once it's gone.
+                setMessage(null)
+                close()
+              }}
+              className={panelQuietClass}
+            >
               CANCEL
             </button>
           </div>

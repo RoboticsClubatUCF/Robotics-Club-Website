@@ -42,6 +42,7 @@ import {
 } from '../../lib/projects/projectDraft'
 import { useApi } from '../../lib/api/useApi'
 import { SubNav } from '../../components/dashboard/SubNav'
+import { SubPage } from '../../components/dashboard/SubPage'
 import { PROJECTS_DESK_PAGES } from '../../lib/dashboard/subPages'
 
 /**
@@ -103,11 +104,18 @@ export function OfficerProjectsPage({ part }: { part: Part }) {
 
       {/* The list first, since that's how an officer reaches a project to fix. Creating one
           and running one again are their own sub-pages: the create form grows into the whole
-          project editor, and beside the list it made the page four screens long. */}
+          project editor, and beside the list it made the page four screens long. All three
+          stay mounted, so a half-built project survives a look at the list. */}
       <div className="max-w-[46rem]">
-        {part === 'all' && <EveryProject />}
-        {part === 'new' && <CreateProject />}
-        {part === 'again' && <DuplicateProject />}
+        <SubPage shown={part === 'all'}>
+          <EveryProject />
+        </SubPage>
+        <SubPage shown={part === 'new'}>
+          <CreateProject />
+        </SubPage>
+        <SubPage shown={part === 'again'}>
+          <DuplicateProject />
+        </SubPage>
       </div>
     </>
   )

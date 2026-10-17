@@ -33,7 +33,7 @@ export function SubNav({
                 `border-rule flex items-center border px-3 py-1.5 font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 max-wide:min-h-11 ${
                   isActive
                     ? 'border-primary text-primary bg-primary/5'
-                    : 'text-faint hover:text-primary'
+                    : 'text-dim hover:text-primary'
                 }`
               }
             >

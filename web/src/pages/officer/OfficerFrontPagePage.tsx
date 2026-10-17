@@ -9,6 +9,7 @@ import { HeroSlideshow } from '../../components/home/HeroSlideshow'
 // `components/projects/` and belongs in `shared/`; moving it is its own change.
 import { Status } from '../../components/shared/Status'
 import { SubNav } from '../../components/dashboard/SubNav'
+import { SubPage } from '../../components/dashboard/SubPage'
 import { FRONT_PAGE_PAGES } from '../../lib/dashboard/subPages'
 import { useSectionStatus } from '../../lib/useSectionStatus'
 import { ConfirmDialog } from '../../components/shared/ConfirmDialog'
@@ -96,18 +97,24 @@ export function OfficerFrontPagePage({ part }: { part: Part }) {
       <FormHeading>What the front page shows, and what it says.</FormHeading>
       <SubNav label="Front page pages" pages={FRONT_PAGE_PAGES} />
 
-      {/* The photographs and the words read from two routes, so neither waits on the other. */}
-      {part === 'photos' ? <Photos /> : <Words part={part} />}
+      {/* The photographs and the words read from two routes, so neither waits on the other.
+          Every sub-page stays mounted, so an unsaved headline survives a look at the FAQ. */}
+      <SubPage shown={part === 'photos'}>
+        <Photos />
+      </SubPage>
+      <SubPage shown={part !== 'photos'}>
+        <Words part={part} />
+      </SubPage>
     </>
   )
 }
 
-type Part = 'photos' | 'headline' | 'questions' | 'partners'
+type Part = 'photos' | 'headline' | 'faq' | 'partners'
 
 const EYEBROW: Record<Part, string> = {
   photos: '/ MANAGE · FRONT PAGE',
   headline: '/ MANAGE · FRONT PAGE · HEADLINE',
-  questions: '/ MANAGE · FRONT PAGE · QUESTIONS',
+  faq: '/ MANAGE · FRONT PAGE · FAQ',
   partners: '/ MANAGE · FRONT PAGE · PARTNERS',
 }
 
@@ -521,7 +528,7 @@ function Photos() {
  * is `s-maxage=300`, so without it an officer who rewrites the headline and reloads can be
  * handed the answer from before they did.
  */
-function Words({ part }: { part: Exclude<Part, 'photos'> }) {
+function Words({ part }: { part: Part }) {
   const [page, setPage] = useState<ApiFrontPage | null>(null)
   const [loadError, setLoadError] = useState('')
 
@@ -556,35 +563,33 @@ function Words({ part }: { part: Exclude<Part, 'photos'> }) {
     )
   }
 
-  if (part === 'headline') {
-    return (
-      <Copy
-        page={page}
-        onSaved={(saved) => {
-          setPage({ ...page, ...saved })
-        }}
-      />
-    )
-  }
-
-  if (part === 'questions') {
-    return (
-      <Questions
-        faqs={page.faqs}
-        onChange={(faqs) => {
-          setPage({ ...page, faqs })
-        }}
-      />
-    )
-  }
-
   return (
-    <Partners
-      partners={page.partners}
-      onChange={(partners) => {
-        setPage({ ...page, partners })
-      }}
-    />
+    <>
+      <SubPage shown={part === 'headline'}>
+        <Copy
+          page={page}
+          onSaved={(saved) => {
+            setPage({ ...page, ...saved })
+          }}
+        />
+      </SubPage>
+      <SubPage shown={part === 'faq'}>
+        <Questions
+          faqs={page.faqs}
+          onChange={(faqs) => {
+            setPage({ ...page, faqs })
+          }}
+        />
+      </SubPage>
+      <SubPage shown={part === 'partners'}>
+        <Partners
+          partners={page.partners}
+          onChange={(partners) => {
+            setPage({ ...page, partners })
+          }}
+        />
+      </SubPage>
+    </>
   )
 }
 

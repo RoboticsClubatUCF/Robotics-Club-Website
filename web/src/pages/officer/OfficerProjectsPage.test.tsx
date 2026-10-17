@@ -853,17 +853,12 @@ describe('the project Discord role', () => {
    */
   it('labels the two role fields differently', async () => {
     vi.stubGlobal('fetch', stubDesk())
-    const { unmount } = renderPage(context(), 'new')
+    renderPage(context(), 'new')
     await act(async () => {})
 
+    // Both forms stay mounted, one hidden, so their labels still have to differ.
     expect(screen.getByLabelText('DISCORD ROLE')).toBeInTheDocument()
-    expect(screen.queryByLabelText('NEW DISCORD ROLE')).not.toBeInTheDocument()
-    unmount()
-
-    renderPage(context(), 'again')
-    await act(async () => {})
-
-    expect(screen.getByLabelText('NEW DISCORD ROLE')).toBeInTheDocument()
+    expect(screen.getByLabelText('NEW DISCORD ROLE')).not.toBeVisible()
   })
 })
 

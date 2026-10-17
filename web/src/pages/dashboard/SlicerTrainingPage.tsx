@@ -192,10 +192,10 @@ export function SlicerTrainingPage() {
     >
       <header className="border-rule bg-base-200 z-20 flex flex-wrap items-center gap-x-4 gap-y-1 border-b px-3 py-1 wide:sticky wide:top-nav">
         <Link
-          to="/dashboard/profile"
+          to="/dashboard/profile/standing"
           className="text-dim hover:text-base-content inline-flex min-h-11 items-center font-mono text-[11px] font-semibold tracking-[0.12em] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary wide:min-h-9"
         >
-          ‹ PROFILE
+          ‹ STANDING
         </Link>
         <p className="text-faint hidden font-mono text-[11px] font-medium tracking-[0.16em] wide:block">SLICER TRAINING</p>
         {/* Its own row on a phone, where it would otherwise be squeezed to nothing. */}

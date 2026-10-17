@@ -154,7 +154,7 @@ function App() {
                   straight to one. The lists live in `lib/dashboard/subPages.ts`. */}
               <Route path="profile" element={<ProfilePage part="profile" />} />
               <Route path="profile/account" element={<ProfilePage part="account" />} />
-              <Route path="profile/membership" element={<ProfilePage part="membership" />} />
+              <Route path="profile/standing" element={<ProfilePage part="standing" />} />
               {/* Reached from the profile page. The layout drops its rail for it, as for the slicer. */}
               <Route path="profile/training" element={<SlicerTrainingPage />} />
               {/* Ahead of dues in the rail as well as in the gate: this is the one page
@@ -211,7 +211,7 @@ function App() {
                   decision, and unlike EVENTS there's no per-project half of it. */}
               <Route path="officer/front-page" element={<OfficerFrontPagePage part="photos" />} />
               <Route path="officer/front-page/headline" element={<OfficerFrontPagePage part="headline" />} />
-              <Route path="officer/front-page/questions" element={<OfficerFrontPagePage part="questions" />} />
+              <Route path="officer/front-page/faq" element={<OfficerFrontPagePage part="faq" />} />
               <Route path="officer/front-page/partners" element={<OfficerFrontPagePage part="partners" />} />
               {/* Beside FRONT PAGE rather than PROJECTS, because it's the same kind of
                   thing: what the club says about itself on a public page. It writes all

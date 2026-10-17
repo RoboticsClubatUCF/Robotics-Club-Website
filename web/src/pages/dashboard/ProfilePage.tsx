@@ -7,6 +7,7 @@ import {
 } from 'react-router'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
 import { SubNav } from '../../components/dashboard/SubNav'
+import { SubPage } from '../../components/dashboard/SubPage'
 import { DeleteAccountPanel } from '../../components/profile/DeleteAccountPanel'
 import { ProfileDiscordPanel } from '../../components/profile/ProfileDiscordPanel'
 import { ProfileEmailPanel } from '../../components/profile/ProfileEmailPanel'
@@ -34,12 +35,12 @@ import { useSession } from '../../lib/auth/session'
 import type { ApiState } from '../../lib/api/useApi'
 import { PROFILE_PAGES } from '../../lib/dashboard/subPages'
 
-type Part = 'profile' | 'account' | 'membership'
+type Part = 'profile' | 'account' | 'standing'
 
 const EYEBROW: Record<Part, string> = {
   profile: '/ PROFILE',
   account: '/ PROFILE · ACCOUNT',
-  membership: '/ PROFILE · MEMBERSHIP',
+  standing: '/ PROFILE · STANDING',
 }
 
 /**
@@ -121,23 +122,26 @@ export function ProfilePage({ part }: { part: Part }) {
 
       <SubNav label="Profile pages" pages={PROFILE_PAGES} />
 
-      {part === 'membership' ? (
-        <Columns
-          first={
-            <>
-              <Standing account={account} role={user.role} />
-              <ProfileTrainingPanel userId={user.id} membership={membership} />
-            </>
-          }
-          second={
-            account.status === 'ready' ? (
-              <ProfileSurveyPanel gradYear={account.data.gradYear} />
-            ) : (
-              <AccountState state={account} />
-            )
-          }
-        />
-      ) : part === 'account' ? (
+      {/* All three stay mounted and the other two hidden, so a half-typed field survives a
+          look at a sibling. */}
+      <SubPage shown={part === 'profile'}>
+        {account.status === 'ready' ? (
+          <Columns
+            first={<ProfileIdentityPanel account={account.data} onSaved={merge} />}
+            second={
+              <>
+                <ProfilePhotoPanel account={account.data} onSaved={merge} />
+                {/* Straight after the photo, because it is what the photo does. */}
+                <ProfileLinkPanel account={account.data} onSaved={merge} />
+              </>
+            }
+          />
+        ) : (
+          <AccountState state={account} />
+        )}
+      </SubPage>
+
+      <SubPage shown={part === 'account'}>
         <Columns
           first={
             account.status === 'ready' ? (
@@ -159,20 +163,25 @@ export function ProfilePage({ part }: { part: Part }) {
             </>
           }
         />
-      ) : account.status !== 'ready' ? (
-        <AccountState state={account} />
-      ) : (
+      </SubPage>
+
+      <SubPage shown={part === 'standing'}>
         <Columns
-          first={<ProfileIdentityPanel account={account.data} onSaved={merge} />}
-          second={
+          first={
             <>
-              <ProfilePhotoPanel account={account.data} onSaved={merge} />
-              {/* Straight after the photo, because it is what the photo does. */}
-              <ProfileLinkPanel account={account.data} onSaved={merge} />
+              <Standing account={account} role={user.role} />
+              <ProfileTrainingPanel userId={user.id} membership={membership} />
             </>
           }
+          second={
+            account.status === 'ready' ? (
+              <ProfileSurveyPanel gradYear={account.data.gradYear} />
+            ) : (
+              <AccountState state={account} />
+            )
+          }
         />
-      )}
+      </SubPage>
     </>
   )
 }

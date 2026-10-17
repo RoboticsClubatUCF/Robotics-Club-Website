@@ -435,9 +435,13 @@ function OpenProjects() {
                 onClick={() => {
                   setAll(!all)
                 }}
-                className="text-faint hover:text-primary mt-5 cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200"
+                // Drawn like the calendar's SHOW ALL further down, with the underline on the
+                // words so the 44px phone target doesn't drag it away from them.
+                className="group text-primary focus-visible:outline-primary mt-5 inline-flex cursor-pointer items-center font-mono text-[10px] font-medium tracking-[0.14em] focus-visible:outline-2 focus-visible:outline-offset-2 max-wide:min-h-11"
               >
-                {all ? 'SHOW FEWER' : `SHOW ALL ${state.data.length}`}
+                <span className="border-primary/40 group-hover:border-primary border-b pb-0.5 transition-colors duration-200">
+                  {all ? 'SHOW FEWER' : `SHOW ALL ${state.data.length}`}
+                </span>
               </button>
             )}
           </>

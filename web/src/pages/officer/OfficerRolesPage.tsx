@@ -35,6 +35,7 @@ import { seatLabel } from '../../lib/officerTerms'
 import { duesLocked, formatDate } from '../../lib/dues/dues'
 import { useApi } from '../../lib/api/useApi'
 import { SubNav } from '../../components/dashboard/SubNav'
+import { SubPage } from '../../components/dashboard/SubPage'
 import { ROLES_PAGES } from '../../lib/dashboard/subPages'
 
 type Part = 'board' | 'leads' | 'grant' | 'titles'
@@ -83,20 +84,30 @@ export function OfficerRolesPage({ part }: { part: Part }) {
       <FormHeading>Who runs what.</FormHeading>
       <SubNav label="Roles pages" pages={ROLES_PAGES} />
 
-      {/* The two lead forms sit side by side where there's room; every other sub-page is
-          one panel at a reading width. */}
-      {part === 'leads' ? (
+      {/* Every sub-page stays mounted, so a half-picked appointment survives a look at a
+          sibling. The two lead forms sit side by side where there's room; the rest are one
+          panel at a reading width. */}
+      <SubPage shown={part === 'board'}>
+        <div className="max-w-[46rem]">
+          <OfficerSeats />
+        </div>
+      </SubPage>
+      <SubPage shown={part === 'leads'}>
         <div className="grid-fluid max-w-[80rem] items-start gap-5 [--col-min:29rem]">
           <AppointLead />
           <AppointTeamLead />
         </div>
-      ) : (
+      </SubPage>
+      <SubPage shown={part === 'grant'}>
         <div className="max-w-[46rem]">
-          {part === 'board' && <OfficerSeats />}
-          {part === 'grant' && <GrantMembership />}
-          {part === 'titles' && <SetTitle />}
+          <GrantMembership />
         </div>
-      )}
+      </SubPage>
+      <SubPage shown={part === 'titles'}>
+        <div className="max-w-[46rem]">
+          <SetTitle />
+        </div>
+      </SubPage>
     </>
   )
 }

@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useOutletContext, useParams } from 'react-router'
+import { SubNav } from '../../components/dashboard/SubNav'
+import { projectPages } from '../../lib/dashboard/subPages'
+import { duesLocked } from '../../lib/dues/dues'
+import { isOfficer } from '../../lib/auth/session'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
 import {
   FormEyebrow,
@@ -74,7 +78,14 @@ export function ProjectDashboardPage() {
 }
 
 function ProjectHome({ membership }: { membership: ApiMyProject }) {
+  const { user, membership: dues } = useOutletContext<DashboardContext>()
   const { project, rank, title, team } = membership
+  // A lead's manage pages, listed as the rail lists them: on phones, or at every width for a
+  // past project the rail no longer shows. Not while dues lock them.
+  const pages =
+    rank === 'MEMBER' || duesLocked(dues, user.role)
+      ? []
+      : projectPages(project.slug, isOfficer(user.role) ? 'PROJECT_LEAD' : rank)
 
   const standing = [
     rank === 'PROJECT_LEAD' ? 'Project lead' : rank === 'TEAM_LEAD' ? 'Team lead' : null,
@@ -91,6 +102,9 @@ function ProjectHome({ membership }: { membership: ApiMyProject }) {
     <>
       <FormEyebrow>/ PROJECT</FormEyebrow>
       <FormHeading>{project.title}</FormHeading>
+      {pages.length > 0 && (
+        <SubNav label="Project pages" pages={pages} always={!membership.current} />
+      )}
 
       {membership.publiclyListed === false && (
         <p className="mb-5 text-sm leading-[1.7] text-dim">

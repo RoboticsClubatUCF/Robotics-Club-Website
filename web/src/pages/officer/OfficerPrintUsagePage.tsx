@@ -37,7 +37,7 @@ import type { UsageBucket, UsageScale, UsageShow } from '../../lib/printUsage'
  * everything under them, the totals by project or filament included.
  */
 
-const EYEBROW = '/ MANAGE · PRINT QUEUE · FILAMENT'
+const EYEBROW = '/ MANAGE · PRINT QUEUE · FILAMENT USAGE'
 
 type Preset = 'this' | 'last' | 'all'
 

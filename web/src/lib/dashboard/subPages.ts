@@ -7,6 +7,9 @@ import type { ProjectMemberRank } from '../api/api'
  *
  * The first entry is the section's own address. It has to stay first: the rail's parent row
  * links there, and `/dashboard/profile` is also where the email-change link lands.
+ *
+ * A label never repeats one already in the rail. TASKS and EVENTS under a project say PROJECT,
+ * because the rail has its own TASKS and EVENTS rows going somewhere else.
  */
 export interface SubPage {
   label: string
@@ -16,7 +19,7 @@ export interface SubPage {
 export const PROFILE_PAGES: readonly SubPage[] = [
   { label: 'PROFILE', to: '/dashboard/profile' },
   { label: 'ACCOUNT', to: '/dashboard/profile/account' },
-  { label: 'MEMBERSHIP', to: '/dashboard/profile/membership' },
+  { label: 'STANDING', to: '/dashboard/profile/standing' },
 ]
 
 export const ROLES_PAGES: readonly SubPage[] = [
@@ -34,12 +37,12 @@ export const SURVEY_PAGES: readonly SubPage[] = [
 export const FRONT_PAGE_PAGES: readonly SubPage[] = [
   { label: 'PHOTOS', to: '/dashboard/officer/front-page' },
   { label: 'HEADLINE', to: '/dashboard/officer/front-page/headline' },
-  { label: 'QUESTIONS', to: '/dashboard/officer/front-page/questions' },
+  { label: 'FAQ', to: '/dashboard/officer/front-page/faq' },
   { label: 'PARTNERS', to: '/dashboard/officer/front-page/partners' },
 ]
 
 export const SPONSORS_PAGES: readonly SubPage[] = [
-  { label: 'SPONSORS', to: '/dashboard/officer/sponsors' },
+  { label: 'LIST', to: '/dashboard/officer/sponsors' },
   { label: 'TIERS', to: '/dashboard/officer/sponsors/tiers' },
   { label: 'OTHER HELP', to: '/dashboard/officer/sponsors/other' },
 ]
@@ -86,8 +89,8 @@ export function projectPages(
     return [
       { label: 'PROJECT PAGE', to: page },
       { label: 'MY TEAM', to: manage },
-      { label: 'TASKS', to: `${manage}/tasks` },
-      { label: 'EVENTS', to: `${manage}/events` },
+      { label: 'PROJECT TASKS', to: `${manage}/tasks` },
+      { label: 'PROJECT EVENTS', to: `${manage}/events` },
     ]
   }
 
@@ -95,8 +98,8 @@ export function projectPages(
     { label: 'PROJECT PAGE', to: page },
     { label: 'MEMBERS', to: manage },
     { label: 'TEAMS', to: `${manage}/teams` },
-    { label: 'TASKS', to: `${manage}/tasks` },
-    { label: 'EVENTS', to: `${manage}/events` },
+    { label: 'PROJECT TASKS', to: `${manage}/tasks` },
+    { label: 'PROJECT EVENTS', to: `${manage}/events` },
     { label: 'MEETINGS', to: `${manage}/meetings` },
     { label: 'SETTINGS', to: `${manage}/settings` },
   ]

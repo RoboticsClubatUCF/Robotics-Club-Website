@@ -1,4 +1,4 @@
-import { useEffect, useId, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink, useLocation } from 'react-router'
 import type { ApiMembership, ApiMyProject, ApiUser } from '../../lib/api/api'
 import type { ApiState } from '../../lib/api/useApi'
@@ -16,6 +16,7 @@ import {
   within,
   type SubPage,
 } from '../../lib/dashboard/subPages'
+import { useWide } from '../../lib/useWide'
 import { Avatar } from '../shared/Avatar'
 
 const groupLabelClass =
@@ -38,7 +39,7 @@ const subLinkClass = ({ isActive }: { isActive: boolean }) =>
   `-ml-px block border-l-2 py-[6px] pr-4 pl-4 font-mono text-[10px] leading-snug font-medium tracking-[0.1em] transition-colors duration-200 max-wide:py-[15px] ${
     isActive
       ? 'border-primary text-primary'
-      : 'border-transparent text-faint hover:text-base-content'
+      : 'border-transparent text-dim hover:text-base-content'
   }`
 
 /**
@@ -84,12 +85,31 @@ export function DashboardRail({
     setOpen(false)
   }, [location.pathname])
 
+  // At `wide` the rail scrolls on its own, and with a long section open the current row can
+  // sit below its fold. Bring it into view after each navigation. On a phone the box doesn't
+  // scroll and this does nothing.
+  const scroller = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const box = scroller.current
+    const row = box?.querySelector('[aria-current="page"]')
+    if (!box || !row || box.scrollHeight <= box.clientHeight) return
+
+    const shown = box.getBoundingClientRect()
+    const at = row.getBoundingClientRect()
+    if (at.top < shown.top || at.bottom > shown.bottom) {
+      box.scrollTop += at.top - shown.top - shown.height / 3
+    }
+  }, [location.pathname])
+
   return (
     <aside className="border-rule bg-base-200 border-b wide:min-h-[calc(100dvh-var(--spacing-nav))] wide:border-r wide:border-b-0">
       {/* Sticky on the inner element, not the aside: the aside has to stretch to the
           height of the row for its surface to read as a rail, and a sticky box only
           ever occupies its own content. */}
-      <div className="wide:sticky wide:top-nav wide:max-h-[calc(100dvh-var(--spacing-nav))] wide:overflow-y-auto">
+      <div
+        ref={scroller}
+        className="wide:sticky wide:top-nav wide:max-h-[calc(100dvh-var(--spacing-nav))] wide:overflow-y-auto"
+      >
         <ProfileHead user={user} />
 
         <button
@@ -286,22 +306,33 @@ export function DashboardRail({
 }
 
 /**
- * Opens itself when you arrive somewhere inside it, and otherwise stays how you left it.
- * Adjusted during render rather than in an effect, so the rail never paints a frame with
- * the current section shut.
+ * Open while you're inside the section, shut once you leave it, so a session of visiting
+ * desks doesn't leave every one of them open.
+ *
+ * A press overrides that until you next arrive in or leave the section: opening one to look
+ * keeps it open as you move around elsewhere, and shutting the one you're in keeps it shut
+ * while you move between its pages. The reset happens during render rather than in an
+ * effect, so the rail never paints a frame with the current section shut.
  */
-function useDropdown(pages: readonly SubPage[]) {
+function useDropdown(pages: readonly SubPage[], openInside = true) {
   const { pathname } = useLocation()
   const inside = within(pathname, pages)
-  const [open, setOpen] = useState(inside)
+  const [pressed, setPressed] = useState<boolean | null>(null)
   const [wasInside, setWasInside] = useState(inside)
 
   if (inside !== wasInside) {
     setWasInside(inside)
-    if (inside) setOpen(true)
+    setPressed(null)
   }
 
-  return { open, setOpen }
+  const open = pressed ?? (inside && openInside)
+
+  return {
+    open,
+    toggle: () => {
+      setPressed(!open)
+    },
+  }
 }
 
 /**
@@ -320,7 +351,7 @@ function RailSection({
   pages: readonly SubPage[]
 }) {
   const id = useId()
-  const { open, setOpen } = useDropdown(pages)
+  const { open, toggle } = useDropdown(pages)
 
   return (
     <div>
@@ -332,14 +363,7 @@ function RailSection({
         >
           {label}
         </NavLink>
-        <DropdownToggle
-          label={label}
-          controls={id}
-          open={open}
-          onToggle={() => {
-            setOpen(!open)
-          }}
-        />
+        <DropdownToggle label={label} controls={id} open={open} onToggle={toggle} />
       </div>
       <SubList id={id} open={open} pages={pages} />
     </div>
@@ -436,12 +460,16 @@ function RailNote({ text, action }: { text: string; action: string }) {
 }
 
 /**
- * Who you are, at the top of the rail, with the account pages folded under it. Outside the
- * phone's MENU, so the account is one press away at any width.
+ * Who you are, at the top of the rail, with the profile pages folded under it. Outside the
+ * phone's MENU, so they're one press away at any width.
+ *
+ * It only opens itself at `wide`. On a phone it sits above every page, and the profile pages
+ * already list their siblings under the heading.
  */
 function ProfileHead({ user }: { user: ApiUser }) {
   const id = useId()
-  const { open, setOpen } = useDropdown(PROFILE_PAGES)
+  const wide = useWide()
+  const { open, toggle } = useDropdown(PROFILE_PAGES, wide)
 
   return (
     <div className="border-rule border-b">
@@ -475,14 +503,7 @@ function ProfileHead({ user }: { user: ApiUser }) {
             </span>
           </span>
         </NavLink>
-        <DropdownToggle
-          label="Account"
-          controls={id}
-          open={open}
-          onToggle={() => {
-            setOpen(!open)
-          }}
-        />
+        <DropdownToggle label="Profile" controls={id} open={open} onToggle={toggle} />
       </div>
       <div hidden={!open} className="pb-3">
         <SubList id={id} open={open} pages={PROFILE_PAGES} />

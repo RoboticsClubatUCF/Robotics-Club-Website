@@ -150,7 +150,7 @@ const renderAt = (at = '/dashboard/profile') =>
           <Route path="/dashboard" element={<Shell />}>
             <Route path="profile" element={<ProfilePage part="profile" />} />
             <Route path="profile/account" element={<ProfilePage part="account" />} />
-            <Route path="profile/membership" element={<ProfilePage part="membership" />} />
+            <Route path="profile/standing" element={<ProfilePage part="standing" />} />
           </Route>
         </Routes>
       </SessionProvider>
@@ -186,7 +186,8 @@ describe('ProfilePage', () => {
 
     expect(await screen.findByDisplayValue('rowan')).toBeInTheDocument()
     expect(screen.getByText('rowan@ucf.edu')).toBeInTheDocument()
-    expect(screen.queryByDisplayValue('Builds things.')).not.toBeInTheDocument()
+    // Mounted, so a half-typed bio survives the switch, but not on screen.
+    expect(screen.getByDisplayValue('Builds things.')).not.toBeVisible()
   })
 
   /** Every remote read on this site renders all three of its states. */
@@ -194,10 +195,10 @@ describe('ProfilePage', () => {
     stubApi({ '/api/account': { status: 500 } })
     renderProfile('/dashboard/profile/account')
 
-    expect(
-      await screen.findByText(/couldn.t load your account/i),
-    ).toBeInTheDocument()
-    // Still a page: the standing panel and sign-out are unaffected by it.
+    // Once on screen: the hidden sub-pages say it too, out of sight.
+    const said = await screen.findAllByText(/couldn.t load your account/i)
+    expect(said.filter((line) => line.closest('[hidden]') === null)).toHaveLength(1)
+    // Still a page: sign-out is unaffected by it.
     expect(screen.getByRole('button', { name: /^sign out$/i })).toBeInTheDocument()
   })
 
@@ -304,6 +305,29 @@ describe('ProfilePage', () => {
    * The forms are behind a press. Cancelling puts focus back on the button that opened them, or
    * a keyboard user is left on the body.
    */
+  it('drops an error about what was typed when the form is cancelled', async () => {
+    stubApi()
+    renderProfile('/dashboard/profile/account')
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'CHANGE PASSWORD' }),
+    )
+    fireEvent.change(screen.getByLabelText('NEW PASSWORD'), {
+      target: { value: 'a-long-new-password' },
+    })
+    fireEvent.change(screen.getByLabelText('NEW PASSWORD AGAIN'), {
+      target: { value: 'something-else-entirely' },
+    })
+    await act(async () => {
+      fireEvent.submit(screen.getByLabelText('NEW PASSWORD').closest('form')!)
+    })
+    expect(screen.getByText(/do not match/i)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'CANCEL' }))
+
+    expect(screen.queryByText(/do not match/i)).not.toBeInTheDocument()
+  })
+
   it('keeps the email form behind CHANGE EMAIL', async () => {
     stubApi()
     renderProfile('/dashboard/profile/account')

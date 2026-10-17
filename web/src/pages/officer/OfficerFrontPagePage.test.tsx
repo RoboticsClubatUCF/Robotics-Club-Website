@@ -311,17 +311,12 @@ describe('OfficerFrontPagePage', () => {
       vi.fn(() => Promise.reject(new TypeError('Failed to fetch'))),
     )
 
-    // Both halves read on their own, so each says so on its own sub-page.
-    const { unmount } = renderPage(context(), 'photos')
-    expect(
-      await screen.findByText("We couldn't reach the server."),
-    ).toBeInTheDocument()
-    unmount()
+    renderPage(context(), 'photos')
 
-    renderPage(context(), 'headline')
+    // Both halves, because both read and both failed. Each says so on its own sub-page.
     expect(
-      await screen.findByText("We couldn't reach the server."),
-    ).toBeInTheDocument()
+      await screen.findAllByText("We couldn't reach the server."),
+    ).toHaveLength(2)
   })
 
   it('writes the headline as one sentence, on a SAVE', async () => {
@@ -352,6 +347,40 @@ describe('OfficerFrontPagePage', () => {
   })
 
   /** The preview is the one thing the two boxes cannot show on their own. */
+  /**
+   * Sub-pages are routes, and the router can't stop a navigation, so the siblings stay
+   * mounted. Typing a headline and glancing at the FAQ must not throw the headline away.
+   */
+  it('keeps an unsaved headline through a look at the FAQ', async () => {
+    vi.stubGlobal('fetch', stubApi())
+    render(
+      <MemoryRouter initialEntries={['/dashboard/officer/front-page/headline']}>
+        <Routes>
+          <Route element={<Outlet context={context()} />}>
+            <Route
+              path="/dashboard/officer/front-page/headline"
+              element={<OfficerFrontPagePage part="headline" />}
+            />
+            <Route
+              path="/dashboard/officer/front-page/faq"
+              element={<OfficerFrontPagePage part="faq" />}
+            />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    fireEvent.change(await screen.findByLabelText('FIRST LINE'), {
+      target: { value: 'Half a rewrite' },
+    })
+    fireEvent.click(screen.getByRole('link', { name: 'FAQ' }))
+    expect(await screen.findByLabelText('Question 1')).toBeVisible()
+
+    fireEvent.click(screen.getByRole('link', { name: 'HEADLINE' }))
+    expect(screen.getByLabelText('FIRST LINE')).toBeVisible()
+    expect(screen.getByLabelText('FIRST LINE')).toHaveValue('Half a rewrite')
+  })
+
   it('shows where the headline breaks and which half is gold', async () => {
     vi.stubGlobal('fetch', stubApi())
 
@@ -366,7 +395,7 @@ describe('OfficerFrontPagePage', () => {
     const stub = stubApi()
     vi.stubGlobal('fetch', stub)
 
-    renderPage(context(), 'questions')
+    renderPage(context(), 'faq')
 
     const question = await screen.findByLabelText('Question 1')
     fireEvent.change(question, { target: { value: 'Do I need any experience?' } })
@@ -388,7 +417,7 @@ describe('OfficerFrontPagePage', () => {
     const stub = stubApi()
     vi.stubGlobal('fetch', stub)
 
-    renderPage(context(), 'questions')
+    renderPage(context(), 'faq')
 
     const question = await screen.findByLabelText('Question 1')
     fireEvent.change(question, { target: { value: '   ' } })
@@ -402,7 +431,7 @@ describe('OfficerFrontPagePage', () => {
     const stub = stubApi()
     vi.stubGlobal('fetch', stub)
 
-    renderPage(context(), 'questions')
+    renderPage(context(), 'faq')
 
     fireEvent.click(await screen.findByRole('button', { name: 'Remove question 1' }))
 

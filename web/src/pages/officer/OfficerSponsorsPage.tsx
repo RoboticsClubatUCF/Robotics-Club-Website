@@ -7,6 +7,7 @@ import { isOfficer } from '../../lib/auth/session'
 import { Status } from '../../components/shared/Status'
 import { useSectionStatus } from '../../lib/useSectionStatus'
 import { SubNav } from '../../components/dashboard/SubNav'
+import { SubPage } from '../../components/dashboard/SubPage'
 import { SPONSORS_PAGES } from '../../lib/dashboard/subPages'
 import { ConfirmDialog } from '../../components/shared/ConfirmDialog'
 import {
@@ -64,7 +65,7 @@ import { imageSrc, isStoredUpload } from '../../lib/media/storedFiles'
 type Part = 'sponsors' | 'tiers' | 'other'
 
 const EYEBROW: Record<Part, string> = {
-  sponsors: '/ MANAGE · SPONSORS',
+  sponsors: '/ MANAGE · SPONSORS · LIST',
   tiers: '/ MANAGE · SPONSORS · TIERS',
   other: '/ MANAGE · SPONSORS · OTHER HELP',
 }
@@ -153,7 +154,8 @@ function Desk({ part }: { part: Part }) {
       <FormHeading>Who backs the club, and what that costs.</FormHeading>
       <SubNav label="Sponsors pages" pages={SPONSORS_PAGES} />
 
-      {part === 'sponsors' && (
+      {/* Every sub-page stays mounted, so an unsaved tier survives a look at the list. */}
+      <SubPage shown={part === 'sponsors'}>
         <div className="max-w-[56rem]">
           <SponsorList
             sponsors={desk.sponsors}
@@ -163,11 +165,11 @@ function Desk({ part }: { part: Part }) {
             }}
           />
         </div>
-      )}
+      </SubPage>
 
       {/* The tiers in as many columns as fit, since each is the same shape, and the fine
           print under them because it's printed under them on `/sponsors`. */}
-      {part === 'tiers' && (
+      <SubPage shown={part === 'tiers'}>
         <div className="space-y-8">
           <TierSheet
             tiers={desk.tiers}
@@ -185,9 +187,9 @@ function Desk({ part }: { part: Part }) {
             />
           </div>
         </div>
-      )}
+      </SubPage>
 
-      {part === 'other' && (
+      <SubPage shown={part === 'other'}>
         <div className="max-w-[46rem]">
           <InKindList
             rows={desk.inKind}
@@ -196,7 +198,7 @@ function Desk({ part }: { part: Part }) {
             }}
           />
         </div>
-      )}
+      </SubPage>
     </>
   )
 }

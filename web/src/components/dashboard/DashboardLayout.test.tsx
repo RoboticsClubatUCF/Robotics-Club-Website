@@ -344,16 +344,44 @@ describe('DashboardLayout', () => {
 
     renderDashboard()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Account pages' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Profile pages' }))
 
     expect(screen.getByRole('link', { name: 'ACCOUNT' })).toHaveAttribute(
       'href',
       '/dashboard/profile/account',
     )
-    expect(screen.getByRole('link', { name: 'MEMBERSHIP' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'STANDING' })).toHaveAttribute(
       'href',
-      '/dashboard/profile/membership',
+      '/dashboard/profile/standing',
     )
+  })
+
+  /**
+   * A section that opened because you arrived shuts when you leave, or a session of visiting
+   * desks leaves every one of them open and the rail longer than the screen.
+   */
+  it('shuts a section behind you, and keeps one you opened by hand', async () => {
+    vi.stubGlobal(
+      'fetch',
+      stubFetch({
+        '/auth/me': { user: user({ role: 'OFFICER' }) },
+        '/me/projects': [],
+        '/dues/status': duesStatus(),
+      }),
+    )
+
+    renderDashboard('/dashboard/officer/roles')
+
+    const roles = await screen.findByRole('button', { name: 'ROLES pages' })
+    const sponsors = screen.getByRole('button', { name: 'SPONSORS pages' })
+    expect(roles).toHaveAttribute('aria-expanded', 'true')
+
+    fireEvent.click(sponsors)
+    fireEvent.click(screen.getByRole('link', { name: 'SEMESTERS' }))
+
+    expect(await screen.findByText('page marker')).toBeInTheDocument()
+    expect(roles).toHaveAttribute('aria-expanded', 'false')
+    expect(sponsors).toHaveAttribute('aria-expanded', 'true')
   })
 
   /**

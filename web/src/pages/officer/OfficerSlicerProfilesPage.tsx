@@ -26,7 +26,7 @@ import { NOUN, checking } from '../../lib/slicer/profileDesk'
  * first of each is what a new plate starts with.
  */
 
-const EYEBROW = '/ MANAGE · PRINT QUEUE · PROFILES'
+const EYEBROW = '/ MANAGE · PRINT QUEUE · SLICER PROFILES'
 const POLL_EVERY = 2_000
 
 type Load = { status: 'loading' } | { status: 'failed' } | { status: 'ready'; desk: ApiSlicerDesk }

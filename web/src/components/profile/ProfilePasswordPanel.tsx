@@ -180,7 +180,16 @@ export function ProfilePasswordPanel() {
             <button type="submit" disabled={saving} className={panelSaveClass}>
               {saving ? 'SAVING…' : 'CHANGE MY PASSWORD'}
             </button>
-            <button type="button" disabled={saving} onClick={close} className={panelQuietClass}>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => {
+                // An error about what was typed means nothing once it's gone.
+                setMessage(null)
+                close()
+              }}
+              className={panelQuietClass}
+            >
               CANCEL
             </button>
           </div>
