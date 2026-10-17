@@ -17,8 +17,8 @@ import { bodyOf, urlOf } from '../../test/stubFetch'
  *
  * The thing worth testing is who reaches what. It is the only page under `/ MANAGE` a non-officer
  * opens, so the two audiences have to differ in exactly the ways the server enforces and in no
- * others: a lead sees their own projects in the picker and no publish switch; an officer sees every
- * event, the club-wide option and the switch. Anything looser is a button that lands on a 403,
+ * others: a lead sees their own projects in the picker; an officer also gets club-wide events.
+ * Both can opt events they lead into the main calendar. Anything looser lands on a 403,
  * which is worse than no button.
  *
  * The other invariant is negative and easy to lose: a generated project meeting must never appear
@@ -75,6 +75,7 @@ const membership = (
   title: string,
   rank: ProjectMemberRank,
 ): ApiMyProject => ({
+  publiclyListed: true,
   rank,
   title: null,
   team: null,
@@ -190,8 +191,7 @@ const renderPage = (dashboard = context()) =>
     </MemoryRouter>,
   )
 
-const formPanel = () =>
-  within(screen.getByText(/NEW EVENT|EDITING/).closest('div')!)
+const formPanel = () => within(screen.getByText(/NEW EVENT|EDITING/).closest('div')!)
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -202,9 +202,7 @@ describe('who may open it', () => {
     vi.stubGlobal('fetch', stubDesk())
     renderPage(context('MEMBER', [membership('p1', 'Rover', 'MEMBER')]))
 
-    expect(
-      await screen.findByText(/for people running something/i),
-    ).toBeInTheDocument()
+    expect(await screen.findByText(/for people running something/i)).toBeInTheDocument()
   })
 
   it('opens for a plain member who leads a project', async () => {
@@ -237,9 +235,7 @@ describe('the project picker', () => {
 
     const picker = formPanel().getByLabelText('PROJECT')
     expect(within(picker).getByRole('option', { name: 'Rover' })).toBeDefined()
-    expect(
-      within(picker).queryByRole('option', { name: 'Sumobots' }),
-    ).toBeNull()
+    expect(within(picker).queryByRole('option', { name: 'Sumobots' })).toBeNull()
     // The club's own calendar is not theirs to write to.
     expect(within(picker).queryByRole('option', { name: /Club-wide/ })).toBeNull()
   })
@@ -250,9 +246,7 @@ describe('the project picker', () => {
     await screen.findByText('NEW EVENT')
 
     const picker = formPanel().getByLabelText('PROJECT')
-    expect(
-      within(picker).getByRole('option', { name: /Club-wide/ }),
-    ).toBeDefined()
+    expect(within(picker).getByRole('option', { name: /Club-wide/ })).toBeDefined()
   })
 })
 
@@ -262,21 +256,66 @@ describe('the publish switch', () => {
     renderPage(context('OFFICER', []))
     await screen.findByText('NEW EVENT')
 
-    expect(
-      screen.getByRole('checkbox', { name: /public calendar/i }),
-    ).toBeDefined()
+    expect(screen.getByRole('checkbox', { name: /main calendar/i })).not.toBeChecked()
   })
 
-  it('is not drawn for a lead', async () => {
+  it.each(['PROJECT_LEAD', 'TEAM_LEAD'] as const)('is available to a %s and defaults to private', async (rank) => {
     vi.stubGlobal('fetch', stubDesk())
-    renderPage(context('MEMBER', [membership('p1', 'Rover', 'PROJECT_LEAD')]))
+    renderPage(context('MEMBER', [{ ...membership('p1', 'Rover', rank), team: rank === 'TEAM_LEAD' ? { id: 't1', name: 'Software' } : null }]))
     await screen.findByText('NEW EVENT')
 
-    // Absent rather than disabled: a control somebody cannot use is a question
-    // they will ask. The server refuses the field from them regardless.
-    expect(
-      screen.queryByRole('checkbox', { name: /public calendar/i }),
-    ).toBeNull()
+    expect(screen.getByRole('checkbox', { name: /main calendar/i })).toBeEnabled()
+    expect(screen.getByRole('checkbox', { name: /main calendar/i })).not.toBeChecked()
+  })
+
+  it.each(['PROJECT_LEAD', 'TEAM_LEAD'] as const)('sends publication and the correct scope for a %s', async (rank) => {
+    const fetchStub = stubDesk([])
+    vi.stubGlobal('fetch', fetchStub)
+    renderPage(context('MEMBER', [{ ...membership('p1', 'Rover', rank), team: rank === 'TEAM_LEAD' ? { id: 't1', name: 'Software' } : null }]))
+    await screen.findByText('NEW EVENT')
+    fireEvent.click(screen.getByRole('checkbox', { name: /main calendar/i }))
+    const body = await create(fetchStub, { 'START DATE': '2035-10-20', 'START TIME': '18:00' })
+    expect(body).toMatchObject({ published: true, projectId: 'p1' })
+    if (rank === 'TEAM_LEAD') expect(body).toHaveProperty('teamId', 't1')
+    else expect(body).not.toHaveProperty('teamId')
+    expect(screen.getByRole('checkbox', { name: /main calendar/i })).not.toBeChecked()
+  })
+
+  it('loads a published event checked and sends false when a lead withdraws it', async () => {
+    const fetchStub = stubDesk([meEvent({ published: true, createdById: 'someone-else' })])
+    vi.stubGlobal('fetch', fetchStub)
+    renderPage(context('MEMBER', [membership('p1', 'Rover', 'PROJECT_LEAD')]))
+    fireEvent.click(await screen.findByRole('button', { name: 'EDIT' }))
+    const checkbox = screen.getByRole('checkbox', { name: /main calendar/i })
+    expect(checkbox).toBeChecked()
+    fireEvent.click(checkbox)
+    await act(async () => { fireEvent.submit(checkbox.closest('form')!) })
+    const patch = fetchStub.mock.calls.find(([, init]) => init?.method === 'PATCH')!
+    expect(urlOf(patch[0])).toContain('/events/e1')
+    expect(bodyOf(patch[1])).toMatchObject({ published: false })
+  })
+
+  it('does not give team leads controls for another team’s event', async () => {
+    vi.stubGlobal('fetch', stubDesk([
+      meEvent({ id: 'own', title: 'Software review', teamId: 't1', createdById: 'other' }),
+      meEvent({ id: 'sibling', title: 'Hardware review', teamId: 't2', createdById: 'other' }),
+    ]))
+    renderPage(context('MEMBER', [{ ...membership('p1', 'Rover', 'TEAM_LEAD'), team: { id: 't1', name: 'Software' } }]))
+    expect(await screen.findByText('Software review')).toBeInTheDocument()
+    expect(screen.queryByText('Hardware review')).toBeNull()
+  })
+
+  it('preserves publication when a creator no longer leads that event', async () => {
+    const fetchStub = stubDesk([meEvent({ published: true })])
+    vi.stubGlobal('fetch', fetchStub)
+    renderPage(context('MEMBER', [membership('p2', 'Other build', 'PROJECT_LEAD')]))
+    fireEvent.click(await screen.findByRole('button', { name: 'EDIT' }))
+    expect(screen.queryByRole('checkbox', { name: /main calendar/i })).toBeNull()
+    const title = screen.getByLabelText('TITLE')
+    fireEvent.change(title, { target: { value: 'Corrected title' } })
+    await act(async () => { fireEvent.submit(title.closest('form')!) })
+    const patch = fetchStub.mock.calls.find(([, init]) => init?.method === 'PATCH')!
+    expect(bodyOf(patch[1])).not.toHaveProperty('published')
   })
 })
 
@@ -303,9 +342,7 @@ describe('the list', () => {
     vi.stubGlobal('fetch', stubDesk([]))
     renderPage(context('OFFICER', []))
 
-    expect(
-      await screen.findByText(/set on the project/i),
-    ).toBeInTheDocument()
+    expect(await screen.findByText(/set on the project/i)).toBeInTheDocument()
   })
 
   it('says so when the calendar cannot be reached', async () => {
@@ -368,9 +405,7 @@ describe('writing an event', () => {
     expect(await screen.findByText(/finals week/i)).toBeInTheDocument()
     // Advisory, not a refusal: a competition can legitimately fall in finals
     // week, and the halt is about the meetings the site generates.
-    expect(
-      screen.getByRole('button', { name: 'CREATE EVENT' }),
-    ).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: 'CREATE EVENT' })).not.toBeDisabled()
   })
 
   it('still warns for the same date on the next event after a save', async () => {

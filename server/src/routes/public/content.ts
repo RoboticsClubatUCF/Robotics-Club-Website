@@ -527,6 +527,7 @@ content.get('/members/:slug', async (c) => {
       ...rosterSelect,
       joinedAt: true,
       projects: {
+        where: { publiclyListed: true },
         select: {
           title: true,
           project: { select: { slug: true, title: true, season: true } },
@@ -660,6 +661,7 @@ content.get('/projects/:slug', async (c) => {
       ...projectSelect,
       description: true,
       members: {
+        where: { publiclyListed: true },
         // Leads first, then alphabetical — the same order `GET /projects/:id/team`
         // uses, for a reason the private route doesn't have: this list is re-read
         // in place when somebody joins or leaves, and an unordered read lets the

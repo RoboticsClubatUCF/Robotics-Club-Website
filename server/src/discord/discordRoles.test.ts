@@ -315,6 +315,30 @@ describe('sweepDiscordRoles', () => {
     expect(report).toMatchObject({ added: 0, removed: 1 })
   })
 
+  it('grants the crew role to unpaid, unlisted members and keeps it through visibility changes', async () => {
+    const user = await makeUser('unlisted', {
+      discordId: snowflake(55),
+      duesPaidThrough: null,
+    })
+    const project = await makeProject('unlisted', CREW_ROLE)
+    const membership = await seat(project.id, user.id)
+    expect(membership.publiclyListed).toBe(false)
+    roster.mockResolvedValue(guild({ [snowflake(55)]: [] }))
+    await sweepDiscordRoles(NOW)
+    expect(writes()).toEqual([`add:${CREW_ROLE}`])
+
+    added.mockClear()
+    roster.mockResolvedValue(guild({ [snowflake(55)]: [CREW_ROLE] }))
+    for (const publiclyListed of [true, false]) {
+      await prisma.projectMember.update({
+        where: { projectId_userId: { projectId: project.id, userId: user.id } },
+        data: { publiclyListed },
+      })
+      await sweepDiscordRoles(NOW)
+      expect(writes()).toEqual([])
+    }
+  })
+
   it('takes nothing but the member role off a lapsed lead', async () => {
     // The rule end to end, and worth pinning at this level rather than on `desiredRoles` alone:
     // dues buy the Members role and nothing else, so lapsing costs exactly that one. Rank and

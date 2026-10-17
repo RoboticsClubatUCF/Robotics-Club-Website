@@ -558,7 +558,11 @@ export const CHAPTERS: Chapter[] = [
             text: 'Turn the bracket a quarter turn around Z so it faces another way. Drag the blue ring, or type 90 in ROTATION Z.',
             done: (s) => {
               const bracket = objectOf(s, 'bracket')
-              return !!bracket && Math.abs(pointing(bracket, [1, 0, 0])[1]) > 0.985 && pointing(bracket, [0, 0, 1])[2] > 0.985
+              const degrees = s.rotations?.bracket?.z ?? 0
+              const angle = degrees * Math.PI / 180
+              // Credit the blue ring or Z field, even after a red/green-ring mistake.
+              // The next goal still requires RESET to restore every axis.
+              return !!bracket && Math.abs(Math.sin(angle)) > 0.985
             },
             aim: partAims('bracket'),
           },

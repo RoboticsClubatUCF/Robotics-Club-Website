@@ -1,7 +1,7 @@
 import type { ApiDraftSlice, ApiPlateObject } from '../api/api'
 import type { PlateMode } from '../../components/slicer/PlateView'
 import { boxOn, fitOn } from '../slicer/plate'
-import { rotate } from '../slicer/orient'
+import { rotate, type RotationChange } from '../slicer/orient'
 import type { Bed } from '../slicer/plateTransform'
 import type { Role } from '../slicer/preview'
 import type { SettingValue } from '../slicer/processSettings'
@@ -35,6 +35,21 @@ export interface PracticeState {
   /** How many times the plate has been "sent". */
   sent: number
   bed: Bed
+  /** Deliberate axis turns during this task, in degrees, reset by ROTATION RESET. */
+  rotations?: RotationProgress
+}
+
+export type RotationProgress = Record<string, { x: number; y: number; z: number }>
+
+export function trackRotation(progress: RotationProgress, change: RotationChange): RotationProgress {
+  const next = { ...progress }
+  if ('reset' in change) {
+    delete next[change.objectId]
+  } else {
+    const before = next[change.objectId] ?? { x: 0, y: 0, z: 0 }
+    next[change.objectId] = { ...before, [change.axis]: before[change.axis] + change.degrees }
+  }
+  return next
 }
 
 /** Scratch space a task's goals share, emptied when the task starts. */

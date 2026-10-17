@@ -1,5 +1,5 @@
 import { fireEvent, render } from '@testing-library/react'
-import { Color, Group, PerspectiveCamera, Scene, Vector3 } from 'three'
+import { Color, Group, PerspectiveCamera, Quaternion, Scene, Vector3 } from 'three'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { placed } from '../../lib/training/practiceParts'
 import { PlateView } from './PlateView'
@@ -25,17 +25,18 @@ vi.mock('../../lib/slicer/scene', async (original) => ({
   themeColors: () => Object.fromEntries(['background', 'model', 'selected', 'problem'].map(key => [key, new Color()])),
 }))
 // The gizmo records its listeners so a test can play a drag on its handles.
-const gizmos = vi.hoisted(() => [] as { object?: { scale: Vector3 }; fire: (type: string, event?: object) => void }[])
+const gizmos = vi.hoisted(() => [] as { object?: { scale: Vector3; quaternion: Quaternion }; axis: string | null; fire: (type: string, event?: object) => void }[])
 vi.mock('three/examples/jsm/controls/TransformControls.js', () => ({
   TransformControls: class {
     dragging = false
-    object: { scale: Vector3 } | undefined = undefined
+    axis: string | null = null
+    object: { scale: Vector3; quaternion: Quaternion } | undefined = undefined
     listeners = new Map<string, (event: object) => void>()
     constructor() { gizmos.push(this) }
     getHelper = () => new Group()
     setSize = vi.fn()
     setMode = vi.fn()
-    attach(object: { scale: Vector3 }) { this.object = object }
+    attach(object: { scale: Vector3; quaternion: Quaternion }) { this.object = object }
     addEventListener(type: string, listener: (event: object) => void) { this.listeners.set(type, listener) }
     fire(type: string, event = {}) { this.listeners.get(type)?.(event) }
     detach() { this.object = undefined }
@@ -121,6 +122,37 @@ describe('PlateView dragging', () => {
     pointer(canvas, 'pointermove', 74, 124)
     pointer(canvas, 'pointerup', 74, 124)
     expect(onCommit).toHaveBeenCalledExactlyOnceWith(new Map([['cube', { x: 74, y: 124 }], ['block', { x: 200, y: 140 }]]))
+  })
+})
+
+describe('PlateView rotation handles', () => {
+  it.each([
+    ['X', 90], ['Y', 90], ['X', -90], ['Y', -90],
+  ] as const)('reports the blue-ring turn after a mistaken %s turn (%s°)', (wrongAxis, degrees) => {
+    const onRotation = vi.fn()
+    render(<PlateView bed={{ width: 256, depth: 256, height: 256, exclude: null }} objects={[objects[0]!]}
+      meshes={new Map([['practice-cube', positions]])} selected={['cube']} problems={new Map()} mode="rotate"
+      onSelect={vi.fn()} onDrag={vi.fn()} onCommit={vi.fn()} onLayFlat={vi.fn()} onRotation={onRotation} />)
+    const gizmo = gizmos.at(-1)!
+    const drag = (axis: string, increments: number[]) => {
+      gizmo.axis = axis
+      gizmo.fire('dragging-changed', { value: true })
+      for (const amount of increments) {
+        const direction = axis === 'X' ? new Vector3(1, 0, 0) : axis === 'Y' ? new Vector3(0, 1, 0) : new Vector3(0, 0, 1)
+        gizmo.object!.quaternion.premultiply(new Quaternion().setFromAxisAngle(direction, amount * Math.PI / 180))
+        gizmo.fire('objectChange')
+      }
+      gizmo.fire('dragging-changed', { value: false })
+    }
+    drag(wrongAxis, [35])
+    drag('Z', [degrees / 2, degrees / 2])
+    const changes = onRotation.mock.calls.map(([change]) => change as { objectId: string; axis: string; degrees: number })
+    expect(changes.map(change => [change.objectId, change.axis])).toEqual([
+      ['cube', wrongAxis.toLowerCase()], ['cube', 'z'], ['cube', 'z'],
+    ])
+    expect(changes[0]!.degrees).toBeCloseTo(35)
+    expect(changes[1]!.degrees).toBeCloseTo(degrees / 2)
+    expect(changes[2]!.degrees).toBeCloseTo(degrees / 2)
   })
 })
 

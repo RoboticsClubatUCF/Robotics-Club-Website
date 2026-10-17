@@ -75,6 +75,7 @@ const membership = (
   title: string,
   rank: ProjectMemberRank,
 ): ApiMyProject => ({
+  publiclyListed: true,
   rank,
   title: null,
   team: null,
@@ -177,8 +178,7 @@ const renderPage = (dashboard = context()) =>
     </MemoryRouter>,
   )
 
-const rowFor = (title: string) =>
-  within(screen.getByText(title).closest('li')!)
+const rowFor = (title: string) => within(screen.getByText(title).closest('li')!)
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -214,17 +214,13 @@ describe('what a member sees', () => {
 
     // The form is the whole of what separates the two audiences on this page.
     expect(screen.queryByText('NEW TASK')).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole('button', { name: 'WORK I RUN' }),
-    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'WORK I RUN' })).not.toBeInTheDocument()
   })
 
   it('says a task with no project has none, rather than leaving a gap', async () => {
     vi.stubGlobal(
       'fetch',
-      stubTasks([
-        task({ title: 'Order the shirts', projectId: null, project: null }),
-      ]),
+      stubTasks([task({ title: 'Order the shirts', projectId: null, project: null })]),
     )
     renderPage()
 
@@ -235,10 +231,7 @@ describe('what a member sees', () => {
   })
 
   it('marks work whose deadline has gone past', async () => {
-    vi.stubGlobal(
-      'fetch',
-      stubTasks([task({ dueAt: '2020-01-01T12:00:00.000Z' })]),
-    )
+    vi.stubGlobal('fetch', stubTasks([task({ dueAt: '2020-01-01T12:00:00.000Z' })]))
     renderPage()
 
     await screen.findByText('Cut the brackets')
@@ -264,9 +257,7 @@ describe('what a member sees', () => {
     )
     renderPage()
 
-    expect(
-      await screen.findByText(/couldn't load your tasks/i),
-    ).toBeInTheDocument()
+    expect(await screen.findByText(/couldn't load your tasks/i)).toBeInTheDocument()
   })
 })
 
@@ -399,7 +390,9 @@ describe('narrowing a long list', () => {
       target: { value: 'nothing matches this' },
     })
 
-    expect(screen.getByText(/Nothing matches what you are looking for/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/Nothing matches what you are looking for/i),
+    ).toBeInTheDocument()
   })
 })
 
@@ -414,10 +407,9 @@ describe('who may write one', () => {
     // Project authority is a fact about a membership row, never about a club
     // role — this person is a plain MEMBER and still gets the form.
     expect(
-      within(screen.getByLabelText('PROJECT') as HTMLElement).getByRole(
-        'option',
-        { name: 'Rover' },
-      ),
+      within(screen.getByLabelText('PROJECT') as HTMLElement).getByRole('option', {
+        name: 'Rover',
+      }),
     ).toBeInTheDocument()
   })
 
@@ -452,9 +444,7 @@ describe('who may write one', () => {
 
     await waitFor(() => {
       expect(
-        fetchMock.mock.calls.some(([input]) =>
-          urlOf(input).includes('scope=managed'),
-        ),
+        fetchMock.mock.calls.some(([input]) => urlOf(input).includes('scope=managed')),
       ).toBe(true)
     })
   })
@@ -501,7 +491,9 @@ describe('a new task goes on this semester only', () => {
   it('still lets them read and manage last term’s work', async () => {
     vi.stubGlobal(
       'fetch',
-      stubTasks([task({ projectId: 'p0', project: { slug: 'old', title: 'Old Rover' } })]),
+      stubTasks([
+        task({ projectId: 'p0', project: { slug: 'old', title: 'Old Rover' } }),
+      ]),
     )
     renderPage(context('MEMBER', [past('p0', 'Old Rover')]))
 

@@ -9,7 +9,7 @@ import { autoOrient, layFlat } from '../slicer/orient'
 import { ROLES, type Preview, type RoleLines, SEGMENT_FLOATS } from '../slicer/preview'
 import { parseStl } from '../slicer/stl'
 import type { Plate } from '../slicer/useDraft'
-import { type PracticeState, anyOverlap, atOpeningView, fits, pointing, restsOn, setting, sizeOf } from './goals'
+import { type PracticeState, anyOverlap, atOpeningView, fits, pointing, restsOn, setting, sizeOf, trackRotation } from './goals'
 import { PRACTICE_PETG, PRACTICE_WORKSPACE } from './practiceProfiles'
 import { type PartName, modelIdOf, placed, turn } from './practiceParts'
 import { type SliceManifest, matchSlice, placePreview, same, slicedWith } from './practiceSlices'
@@ -92,6 +92,36 @@ describe('the practice parts', () => {
   it('sees overlapping copies', () => {
     expect(anyOverlap(state({ objects: [placed('cube', 'a', 100, 100), placed('cube', 'b', 110, 105)] }))).toBe(true)
     expect(anyOverlap(state({ objects: [placed('cube', 'a', 100, 100), placed('cube', 'b', 130, 100)] }))).toBe(false)
+  })
+})
+
+describe('the turn-a-part task', () => {
+  const task = flatten(CHAPTERS).find(({ step }) => step.id === 'try-rotate')!.step
+  if (task.kind !== 'try') throw new Error('Expected a practice task')
+  const rotated = task.goals[1]!
+  const reset = task.goals[2]!
+
+  it.each(['x', 'y'] as const)('credits a Z quarter-turn after an accidental %s tilt, then still requires reset', (axis) => {
+    let rotations = trackRotation({}, { objectId: 'bracket', axis, degrees: 35 })
+    const tilted = placed('bracket', 'bracket', 128, 128, { turns: [turn(axis, 35)] })
+    expect(rotated.done(state({ objects: [tilted] }, { rotations }), {})).toBe(false)
+    rotations = trackRotation(rotations, { objectId: 'bracket', axis: 'z', degrees: 90 })
+    const turned = placed('bracket', 'bracket', 128, 128, { turns: [turn(axis, 35), turn('z', 90)] })
+    const now = state({ objects: [turned] }, { rotations })
+    expect(rotated.done(now, {})).toBe(true)
+    expect(reset.done(now, {})).toBe(false)
+    expect(reset.done(state({ objects: [placed('bracket', 'bracket', 128, 128)] }), {})).toBe(true)
+  })
+
+  it('accumulates smaller Z turns and clears them on reset', () => {
+    const objects = [placed('bracket', 'bracket', 128, 128)]
+    let rotations = trackRotation({}, { objectId: 'bracket', axis: 'z', degrees: 45 })
+    expect(rotated.done(state({ objects }, { rotations }), {})).toBe(false)
+    rotations = trackRotation(rotations, { objectId: 'bracket', axis: 'z', degrees: 45 })
+    expect(rotated.done(state({ objects }, { rotations }), {})).toBe(true)
+    rotations = trackRotation(rotations, { objectId: 'bracket', reset: true })
+    expect(rotated.done(state({ objects }, { rotations }), {})).toBe(false)
+    expect(trackRotation(rotations, { objectId: 'other', axis: 'z', degrees: 90 }).bracket).toBeUndefined()
   })
 })
 

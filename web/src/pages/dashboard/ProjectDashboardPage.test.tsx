@@ -25,6 +25,7 @@ const term: ApiTerm = {
 }
 
 const membership = (): ApiMyProject => ({
+  publiclyListed: true,
   rank: 'MEMBER',
   title: null,
   team: null,
@@ -115,10 +116,7 @@ const renderPage = () =>
     <MemoryRouter initialEntries={['/dashboard/projects/project-storm']}>
       <Routes>
         <Route element={<Outlet context={context()} />}>
-          <Route
-            path="/dashboard/projects/:slug"
-            element={<ProjectDashboardPage />}
-          />
+          <Route path="/dashboard/projects/:slug" element={<ProjectDashboardPage />} />
           <Route path="/dashboard" element={<p>THE DASHBOARD</p>} />
         </Route>
       </Routes>

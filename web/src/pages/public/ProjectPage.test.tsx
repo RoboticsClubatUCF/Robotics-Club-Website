@@ -127,7 +127,9 @@ describe('ProjectPage', () => {
         '/auth/me': { user: user('MEMBER') },
         '/projects/project-storm': project(),
         '/dues/status': { membership: { hasAccess: true } },
-        '/me/projects': [{ rank: 'MEMBER', role: null, team: null, project: { id: 'p1' } }],
+        '/me/projects': [
+          { rank: 'MEMBER', role: null, team: null, project: { id: 'p1' } },
+        ],
       }),
     )
 
@@ -152,9 +154,7 @@ describe('ProjectPage', () => {
 
     renderPage()
 
-    expect(
-      await screen.findByRole('button', { name: 'EDIT PAGE' }),
-    ).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'EDIT PAGE' })).toBeInTheDocument()
   })
 
   /** An officer edits any project, with no membership row on it at all. */
@@ -171,9 +171,7 @@ describe('ProjectPage', () => {
 
     renderPage()
 
-    expect(
-      await screen.findByRole('button', { name: 'EDIT PAGE' }),
-    ).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'EDIT PAGE' })).toBeInTheDocument()
   })
 
   /**
@@ -248,9 +246,7 @@ describe('ProjectPage', () => {
 
     expect(await screen.findByText(/FREE RIGHT NOW/)).toBeInTheDocument()
     expect(screen.queryByText(/DUES LAPSED/)).toBeNull()
-    expect(
-      screen.getByRole('link', { name: /CLAIM MY MEMBERSHIP/ }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /CLAIM MY MEMBERSHIP/ })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /PAY MY DUES/ })).toBeNull()
     // And the page is still readable, exactly as when dues have lapsed.
     expect(screen.getByText('Project S.T.O.R.M.')).toBeInTheDocument()
@@ -270,9 +266,7 @@ describe('ProjectPage', () => {
 
     renderPage()
 
-    expect(
-      await screen.findByRole('button', { name: 'EDIT PAGE' }),
-    ).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'EDIT PAGE' })).toBeInTheDocument()
   })
 
   /**
@@ -301,9 +295,7 @@ describe('ProjectPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'DONE EDITING' }))
 
-    expect(
-      await screen.findByRole('button', { name: 'EDIT PAGE' }),
-    ).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'EDIT PAGE' })).toBeInTheDocument()
   })
 
   /**
@@ -338,9 +330,7 @@ describe('ProjectPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'DONE EDITING' }))
     fireEvent.click(screen.getByRole('button', { name: 'DISCARD THEM' }))
 
-    expect(
-      await screen.findByRole('button', { name: 'EDIT PAGE' }),
-    ).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'EDIT PAGE' })).toBeInTheDocument()
   })
 
   /** No dialog when there is nothing to lose. */
@@ -360,9 +350,7 @@ describe('ProjectPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'DONE EDITING' }))
 
     expect(screen.queryByText('Leave without saving?')).toBeNull()
-    expect(
-      await screen.findByRole('button', { name: 'EDIT PAGE' }),
-    ).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'EDIT PAGE' })).toBeInTheDocument()
   })
 
   /**
@@ -487,6 +475,7 @@ describe('ProjectPage', () => {
               title: 'Design review',
               description: null,
               authorName: 'Ada Lovelace',
+              authors: [{ id: 'credit-ada', name: 'Ada Lovelace' }],
               fileId: 'f1',
               fileName: 'design-review.pdf',
               fileSize: 240_000,
@@ -503,21 +492,12 @@ describe('ProjectPage', () => {
     const row = await screen.findByText('DOCUMENTATION')
     // A `<Link>`, not an outbound anchor: this is the one row that stays on the
     // site, and it says so with a `›` and a count rather than a host and a `↗`.
-    expect(row.closest('a')).toHaveAttribute(
-      'href',
-      '/projects/project-storm/docs',
-    )
+    expect(row.closest('a')).toHaveAttribute('href', '/projects/project-storm/docs')
     expect(row.closest('a')).not.toHaveAttribute('target')
     expect(screen.getByText('1 DOCUMENT ›')).toBeInTheDocument()
   })
 
-  /**
-   * The roster is part of the project read, not of the join panel, so a join that only flips the
-   * panel leaves the reader looking at a list of names their own is missing from. It has to be a
-   * fresh read: `/projects/:slug` answers `max-age=60`, and the browser would otherwise serve the
-   * pre-join copy back.
-   */
-  it('re-reads the roster after joining, past the browser cache', async () => {
+  it('explains that a new join is awaiting public approval while retaining the current roster', async () => {
     const roster = (...names: string[]) =>
       project({
         members: names.map((fullName) => ({
@@ -528,21 +508,24 @@ describe('ProjectPage', () => {
         })),
       })
 
-    let joined = false
-
     const fetchMock = vi.fn((input: string | URL | Request, _init?: RequestInit) => {
       const url = urlOf(input)
 
       if (url.includes('/auth/me')) return json({ user: user('MEMBER') })
       if (url.includes('/dues/status'))
-        return json({ membership: { hasAccess: true, surveyPending: false, surveyPromptDismissed: false } })
+        return json({
+          membership: {
+            hasAccess: true,
+            surveyPending: false,
+            surveyPromptDismissed: false,
+          },
+        })
       if (url.includes('/me/projects')) return json([])
       if (url.includes('/join')) {
-        joined = true
-        return json({ projectId: 'p1', rank: 'MEMBER' })
+        return json({ projectId: 'p1', rank: 'MEMBER', publiclyListed: false })
       }
       if (url.includes('/projects/project-storm')) {
-        return json(joined ? roster('Ada Okafor', 'Rowan Chen') : roster('Ada Okafor'))
+        return json(roster('Ada Okafor'))
       }
 
       return Promise.reject(new Error(`no stub for ${url}`))
@@ -553,16 +536,57 @@ describe('ProjectPage', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'JOIN THIS PROJECT' }))
 
-    expect(await screen.findByText('Rowan Chen')).toBeInTheDocument()
+    expect(
+      await screen.findByText(/Your public website listing is awaiting approval/),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Rowan Chen')).toBeNull()
     expect(screen.getByText('Ada Okafor')).toBeInTheDocument()
 
-    const reread = fetchMock.mock.calls.filter(
-      ([input]) => urlOf(input).includes('/projects/project-storm'),
+    const reread = fetchMock.mock.calls.filter(([input]) =>
+      urlOf(input).includes('/projects/project-storm'),
     )
     expect(reread).toHaveLength(2)
     // `reload`, not `no-store`: the stale entry has to be *replaced*, or the
     // next visit to this page inside the minute serves the pre-join roster.
     expect(reread[1]?.[1]).toMatchObject({ cache: 'reload' })
+  })
+
+  it.each([null, '2025-01-01T00:00:00.000Z'])(
+    'lets accounts without current dues join (%s)',
+    async (paidThrough) => {
+      const fetchMock = stubRoutes({
+        '/auth/me': { user: user('GUEST') },
+        '/projects/project-storm': project(),
+        '/dues/status': {
+          membership: { hasAccess: false, canActivate: false, paidThrough },
+        },
+        '/me/projects': [],
+        '/join': { projectId: 'p1', rank: 'MEMBER', publiclyListed: false },
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      renderPage()
+      fireEvent.click(await screen.findByRole('button', { name: 'JOIN THIS PROJECT' }))
+      expect(
+        await screen.findByRole('button', { name: 'LEAVE THIS PROJECT' }),
+      ).toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: /PAY MY DUES/ })).toBeNull()
+      expect(
+        screen.getByText(/Your public website listing is awaiting approval/),
+      ).toBeInTheDocument()
+    },
+  )
+
+  it('does not wait for the dues service before offering to join', async () => {
+    const routes = stubRoutes({
+      '/auth/me': { user: user('GUEST') },
+      '/projects/project-storm': project(),
+      '/me/projects': [],
+    })
+    vi.stubGlobal('fetch', (input: string | URL | Request, init?: RequestInit) =>
+      urlOf(input).includes('/dues/status') ? new Promise(() => {}) : routes(input, init),
+    )
+    renderPage()
+    expect(await screen.findByRole('button', { name: 'JOIN THIS PROJECT' })).toBeEnabled()
   })
 
   /**
@@ -578,7 +602,13 @@ describe('ProjectPage', () => {
 
       if (url.includes('/auth/me')) return json({ user: user('MEMBER') })
       if (url.includes('/dues/status'))
-        return json({ membership: { hasAccess: true, surveyPending: false, surveyPromptDismissed: false } })
+        return json({
+          membership: {
+            hasAccess: true,
+            surveyPending: false,
+            surveyPromptDismissed: false,
+          },
+        })
       // Empty, and it stays empty: the panel must not be waiting on this.
       if (url.includes('/me/projects')) return json([])
       if (url.includes('/join')) return json({ projectId: 'p1', rank: 'MEMBER' })
@@ -595,7 +625,9 @@ describe('ProjectPage', () => {
     expect(
       await screen.findByRole('button', { name: 'LEAVE THIS PROJECT' }),
     ).toBeInTheDocument()
-    expect(fetchMock.mock.calls.filter(([i]) => urlOf(i).includes('/me/projects'))).toHaveLength(1)
+    expect(
+      fetchMock.mock.calls.filter(([i]) => urlOf(i).includes('/me/projects')),
+    ).toHaveLength(1)
   })
 
   /** And the same in reverse: off the project is off the roster. */
@@ -607,7 +639,13 @@ describe('ProjectPage', () => {
 
       if (url.includes('/auth/me')) return json({ user: user('MEMBER') })
       if (url.includes('/dues/status'))
-        return json({ membership: { hasAccess: true, surveyPending: false, surveyPromptDismissed: false } })
+        return json({
+          membership: {
+            hasAccess: true,
+            surveyPending: false,
+            surveyPromptDismissed: false,
+          },
+        })
       if (url.includes('/me/projects'))
         return json([{ rank: 'MEMBER', role: null, team: null, project: { id: 'p1' } }])
       if (url.includes('/members/me')) {

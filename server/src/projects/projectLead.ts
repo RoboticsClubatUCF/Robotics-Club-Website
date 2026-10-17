@@ -64,10 +64,18 @@ export async function appointLead(
     // through the site — appointing them *is* how they land on the project.
     return tx.projectMember.upsert({
       where: { projectId_userId: { projectId, userId } },
-      create: { projectId, userId, rank },
+      create: {
+        projectId,
+        userId,
+        rank,
+        publiclyListed: rank === ProjectMemberRank.PROJECT_LEAD,
+      },
       // Demotion also clears any team-lead seat: a rank set here is the whole
       // answer, not a layer over the old one.
-      update: { rank },
+      update: {
+        rank,
+        ...(rank === ProjectMemberRank.PROJECT_LEAD ? { publiclyListed: true } : {}),
+      },
       select: { projectId: true, userId: true, rank: true, teamId: true },
     })
   })

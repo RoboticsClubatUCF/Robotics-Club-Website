@@ -14,7 +14,7 @@ import { arrange, freeSpot } from '../../lib/slicer/arrange'
 import { type CameraMoves, viewKey } from '../../lib/slicer/camera'
 import { restingFaces } from '../../lib/slicer/faces'
 import { primeMesh, useMeshes } from '../../lib/slicer/meshes'
-import { autoOrient, layFlat } from '../../lib/slicer/orient'
+import { autoOrient, layFlat, type RotationChange } from '../../lib/slicer/orient'
 import { choiceProblem, defaultChoice, printerOf } from '../../lib/slicer/profiles'
 import { vaseRefusal } from '../../lib/slicer/processSettings'
 import { boxOn, fitOn, overhangOn, sizeOf } from '../../lib/slicer/plate'
@@ -147,6 +147,7 @@ export function SlicerWorkspace({
 
 /** What the slicer training watches to tell when a practice task is done. */
 export interface WorkspaceWatch {
+  onRotation?: (change: RotationChange) => void
   onState?: (state: { selected: string[]; selectSeveral: boolean; mode: PlateMode; tab: 'prepare' | 'preview' }) => void
   onCamera?: (view: CameraView) => void
   onLayers?: (layers: { top: number; count: number; z: number; hidden: Role[] }) => void
@@ -795,6 +796,7 @@ export function WorkspaceView({
                 onCommit={editable ? commit : () => undefined}
                 onLayFlat={editable ? flatten : () => undefined}
                 onView={watch?.onCamera}
+                onRotation={watch?.onRotation}
                 camera={camera}
               />
               {editable && (
@@ -868,6 +870,7 @@ export function WorkspaceView({
 
         <Drawer label="Objects" open={drawer === 'objects'} className={drawerClass('objects')} onClose={() => setDrawer(null)} shortcuts>
           <ObjectPanel
+            onRotation={watch?.onRotation}
             objects={objects}
             models={models}
             meshes={meshes}

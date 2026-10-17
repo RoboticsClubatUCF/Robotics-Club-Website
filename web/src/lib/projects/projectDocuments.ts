@@ -2,6 +2,22 @@ import { deleteJson, patchJson, postForm } from '../api/api'
 import type { ApiProjectDocument } from '../api/api'
 import { draftKey } from './projectDraft'
 
+export type DocumentAuthorDraft =
+  { id: string; name: string } | { userId: string } | { name: string }
+
+export const authorPayload = (authors: DocumentAuthorDraft[]) =>
+  authors.map((author) =>
+    'id' in author
+      ? { id: author.id }
+      : 'userId' in author
+        ? { userId: author.userId }
+        : { name: author.name.trim() },
+  )
+
+const authorsChanged = (draft: DraftDocument) =>
+  JSON.stringify(authorPayload(draft.authors)) !==
+  JSON.stringify(draft.stored?.authors.map((author) => ({ id: author.id })))
+
 /**
  * The documentation section while somebody is working on it.
  *
@@ -22,14 +38,7 @@ export type DraftDocument = {
   stored: ApiProjectDocument | null
   title: string
   description: string
-  /**
-   * Who to credit.
-   *
-   * Empty means two different things and both are correct: on a stored row it is "leave the credit
-   * alone", which is what the select's first option says out loud; on a new one it is "nobody chosen
-   * yet", and the form will not let it be saved that way.
-   */
-  authorUserId: string
+  authors: DocumentAuthorDraft[]
   /**
    * A file chosen and not yet sent — the document itself when this is new, a
    * revision of it when it is not.
@@ -42,16 +51,16 @@ export const draftFromDocument = (document: ApiProjectDocument): DraftDocument =
   stored: document,
   title: document.title,
   description: document.description ?? '',
-  authorUserId: '',
+  authors: document.authors.map((author) => ({ ...author })),
   file: null,
 })
 
-export const blankDocument = (authorUserId: string): DraftDocument => ({
+export const blankDocument = (authors: DocumentAuthorDraft[]): DraftDocument => ({
   key: draftKey(),
   stored: null,
   title: '',
   description: '',
-  authorUserId,
+  authors,
   file: null,
 })
 
@@ -59,7 +68,7 @@ export const blankDocument = (authorUserId: string): DraftDocument => ({
 export const documentChanged = (draft: DraftDocument): boolean =>
   draft.stored === null ||
   draft.file !== null ||
-  draft.authorUserId !== '' ||
+  authorsChanged(draft) ||
   draft.title.trim() !== draft.stored.title ||
   draft.description.trim() !== (draft.stored.description ?? '')
 
@@ -112,13 +121,10 @@ export async function saveDocuments(
       body.append('file', row.file)
       body.append('title', row.title.trim())
       body.append('description', row.description.trim())
-      body.append('authorUserId', row.authorUserId)
+      body.append('authors', JSON.stringify(authorPayload(row.authors)))
 
       saved.push(
-        await postForm<ApiProjectDocument>(
-          `/projects/${projectId}/documents`,
-          body,
-        ),
+        await postForm<ApiProjectDocument>(`/projects/${projectId}/documents`, body),
       )
       continue
     }
@@ -130,16 +136,14 @@ export async function saveDocuments(
     if (
       title !== current.title ||
       description !== (current.description ?? '') ||
-      row.authorUserId !== ''
+      authorsChanged(row)
     ) {
       current = await patchJson<ApiProjectDocument>(
         `/projects/${projectId}/documents/${current.id}`,
         {
           title,
           description: description || null,
-          // Absent means "leave the credit alone", which is how the route reads
-          // it too — so sending nothing is the honest way to say it.
-          ...(row.authorUserId ? { authorUserId: row.authorUserId } : {}),
+          ...(authorsChanged(row) ? { authors: authorPayload(row.authors) } : {}),
         },
       )
     }

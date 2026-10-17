@@ -3,6 +3,7 @@ import { useOutletContext } from 'react-router'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
 import { DuesLocked } from '../../components/dashboard/DuesLocked'
 import { ConfirmDialog } from '../../components/shared/ConfirmDialog'
+import { EventCalendarCheckbox } from '../../components/shared/EventCalendarCheckbox'
 import {
   FormEyebrow,
   FormHeading,
@@ -44,8 +45,8 @@ import { isOfficer } from '../../lib/auth/session'
  * `officer` in a URL that leads open would be a lie in the address bar.
  *
  * What separates the two audiences isn't what they may do but what they may reach. A lead
- * sees their own projects in the picker; an officer additionally gets Club-wide and the
- * PUBLISHED switch. The server re-checks both.
+ * sees their own projects in the picker; an officer additionally gets Club-wide. Both can
+ * opt events they lead into the main calendar. The server re-checks the event's scope.
  *
  * The project meetings that fill the calendars are deliberately not editable here. They
  * aren't rows — `server/src/projects/meetings.ts` generates them from three columns — so an
@@ -187,13 +188,15 @@ function Events({
    * allow: officers everywhere, creators on their own, and a lead on anything hanging off a
    * project they lead.
    */
-  const canTouch = (event: ApiMeEvent) =>
-    officer ||
-    event.createdById === user.id ||
-    leads.some(({ project, rank }) => {
+  const leadsEvent = (event: ApiMeEvent) =>
+    leads.some(({ project, rank, team }) => {
       if (project.id !== event.projectId) return false
-      return rank === 'PROJECT_LEAD' || event.teamId !== null
+      return rank === 'PROJECT_LEAD' || (event.teamId !== null && team?.id === event.teamId)
     })
+
+  const canTouch = (event: ApiMeEvent) =>
+    officer || event.createdById === user.id || leadsEvent(event)
+  const canPublish = !editing || officer || leadsEvent(editing)
 
   const mineToEdit = (events ?? []).filter(canTouch)
 
@@ -246,9 +249,7 @@ function Events({
       registrationUrl: text('registrationUrl') || null,
       ...instants,
       allDay,
-      // Only officers may send this at all; the checkbox isn't drawn for anybody else, and
-      // the server refuses it from them regardless.
-      ...(officer ? { published: data.get('published') === 'on' } : {}),
+      ...(canPublish ? { published: data.get('published') === 'on' } : {}),
     }
 
     run(async () => {
@@ -257,7 +258,10 @@ function Events({
         setEditing(null)
       } else {
         const project = text('project')
-        const team = text('team')
+        // A team lead's membership is the scope. There is no team picker on
+        // this desk, so omitting this would attempt a project-wide event.
+        const selected = leads.find((row) => row.project.id === project)
+        const team = !officer && selected?.rank === 'TEAM_LEAD' ? selected.team?.id : null
         await postJson('/events', {
           ...body,
           // Absent, not null: an omitted `projectId` is what the route reads as club
@@ -422,9 +426,9 @@ function Events({
                     {officer && (
                       <option value={CLUB_WIDE}>Club-wide — no project</option>
                     )}
-                    {leads.map(({ project }) => (
+                    {leads.map(({ project, rank, team }) => (
                       <option key={project.id} value={project.id}>
-                        {project.title}
+                        {project.title}{!officer && rank === 'TEAM_LEAD' && team ? ` — ${team.name}` : ''}
                       </option>
                     ))}
                   </select>
@@ -635,25 +639,8 @@ function Events({
               />
             </div>
 
-            {/* The public calendar is officers'. A lead's events are real and reach every
-                member of their project; they simply don't go on the front page. The server
-                refuses this field from anyone else, so its absence here is layout. */}
-            {officer && (
-              <label className="flex cursor-pointer items-start gap-2.5">
-                <input
-                  type="checkbox"
-                  name="published"
-                  defaultChecked={editing?.published ?? false}
-                  disabled={busy}
-                  className="checkbox checkbox-sm border-rule mt-0.5"
-                />
-                <span className="text-dim text-[13px] leading-[1.5] text-pretty">
-                  Show on the public calendar
-                  <span className="text-faint block text-[12px]">
-                    Off keeps it to members&rsquo; dashboards.
-                  </span>
-                </span>
-              </label>
+            {canPublish && (
+              <EventCalendarCheckbox published={editing?.published} disabled={busy} />
             )}
 
             {/* Advisory, not a refusal. The halt is about the weekly meetings the site

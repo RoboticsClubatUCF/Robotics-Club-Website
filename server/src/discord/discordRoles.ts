@@ -202,6 +202,8 @@ export function desiredRoles(user: Standing, now: Date): Set<string> {
   }
 
   for (const membership of user.projects) {
+    // Public roster approval is deliberately absent: every joined member gets
+    // the crew role, including unpaid accounts and those awaiting public listing.
     if (
       projectLeadRoleId !== null &&
       membership.rank === ProjectMemberRank.PROJECT_LEAD

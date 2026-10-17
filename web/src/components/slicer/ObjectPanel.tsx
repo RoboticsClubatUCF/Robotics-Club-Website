@@ -1,6 +1,7 @@
 import { Euler, Quaternion } from 'three'
 import type { ApiPlacement, ApiPlateModel, ApiPlateObject } from '../../lib/api/api'
 import type { MeshMap } from '../../lib/slicer/meshes'
+import type { RotationChange } from '../../lib/slicer/orient'
 import { scaleBy } from '../../lib/slicer/plate'
 import {
   type FitProblem,
@@ -43,6 +44,7 @@ export function ObjectPanel({
   onSelectSeveral,
   onUniform,
   onChange,
+  onRotation,
   onCopy,
   onDelete,
 }: {
@@ -59,6 +61,7 @@ export function ObjectPanel({
   onSelectSeveral: (on: boolean) => void
   onUniform: (uniform: boolean) => void
   onChange: (id: string, placement: Partial<ApiPlacement>) => void
+  onRotation?: (change: RotationChange) => void
   onCopy: () => void
   onDelete: () => void
 }) {
@@ -184,6 +187,7 @@ export function ObjectPanel({
             disabled={disabled}
             uniform={uniform}
             onUniform={onUniform}
+            onRotation={onRotation}
             onChange={(placement) => {
               onChange(one.id, placement)
             }}
@@ -208,6 +212,7 @@ function Transform({
   uniform,
   onUniform,
   onChange,
+  onRotation,
 }: {
   object: ApiPlateObject
   positions: Float32Array | undefined
@@ -216,6 +221,7 @@ function Transform({
   uniform: boolean
   onUniform: (uniform: boolean) => void
   onChange: (placement: Partial<ApiPlacement>) => void
+  onRotation?: (change: RotationChange) => void
 }) {
   const euler = new Euler().setFromQuaternion(
     new Quaternion(object.qx, object.qy, object.qz, object.qw),
@@ -232,6 +238,7 @@ function Transform({
       new Euler(next[0]! / DEG, next[1]! / DEG, next[2]! / DEG, 'XYZ'),
     )
     onChange(canonicalQuat({ qx: q.x, qy: q.y, qz: q.z, qw: q.w }))
+    onRotation?.({ objectId: object.id, axis: (['x', 'y', 'z'] as const)[axis]!, degrees: degrees - angles[axis]! })
   }
 
   const scaleTo = (axis: 'sx' | 'sy' | 'sz', percent: number) => {
@@ -293,6 +300,7 @@ function Transform({
             disabled={disabled}
             onClick={() => {
               onChange({ qx: 0, qy: 0, qz: 0, qw: 1 })
+              onRotation?.({ objectId: object.id, reset: true })
             }}
             className="inline-flex cursor-pointer items-center gap-1 font-mono text-[9.5px] tracking-[0.12em] text-dim hover:text-base-content disabled:opacity-40"
           >

@@ -45,6 +45,7 @@ const roster = (over: Partial<ProjectRoster> = {}): ProjectRoster => ({
       photoUrl: null,
       title: null,
       rank: 'PROJECT_LEAD',
+      publiclyListed: true,
       teamId: null,
     },
     {
@@ -53,6 +54,7 @@ const roster = (over: Partial<ProjectRoster> = {}): ProjectRoster => ({
       photoUrl: null,
       title: null,
       rank: 'TEAM_LEAD',
+      publiclyListed: true,
       teamId: 't1',
     },
     {
@@ -61,6 +63,7 @@ const roster = (over: Partial<ProjectRoster> = {}): ProjectRoster => ({
       photoUrl: null,
       title: 'Software Lead',
       rank: 'MEMBER',
+      publiclyListed: true,
       teamId: null,
     },
   ],
@@ -222,10 +225,9 @@ describe('TeamEditor', () => {
     fetchMock.mockClear()
     await saveIt()
 
-    expect(fetchMock.mock.calls.map(([input]) => urlOf(input).split('/members/')[1])).toEqual([
-      'u2',
-      'u3',
-    ])
+    expect(
+      fetchMock.mock.calls.map(([input]) => urlOf(input).split('/members/')[1]),
+    ).toEqual(['u2', 'u3'])
     expect(screen.getByText('SAVED')).toBeInTheDocument()
   })
 

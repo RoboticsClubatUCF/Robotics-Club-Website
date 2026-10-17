@@ -28,10 +28,9 @@ import { type AuthEnv, originGuard, requireAuth } from '../../auth/session.js'
  * last case is what the events desk at `/dashboard/events` is largely for; the model always allowed
  * it and `requireEventManager` always handled it, but this router could not express it until now.
  *
- * `published` stays false unless an officer says otherwise, so the public calendar of events stays
- * officer-curated however many leads are scheduling things. Project meetings are the one deliberate
- * exception and do not come through here at all — they are three columns on `Project`, expanded by
- * `src/projects/meetings.ts` and gated by `meetingsPublic`, which is likewise an officer's switch.
+ * Officers and the event's project or team leads can opt it into the main calendar with
+ * `published`. New events remain private by default. Recurring project meetings are configured
+ * separately through `meetingsPublic` and expanded by `src/projects/meetings.ts`.
  */
 export const eventManage = new Hono<AuthEnv>()
 
@@ -107,15 +106,6 @@ function checkOrder(startsAt: Date, endsAt: Date | null | undefined) {
   }
 }
 
-/** The publish switch is the public site, and the public site is officer-run. */
-function checkPublish(published: boolean | undefined, officer: boolean) {
-  if (published !== undefined && !officer) {
-    throw new HTTPException(403, {
-      message: 'Only officers can put events on the public calendar.',
-    })
-  }
-}
-
 eventManage.post(
   '/',
   originGuard,
@@ -127,7 +117,6 @@ eventManage.post(
     const { projectId, teamId, published, ...data } = c.req.valid('json')
 
     checkOrder(data.startsAt, data.endsAt)
-    checkPublish(published, isOfficer(user))
 
     // Which rank the event needs follows where it hangs: a team event takes
     // that team's lead, a project-wide one takes the project lead, and one
@@ -148,9 +137,8 @@ eventManage.post(
     } else if (projectId) {
       await requireProjectLead(user, projectId)
     } else {
-      // The mirror of `checkPublish`: the club's own calendar is the club's own
-      // business. A lead may schedule anything they like on their project and
-      // nothing at all on the club.
+      // Project and team leads can publish their own scoped events, while an
+      // event with no project remains officer business.
       if (!isOfficer(user)) {
         throw new HTTPException(403, {
           message: 'Only officers can create a club-wide event.',
@@ -205,7 +193,20 @@ eventManage.patch(
     if (!event) throw new HTTPException(404, { message: 'No such event' })
 
     await requireEventManager(user, event)
-    checkPublish(patch.published, isOfficer(user))
+    if (patch.published !== undefined) {
+      // Creating an event once does not grant lasting publishing authority.
+      // A former lead may still edit their own copy; publishing or withdrawing
+      // it requires current authority over the event's project or team.
+      if (event.teamId) {
+        await requireTeamLead(user, event.teamId)
+      } else if (event.projectId) {
+        await requireProjectLead(user, event.projectId)
+      } else if (!isOfficer(user)) {
+        throw new HTTPException(403, {
+          message: 'Only officers can publish or withdraw a club-wide event.',
+        })
+      }
+    }
     // The ordering rule holds on the *resulting* row, whichever half changed.
     checkOrder(
       patch.startsAt ?? event.startsAt,

@@ -1,10 +1,10 @@
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Outlet, Route, Routes } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { OfficerSurveyPage } from './OfficerSurveyPage'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
 import type { ApiSurveySummary, ApiTerm, UserRole } from '../../lib/api/api'
-import { stubFetch, stubFetchNetworkError } from '../../test/stubFetch'
+import { stubFetch, stubFetchNetworkError, urlOf } from '../../test/stubFetch'
 
 /**
  * The survey desk.
@@ -76,7 +76,59 @@ const options = (counts: Record<string, number>) =>
 
 const summary = (over: Partial<ApiSurveySummary> = {}): ApiSurveySummary => ({
   responded: 4,
+  totalResponded: 4,
   outstanding: 2,
+  range: {
+    label: 'All time',
+    from: null,
+    to: null,
+    estimated: false,
+    dateField: 'submitted',
+  },
+  facets: {
+    gradYears: [2027, 2028],
+    questions: [
+      {
+        id: 'q-shirt',
+        prompt: 'Shirt size',
+        kind: 'SINGLE_CHOICE',
+        allowNone: false,
+        options: options({ M: 1, L: 3 }),
+      },
+      {
+        id: 'q-allergies',
+        prompt: 'Allergies',
+        kind: 'MULTI_CHOICE',
+        allowNone: true,
+        options: options({ Nuts: 2, Soy: 0 }),
+      },
+      {
+        id: 'q-notes',
+        prompt: 'Anything else about food',
+        kind: 'LONG_TEXT',
+        allowNone: false,
+        options: [],
+      },
+    ],
+  },
+  responses: Array.from({ length: 4 }, (_, index) => ({
+    id: `response-${index}`,
+    user: {
+      fullName: `Member ${index + 1}`,
+      email: `member${index + 1}@ucf.edu`,
+      discordUsername: null,
+      gradYear: index === 0 ? 2027 : 2028,
+      active: true,
+    },
+    submittedAt: '2035-09-01T14:00:00.000Z',
+    updatedAt: '2035-10-01T15:00:00.000Z',
+    answers: [
+      { questionId: 'q-shirt', optionIds: [index === 0 ? 'o-M' : 'o-L'], text: null },
+      ...(index === 0
+        ? [{ questionId: 'q-notes', optionIds: [], text: 'Please label ingredients.' }]
+        : []),
+    ],
+  })),
   questions: [
     {
       id: 'q-shirt',
@@ -202,7 +254,8 @@ describe('OfficerSurveyPage', () => {
 
     renderPage()
 
-    expect(await screen.findByText(/2 still to go/)).toBeInTheDocument()
+    const label = await screen.findByText('ACTIVE MEMBERS WITHOUT A SURVEY')
+    expect(within(label.parentElement!).getByText('2')).toBeInTheDocument()
   })
 
   /**
@@ -228,6 +281,173 @@ describe('OfficerSurveyPage', () => {
     renderPage()
 
     expect(await screen.findByText(/couldn.t load that/i)).toBeInTheDocument()
+  })
+
+  it('applies combined filters and carries them into the CSV download', async () => {
+    const stub = stubFetch({ '/officer/survey': summary() })
+    vi.stubGlobal('fetch', stub)
+    renderPage()
+    await screen.findByText('What the club knows.')
+    fireEvent.change(screen.getByLabelText('DATE RANGE'), {
+      target: { value: 'current_term' },
+    })
+    fireEvent.change(screen.getByLabelText('FILTER DATE BY'), {
+      target: { value: 'updated' },
+    })
+    fireEvent.change(screen.getByLabelText('GRADUATION YEAR'), {
+      target: { value: '2028' },
+    })
+    fireEvent.change(screen.getByLabelText('MEMBER ACCOUNTS'), {
+      target: { value: 'active' },
+    })
+    fireEvent.change(screen.getByLabelText('SEARCH MEMBERS OR ANSWERS'), {
+      target: { value: 'Member 1' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'APPLY FILTERS' }))
+    await waitFor(() => expect(stub.mock.calls).toHaveLength(2))
+    const url = new URL(urlOf(stub.mock.calls[1]![0]))
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      period: 'current_term',
+      dateField: 'updated',
+      gradYear: '2028',
+      population: 'active',
+      q: 'Member 1',
+    })
+    await waitFor(() =>
+      expect(screen.getByRole('link', { name: 'DOWNLOAD CSV' })).toHaveAttribute(
+        'aria-disabled',
+        'false',
+      ),
+    )
+    const exportUrl = new URL(
+      screen.getByRole('link', { name: 'DOWNLOAD CSV' }).getAttribute('href')!,
+    )
+    expect(exportUrl.search).toBe(url.search)
+    fireEvent.click(screen.getByRole('button', { name: 'RESET FILTERS' }))
+    await waitFor(() =>
+      expect(
+        screen.getByRole('link', { name: 'DOWNLOAD CSV' }).getAttribute('href'),
+      ).not.toContain('?'),
+    )
+  })
+
+  it('requires valid custom dates and supports filtering by a particular answer', async () => {
+    const stub = stubFetch({ '/officer/survey': summary() })
+    vi.stubGlobal('fetch', stub)
+    renderPage()
+    await screen.findByText('What the club knows.')
+    fireEvent.change(screen.getByLabelText('DATE RANGE'), { target: { value: 'custom' } })
+    expect(screen.getByRole('button', { name: 'APPLY FILTERS' })).toBeDisabled()
+    fireEvent.change(screen.getByLabelText('FROM'), { target: { value: '2035-10-01' } })
+    fireEvent.change(screen.getByLabelText('THROUGH'), {
+      target: { value: '2035-10-31' },
+    })
+    fireEvent.change(screen.getByLabelText('ANSWERED QUESTION'), {
+      target: { value: 'q-allergies' },
+    })
+    fireEvent.change(screen.getByLabelText('ANSWER'), { target: { value: 'none' } })
+    fireEvent.click(screen.getByRole('button', { name: 'APPLY FILTERS' }))
+    await waitFor(() => expect(stub.mock.calls).toHaveLength(2))
+    const params = new URL(urlOf(stub.mock.calls[1]![0])).searchParams
+    expect(Object.fromEntries(params)).toMatchObject({
+      period: 'custom',
+      from: '2035-10-01',
+      to: '2035-10-31',
+      questionId: 'q-allergies',
+      answer: 'none',
+    })
+  })
+
+  it('sorts answers by count and can hide zero counts or percentages', async () => {
+    vi.stubGlobal('fetch', stubFetch({ '/officer/survey': summary() }))
+    renderPage()
+    await screen.findByText('SHIRT SIZE')
+    fireEvent.change(screen.getByLabelText('SORT ANSWERS'), {
+      target: { value: 'count_desc' },
+    })
+    const rows = within(panel('SHIRT SIZE')).getAllByRole('listitem')
+    expect(within(rows[0]!).getByText('L')).toBeInTheDocument()
+    expect(within(rows[1]!).getByText('M')).toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText('Hide zero counts'))
+    expect(within(panel('SHIRT SIZE')).getAllByRole('listitem')).toHaveLength(2)
+    expect(within(panel('SHIRT SIZE')).queryByText('XS')).not.toBeInTheDocument()
+    expect(within(panel('SHIRT SIZE')).getByText(/75%/)).toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText('Show percentages'))
+    expect(within(panel('SHIRT SIZE')).queryByText(/75%/)).not.toBeInTheDocument()
+  })
+
+  it('shows a readable summary table and individual written responses', async () => {
+    vi.stubGlobal('fetch', stubFetch({ '/officer/survey': summary() }))
+    renderPage()
+    await screen.findByText('SHIRT SIZE')
+    fireEvent.click(screen.getByRole('button', { name: 'TABLE' }))
+    expect(
+      screen.getByRole('table', { name: 'Survey answer counts' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: '% answered' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'RESPONSES' }))
+    expect(
+      screen.getByRole('table', { name: 'Individual survey responses' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('member1@ucf.edu')).toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText('View answers for Member 1'))
+    expect(screen.getByText('Please label ingredients.')).toBeVisible()
+  })
+
+  it('opens written answers using the matching question filter', async () => {
+    const stub = stubFetch({ '/officer/survey': summary() })
+    vi.stubGlobal('fetch', stub)
+    renderPage()
+    await screen.findByText('SHIRT SIZE')
+    fireEvent.click(screen.getByRole('button', { name: 'READ WRITTEN ANSWERS' }))
+    await waitFor(() => expect(stub.mock.calls).toHaveLength(2))
+    expect(urlOf(stub.mock.calls[1]![0])).toContain('questionId=q-notes&answer=answered')
+    expect(
+      await screen.findByRole('table', { name: 'Individual survey responses' }),
+    ).toBeInTheDocument()
+  })
+
+  it('paginates response lists and sorts them through the same filtered API', async () => {
+    const base = summary()
+    const stub = stubFetch({
+      '/officer/survey': summary({
+        responded: 26,
+        totalResponded: 26,
+        responses: Array.from({ length: 26 }, (_, index) => ({
+          ...base.responses[0]!,
+          id: `r-${index}`,
+          user: { ...base.responses[0]!.user, fullName: `Member ${index + 1}` },
+        })),
+      }),
+    })
+    vi.stubGlobal('fetch', stub)
+    renderPage()
+    await screen.findByText('SHIRT SIZE')
+    fireEvent.click(screen.getByRole('button', { name: 'RESPONSES' }))
+    expect(screen.getByText('Member 25')).toBeInTheDocument()
+    expect(screen.queryByText('Member 26')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'NEXT' }))
+    expect(screen.getByText('Member 26')).toBeInTheDocument()
+    expect(screen.queryByText('Member 25')).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('SORT RESPONSES'), {
+      target: { value: 'name_asc' },
+    })
+    await waitFor(() => expect(stub.mock.calls).toHaveLength(2))
+    expect(urlOf(stub.mock.calls[1]![0])).toContain('sort=name_asc')
+    expect(await screen.findByText('Member 1')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'PREVIOUS' })).toBeDisabled()
+  })
+
+  it('explains an empty filtered cohort without dropping the controls', async () => {
+    vi.stubGlobal(
+      'fetch',
+      stubFetch({ '/officer/survey': summary({ responded: 0, responses: [] }) }),
+    )
+    renderPage()
+    expect(
+      await screen.findByText(/No responses match these filters/),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'RESET FILTERS' })).toBeInTheDocument()
   })
 
   // ------------------------------------------------------------- the gates

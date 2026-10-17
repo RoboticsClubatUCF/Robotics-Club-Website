@@ -14,6 +14,19 @@ export interface Quat {
   qw: number
 }
 
+/** A deliberate rotation, separate from a part's final orientation. */
+export type RotationChange = { objectId: string } & (
+  | { axis: 'x' | 'y' | 'z'; degrees: number }
+  | { reset: true }
+)
+
+/** Signed change about a world-axis ring, including a part already tilted on other axes. */
+export function rotationDelta(from: Quat, to: Quat, axis: 'x' | 'y' | 'z'): number {
+  const delta = multiply(to, { qx: -from.qx, qy: -from.qy, qz: -from.qz, qw: from.qw })
+  const angle = 2 * Math.atan2(delta[axis === 'x' ? 'qx' : axis === 'y' ? 'qy' : 'qz'], delta.qw)
+  return Math.atan2(Math.sin(angle), Math.cos(angle)) * 180 / Math.PI
+}
+
 const IDENTITY: Quat = { qx: 0, qy: 0, qz: 0, qw: 1 }
 
 /** Steeper than this from the bed and a face needs support. Orca's default threshold is 30°. */

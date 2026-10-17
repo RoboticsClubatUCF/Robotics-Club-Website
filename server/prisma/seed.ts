@@ -949,7 +949,7 @@ async function main() {
           projectId_userId: { projectId: created.id, userId: user.id },
         },
         update: { title: 'Lead' },
-        create: { projectId: created.id, userId: user.id, title: 'Lead' },
+        create: { projectId: created.id, userId: user.id, title: 'Lead', publiclyListed: true },
       })
     }
   }
@@ -987,7 +987,7 @@ async function main() {
       await prisma.projectMember.upsert({
         where: { projectId_userId: { projectId: created.id, userId: user.id } },
         update: data,
-        create: { ...data, projectId: created.id, userId: user.id },
+        create: { ...data, projectId: created.id, userId: user.id, publiclyListed: true },
       })
     }
 

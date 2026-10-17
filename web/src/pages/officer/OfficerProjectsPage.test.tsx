@@ -84,6 +84,7 @@ const existing: ApiManagedProject = {
 }
 
 const mine = (rank: ApiMyProject['rank']): ApiMyProject => ({
+  publiclyListed: true,
   rank,
   title: null,
   team: null,
@@ -153,8 +154,7 @@ const renderPage = (dashboard = context()) =>
  * forms about a project. Its fields are labelled NEW TITLE and NEW SLUG so the two don't
  * collide, but scoping is still what makes these queries say which form they mean.
  */
-const createPanel = () =>
-  within(screen.getByText('CREATE A PROJECT').closest('div')!)
+const createPanel = () => within(screen.getByText('CREATE A PROJECT').closest('div')!)
 
 const duplicatePanel = () =>
   within(screen.getByText('RUN ONE AGAIN NEXT TERM').closest('div')!)
@@ -431,9 +431,7 @@ describe('OfficerProjectsPage', () => {
     // the project list on mount, and that call is nothing to do with this.
     const madeAt = sent.findIndex((call) => call.url.includes('/officer/projects'))
     expect(madeAt).toBeGreaterThanOrEqual(0)
-    expect(
-      sent.findIndex((call) => call.url.endsWith('/links')),
-    ).toBeGreaterThan(madeAt)
+    expect(sent.findIndex((call) => call.url.endsWith('/links'))).toBeGreaterThan(madeAt)
 
     const links = sent.find((call) => call.url.endsWith('/links'))
     expect(JSON.parse(links!.body as string)).toEqual({
@@ -505,7 +503,9 @@ describe('OfficerProjectsPage', () => {
 
     await createProject()
 
-    expect(screen.getByText(/The project was created, but not all of it/)).toBeInTheDocument()
+    expect(
+      screen.getByText(/The project was created, but not all of it/),
+    ).toBeInTheDocument()
     expect(screen.getByText(/Picture 1 could not be added/)).toBeInTheDocument()
     // Still landed in the editor, which is where the retry goes.
     expect(screen.getByText('SET UP · MARS ROVER')).toBeInTheDocument()
@@ -579,9 +579,7 @@ describe('OfficerProjectsPage', () => {
       fireEvent.click(screen.getByRole('button', { name: 'DELETE IT' }))
     })
 
-    const deleted = fetchMock.mock.calls.find(
-      ([, init]) => init?.method === 'DELETE',
-    )
+    const deleted = fetchMock.mock.calls.find(([, init]) => init?.method === 'DELETE')
     expect(deleted).toBeDefined()
     expect(urlOf(deleted![0])).toContain('/projects/p-new')
 
@@ -594,9 +592,7 @@ describe('OfficerProjectsPage', () => {
     renderPage()
 
     await createProject()
-    fireEvent.click(
-      screen.getByRole('button', { name: 'FINISH — CREATE ANOTHER' }),
-    )
+    fireEvent.click(screen.getByRole('button', { name: 'FINISH — CREATE ANOTHER' }))
 
     expect(screen.getByText('CREATE A PROJECT')).toBeInTheDocument()
     expect(screen.queryByText('SET UP · MARS ROVER')).toBeNull()
@@ -616,9 +612,7 @@ describe('OfficerProjectsPage', () => {
       target: { value: 'Half a sentence' },
     })
 
-    fireEvent.click(
-      screen.getByRole('button', { name: 'FINISH — CREATE ANOTHER' }),
-    )
+    fireEvent.click(screen.getByRole('button', { name: 'FINISH — CREATE ANOTHER' }))
 
     expect(screen.getByText('Leave without saving?')).toBeInTheDocument()
     expect(screen.getByText('SET UP · MARS ROVER')).toBeInTheDocument()
@@ -627,9 +621,7 @@ describe('OfficerProjectsPage', () => {
     expect(screen.queryByText('Leave without saving?')).toBeNull()
     expect(screen.getByText('SET UP · MARS ROVER')).toBeInTheDocument()
 
-    fireEvent.click(
-      screen.getByRole('button', { name: 'FINISH — CREATE ANOTHER' }),
-    )
+    fireEvent.click(screen.getByRole('button', { name: 'FINISH — CREATE ANOTHER' }))
     fireEvent.click(screen.getByRole('button', { name: 'DISCARD THEM' }))
 
     expect(screen.getByText('CREATE A PROJECT')).toBeInTheDocument()
@@ -651,9 +643,7 @@ describe('OfficerProjectsPage', () => {
 
     await createProject()
 
-    expect(
-      screen.getByText('A project already has that slug.'),
-    ).toBeInTheDocument()
+    expect(screen.getByText('A project already has that slug.')).toBeInTheDocument()
     expect(createPanel().getByLabelText('TITLE')).toHaveValue('Mars Rover')
     expect(createPanel().getByLabelText(/SLUG/)).toHaveValue('mars-rover')
   })
@@ -703,9 +693,7 @@ describe('duplicating a project', () => {
     })
 
     await act(async () => {
-      fireEvent.click(
-        duplicatePanel().getByRole('button', { name: 'DUPLICATE IT' }),
-      )
+      fireEvent.click(duplicatePanel().getByRole('button', { name: 'DUPLICATE IT' }))
     })
 
     const call = fetchMock.mock.calls.find(([input]) =>
@@ -737,9 +725,7 @@ describe('duplicating a project', () => {
     })
 
     await act(async () => {
-      fireEvent.click(
-        duplicatePanel().getByRole('button', { name: 'DUPLICATE IT' }),
-      )
+      fireEvent.click(duplicatePanel().getByRole('button', { name: 'DUPLICATE IT' }))
     })
 
     const call = fetchMock.mock.calls.find(([input]) =>
@@ -769,14 +755,10 @@ describe('duplicating a project', () => {
     })
 
     await act(async () => {
-      fireEvent.click(
-        duplicatePanel().getByRole('button', { name: 'DUPLICATE IT' }),
-      )
+      fireEvent.click(duplicatePanel().getByRole('button', { name: 'DUPLICATE IT' }))
     })
 
-    expect(
-      screen.getByText('A project already has that slug.'),
-    ).toBeInTheDocument()
+    expect(screen.getByText('A project already has that slug.')).toBeInTheDocument()
     expect(duplicatePanel().getByLabelText(/NEW SLUG/)).toHaveValue('rover-one')
   })
 })
@@ -823,17 +805,13 @@ describe('the project Discord role', () => {
     })
 
     await act(async () => {
-      fireEvent.click(
-        duplicatePanel().getByRole('button', { name: 'DUPLICATE IT' }),
-      )
+      fireEvent.click(duplicatePanel().getByRole('button', { name: 'DUPLICATE IT' }))
     })
 
     const call = fetchMock.mock.calls.find(([input]) =>
       urlOf(input).endsWith('/duplicate'),
     )
-    expect(JSON.parse(call![1]!.body as string)).not.toHaveProperty(
-      'discordRoleId',
-    )
+    expect(JSON.parse(call![1]!.body as string)).not.toHaveProperty('discordRoleId')
   })
 
   it('sends a different role when the officer names one', async () => {
@@ -853,9 +831,7 @@ describe('the project Discord role', () => {
     })
 
     await act(async () => {
-      fireEvent.click(
-        duplicatePanel().getByRole('button', { name: 'DUPLICATE IT' }),
-      )
+      fireEvent.click(duplicatePanel().getByRole('button', { name: 'DUPLICATE IT' }))
     })
 
     const call = fetchMock.mock.calls.find(([input]) =>
@@ -881,7 +857,6 @@ describe('the project Discord role', () => {
   })
 })
 
-
 /**
  * The way into managing a project the officer isn't on.
  *
@@ -902,8 +877,7 @@ describe('reaching any project from the desk', () => {
     termSeason: term.season,
   }
 
-  const everyPanel = () =>
-    within(screen.getByText('EVERY PROJECT').closest('div')!)
+  const everyPanel = () => within(screen.getByText('EVERY PROJECT').closest('div')!)
 
   const hrefs = () =>
     everyPanel()
@@ -932,9 +906,7 @@ describe('reaching any project from the desk', () => {
     renderPage()
     await act(async () => {})
 
-    fireEvent.click(
-      everyPanel().getByRole('button', { name: 'SHOW PAST PROJECTS (1)' }),
-    )
+    fireEvent.click(everyPanel().getByRole('button', { name: 'SHOW PAST PROJECTS (1)' }))
 
     expect(hrefs()).toEqual([
       '/dashboard/projects/rover-now/manage',
@@ -944,9 +916,7 @@ describe('reaching any project from the desk', () => {
     // where every row carries the same one.
     expect(everyPanel().getByText('Spring 2034')).toBeInTheDocument()
 
-    fireEvent.click(
-      everyPanel().getByRole('button', { name: 'HIDE PAST PROJECTS' }),
-    )
+    fireEvent.click(everyPanel().getByRole('button', { name: 'HIDE PAST PROJECTS' }))
     expect(hrefs()).toEqual(['/dashboard/projects/rover-now/manage'])
   })
 
@@ -984,9 +954,7 @@ describe('reaching any project from the desk', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn((input: string | URL | Request) =>
-        urlOf(input).includes('/projects?')
-          ? json({ error: 'nope' }, 500)
-          : json({}),
+        urlOf(input).includes('/projects?') ? json({ error: 'nope' }, 500) : json({}),
       ),
     )
     renderPage()

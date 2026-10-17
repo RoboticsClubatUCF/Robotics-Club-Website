@@ -11,7 +11,7 @@ import type { WorkspaceWatch } from '../../components/slicer/SlicerWorkspace'
 import { postJson } from '../../lib/api/api'
 import { webglAvailable, type CameraView } from '../../lib/slicer/scene'
 import { flatten } from '../../lib/training/curriculum'
-import type { PracticeState } from '../../lib/training/goals'
+import { trackRotation, type PracticeState, type RotationProgress } from '../../lib/training/goals'
 import { PRACTICE_WORKSPACE } from '../../lib/training/practiceProfiles'
 import { type PartName, loadParts, modelIdOf } from '../../lib/training/practiceParts'
 import { usePracticePreview } from '../../lib/training/practiceSlices'
@@ -110,10 +110,12 @@ export function SlicerTrainingPage() {
 
   const [watched, setWatched] = useState<Watched>({ selected: [], selectSeveral: false, mode: 'move', tab: 'prepare' })
   const [camera, setCamera] = useState<CameraView | null>(null)
+  const [rotations, setRotations] = useState<RotationProgress>({})
   // Marked with the slice they were reported for: the slider of the slice before mustn't meet a
   // goal that asks to look at this one.
   const [layers, setLayers] = useState<(NonNullable<PracticeState['layers']> & { of: string | null }) | null>(null)
   const watch: WorkspaceWatch = {
+    onRotation: (change) => setRotations((before) => trackRotation(before, change)),
     onState: setWatched,
     onCamera: setCamera,
     onLayers: (reported) => {
@@ -134,6 +136,7 @@ export function SlicerTrainingPage() {
     if (target.setUp) practice.setUp(target.setUp.objects(), target.setUp.settings)
     setWatched({ selected: [], selectSeveral: false, mode: 'move', tab: 'prepare' })
     setCamera(null)
+    setRotations({})
     setLayers(null)
     setSetUpFor(target.id)
   }
@@ -162,6 +165,7 @@ export function SlicerTrainingPage() {
     sliced: practice.sliced,
     sent: practice.sent,
     bed: BED,
+    rotations,
   }
 
   const { step, chapter, chapterIndex } = here

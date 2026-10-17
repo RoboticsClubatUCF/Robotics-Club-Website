@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { useNavigate, useOutletContext, useParams } from 'react-router'
 import { ConfirmDialog } from '../../components/shared/ConfirmDialog'
 import { DiscordRoleHelp } from '../../components/shared/DiscordRoleHelp'
+import { EventCalendarCheckbox } from '../../components/shared/EventCalendarCheckbox'
 import { DuesLocked } from '../../components/dashboard/DuesLocked'
 import { duesLocked } from '../../lib/dues/dues'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
@@ -270,7 +271,7 @@ function Manage({
       <div className="grid-fluid items-start gap-5 [--col-min:30rem]">
         {rank === 'PROJECT_LEAD' ? (
           <>
-            <MembersSection teams={teams} members={members} projectId={projectId} reload={load} />
+            <MembersSection teams={teams} members={members} projectId={projectId} projectSlug={project.slug} reload={load} />
             <TeamsSection teams={teams} members={members} projectId={projectId} reload={load} />
             <EventsSection projectId={projectId} teams={teams} rank={rank} myTeamId={myTeamId} />
             <TasksSection projectId={projectId} teams={teams} members={members} rank={rank} myTeamId={myTeamId} canCreate={canCreateTasks} />
@@ -288,6 +289,8 @@ function Manage({
         ) : (
           <>
             <TeamLeadSection
+              projectId={projectId}
+              projectSlug={project.slug}
               teamId={myTeamId}
               teams={teams}
               members={members}
@@ -329,14 +332,28 @@ function MembersSection({
   teams,
   members,
   projectId,
+  projectSlug,
   reload,
 }: {
   teams: ApiProjectTeamView['teams']
   members: ApiProjectTeamMember[]
   projectId: string
+  projectSlug: string
   reload: () => Promise<void>
 }) {
   const { message, busy, run } = useSectionStatus()
+  const [pendingOnly, setPendingOnly] = useState(false)
+  const pending = members.filter((member) => !member.publiclyListed)
+  const shown = pendingOnly ? pending : members
+
+  const list = (member: ApiProjectTeamMember, publiclyListed: boolean) =>
+    run(async () => {
+      await patchJson(`/projects/${projectId}/members/${member.userId}/visibility`, {
+        publiclyListed,
+      })
+      refreshPublicRoster(projectSlug)
+      await reload()
+    })
 
   const patch = (userId: string, body: Record<string, unknown>) =>
     run(async () => {
@@ -353,39 +370,53 @@ function MembersSection({
 
   return (
     <FormPanel>
-      <p className="text-faint mb-4 font-mono text-[10px] font-medium tracking-[0.16em]">
+      <p className="mb-4 font-mono text-[10px] font-medium tracking-[0.16em] text-faint">
         MEMBERS
       </p>
+      <p className="mb-3 text-[13px] leading-[1.6] text-dim">
+        Anyone can join and get the Discord role. Approve public listing when they should
+        appear on the website. Hiding a name keeps their membership and Discord role.
+      </p>
+      <label className="mb-3 flex cursor-pointer items-center gap-2 text-[12px] text-faint">
+        <input
+          type="checkbox"
+          className="checkbox checkbox-xs"
+          checked={pendingOnly}
+          onChange={(event) => setPendingOnly(event.target.checked)}
+        />
+        Awaiting public listing only ({pending.length})
+      </label>
 
-      {members.length === 0 ? (
-        <p className="text-dim text-sm leading-[1.7]">
-          Nobody has joined yet.
+      {shown.length === 0 ? (
+        <p className="text-sm leading-[1.7] text-dim">
+          {pendingOnly
+            ? 'No members are awaiting public listing.'
+            : 'Nobody has joined yet.'}
         </p>
       ) : (
-        <ul className="divide-rule divide-y">
-          {members.map((member) => (
+        <ul className="divide-y divide-rule">
+          {shown.map((member) => (
             <li
               key={member.userId}
-              className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3"
+              className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 py-4"
             >
-              <div className="min-w-0 flex-1 basis-40">
-                <p className="truncate text-sm font-medium">{member.fullName}</p>
-                <p className="text-faint font-mono text-[10px] font-medium tracking-[0.14em] uppercase">
-                  {member.rank === 'PROJECT_LEAD'
-                    ? 'Project lead'
-                    : member.rank === 'TEAM_LEAD'
-                      ? 'Team lead'
-                      : (member.title ?? 'Member')}
-                </p>
-              </div>
+              <MemberSummary member={member} />
+
+              <ListingControl
+                member={member}
+                busy={busy}
+                onChange={(value) => void list(member, value)}
+              />
 
               {member.rank === 'PROJECT_LEAD' ? (
-                <p className="text-faint text-[12px]">Appointed by officers</p>
+                <p className="col-span-full text-[12px] text-faint">
+                  Appointed by officers
+                </p>
               ) : (
-                <>
+                <div className="col-span-full flex flex-wrap items-center gap-3">
                   <select
                     aria-label={`Team for ${member.fullName}`}
-                    className={selectClass}
+                    className={`${selectClass} min-w-0 flex-1 basis-40`}
                     disabled={busy}
                     value={member.teamId ?? ''}
                     onChange={(event) =>
@@ -426,9 +457,7 @@ function MembersSection({
                           : undefined
                       }
                       className={smallButton}
-                      onClick={() =>
-                        void patch(member.userId, { rank: 'TEAM_LEAD' })
-                      }
+                      onClick={() => void patch(member.userId, { rank: 'TEAM_LEAD' })}
                     >
                       MAKE TEAM LEAD
                     </button>
@@ -442,14 +471,14 @@ function MembersSection({
                   >
                     REMOVE
                   </button>
-                </>
+                </div>
               )}
             </li>
           ))}
         </ul>
       )}
 
-      <p role="status" className="text-error mt-2 min-h-4 text-[12px]">
+      <p role="status" className="mt-2 min-h-4 text-[12px] text-error">
         {message}
       </p>
     </FormPanel>
@@ -457,6 +486,59 @@ function MembersSection({
 }
 
 // ------------------------------------------------------------------- teams
+
+/** Replace the browser's public detail cache after granting or withdrawing listing.
+ * A refresh failure does not undo the saved decision; the private roster still reloads. */
+function refreshPublicRoster(slug: string) {
+  void getJson(`/projects/${slug}`, undefined, true).catch((error: unknown) => {
+    console.error('Could not refresh the public roster', error)
+  })
+}
+
+function MemberSummary({ member }: { member: ApiProjectTeamMember }) {
+  return (
+    <div className="min-w-0 flex-1 basis-40">
+      <p className="truncate text-sm font-medium">{member.fullName}</p>
+      <p className="flex flex-wrap items-center gap-x-2 text-faint">
+        <span className="font-mono text-[10px] font-medium tracking-[0.14em] uppercase">
+          {member.rank === 'PROJECT_LEAD'
+            ? 'Project lead'
+            : member.rank === 'TEAM_LEAD'
+              ? 'Team lead'
+              : (member.title ?? 'Member')}
+        </span>
+        <span aria-hidden="true" className="text-[11px]">
+          |
+        </span>
+        <span className={`text-[11px] ${member.publiclyListed ? '' : 'text-primary'}`}>
+          {member.publiclyListed ? 'Listed on website' : 'Awaiting public listing'}
+        </span>
+      </p>
+    </div>
+  )
+}
+
+function ListingControl({
+  member,
+  busy,
+  onChange,
+}: {
+  member: ApiProjectTeamMember
+  busy: boolean
+  onChange: (publiclyListed: boolean) => void
+}) {
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      className={smallButton}
+      aria-label={`${member.publiclyListed ? 'Hide' : 'Approve'} ${member.fullName} ${member.publiclyListed ? 'on' : 'for'} public website`}
+      onClick={() => onChange(!member.publiclyListed)}
+    >
+      {member.publiclyListed ? 'HIDE FROM WEBSITE' : 'APPROVE PUBLIC LISTING'}
+    </button>
+  )
+}
 
 function TeamsSection({
   teams,
@@ -725,6 +807,9 @@ function EventsSection({
     event.createdById === user.id ||
     (event.teamId !== null && event.teamId === myTeamId)
 
+  const canPublish = rank === 'PROJECT_LEAD' ||
+    (myTeamId !== null && (!editing || editing.teamId === myTeamId))
+
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const form = event.currentTarget
@@ -750,13 +835,16 @@ function EventsSection({
       return
     }
 
-    const teamValue = text('team')
+    // Disabled selects are omitted by FormData. A team lead's pinned team
+    // must come from their membership rather than the disabled picker.
+    const teamValue = rank === 'TEAM_LEAD' ? myTeamId : text('team')
 
     const body = {
       title: text('title'),
       type: text('type') as EventType,
       location: text('location') || null,
       ...instants,
+      ...(canPublish ? { published: data.get('published') === 'on' } : {}),
     }
 
     void run(async () => {
@@ -801,7 +889,7 @@ function EventsSection({
         </p>
       ) : events.length === 0 ? (
         <p className="text-dim mb-4 text-sm leading-[1.7]">
-          Nothing scheduled yet. Events made here are not public.
+          Nothing scheduled yet. Check “Show on the main calendar” to make an event public.
         </p>
       ) : (
         <ul className="divide-rule mb-5 divide-y">
@@ -816,6 +904,8 @@ function EventsSection({
                   {listedWhen(event)}
                   {' · '}
                   {teamName(event.teamId).toUpperCase()}
+                  {' · '}
+                  {event.published ? 'MAIN CALENDAR' : 'PROJECT ONLY'}
                 </p>
               </div>
               {canTouch(event) && (
@@ -995,6 +1085,10 @@ function EventsSection({
         >
           Leave the end date empty for a one-day event.
         </p>
+
+        {canPublish && (
+          <EventCalendarCheckbox published={editing?.published} disabled={busy} />
+        )}
 
         <div className="flex items-center gap-3">
           <button
@@ -2002,11 +2096,15 @@ function DangerSection({
  * server refuses everything outside exactly this.
  */
 function TeamLeadSection({
+  projectId,
+  projectSlug,
   teamId,
   teams,
   members,
   reload,
 }: {
+  projectId: string
+  projectSlug: string
   teamId: string | null
   teams: ApiProjectTeamView['teams']
   members: ApiProjectTeamMember[]
@@ -2017,7 +2115,7 @@ function TeamLeadSection({
   if (!teamId) {
     return (
       <FormPanel>
-        <p className="text-dim text-sm leading-[1.7] text-pretty">
+        <p className="text-sm leading-[1.7] text-pretty text-dim">
           You hold the team-lead rank but no team.
         </p>
       </FormPanel>
@@ -2026,9 +2124,7 @@ function TeamLeadSection({
 
   const team = teams.find((t) => t.id === teamId)
   const onTeam = members.filter((m) => m.teamId === teamId)
-  const available = members.filter(
-    (m) => m.teamId === null && m.rank === 'MEMBER',
-  )
+  const available = members.filter((m) => m.teamId === null && m.rank === 'MEMBER')
 
   const move = (userId: string, direction: 'add' | 'remove') =>
     run(async () => {
@@ -2040,54 +2136,73 @@ function TeamLeadSection({
       await reload()
     })
 
+  const list = (member: ApiProjectTeamMember, publiclyListed: boolean) =>
+    run(async () => {
+      await patchJson(`/projects/${projectId}/members/${member.userId}/visibility`, {
+        publiclyListed,
+      })
+      refreshPublicRoster(projectSlug)
+      await reload()
+    })
+
   return (
     <>
       <FormPanel>
-        <p className="text-faint mb-4 font-mono text-[10px] font-medium tracking-[0.16em] uppercase">
+        <p className="mb-4 font-mono text-[10px] font-medium tracking-[0.16em] text-faint uppercase">
           {team ? `YOUR TEAM — ${team.name}` : 'YOUR TEAM'}
+        </p>
+        <p className="mb-3 text-[13px] leading-[1.6] text-dim">
+          Approve public website listing for members of your team. Joining and the Discord
+          role stay open to everyone. Add an unassigned member to your team first.
         </p>
 
         {onTeam.length === 0 ? (
-          <p className="text-dim text-sm leading-[1.7]">Nobody here yet.</p>
+          <p className="text-sm leading-[1.7] text-dim">Nobody here yet.</p>
         ) : (
-          <ul className="divide-rule divide-y">
+          <ul className="divide-y divide-rule">
             {onTeam.map((member) => (
               <li
                 key={member.userId}
-                className="flex items-center justify-between gap-4 py-2.5"
+                className="flex flex-wrap items-center justify-between gap-4 py-2.5"
               >
-                <span className="text-sm font-medium">{member.fullName}</span>
-                {member.rank === 'MEMBER' ? (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    className={dangerButton}
-                    onClick={() => void move(member.userId, 'remove')}
-                  >
-                    REMOVE
-                  </button>
-                ) : (
-                  <span className="text-faint font-mono text-[10px] tracking-[0.14em]">
-                    {member.rank === 'PROJECT_LEAD' ? 'PROJECT LEAD' : 'TEAM LEAD'}
-                  </span>
+                <MemberSummary member={member} />
+                {member.rank === 'MEMBER' && (
+                  <>
+                    <ListingControl
+                      member={member}
+                      busy={busy}
+                      onChange={(value) => void list(member, value)}
+                    />
+                    <button
+                      type="button"
+                      disabled={busy}
+                      className={dangerButton}
+                      onClick={() => void move(member.userId, 'remove')}
+                    >
+                      REMOVE
+                    </button>
+                  </>
                 )}
               </li>
             ))}
           </ul>
         )}
+        <p role="status" className="mt-2 min-h-4 text-[12px] text-error">
+          {message}
+        </p>
       </FormPanel>
 
       <FormPanel>
-        <p className="text-faint mb-4 font-mono text-[10px] font-medium tracking-[0.16em]">
+        <p className="mb-4 font-mono text-[10px] font-medium tracking-[0.16em] text-faint">
           NOT ON A TEAM YET
         </p>
 
         {available.length === 0 ? (
-          <p className="text-dim text-sm leading-[1.7] text-pretty">
+          <p className="text-sm leading-[1.7] text-pretty text-dim">
             Everyone on the project is already seated.
           </p>
         ) : (
-          <ul className="divide-rule divide-y">
+          <ul className="divide-y divide-rule">
             {available.map((member) => (
               <li
                 key={member.userId}
@@ -2107,7 +2222,7 @@ function TeamLeadSection({
           </ul>
         )}
 
-        <p role="status" className="text-error mt-2 min-h-4 text-[12px]">
+        <p role="status" className="mt-2 min-h-4 text-[12px] text-error">
           {message}
         </p>
       </FormPanel>

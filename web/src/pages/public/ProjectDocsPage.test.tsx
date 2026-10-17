@@ -12,6 +12,7 @@ const document = (
   title: 'Design review',
   description: null,
   authorName: 'Ada Lovelace',
+  authors: [{ id: 'credit-ada', name: 'Ada Lovelace' }],
   fileId: 'f1',
   fileName: 'design-review.pdf',
   fileSize: 240_000,

@@ -155,6 +155,9 @@ export function TeamEditor({
               >
                 <div className="min-w-0 flex-1 basis-40">
                   <p className="truncate text-sm font-medium">{member.fullName}</p>
+                  {member.publiclyListed === false && (
+                    <p className="text-[11px] text-primary">Awaiting public listing</p>
+                  )}
                   {rank && (
                     <p className="font-mono text-[10px] font-medium tracking-[0.14em] text-faint">
                       {rank}
@@ -185,7 +188,8 @@ export function TeamEditor({
 
       <p className="mt-3 text-[11px] leading-[1.5] text-pretty text-faint">
         Printed beside the name on the public page. Lead and officer titles need the
-        matching role, which is set on the roles desk and the manage page.
+        matching role, which is set on the roles desk and the manage page. Public listing
+        is approved separately on the project’s manage page.
       </p>
     </section>
   )

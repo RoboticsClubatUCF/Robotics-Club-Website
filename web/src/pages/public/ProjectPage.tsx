@@ -14,7 +14,7 @@ import type {
   ApiUser,
   ProjectMemberRank,
 } from '../../lib/api/api'
-import { LOCK_COPY, accessLock, coverGap } from '../../lib/dues/dues'
+import { LOCK_COPY, accessLock } from '../../lib/dues/dues'
 import {
   canEditProject,
   editingAsOfficer,
@@ -29,11 +29,8 @@ import { useApi } from '../../lib/api/useApi'
 /**
  * `/projects/:slug` — one project's public profile.
  *
- * Reachable signed out on purpose: a guest deciding whether to pay dues should be
- * able to read what they'd be joining. The join panel below the fold is where the
- * gate lives — signed out it points at signing in, unpaid at the dues page, and only
- * a covered member gets the button. The server re-checks all three, so the panel is
- * honesty rather than enforcement.
+ * Anyone with an account can join and receive the Discord crew role. Public
+ * roster listing is granted separately by an officer or the project's leads.
  */
 export function ProjectPage() {
   const { slug = '' } = useParams()
@@ -79,7 +76,7 @@ export function ProjectPage() {
       <div className="mx-auto w-full max-w-[46rem]">
         <Link
           to="/projects"
-          className="text-faint hover:text-primary mb-8 inline-block font-mono text-[11px] font-medium tracking-[0.14em] transition-colors duration-200"
+          className="mb-8 inline-block font-mono text-[11px] font-medium tracking-[0.14em] text-faint transition-colors duration-200 hover:text-primary"
         >
           ‹ ALL PROJECTS
         </Link>
@@ -92,9 +89,8 @@ export function ProjectPage() {
               <FormEyebrow>/ PROJECT</FormEyebrow>
               <FormHeading>There is no project here.</FormHeading>
               <FormPanel>
-                <p className="text-dim text-sm leading-[1.7] text-pretty">
-                  Either the link is wrong or the project has been taken
-                  down.
+                <p className="text-sm leading-[1.7] text-pretty text-dim">
+                  Either the link is wrong or the project has been taken down.
                 </p>
               </FormPanel>
             </>
@@ -103,7 +99,7 @@ export function ProjectPage() {
               <FormEyebrow>/ PROJECT</FormEyebrow>
               <FormHeading>We can't reach the server.</FormHeading>
               <FormPanel tone="accent">
-                <p className="text-dim text-sm leading-[1.7] text-pretty">
+                <p className="text-sm leading-[1.7] text-pretty text-dim">
                   This page couldn't load it. Try again in a moment.
                 </p>
               </FormPanel>
@@ -216,7 +212,7 @@ function ProjectBody({
           now that it saves once at the bottom, the exit belongs with the button it's
           the alternative to. */}
       <div className="mb-5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
-        <p className="text-faint font-mono text-[13px] font-bold tracking-[0.2em]">
+        <p className="font-mono text-[13px] font-bold tracking-[0.2em] text-faint">
           / PROJECT
         </p>
         {signedIn && !editing && (
@@ -232,7 +228,7 @@ function ProjectBody({
 
       <FormHeading>{project.title}</FormHeading>
 
-      <p className="text-faint mb-6 font-mono text-[11px] font-medium tracking-[0.14em]">
+      <p className="mb-6 font-mono text-[11px] font-medium tracking-[0.14em] text-faint">
         {meta}
         {project.competition && (
           <>
@@ -291,7 +287,7 @@ function ReadView({
 
       <ProjectProse
         description={project.description}
-        className="text-dim mt-5 text-sm leading-[1.7] text-pretty"
+        className="mt-5 text-sm leading-[1.7] text-pretty text-dim"
       />
 
       <Resources project={project} />
@@ -308,7 +304,7 @@ function ReadView({
         </p>
 
         {project.members.length === 0 ? (
-          <p className="text-faint border-rule border-t py-5 text-sm">
+          <p className="border-t border-rule py-5 text-sm text-faint">
             Nobody is listed on this project yet.
           </p>
         ) : (
@@ -378,9 +374,7 @@ function EditAffordance({
   // dashboard gets the unwrapped form from its layout context, this page doesn't. It
   // also handles the ADMIN exemption and "not ready reads as unlocked".
   const locked = accessLock(
-    dues.status === 'ready'
-      ? { status: 'ready', data: dues.data.membership }
-      : dues,
+    dues.status === 'ready' ? { status: 'ready', data: dues.data.membership } : dues,
     user.role,
   )
 
@@ -392,7 +386,7 @@ function EditAffordance({
         <span className="text-faint">{LOCK_COPY[locked].short}</span>
         <Link
           to="/dashboard/dues"
-          className="text-primary hover:underline underline-offset-2"
+          className="text-primary underline-offset-2 hover:underline"
         >
           {LOCK_COPY[locked].cta} ›
         </Link>
@@ -404,7 +398,7 @@ function EditAffordance({
     <button
       type="button"
       onClick={onEdit}
-      className="border-rule text-faint hover:border-primary hover:text-primary cursor-pointer border px-3 py-1.5 font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200"
+      className="cursor-pointer border border-rule px-3 py-1.5 font-mono text-[10px] font-medium tracking-[0.14em] text-faint transition-colors duration-200 hover:border-primary hover:text-primary"
     >
       EDIT PAGE
     </button>
@@ -454,13 +448,13 @@ function Resources({ project }: { project: ApiProjectDetail }) {
         / {project.resourcesHeading ?? 'RESOURCES'}
       </p>
 
-      <ul className="border-rule divide-rule divide-y border">
+      <ul className="divide-y divide-rule border border-rule">
         {rows.map((row) => (
           <li key={row.id}>
             {'to' in row ? (
               <Link to={row.to} className={rowClass}>
                 <span className="text-sm font-medium">{row.label}</span>
-                <span className="text-faint font-mono text-[11px] font-medium tracking-[0.06em]">
+                <span className="font-mono text-[11px] font-medium tracking-[0.06em] text-faint">
                   {row.note}
                 </span>
               </Link>
@@ -475,7 +469,7 @@ function Resources({ project }: { project: ApiProjectDetail }) {
                 {/* The bare host, not the whole URL: a reader is deciding whether they
                     trust where this goes, and a 90-character Notion link wrapping onto
                     three lines answers that worse than "notion.so" does. */}
-                <span className="text-faint font-mono text-[11px] font-medium tracking-[0.06em]">
+                <span className="font-mono text-[11px] font-medium tracking-[0.06em] text-faint">
                   {hostOf(row.url)} ↗
                 </span>
               </a>
@@ -508,7 +502,7 @@ function hostOf(url: string): string {
 }
 
 /**
- * The join gate, in its three honest states. Not rendered at all for a project that
+ * Joining is open to any signed-in account. Not rendered at all for a project that
  * isn't running — a join button on an archived project is an invitation to a room with
  * the lights off.
  */
@@ -538,16 +532,17 @@ function JoinPanel({
   return (
     <FormPanel tone="accent">
       <div className="mt-0">
-        <p className="text-faint mb-2 font-mono text-[10px] font-medium tracking-[0.16em]">
+        <p className="mb-2 font-mono text-[10px] font-medium tracking-[0.16em] text-faint">
           JOIN THIS PROJECT
         </p>
-        <p className="text-dim mb-4 text-sm leading-[1.7] text-pretty">
-          Members with paid dues can join. Sign in, or make an account.
+        <p className="mb-4 text-sm leading-[1.7] text-pretty text-dim">
+          Anyone can join. Sign in, or make an account, to get the project’s Discord role.
+          Public website listing needs approval from an officer or a lead.
         </p>
         <Link
           to="/login"
           state={{ from: location.pathname }}
-          className="btn btn-primary btn-cta px-6 py-3 text-[13px] font-semibold"
+          className="btn btn-cta px-6 py-3 text-[13px] font-semibold btn-primary"
         >
           SIGN IN TO JOIN
         </Link>
@@ -558,16 +553,14 @@ function JoinPanel({
 
 function JoinAction({
   project,
-  signedIn: { dues, mine },
+  signedIn: { mine },
   reload,
 }: {
   project: ApiProjectDetail
   signedIn: SignedIn
   /**
-   * Joining and leaving both change `/ THE TEAM` directly above this panel, and that
-   * list is part of the project read rather than anything this panel holds. Without a
-   * refetch the roster somebody has just put their name on still doesn't carry it,
-   * which reads as the join not having worked.
+   * Keep the public roster fresh when membership changes. New joins stay unlisted;
+   * leaving removes any previously approved listing.
    *
    * `fresh`, because `/projects/:slug` is public and answers `max-age=60`, so the read
    * taken a second after the write comes back from the cache with the pre-join copy.
@@ -587,13 +580,13 @@ function JoinAction({
      * The join route returns `{ projectId, rank }` for exactly this, so nothing here
      * assumes a new member lands on `MEMBER`.
      */
-    | { status: 'joined'; rank: ProjectMemberRank }
+    | { status: 'joined'; rank: ProjectMemberRank; publiclyListed: boolean }
     /** Left just now, so `/me/projects` still says otherwise. */
     | { status: 'left' }
     | { status: 'failed'; message: string }
   >({ status: 'idle' })
 
-  if (dues.status === 'loading' || mine.status === 'loading') {
+  if (mine.status === 'loading') {
     return <div aria-busy="true" className="mt-10 h-24 border border-rule bg-base-200" />
   }
 
@@ -602,8 +595,7 @@ function JoinAction({
   const alreadyOn =
     state.status !== 'left' &&
     (state.status === 'joined' ||
-      (mine.status === 'ready' &&
-        mine.data.some((m) => m.project.id === project.id)))
+      (mine.status === 'ready' && mine.data.some((m) => m.project.id === project.id)))
 
   if (alreadyOn) {
     // The join's own answer first, for the reason `alreadyOn` prefers `state`: the
@@ -612,10 +604,15 @@ function JoinAction({
       state.status === 'joined'
         ? state.rank
         : rankOn(mine.status === 'ready' ? mine.data : null, project.id)
+    const publiclyListed =
+      state.status === 'joined'
+        ? state.publiclyListed
+        : mine.status === 'ready' &&
+          mine.data.find((row) => row.project.id === project.id)?.publiclyListed
 
     return (
       <FormPanel tone="accent">
-        <p className="text-dim text-sm leading-[1.7] text-pretty">
+        <p className="text-sm leading-[1.7] text-pretty text-dim">
           You're on this project.{' '}
           <Link
             to={`/dashboard/projects/${project.slug}`}
@@ -625,6 +622,14 @@ function JoinAction({
           </Link>
           .
         </p>
+
+        {publiclyListed === false && (
+          <p className="mt-2 text-[13px] leading-[1.6] text-faint">
+            Your public website listing is awaiting approval from an officer, project
+            lead, or your team lead. You can take part and receive the project’s Discord
+            role now.
+          </p>
+        )}
 
         {/* Leaving is offered here as well as on the dashboard, because this is where
             somebody who has decided a project isn't for them actually is. Absent only
@@ -638,14 +643,13 @@ function JoinAction({
               rank={rank}
               teamName={
                 mine.status === 'ready'
-                  ? (mine.data.find((row) => row.project.id === project.id)?.team
-                      ?.name ?? null)
+                  ? (mine.data.find((row) => row.project.id === project.id)?.team?.name ??
+                    null)
                   : null
               }
               onLeft={() => {
                 // The panel goes back to the join gate, and the roster above has to
-                // lose the name in the same beat — leaving a project and still being
-                // listed on it is the same lie as joining one and not being.
+                // lose any approved public listing in the same beat.
                 setState({ status: 'left' })
                 void reload(true)
               }}
@@ -656,45 +660,18 @@ function JoinAction({
     )
   }
 
-  // If the dues read failed there's no way to promise the join will pass the gate —
-  // send them via the dues page, which can explain properly.
-  const gap =
-    dues.status === 'error' ? 'newcomer' : coverGap(dues.data.membership)
-
-  if (gap) {
-    return (
-      <FormPanel tone="accent">
-        <p className="text-faint mb-2 font-mono text-[10px] font-medium tracking-[0.16em]">
-          JOIN THIS PROJECT
-        </p>
-        {/* Three reasons, three sentences, matching the 403 this route would answer
-            with. It used to say "settle your dues" whatever the reason, which inside a
-            free window is telling somebody to pay for a thing that's free. */}
-        <p className="text-dim mb-4 text-sm leading-[1.7] text-pretty">
-          {gap === 'claim'
-            ? 'Joining needs a current membership, and yours is free to switch on right now. One press, no card.'
-            : gap === 'dues'
-              ? 'Joining a project needs current dues. Settle them and come straight back.'
-              : 'Joining a project is for paid-up members.'}
-        </p>
-        <Link
-          to="/dashboard/dues"
-          className="btn btn-primary btn-cta px-6 py-3 text-[13px] font-semibold"
-        >
-          {LOCK_COPY[gap].cta}
-        </Link>
-      </FormPanel>
-    )
-  }
-
   const join = () => {
     setState({ status: 'joining' })
-    postJson<{ projectId: string; rank: ProjectMemberRank }>(
+    postJson<{ projectId: string; rank: ProjectMemberRank; publiclyListed: boolean }>(
       `/projects/${project.id}/join`,
       {},
     )
       .then((membership) => {
-        setState({ status: 'joined', rank: membership.rank })
+        setState({
+          status: 'joined',
+          rank: membership.rank,
+          publiclyListed: membership.publiclyListed,
+        })
         // The panel answers from `state` either way, so the roster is what this is for.
         // Not awaited: the panel has already flipped, and a slow read must not leave
         // the button spinning.
@@ -713,22 +690,22 @@ function JoinAction({
 
   return (
     <FormPanel tone="accent">
-      <p className="text-faint mb-2 font-mono text-[10px] font-medium tracking-[0.16em]">
+      <p className="mb-2 font-mono text-[10px] font-medium tracking-[0.16em] text-faint">
         JOIN THIS PROJECT
       </p>
-      <p className="text-dim mb-4 text-sm leading-[1.7] text-pretty">
-        Your membership covers this. Joining puts you on the roster; showing up
-        does the rest.
+      <p className="mb-4 text-sm leading-[1.7] text-pretty text-dim">
+        Join to take part and receive the project’s Discord role. An officer, project
+        lead, or your team lead must approve your name for the public website roster.
       </p>
       <button
         type="button"
         onClick={join}
         disabled={state.status === 'joining'}
-        className="btn btn-primary btn-cta px-6 py-3 text-[13px] font-semibold disabled:opacity-60"
+        className="btn btn-cta px-6 py-3 text-[13px] font-semibold btn-primary disabled:opacity-60"
       >
         {state.status === 'joining' ? 'JOINING…' : 'JOIN THIS PROJECT'}
       </button>
-      <p role="status" className="text-error mt-2 min-h-4 text-[12px]">
+      <p role="status" className="mt-2 min-h-4 text-[12px] text-error">
         {state.status === 'failed' ? state.message : ''}
       </p>
     </FormPanel>
@@ -739,16 +716,16 @@ function JoinAction({
 function ProjectSkeleton() {
   return (
     <div aria-busy="true">
-      <div className="bg-base-300 h-3 w-24 animate-pulse rounded-[2px]" />
-      <div className="bg-base-300 mt-6 h-9 w-72 max-w-full animate-pulse rounded-[2px]" />
-      <div className="bg-base-300 mt-5 h-3 w-48 animate-pulse rounded-[2px]" />
+      <div className="h-3 w-24 animate-pulse rounded-[2px] bg-base-300" />
+      <div className="mt-6 h-9 w-72 max-w-full animate-pulse rounded-[2px] bg-base-300" />
+      <div className="mt-5 h-3 w-48 animate-pulse rounded-[2px] bg-base-300" />
       {/* Same aspect ratio as the gallery frame, so the page doesn't jump the moment
           the pictures land. */}
-      <div className="bg-base-300 mt-6 aspect-[16/10] w-full animate-pulse rounded-[2px]" />
+      <div className="mt-6 aspect-[16/10] w-full animate-pulse rounded-[2px] bg-base-300" />
       <div className="mt-8 space-y-2.5">
-        <div className="bg-base-300 h-3 w-full animate-pulse rounded-[2px]" />
-        <div className="bg-base-300 h-3 w-11/12 animate-pulse rounded-[2px]" />
-        <div className="bg-base-300 h-3 w-4/5 animate-pulse rounded-[2px]" />
+        <div className="h-3 w-full animate-pulse rounded-[2px] bg-base-300" />
+        <div className="h-3 w-11/12 animate-pulse rounded-[2px] bg-base-300" />
+        <div className="h-3 w-4/5 animate-pulse rounded-[2px] bg-base-300" />
       </div>
     </div>
   )

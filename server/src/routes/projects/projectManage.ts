@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
-import { titleField, validate, webUrl } from '../../core/validate.js'
+import { refusal, titleField, validate, webUrl } from '../../core/validate.js'
 import {
   isOfficer,
   membershipOf,
@@ -69,7 +69,7 @@ import { managedProjectSelect } from '../officer/officer.js'
  * Everything that happens inside a project: joining it, running it, and the teams
  * within it.
  *
- *   POST   /api/projects/:id/join                  -> join, dues willing
+ *   POST   /api/projects/:id/join                  -> join, without public listing
  *   DELETE /api/projects/:id/members/me            -> leave
  *   GET    /api/projects/:id/team                  -> teams + members, for members
  *   PATCH  /api/projects/:id                       -> edit (project lead)
@@ -92,6 +92,7 @@ import { managedProjectSelect } from '../officer/officer.js'
  *   PATCH  /api/teams/:teamId                      -> rename a team (project lead)
  *   DELETE /api/teams/:teamId                      -> delete a team (project lead)
  *   PATCH  /api/projects/:id/members/:userId       -> team / rank / title (project lead)
+ *   PATCH  /api/projects/:id/members/:userId/visibility -> public listing (officer / lead)
  *   DELETE /api/projects/:id/members/:userId       -> remove someone (project lead)
  *   POST   /api/teams/:teamId/members/:userId      -> pull onto the team (team lead)
  *   DELETE /api/teams/:teamId/members/:userId      -> take off the team (team lead)
@@ -111,8 +112,7 @@ export const projectManage = new Hono<AuthEnv>()
 const joins = rateLimit('join', 10)
 const writes = rateLimit('manage', 60)
 
-const noSuchProject = () =>
-  new HTTPException(404, { message: 'No such project' })
+const noSuchProject = () => new HTTPException(404, { message: 'No such project' })
 
 async function getProject(id: string) {
   const project = await prisma.project.findUnique({ where: { id } })
@@ -128,43 +128,31 @@ async function getTeam(teamId: string) {
 
 // ------------------------------------------------------------------ joining
 
-projectManage.post(
-  '/projects/:id/join',
-  originGuard,
-  requireAuth,
-  joins,
-  async (c) => {
-    const user = c.get('user')
-    const project = await getProject(c.req.param('id'))
+projectManage.post('/projects/:id/join', originGuard, requireAuth, joins, async (c) => {
+  const user = c.get('user')
+  const project = await getProject(c.req.param('id'))
 
-    if (project.status !== ProjectStatus.IN_PROGRESS) {
-      throw new HTTPException(409, {
-        message: 'This project is not taking new members.',
-      })
-    }
-
-    // The dues gate, and literally the same one as everywhere else rather than a
-    // second copy. This used to read `hasAccess` and throw its own sentence, which
-    // was fine while "no cover" meant one thing and wrong the moment it meant three:
-    // during a free window it told somebody to settle dues they didn't owe.
-    await requireCurrentDues(user)
-
-    if (await membershipOf(user.id, project.id)) {
-      throw new HTTPException(409, {
-        message: 'You are already on this project.',
-      })
-    }
-
-    const membership = await prisma.projectMember.create({
-      data: { projectId: project.id, userId: user.id },
-      select: { projectId: true, rank: true },
+  if (project.status !== ProjectStatus.IN_PROGRESS) {
+    throw new HTTPException(409, {
+      message: 'This project is not taking new members.',
     })
+  }
 
-    pushRoles(user.id, `joined ${project.title}`)
+  if (await membershipOf(user.id, project.id)) {
+    throw new HTTPException(409, {
+      message: 'You are already on this project.',
+    })
+  }
 
-    return c.json(membership, 201)
-  },
-)
+  const membership = await prisma.projectMember.create({
+    data: { projectId: project.id, userId: user.id },
+    select: { projectId: true, rank: true, publiclyListed: true },
+  })
+
+  pushRoles(user.id, `joined ${project.title}`)
+
+  return c.json(membership, 201)
+})
 
 /**
  * Leaving. Nobody is locked into a project, including its leads.
@@ -261,6 +249,7 @@ projectManage.get('/projects/:id/team', requireAuth, async (c) => {
         userId: true,
         title: true,
         rank: true,
+        publiclyListed: true,
         teamId: true,
         user: { select: { fullName: true, photoUrl: true } },
       },
@@ -442,8 +431,7 @@ projectManage.patch(
     // lead owns the schedule; the front page isn't theirs to put it on.
     if (patch.meetingsPublic !== undefined && !isOfficer(user)) {
       throw new HTTPException(403, {
-        message:
-          'Only officers can put a project on the public calendar.',
+        message: 'Only officers can put a project on the public calendar.',
       })
     }
 
@@ -757,9 +745,7 @@ export const framingFromBody = (body: Record<string, unknown>) => {
     const raw = body[name]
     if (typeof raw !== 'string' || raw.trim() === '') return undefined
     const value = Number(raw)
-    return Number.isFinite(value) && value >= min && value <= max
-      ? value
-      : undefined
+    return Number.isFinite(value) && value >= min && value <= max ? value : undefined
   }
 
   return {
@@ -892,8 +878,7 @@ projectManage.post(
     const bytes = new Uint8Array(await file.arrayBuffer())
     if (!looksLikeImage(bytes)) {
       throw new HTTPException(400, {
-        message:
-          'That file is not an image the site can show. PNG, JPEG, GIF or WebP.',
+        message: 'That file is not an image the site can show. PNG, JPEG, GIF or WebP.',
       })
     }
 
@@ -939,10 +924,7 @@ projectManage.patch(
   originGuard,
   requireAuth,
   writes,
-  validate(
-    'json',
-    z.object({ ids: z.array(z.uuid()).min(1).max(MAX_PROJECT_IMAGES) }),
-  ),
+  validate('json', z.object({ ids: z.array(z.uuid()).min(1).max(MAX_PROJECT_IMAGES) })),
   async (c) => {
     const project = await getProject(c.req.param('id'))
     await requireProjectLead(c.get('user'), project.id)
@@ -1108,8 +1090,7 @@ const documentLimit = bodyLimit({
 const WRONG_DOCUMENT =
   'That is not a document the site can publish. PDF or DOCX, and the file has to actually be one.'
 
-const NOT_ON_THE_PROJECT =
-  'Credit somebody who is on this project, or credit yourself.'
+const NOT_ON_THE_PROJECT = 'Credit somebody who is on this project, or credit yourself.'
 
 /**
  * The wire shape, and the one place it's decided — `routes/public/content.ts` serves
@@ -1124,7 +1105,10 @@ export const documentSelect = {
   id: true,
   title: true,
   description: true,
-  authorName: true,
+  authors: {
+    orderBy: { position: 'asc' },
+    select: { id: true, name: true },
+  },
   uploadedAt: true,
   updatedAt: true,
   file: { select: { id: true, originalName: true, byteSize: true } },
@@ -1134,7 +1118,7 @@ export const wireDocument = (row: {
   id: string
   title: string
   description: string | null
-  authorName: string
+  authors: { id: string; name: string }[]
   uploadedAt: Date
   updatedAt: Date
   file: { id: string; originalName: string; byteSize: number }
@@ -1142,7 +1126,9 @@ export const wireDocument = (row: {
   id: row.id,
   title: row.title,
   description: row.description,
-  authorName: row.authorName,
+  authors: row.authors,
+  // Kept as a display byline for existing readers of the public API.
+  authorName: row.authors.map((author) => author.name).join(', '),
   uploadedAt: row.uploadedAt,
   updatedAt: row.updatedAt,
   fileId: row.file.id,
@@ -1150,11 +1136,24 @@ export const wireDocument = (row: {
   fileSize: row.file.byteSize,
 })
 
-const documentBody = z.object({
-  title: z.string().trim().min(1).max(120).optional(),
-  description: z.string().trim().max(500).nullable().optional(),
-  authorUserId: z.uuid().optional(),
-})
+const documentAuthor = z.union([
+  z.strictObject({ id: z.uuid() }),
+  z.strictObject({ userId: z.uuid() }),
+  z.strictObject({ name: z.string().trim().min(1).max(120) }),
+])
+const documentAuthors = z.array(documentAuthor).min(1).max(20)
+
+const documentBody = z
+  .object({
+    title: z.string().trim().min(1).max(120).optional(),
+    description: z.string().trim().max(500).nullable().optional(),
+    authors: documentAuthors.optional(),
+    // Older clients can still send one project member.
+    authorUserId: z.uuid().optional(),
+  })
+  .refine((body) => body.authors === undefined || body.authorUserId === undefined, {
+    message: 'Send one author list.',
+  })
 
 /** Refuses once the page is full, and says the number rather than "too many". */
 async function assertDocumentRoom(projectId: string) {
@@ -1174,6 +1173,7 @@ async function assertDocumentRoom(projectId: string) {
 async function getDocument(projectId: string, documentId: string) {
   const document = await prisma.projectDocument.findFirst({
     where: { id: documentId, projectId },
+    include: { authors: true },
   })
   if (!document) throw new HTTPException(404, { message: 'No such document' })
   return document
@@ -1182,10 +1182,8 @@ async function getDocument(projectId: string, documentId: string) {
 /**
  * Who to credit, and the name to freeze onto the row.
  *
- * The author is somebody on the project — a lead publishes the write-up a member spent
- * a term on — or whoever is uploading, which is the case that matters for an officer
- * editing a project they're not a member of. Anything else is refused: a credit naming
- * a stranger isn't a credit.
+ * Account selections are project members or the editor. Former members can instead
+ * be credited by name, without adding them to the roster or creating an account.
  *
  * The name is copied rather than read through the relation at display time, exactly as
  * `OfficerTerm` copies `fullName`. Somebody who graduates and deletes their account
@@ -1195,9 +1193,9 @@ async function credit(
   projectId: string,
   user: SessionUser,
   authorUserId: string,
-): Promise<{ authorId: string; authorName: string }> {
+): Promise<{ userId: string; name: string }> {
   if (authorUserId === user.id) {
-    return { authorId: user.id, authorName: user.fullName }
+    return { userId: user.id, name: user.fullName }
   }
 
   const member = await prisma.projectMember.findUnique({
@@ -1207,7 +1205,70 @@ async function credit(
 
   if (!member) throw new HTTPException(400, { message: NOT_ON_THE_PROJECT })
 
-  return { authorId: member.user.id, authorName: member.user.fullName }
+  return { userId: member.user.id, name: member.user.fullName }
+}
+
+type DocumentCredit = { id: string; userId: string | null; name: string }
+
+async function credits(
+  projectId: string,
+  user: SessionUser,
+  authors: z.infer<typeof documentAuthors>,
+  saved: DocumentCredit[] = [],
+) {
+  const seen = new Set<string>()
+  const result: { id?: string; userId: string | null; name: string; position: number }[] =
+    []
+
+  for (const [position, author] of authors.entries()) {
+    let resolved: { id?: string; userId: string | null; name: string }
+    if ('id' in author) {
+      const existing = saved.find((each) => each.id === author.id)
+      if (!existing) {
+        throw new HTTPException(400, {
+          message: 'That author credit does not belong to this document.',
+        })
+      }
+      resolved = { id: existing.id, userId: existing.userId, name: existing.name }
+    } else if ('userId' in author) {
+      resolved = await credit(projectId, user, author.userId)
+    } else {
+      resolved = { userId: null, name: author.name }
+    }
+
+    const identity =
+      resolved.userId === null
+        ? `name:${resolved.name.toLowerCase()}`
+        : `user:${resolved.userId}`
+    if (seen.has(identity)) {
+      throw new HTTPException(400, { message: 'List each author only once.' })
+    }
+    seen.add(identity)
+    result.push({ ...resolved, position })
+  }
+  return result
+}
+
+function uploadedAuthors(body: Record<string, unknown>) {
+  if (body['authors'] !== undefined && body['authorUserId'] !== undefined) {
+    throw new HTTPException(400, { message: 'Send one author list.' })
+  }
+  let input: unknown
+  if (body['authors'] !== undefined) {
+    try {
+      if (typeof body['authors'] !== 'string') throw new Error('not text')
+      input = JSON.parse(body['authors'])
+    } catch {
+      throw new HTTPException(400, { message: 'Send a valid author list.' })
+    }
+  } else if (typeof body['authorUserId'] === 'string' && body['authorUserId']) {
+    input = [{ userId: body['authorUserId'] }]
+  } else {
+    throw new HTTPException(400, { message: 'Say who wrote it.' })
+  }
+  const parsed = documentAuthors.safeParse(input)
+  if (!parsed.success) throw new HTTPException(400, { message: refusal(parsed.error) })
+  return parsed.data
 }
 
 /**
@@ -1276,8 +1337,6 @@ projectManage.post(
     const title = typeof body['title'] === 'string' ? body['title'].trim() : ''
     const description =
       typeof body['description'] === 'string' ? body['description'].trim() : ''
-    const authorUserId =
-      typeof body['authorUserId'] === 'string' ? body['authorUserId'] : ''
 
     if (!title || title.length > 120) {
       throw new HTTPException(400, {
@@ -1285,25 +1344,18 @@ projectManage.post(
       })
     }
 
-    // Required, deliberately. A page of uncredited PDFs is the filing cabinet this
-    // feature replaces, and the answer is never hard: whoever is uploading it counts.
-    if (!authorUserId) {
-      throw new HTTPException(400, { message: 'Say who wrote it.' })
-    }
-
     const { file, bytes } = await documentBytes(body)
-    const author = await credit(project.id, user, authorUserId)
+    const authors = await credits(project.id, user, uploadedAuthors(body))
 
     const document = await prisma.projectDocument.create({
       data: {
-        // `connect` rather than the plain `projectId`/`authorId` columns the patch
+        // `connect` rather than the plain `projectId` column the patch
         // below writes: Prisma's create input is a union, and naming a foreign key
         // directly picks the branch where nested creates are forbidden.
         project: { connect: { id: project.id } },
         title,
         description: description || null,
-        author: { connect: { id: author.authorId } },
-        authorName: author.authorName,
+        authors: { create: authors },
         file: storedFileCreate(file, bytes, user.id),
       },
       select: documentSelect,
@@ -1330,12 +1382,14 @@ projectManage.patch(
     await requireProjectLead(user, project.id)
 
     const document = await getDocument(project.id, c.req.param('documentId'))
-    const { title, description, authorUserId } = c.req.valid('json')
+    const { title, description, authorUserId, authors } = c.req.valid('json')
 
-    const author =
-      authorUserId === undefined
+    const input =
+      authors ?? (authorUserId === undefined ? undefined : [{ userId: authorUserId }])
+    const credited =
+      input === undefined
         ? null
-        : await credit(project.id, user, authorUserId)
+        : await credits(project.id, user, input, document.authors)
 
     const updated = await prisma.projectDocument.update({
       where: { id: document.id },
@@ -1343,10 +1397,31 @@ projectManage.patch(
         ...(title === undefined ? {} : { title }),
         // `description` is nullable, so "absent" and "cleared" are different requests
         // and only the first leaves the column alone.
-        ...(description === undefined
+        ...(description === undefined ? {} : { description: description || null }),
+        ...(credited === null
           ? {}
-          : { description: description || null }),
-        ...(author ?? {}),
+          : {
+              authors: {
+                deleteMany: {
+                  id: {
+                    notIn: credited.flatMap((author) => (author.id ? [author.id] : [])),
+                  },
+                },
+                update: credited.flatMap((author) =>
+                  author.id
+                    ? [
+                        {
+                          where: { id: author.id },
+                          data: { position: author.position },
+                        },
+                      ]
+                    : [],
+                ),
+                create: credited
+                  .filter((author) => author.id === undefined)
+                  .map(({ userId, name, position }) => ({ userId, name, position })),
+              },
+            }),
         // `updatedAt` deliberately doesn't move here. It means "there's a new version
         // of the file", not "somebody touched this row" — fixing a typo in a title
         // must not tell the club there are forty pages to read again.
@@ -1422,17 +1497,12 @@ projectManage.delete(
   },
 )
 
-projectManage.delete(
-  '/projects/:id',
-  originGuard,
-  requireAuth,
-  writes,
-  async (c) => {
-    const project = await getProject(c.req.param('id'))
-    await requireProjectLead(c.get('user'), project.id)
+projectManage.delete('/projects/:id', originGuard, requireAuth, writes, async (c) => {
+  const project = await getProject(c.req.param('id'))
+  await requireProjectLead(c.get('user'), project.id)
 
-    // An uploaded cover goes with the project — nothing would reference it.
-    await deleteIfStored(project.coverUrl)
+  // An uploaded cover goes with the project — nothing would reference it.
+  await deleteIfStored(project.coverUrl)
 
   // And so does every uploaded gallery picture. The `ProjectImage` cascade takes the
   // rows; nothing in Postgres knows a string starting `/api/files/` is a reference, so
@@ -1558,14 +1628,9 @@ projectManage.patch(
   },
 )
 
-projectManage.delete(
-  '/teams/:teamId',
-  originGuard,
-  requireAuth,
-  writes,
-  async (c) => {
-    const team = await getTeam(c.req.param('teamId'))
-    await requireProjectLead(c.get('user'), team.projectId)
+projectManage.delete('/teams/:teamId', originGuard, requireAuth, writes, async (c) => {
+  const team = await getTeam(c.req.param('teamId'))
+  await requireProjectLead(c.get('user'), team.projectId)
 
   // Who is about to be demoted, read before the bulk update makes it unknowable —
   // `updateMany` answers with a count and no identities.
@@ -1611,6 +1676,61 @@ projectManage.delete(
 })
 
 // ------------------------------------------------- members, as a lead sees them
+
+/** Joining grants project access and the Discord crew role. Public credit is a
+ * separate decision: officers and project leads cover the project; team leads
+ * cover plain members of their own team. Visibility never changes Discord roles. */
+projectManage.patch(
+  '/projects/:id/members/:userId/visibility',
+  originGuard,
+  requireAuth,
+  writes,
+  validate('json', z.object({ publiclyListed: z.boolean() })),
+  async (c) => {
+    const project = await getProject(c.req.param('id'))
+    const userId = c.req.param('userId')
+    const caller = c.get('user')
+    const target = await membershipOf(userId, project.id)
+    if (!target) {
+      throw new HTTPException(404, { message: 'They are not on this project.' })
+    }
+
+    const projectAuthority =
+      isOfficer(caller) ||
+      (await membershipOf(caller.id, project.id))?.rank === ProjectMemberRank.PROJECT_LEAD
+
+    if (projectAuthority) {
+      await requireCurrentDues(caller)
+    } else {
+      if (target.rank !== ProjectMemberRank.MEMBER || !target.teamId) {
+        throw new HTTPException(403, {
+          message: 'Only officers and this project’s leads can approve public listing.',
+        })
+      }
+      await requireTeamLead(caller, target.teamId)
+    }
+
+    const { publiclyListed } = c.req.valid('json')
+    const updated = await prisma.projectMember.updateMany({
+      where: {
+        projectId: project.id,
+        userId,
+        // Recheck the team and rank at write time so a concurrent move cannot
+        // grant a team lead authority over someone else's team.
+        ...(!projectAuthority
+          ? { teamId: target.teamId, rank: ProjectMemberRank.MEMBER }
+          : {}),
+      },
+      data: { publiclyListed },
+    })
+    if (updated.count === 0) {
+      throw new HTTPException(409, {
+        message: 'Their membership changed. Reload the roster and try again.',
+      })
+    }
+    return c.json({ userId, publiclyListed })
+  },
+)
 
 /**
  * A project lead placing people: team, rank up to TEAM_LEAD, display title.
@@ -1693,11 +1813,7 @@ projectManage.patch(
     // Against the rank they'll hold after this write, so promoting somebody and naming
     // them "Software Lead" can go in one patch.
     if (patch.title !== undefined) {
-      const problem = await projectTitleProblem(
-        userId,
-        resulting.rank,
-        patch.title,
-      )
+      const problem = await projectTitleProblem(userId, resulting.rank, patch.title)
       if (problem) throw new HTTPException(400, { message: problem })
     }
 
@@ -1719,7 +1835,11 @@ projectManage.patch(
 
     const membership = await prisma.projectMember.update({
       where: { projectId_userId: { projectId: project.id, userId } },
-      data,
+      data: {
+        ...data,
+        // Appointing a lead is an explicit grant by an officer or project lead.
+        ...(patch.rank === ProjectMemberRank.TEAM_LEAD ? { publiclyListed: true } : {}),
+      },
       select: { userId: true, title: true, rank: true, teamId: true },
     })
 
@@ -1792,8 +1912,7 @@ projectManage.post(
     }
     if (target.teamId && target.teamId !== teamId) {
       throw new HTTPException(409, {
-        message:
-          'They are already on another team. Ask the project lead to move them.',
+        message: 'They are already on another team. Ask the project lead to move them.',
       })
     }
 

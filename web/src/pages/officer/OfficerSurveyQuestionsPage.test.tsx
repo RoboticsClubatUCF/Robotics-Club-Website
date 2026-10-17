@@ -395,6 +395,307 @@ describe('OfficerSurveyQuestionsPage', () => {
 
   // -------------------------------------------------------------- reordering
 
+  it.each(['retired', 'removed'] as const)(
+    'offers to restore a %s answer instead of saving a new copy',
+    async (state) => {
+      const stub = stubApi([
+        {
+          ...ANSWERED,
+          options: [
+            ...ANSWERED.options,
+            { ...option('o-other', 'Other', 2, true), archived: state === 'retired' },
+          ],
+        },
+      ])
+      vi.stubGlobal('fetch', stub)
+
+      renderPage()
+      await screen.findByText('What the club asks.')
+      fireEvent.click(within(cardFor('Shirt size')).getByRole('button', { name: 'EDIT' }))
+      if (state === 'removed') {
+        fireEvent.click(screen.getByRole('button', { name: 'Remove answer 3' }))
+      }
+      fireEvent.click(screen.getByRole('button', { name: 'ADD AN ANSWER' }))
+      fireEvent.change(screen.getByLabelText('Answer 3'), {
+        target: { value: ' other ' },
+      })
+
+      expect(screen.getByLabelText('Answer 3')).toHaveAccessibleDescription(
+        '“Other” was offered before. Restore it to keep its responses.',
+      )
+      expect(screen.getByRole('button', { name: 'SAVE' })).toBeDisabled()
+      fireEvent.submit(screen.getByRole('button', { name: 'SAVE' }).closest('form')!)
+      expect(writes(stub, 'PUT')).toHaveLength(0)
+
+      fireEvent.click(screen.getByRole('button', { name: 'RESTORE EXISTING ANSWER' }))
+
+      expect(screen.getByLabelText('Answer 3')).toHaveValue('Other')
+      expect(screen.getAllByLabelText('asks them to say which')[2]).toBeChecked()
+      expect(screen.getByRole('button', { name: 'SAVE' })).toBeEnabled()
+      fireEvent.submit(screen.getByRole('button', { name: 'SAVE' }).closest('form')!)
+      await waitFor(() => {
+        expect(writes(stub, 'PUT')).toHaveLength(1)
+      })
+      expect(bodyOf(writes(stub, 'PUT')[0]![1])).toHaveProperty('options', [
+        { id: 'o-m', label: 'M', wantsText: false },
+        { id: 'o-l', label: 'L', wantsText: false },
+        { id: 'o-other', label: 'Other', wantsText: true },
+      ])
+    },
+  )
+
+  it('replaces a matching typed row when using the retired answer list', async () => {
+    const stub = stubApi([
+      {
+        ...ANSWERED,
+        options: [...ANSWERED.options, { ...option('o-xl', 'XL', 3), archived: true }],
+      },
+    ])
+    vi.stubGlobal('fetch', stub)
+
+    renderPage()
+    await screen.findByText('What the club asks.')
+    fireEvent.click(within(cardFor('Shirt size')).getByRole('button', { name: 'EDIT' }))
+    fireEvent.click(screen.getByRole('button', { name: 'ADD AN ANSWER' }))
+    fireEvent.change(screen.getByLabelText('Answer 3'), { target: { value: 'xl' } })
+    fireEvent.click(screen.getByRole('button', { name: 'OFFER “XL” AGAIN' }))
+
+    expect(screen.getByLabelText('Answer 3')).toHaveValue('XL')
+    expect(screen.queryByLabelText('Answer 4')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'RESTORE EXISTING ANSWER' }),
+    ).not.toBeInTheDocument()
+    fireEvent.submit(screen.getByRole('button', { name: 'SAVE' }).closest('form')!)
+
+    await waitFor(() => {
+      expect(writes(stub, 'PUT')).toHaveLength(1)
+    })
+    expect(bodyOf(writes(stub, 'PUT')[0]![1])).toMatchObject({
+      options: [{ id: 'o-m' }, { id: 'o-l' }, { id: 'o-xl' }],
+    })
+  })
+
+  it('can restore an answer whose original row was cleared', async () => {
+    const stub = stubApi()
+    vi.stubGlobal('fetch', stub)
+
+    renderPage()
+    await screen.findByText('What the club asks.')
+    fireEvent.click(within(cardFor('Shirt size')).getByRole('button', { name: 'EDIT' }))
+    fireEvent.change(screen.getByLabelText('Answer 2'), { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: 'ADD AN ANSWER' }))
+    fireEvent.change(screen.getByLabelText('Answer 3'), { target: { value: ' l ' } })
+
+    expect(screen.getByRole('button', { name: 'SAVE' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'RESTORE EXISTING ANSWER' }))
+    expect(screen.getByLabelText('Answer 2')).toHaveValue('L')
+    expect(screen.queryByLabelText('Answer 3')).not.toBeInTheDocument()
+    fireEvent.submit(screen.getByRole('button', { name: 'SAVE' }).closest('form')!)
+
+    await waitFor(() => {
+      expect(writes(stub, 'PUT')).toHaveLength(1)
+    })
+    expect(bodyOf(writes(stub, 'PUT')[0]![1])).toHaveProperty('options', [
+      { id: 'o-m', label: 'M', wantsText: false },
+      { id: 'o-l', label: 'L', wantsText: false },
+    ])
+  })
+
+  it('offers a restored answer again if it is removed before saving', async () => {
+    vi.stubGlobal(
+      'fetch',
+      stubApi([
+        {
+          ...ANSWERED,
+          options: [...ANSWERED.options, { ...option('o-xl', 'XL', 3), archived: true }],
+        },
+      ]),
+    )
+
+    renderPage()
+    await screen.findByText('What the club asks.')
+    fireEvent.click(within(cardFor('Shirt size')).getByRole('button', { name: 'EDIT' }))
+    fireEvent.click(screen.getByRole('button', { name: 'OFFER “XL” AGAIN' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove answer 3' }))
+    fireEvent.click(screen.getByRole('button', { name: 'OFFER “XL” AGAIN' }))
+
+    expect(screen.getByLabelText('Answer 3')).toHaveValue('XL')
+    expect(screen.queryByLabelText('Answer 4')).not.toBeInTheDocument()
+  })
+
+  it('checks renamed answers and clears the restore prompt when the label changes', async () => {
+    vi.stubGlobal('fetch', stubApi())
+
+    renderPage()
+    await screen.findByText('What the club asks.')
+    fireEvent.click(within(cardFor('Shirt size')).getByRole('button', { name: 'EDIT' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove answer 2' }))
+    fireEvent.change(screen.getByLabelText('Answer 1'), { target: { value: ' l ' } })
+
+    expect(
+      screen.getByRole('button', { name: 'RESTORE EXISTING ANSWER' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'SAVE' })).toBeDisabled()
+    fireEvent.change(screen.getByLabelText('Answer 1'), { target: { value: 'M' } })
+    expect(
+      screen.queryByRole('button', { name: 'RESTORE EXISTING ANSWER' }),
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'SAVE' })).toBeEnabled()
+  })
+
+  it('allows an unchanged answer when a duplicate retired copy already exists', async () => {
+    vi.stubGlobal(
+      'fetch',
+      stubApi([
+        {
+          ...ANSWERED,
+          options: [
+            ...ANSWERED.options,
+            { ...option('o-old-m', 'M', 3), archived: true },
+          ],
+        },
+      ]),
+    )
+
+    renderPage()
+    await screen.findByText('What the club asks.')
+    fireEvent.click(within(cardFor('Shirt size')).getByRole('button', { name: 'EDIT' }))
+
+    expect(
+      screen.queryByRole('button', { name: 'RESTORE EXISTING ANSWER' }),
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'SAVE' })).toBeEnabled()
+  })
+
+  it.each(['SINGLE_CHOICE', 'MULTI_CHOICE'] as const)(
+    'reorders %s answers while keeping their ids, edits and written-reply setting',
+    async (kind) => {
+      const stub = stubApi([
+        {
+          ...ANSWERED,
+          kind,
+          options: [...ANSWERED.options, option('o-other', 'Other', 2, true)],
+        },
+      ])
+      vi.stubGlobal('fetch', stub)
+
+      renderPage()
+      await screen.findByText('What the club asks.')
+      fireEvent.click(within(cardFor('Shirt size')).getByRole('button', { name: 'EDIT' }))
+
+      fireEvent.change(screen.getByLabelText('Answer 3'), {
+        target: { value: 'Another size' },
+      })
+      const up = screen.getByRole('button', { name: 'Move answer 3 up' })
+      up.focus()
+      fireEvent.click(up)
+
+      expect(up).toHaveFocus()
+      expect(screen.getByLabelText('Answer 2')).toHaveValue('Another size')
+      fireEvent.click(screen.getByRole('button', { name: 'Move answer 2 up' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Move answer 2 down' }))
+
+      expect(screen.getByLabelText('Answer 1')).toHaveValue('Another size')
+      expect(screen.getByLabelText('Answer 2')).toHaveValue('L')
+      expect(screen.getByLabelText('Answer 3')).toHaveValue('M')
+      expect(screen.getAllByLabelText('asks them to say which')[0]).toBeChecked()
+      expect(writes(stub, 'PUT')).toHaveLength(0)
+      expect(writes(stub, 'POST')).toHaveLength(0)
+
+      fireEvent.submit(screen.getByRole('button', { name: 'SAVE' }).closest('form')!)
+
+      expect(screen.getByRole('button', { name: 'Move answer 1 down' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Move answer 3 up' })).toBeDisabled()
+      await waitFor(() => {
+        expect(writes(stub, 'PUT')).toHaveLength(1)
+      })
+      expect(bodyOf(writes(stub, 'PUT')[0]![1])).toMatchObject({
+        options: [
+          { id: 'o-other', label: 'Another size', wantsText: true },
+          { id: 'o-l', label: 'L', wantsText: false },
+          { id: 'o-m', label: 'M', wantsText: false },
+        ],
+      })
+    },
+  )
+
+  it('reorders newly added answers before creating the question', async () => {
+    const stub = stubApi()
+    vi.stubGlobal('fetch', stub)
+
+    renderPage()
+    await screen.findByText('What the club asks.')
+    fireEvent.click(screen.getByRole('button', { name: 'ASK SOMETHING NEW' }))
+    fireEvent.change(screen.getByLabelText('THE QUESTION'), {
+      target: { value: 'Build night' },
+    })
+    fireEvent.change(screen.getByLabelText('Answer 1'), { target: { value: 'Tuesday' } })
+    fireEvent.change(screen.getByLabelText('Answer 2'), { target: { value: 'Thursday' } })
+    fireEvent.click(screen.getByRole('button', { name: 'ADD AN ANSWER' }))
+    fireEvent.change(screen.getByLabelText('Answer 3'), { target: { value: 'Friday' } })
+
+    const up = screen.getByRole('button', { name: 'Move answer 3 up' })
+    up.focus()
+    fireEvent.click(up)
+    expect(up).toHaveFocus()
+    fireEvent.click(screen.getByRole('button', { name: 'Move answer 2 up' }))
+    fireEvent.submit(screen.getByRole('button', { name: 'SAVE' }).closest('form')!)
+
+    await waitFor(() => {
+      expect(writes(stub, 'POST')).toHaveLength(1)
+    })
+    expect(bodyOf(writes(stub, 'POST')[0]![1])).toHaveProperty('options', [
+      { label: 'Friday', wantsText: false },
+      { label: 'Tuesday', wantsText: false },
+      { label: 'Thursday', wantsText: false },
+    ])
+  })
+
+  it('can move a restored answer and keeps its original id', async () => {
+    const stub = stubApi([
+      {
+        ...ANSWERED,
+        options: [...ANSWERED.options, { ...option('o-xl', 'XL', 3), archived: true }],
+      },
+    ])
+    vi.stubGlobal('fetch', stub)
+
+    renderPage()
+    await screen.findByText('What the club asks.')
+    fireEvent.click(within(cardFor('Shirt size')).getByRole('button', { name: 'EDIT' }))
+    expect(screen.queryByLabelText('Answer 3')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'OFFER “XL” AGAIN' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Move answer 3 up' }))
+    fireEvent.submit(screen.getByRole('button', { name: 'SAVE' }).closest('form')!)
+
+    await waitFor(() => {
+      expect(writes(stub, 'PUT')).toHaveLength(1)
+    })
+    expect(bodyOf(writes(stub, 'PUT')[0]![1])).toMatchObject({
+      options: [{ id: 'o-m' }, { id: 'o-xl' }, { id: 'o-l' }],
+    })
+  })
+
+  it('disables answer moves at the ends and discards moves on cancel', async () => {
+    const stub = stubApi()
+    vi.stubGlobal('fetch', stub)
+
+    renderPage()
+    await screen.findByText('What the club asks.')
+    fireEvent.click(within(cardFor('Shirt size')).getByRole('button', { name: 'EDIT' }))
+
+    expect(screen.getByRole('button', { name: 'Move answer 1 up' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Move answer 2 down' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Move answer 2 up' }))
+    expect(screen.getByLabelText('Answer 1')).toHaveValue('L')
+    fireEvent.click(screen.getByRole('button', { name: 'CANCEL' }))
+    fireEvent.click(within(cardFor('Shirt size')).getByRole('button', { name: 'EDIT' }))
+
+    expect(screen.getByLabelText('Answer 1')).toHaveValue('M')
+    expect(screen.getByLabelText('Answer 2')).toHaveValue('L')
+    expect(writes(stub, 'PUT')).toHaveLength(0)
+  })
+
   it('sends the whole order when a question is moved', async () => {
     const stub = stubApi()
     vi.stubGlobal('fetch', stub)

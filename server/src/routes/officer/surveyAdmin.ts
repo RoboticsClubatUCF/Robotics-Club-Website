@@ -4,8 +4,9 @@ import { z } from 'zod'
 import { validate } from '../../core/validate.js'
 import { requireOfficer } from '../../auth/authz.js'
 import { prisma } from '../../core/db.js'
-import { SurveyQuestionKind, UserRole } from '../../generated/prisma/enums.js'
+import { SurveyQuestionKind } from '../../generated/prisma/enums.js'
 import { rateLimit } from '../../core/rateLimit.js'
+import { reportAnswer, reportQuery, surveyReport } from '../../survey/report.js'
 import { type AuthEnv, originGuard, requireAuth } from '../../auth/session.js'
 
 /**
@@ -128,6 +129,8 @@ surveyAdmin.get('/questions', requireAuth, requireOfficer, async (c) =>
 const TOO_MANY_OTHERS =
   'Only one answer on a question can ask for a written reply — there is one box for it, not one per answer.'
 
+const optionLabelKey = (label: string) => label.trim().toLowerCase()
+
 const optionInput = z.object({
   /**
    * Absent on a new one. Present means "this row", which keeps the answers already
@@ -219,7 +222,7 @@ const questionInput = z
 
     // Two rows reading "Other" make a tally nobody can read and a form nobody can
     // answer, and neither failure says which of the two it came from.
-    const labels = body.options.map((option) => option.label.toLowerCase())
+    const labels = body.options.map((option) => optionLabelKey(option.label))
 
     if (new Set(labels).size !== labels.length) {
       ctx.addIssue({
@@ -330,6 +333,25 @@ surveyAdmin.put(
       if (!known.has(optionId)) {
         throw new HTTPException(400, {
           message: 'One of those answers does not belong to this question.',
+        })
+      }
+    }
+
+    for (const option of body.options) {
+      const label = optionLabelKey(option.label)
+      const previous = option.id === undefined ? undefined : known.get(option.id)
+
+      // Existing duplicates may predate this check. Keeping an answer's own label
+      // must remain possible; creating or renaming another copy must not.
+      if (previous && optionLabelKey(previous.label) === label) continue
+
+      const match = existing.options.find(
+        (saved) => !sent.has(saved.id) && optionLabelKey(saved.label) === label,
+      )
+
+      if (match) {
+        throw new HTTPException(409, {
+          message: `“${match.label}” was offered before. Restore the existing answer to keep its responses.`,
         })
       }
     }
@@ -535,125 +557,21 @@ surveyAdmin.post(
 // ------------------------------------------------------------ what it learned
 
 /**
- * What the club learned from the survey, as counts.
- *
- * Tallied in JavaScript rather than SQL, which is a choice about size. Counting ticks
- * in Postgres means grouping a join table and stitching the zeroes back on by hand, to
- * aggregate a few thousand rows belonging to a club with a few hundred members. Two
- * `findMany`s and a loop are the same answer for the same cost, in readable code.
- *
- * Every list comes back whole, including the zeroes, in the officer's order. A tally
- * that omits the sizes nobody picked reads as "we don't need any XS" rather than
- * "nobody has asked for XS", and the difference matters in a shirt order.
+ * One filtered set of responses supplies the tallies, individual answers and CSV.
+ * The report helper owns date boundaries, member and answer filters, and ordering.
+ * Live options remain visible on zero, so missing data cannot look like a missing
+ * shirt size when somebody places an order.
  */
-surveyAdmin.get('/', requireAuth, requireOfficer, async (c) => {
-  const [questions, answers, responded, outstanding, years] = await Promise.all([
-    prisma.surveyQuestion.findMany({
-      where: { archivedAt: null },
-      orderBy: { position: 'asc' },
-      select: {
-        id: true,
-        prompt: true,
-        kind: true,
-        allowNone: true,
-        options: {
-          orderBy: { position: 'asc' },
-          select: { id: true, label: true, archivedAt: true },
-        },
-      },
-    }),
-    prisma.surveyAnswer.findMany({
-      where: { question: { archivedAt: null } },
-      select: {
-        questionId: true,
-        text: true,
-        picked: { select: { optionId: true } },
-      },
-    }),
-    prisma.memberSurvey.count(),
-    /**
-     * Who still owes one, counted rather than listed.
-     *
-     * `active` and not `GUEST`, the same population the roster query uses — somebody who
-     * signed up and never came back isn't a gap in the club's data. Admins are excluded
-     * because counting them would put a number on this page that can never reach zero.
-     */
-    prisma.user.count({
-      where: {
-        active: true,
-        surveyCompletedAt: null,
-        role: { notIn: [UserRole.GUEST, UserRole.ADMIN] },
-      },
-    }),
-    prisma.user.findMany({
-      where: { memberSurvey: { isNot: null }, gradYear: { not: null } },
-      select: { gradYear: true },
-    }),
-  ])
-
-  const picks = new Map<string, number>()
-  const answered = new Map<string, number>()
-  const nones = new Map<string, number>()
-
-  for (const answer of answers) {
-    answered.set(answer.questionId, (answered.get(answer.questionId) ?? 0) + 1)
-
-    if (answer.picked.length === 0) {
-      nones.set(answer.questionId, (nones.get(answer.questionId) ?? 0) + 1)
-    }
-
-    for (const pick of answer.picked) {
-      picks.set(pick.optionId, (picks.get(pick.optionId) ?? 0) + 1)
-    }
-  }
-
-  return c.json({
-    responded,
-    outstanding,
-    questions: questions.map((question) => ({
-      id: question.id,
-      prompt: question.prompt,
-      kind: question.kind,
-      answered: answered.get(question.id) ?? 0,
-      /**
-       * How many pressed NONE, or null where there is no NONE to press. A count in its
-       * own right rather than an option row, because there is no NONE option — an empty
-       * set of ticks is what "none" is stored as.
-       */
-      none: question.allowNone ? (nones.get(question.id) ?? 0) : null,
-      options: question.options
-        .map((option) => ({
-          id: option.id,
-          label: option.label,
-          archived: option.archivedAt !== null,
-          count: picks.get(option.id) ?? 0,
-        }))
-        /**
-         * A retired option is still counted when anybody picked it. Every live one is
-         * listed including the zeroes; a retired one on nought is a row about a question
-         * nobody is being asked, and dropping the ones people did pick would leave a
-         * column that doesn't add up to the number who answered.
-         */
-        .filter((option) => !option.archived || option.count > 0),
-    })),
-    /**
-     * Graduation years as a sparse list rather than a fixed range, because the range is
-     * whatever the club's members typed and a fixed one would either clip the mature
-     * student or print fifteen empty rows.
-     */
-    gradYears: [
-      ...years
-        .reduce((seen, row) => {
-          const year = row.gradYear
-          if (year !== null) seen.set(year, (seen.get(year) ?? 0) + 1)
-          return seen
-        }, new Map<number, number>())
-        .entries(),
-    ]
-      .sort(([a], [b]) => a - b)
-      .map(([value, count]) => ({ value, count })),
-  })
-})
+surveyAdmin.get(
+  '/',
+  requireAuth,
+  requireOfficer,
+  validate('query', reportQuery),
+  async (c) => {
+    c.header('Cache-Control', 'no-store')
+    return c.json(await surveyReport(c.req.valid('query')))
+  },
+)
 
 /**
  * A cell of CSV, quoted and — the part that isn't obvious — defanged.
@@ -684,97 +602,41 @@ const cell = (value: unknown): string => {
  * nothing in that column, and a column that appeared only once somebody had answered
  * would shift the header under the reader.
  */
-surveyAdmin.get('/export.csv', requireAuth, requireOfficer, async (c) => {
-  const [questions, rows] = await Promise.all([
-    prisma.surveyQuestion.findMany({
-      where: { archivedAt: null },
-      orderBy: { position: 'asc' },
-      select: { id: true, prompt: true, kind: true, allowNone: true },
-    }),
-    prisma.memberSurvey.findMany({
-      orderBy: { user: { fullName: 'asc' } },
-      select: {
-        submittedAt: true,
-        user: {
-          select: {
-            fullName: true,
-            email: true,
-            discordUsername: true,
-            gradYear: true,
-          },
-        },
-        answers: {
-          select: {
-            questionId: true,
-            text: true,
-            picked: {
-              select: { option: { select: { label: true, position: true } } },
-            },
-          },
-        },
-      },
-    }),
-  ])
-
-  const header = [
-    'Name',
-    'Email',
-    'Discord',
-    'Graduation year',
-    ...questions.map((question) => question.prompt),
-    'Answered',
-  ]
-
-  const body = rows.map((row) => {
-    const byQuestion = new Map(
-      row.answers.map((answer) => [answer.questionId, answer]),
-    )
-
-    return [
-      row.user.fullName,
-      row.user.email,
-      row.user.discordUsername,
-      row.user.gradYear,
-      ...questions.map((question) => {
-        const answer = byQuestion.get(question.id)
-
-        // No row at all: this member was never asked, or wasn't required to answer and
-        // didn't. Blank either way, which is the honest cell.
-        if (answer === undefined) return ''
-
-        const labels = [...answer.picked]
-          .sort((a, b) => a.option.position - b.option.position)
-          .map((pick) => pick.option.label)
-
-        // "None" rather than an empty cell, because an empty set here is an answer
-        // somebody gave — the form won't save one without NONE pressed — and a blank
-        // would read as a question they skipped.
-        if (labels.length === 0) {
-          return question.allowNone ? 'None' : (answer.text ?? '')
-        }
-
-        // The free-text half of an OTHER, in brackets after the answer that asked for
-        // it. One cell, because a spreadsheet with a second column per question that's
-        // empty for everybody but three people is one nobody scrolls to the end of.
-        return answer.text === null
-          ? labels.join(', ')
-          : `${labels.join(', ')} (${answer.text})`
-      }),
-      row.submittedAt.toISOString(),
-    ].map(cell)
-  })
-
-  // CRLF, because that's what RFC 4180 says and what Excel wants; a lone \n is read as
-  // one enormous cell by some versions of it.
-  const csv = [header.map(cell), ...body].map((line) => line.join(',')).join('\r\n')
-
-  c.header('Content-Type', 'text/csv; charset=utf-8')
-  c.header(
-    'Content-Disposition',
-    'attachment; filename="rccf-member-survey.csv"',
-  )
-  // Members' names and allergies. Never anywhere but this officer's browser.
-  c.header('Cache-Control', 'no-store')
-
-  return c.body(csv)
-})
+surveyAdmin.get(
+  '/export.csv',
+  requireAuth,
+  requireOfficer,
+  validate('query', reportQuery),
+  async (c) => {
+    const data = await surveyReport(c.req.valid('query'))
+    const questions = data.facets.questions
+    const header = [
+      'Name',
+      'Email',
+      'Discord',
+      'Graduation year',
+      ...questions.map((question) => question.prompt),
+      'Submitted',
+      'Updated',
+    ]
+    const body = data.responses.map((row) => {
+      const byQuestion = new Map(row.answers.map((answer) => [answer.questionId, answer]))
+      return [
+        row.user.fullName,
+        row.user.email,
+        row.user.discordUsername,
+        row.user.gradYear,
+        ...questions.map((question) =>
+          reportAnswer(question, byQuestion.get(question.id)),
+        ),
+        row.submittedAt.toISOString(),
+        row.updatedAt.toISOString(),
+      ].map(cell)
+    })
+    const csv = [header.map(cell), ...body].map((line) => line.join(',')).join('\r\n')
+    c.header('Content-Type', 'text/csv; charset=utf-8')
+    c.header('Content-Disposition', 'attachment; filename="rccf-member-survey.csv"')
+    c.header('Cache-Control', 'no-store')
+    return c.body(csv)
+  },
+)

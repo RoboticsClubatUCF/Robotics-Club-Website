@@ -38,9 +38,9 @@ vi.mock('../../discord/discord.js', async (importOriginal) => ({
 
 /**
  * Project lifecycle, against the live database: officers making projects, leads building
- * teams, members joining behind the dues gate.
+ * teams, open joining and separately approved public rosters.
  *
- * The clock is pinned to fall 2035, and it has to be: the join gate runs through
+ * The clock is pinned to fall 2035, and it has to be: management runs through
  * `membershipStanding`, whose answer depends on today's date, so against the real clock
  * this suite would pass all summer and start failing the day term starts. The calendar
  * fetch is stubbed to fail, so the fallback dates make every term boundary deterministic.
@@ -276,9 +276,7 @@ describe('the officer desk', () => {
     expect(response.status).toBe(201)
     const project = (await response.json()) as { id: string }
 
-    expect(
-      await prisma.projectMember.count({ where: { projectId: project.id } }),
-    ).toBe(0)
+    expect(await prisma.projectMember.count({ where: { projectId: project.id } })).toBe(0)
   })
 
   it('refuses a slug that is already a project', async () => {
@@ -353,9 +351,7 @@ describe('the officer desk', () => {
 
     expect(response.status).toBe(201)
     const project = (await response.json()) as { id: string }
-    expect(
-      await prisma.projectMember.count({ where: { projectId: project.id } }),
-    ).toBe(0)
+    expect(await prisma.projectMember.count({ where: { projectId: project.id } })).toBe(0)
   })
 
   /**
@@ -736,12 +732,7 @@ describe('creating a project', () => {
     ['a project lead, on their own project', () => leadCookie],
     ['a plain member', () => paidCookie],
   ])('refuses %s', async (_who, cookie) => {
-    const response = await request(
-      'POST',
-      '/api/officer/projects',
-      cookie(),
-      ownProject,
-    )
+    const response = await request('POST', '/api/officer/projects', cookie(), ownProject)
 
     expect(response.status).toBe(403)
   })
@@ -755,19 +746,15 @@ describe('creating a project', () => {
    * grants `PROJECT_LEAD`.
    */
   it('ignores a lead named at creation', async () => {
-    const response = await request(
-      'POST',
-      '/api/officer/projects',
-      officerCookie,
-      { ...ownProject, leadUserId: paidId },
-    )
+    const response = await request('POST', '/api/officer/projects', officerCookie, {
+      ...ownProject,
+      leadUserId: paidId,
+    })
 
     expect(response.status).toBe(201)
     const project = (await response.json()) as { id: string }
 
-    expect(
-      await prisma.projectMember.count({ where: { projectId: project.id } }),
-    ).toBe(0)
+    expect(await prisma.projectMember.count({ where: { projectId: project.id } })).toBe(0)
   })
 })
 
@@ -858,41 +845,199 @@ describe('appointing a project lead', () => {
   })
 })
 
+describe('public project roster approval', () => {
+  const listing = (
+    userId: string,
+    cookie: string,
+    publiclyListed: unknown = true,
+    id = projectId,
+  ) =>
+    request('PATCH', `/api/projects/${id}/members/${userId}/visibility`, cookie, {
+      publiclyListed,
+    })
+
+  it('keeps future joins private in public project and profile responses, but present on the private roster', async () => {
+    await prisma.user.update({
+      where: { id: paidId },
+      data: { slug: `${PREFIX}paid-profile` },
+    })
+    await request('POST', `/api/projects/${projectId}/join`, paidCookie)
+    const publicProject = await app.request(`/api/projects/${PREFIX}rover`)
+    expect(JSON.stringify(await publicProject.json())).not.toContain('PM Paid')
+
+    const profile = await app.request(`/api/members/${PREFIX}paid-profile`)
+    expect(await profile.json()).toMatchObject({ projects: [] })
+
+    const roster = await request('GET', `/api/projects/${projectId}/team`, paidCookie)
+    expect(await roster.json()).toMatchObject({
+      members: expect.arrayContaining([
+        expect.objectContaining({ userId: paidId, publiclyListed: false }),
+      ]),
+    })
+    const mine = await request('GET', '/api/me/projects', paidCookie)
+    expect(await mine.json()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          publiclyListed: false,
+          project: expect.objectContaining({ id: projectId }),
+        }),
+      ]),
+    )
+  })
+
+  it.each(['officer', 'project lead'])(
+    'allows a %s to approve and hide without removing membership',
+    async (authority) => {
+      await request('POST', `/api/projects/${projectId}/join`, paidCookie)
+      const cookie = authority === 'officer' ? officerCookie : leadCookie
+      expect((await listing(paidId, cookie)).status).toBe(200)
+      const detail = await app.request(`/api/projects/${PREFIX}rover`)
+      expect(await detail.json()).toMatchObject({
+        members: expect.arrayContaining([
+          expect.objectContaining({
+            user: expect.objectContaining({ fullName: 'PM Paid' }),
+          }),
+        ]),
+      })
+      expect((await listing(paidId, cookie, false)).status).toBe(200)
+      expect(
+        await prisma.projectMember.findUniqueOrThrow({
+          where: { projectId_userId: { projectId, userId: paidId } },
+        }),
+      ).toMatchObject({ rank: 'MEMBER', publiclyListed: false })
+      const hidden = await app.request(`/api/projects/${PREFIX}rover`)
+      expect(JSON.stringify(await hidden.json())).not.toContain('PM Paid')
+    },
+  )
+
+  it('prevents self approval and approval by a lead from another project', async () => {
+    await request('POST', `/api/projects/${projectId}/join`, paidCookie)
+    expect((await listing(paidId, paidCookie)).status).toBe(403)
+    await prisma.projectMember.delete({
+      where: { projectId_userId: { projectId, userId: leadId } },
+    })
+    expect((await listing(paidId, leadCookie)).status).toBe(403)
+  })
+
+  it('limits team leads to ordinary members of their own team', async () => {
+    const team = await prisma.team.create({ data: { projectId, name: 'Approved team' } })
+    const other = await prisma.team.create({ data: { projectId, name: 'Other team' } })
+    await prisma.projectMember.create({
+      data: {
+        projectId,
+        userId: paidId,
+        rank: 'TEAM_LEAD',
+        teamId: team.id,
+        publiclyListed: true,
+      },
+    })
+    await request('POST', `/api/projects/${projectId}/join`, unpaidCookie)
+    expect((await listing(unpaidId, paidCookie)).status).toBe(403)
+    await prisma.projectMember.update({
+      where: { projectId_userId: { projectId, userId: unpaidId } },
+      data: { teamId: other.id },
+    })
+    expect((await listing(unpaidId, paidCookie)).status).toBe(403)
+    await prisma.projectMember.update({
+      where: { projectId_userId: { projectId, userId: unpaidId } },
+      data: { teamId: team.id },
+    })
+    expect((await listing(unpaidId, paidCookie)).status).toBe(200)
+    expect((await listing(unpaidId, paidCookie, false)).status).toBe(200)
+    expect((await listing(paidId, paidCookie)).status).toBe(403)
+    expect((await listing(leadId, paidCookie)).status).toBe(403)
+    expect((await listing(leadId, paidCookie, true, otherProjectId)).status).toBe(403)
+  })
+
+  it('does not allow member editing to bypass public approval', async () => {
+    await request('POST', `/api/projects/${projectId}/join`, paidCookie)
+    const edit = await request(
+      'PATCH',
+      `/api/projects/${projectId}/members/${paidId}`,
+      leadCookie,
+      { title: 'Builder', publiclyListed: true },
+    )
+    expect(edit.status).toBe(200)
+    expect(
+      await prisma.projectMember.findUniqueOrThrow({
+        where: { projectId_userId: { projectId, userId: paidId } },
+      }),
+    ).toMatchObject({ title: 'Builder', publiclyListed: false })
+  })
+
+  it('treats appointment as a lead as a public listing grant', async () => {
+    await prisma.projectMember.delete({
+      where: { projectId_userId: { projectId, userId: leadId } },
+    })
+    const appointment = await request(
+      'PATCH',
+      `/api/officer/projects/${projectId}/members/${paidId}/rank`,
+      officerCookie,
+      { rank: 'PROJECT_LEAD' },
+    )
+    expect(appointment.status).toBe(200)
+    expect(
+      await prisma.projectMember.findUniqueOrThrow({
+        where: { projectId_userId: { projectId, userId: paidId } },
+      }),
+    ).toMatchObject({ publiclyListed: true })
+    await request('POST', `/api/projects/${projectId}/join`, unpaidCookie)
+    const team = await prisma.team.create({ data: { projectId, name: 'New team' } })
+    const promote = await request(
+      'PATCH',
+      `/api/projects/${projectId}/members/${unpaidId}`,
+      officerCookie,
+      { teamId: team.id, rank: 'TEAM_LEAD' },
+    )
+    expect(promote.status).toBe(200)
+    expect(
+      await prisma.projectMember.findUniqueOrThrow({
+        where: { projectId_userId: { projectId, userId: unpaidId } },
+      }),
+    ).toMatchObject({ publiclyListed: true })
+  })
+
+  it('requires fresh approval after leaving and joining again', async () => {
+    await request('POST', `/api/projects/${projectId}/join`, paidCookie)
+    await listing(paidId, leadCookie)
+    await request('DELETE', `/api/projects/${projectId}/members/me`, paidCookie)
+    const joined = await request('POST', `/api/projects/${projectId}/join`, paidCookie)
+    expect(await joined.json()).toMatchObject({ publiclyListed: false })
+  })
+
+  it('validates listing values and authentication', async () => {
+    await request('POST', `/api/projects/${projectId}/join`, paidCookie)
+    expect((await listing(paidId, officerCookie, 'true')).status).toBe(400)
+    expect((await listing(paidId, '')).status).toBe(401)
+    expect((await listing(unpaidId, officerCookie)).status).toBe(404)
+  })
+})
+
 describe('joining a project', () => {
   it('lets a paid-up member in', async () => {
-    const response = await request(
-      'POST',
-      `/api/projects/${projectId}/join`,
-      paidCookie,
-    )
+    const response = await request('POST', `/api/projects/${projectId}/join`, paidCookie)
 
     expect(response.status).toBe(201)
     expect(await response.json()).toMatchObject({ rank: 'MEMBER' })
   })
 
-  it('turns away somebody whose dues have lapsed, in words about dues', async () => {
+  it('lets an unpaid account join without granting public listing', async () => {
     const response = await request(
       'POST',
       `/api/projects/${projectId}/join`,
       unpaidCookie,
+      { publiclyListed: true },
     )
 
-    expect(response.status).toBe(403)
+    expect(response.status).toBe(201)
     expect(await response.json()).toMatchObject({
-      error: expect.stringContaining('dues'),
+      rank: 'MEMBER',
+      publiclyListed: false,
     })
   })
 
-  /**
-   * And not in words about dues while the club is charging nothing.
-   *
-   * This route used to read `hasAccess` itself and throw its own sentence, which was fine
-   * while "no cover" meant one thing. It means three now, and the hardcoded one told
-   * somebody inside a free window to settle dues they didn't owe. It defers to
-   * `requireCurrentDues`, so the sentence follows the date — asserted by moving the clock
-   * into the August gap, because the window is a property of the calendar.
-   */
-  it('tells somebody inside a free window to claim it instead', async () => {
+  /** Joining is open regardless of the dues calendar. */
+  it('also lets an account join before claiming a free membership', async () => {
     vi.setSystemTime(new Date(2035, 7, 15, 12, 0, 0))
 
     try {
@@ -902,10 +1047,8 @@ describe('joining a project', () => {
         unpaidCookie,
       )
 
-      expect(response.status).toBe(403)
-      const { error } = (await response.json()) as { error: string }
-      expect(error).toMatch(/free right now/i)
-      expect(error).not.toMatch(/lapsed/i)
+      expect(response.status).toBe(201)
+      expect(await response.json()).toMatchObject({ publiclyListed: false })
     } finally {
       vi.setSystemTime(MID_FALL)
     }
@@ -929,11 +1072,7 @@ describe('joining a project', () => {
       data: { status: ProjectStatus.COMPLETED },
     })
 
-    const response = await request(
-      'POST',
-      `/api/projects/${projectId}/join`,
-      paidCookie,
-    )
+    const response = await request('POST', `/api/projects/${projectId}/join`, paidCookie)
 
     expect(response.status).toBe(409)
   })
@@ -989,11 +1128,7 @@ describe('leaving, and what it does not cost', () => {
    * lead is stood down first — otherwise seating a second one would build a state the site
    * itself refuses.
    */
-  const seat = async (
-    userId: string,
-    rank: ProjectMemberRank,
-    project = projectId,
-  ) => {
+  const seat = async (userId: string, rank: ProjectMemberRank, project = projectId) => {
     if (rank === ProjectMemberRank.PROJECT_LEAD) {
       await prisma.projectMember.updateMany({
         where: {
@@ -1059,8 +1194,7 @@ describe('leaving, and what it does not cost', () => {
    * those points, because none of it is about the club.
    */
   it('keeps the club role inert across the whole lifecycle', async () => {
-    const expectMember = async () =>
-      expect(await roleOf(paidId)).toBe(UserRole.MEMBER)
+    const expectMember = async () => expect(await roleOf(paidId)).toBe(UserRole.MEMBER)
 
     await request('POST', `/api/projects/${otherProjectId}/join`, paidCookie)
     await expectMember()
@@ -1265,7 +1399,9 @@ describe('the gallery', () => {
    * picture was added would quietly drop it on the next reorder.
    */
   it('refuses an order whose ids are not exactly the gallery', async () => {
-    const first = (await (await addImage(leadCookie, 'https://example.test/1.png')).json()) as {
+    const first = (await (
+      await addImage(leadCookie, 'https://example.test/1.png')
+    ).json()) as {
       id: string
     }
     await addImage(leadCookie, 'https://example.test/2.png')
@@ -1404,9 +1540,7 @@ describe('the gallery', () => {
     )
 
     expect(response.status).toBe(404)
-    expect(
-      await prisma.projectImage.count({ where: { id: stray.id } }),
-    ).toBe(1)
+    expect(await prisma.projectImage.count({ where: { id: stray.id } })).toBe(1)
   })
 })
 
@@ -1421,9 +1555,10 @@ describe('the resource links', () => {
     ])
 
     expect(response.status).toBe(200)
-    expect(((await response.json()) as { label: string }[]).map((l) => l.label)).toEqual(
-      ['Design doc', 'CAD'],
-    )
+    expect(((await response.json()) as { label: string }[]).map((l) => l.label)).toEqual([
+      'Design doc',
+      'CAD',
+    ])
   })
 
   it('replaces rather than appends', async () => {
@@ -1483,12 +1618,9 @@ describe('teams, through their lifecycle', () => {
     })
     expect(renamed.status).toBe(200)
 
-    const second = await request(
-      'POST',
-      `/api/projects/${projectId}/teams`,
-      leadCookie,
-      { name: 'Chassis & Drive' },
-    )
+    const second = await request('POST', `/api/projects/${projectId}/teams`, leadCookie, {
+      name: 'Chassis & Drive',
+    })
     expect(second.status).toBe(409)
   })
 
@@ -1521,12 +1653,9 @@ describe('teams, through their lifecycle', () => {
       where: { projectId_name: { projectId, name: 'Outreach' } },
     })
 
-    const cleared = await request(
-      'PATCH',
-      `/api/teams/${team!.id}`,
-      leadCookie,
-      { description: null },
-    )
+    const cleared = await request('PATCH', `/api/teams/${team!.id}`, leadCookie, {
+      description: null,
+    })
     expect(cleared.status).toBe(200)
     expect(await cleared.json()).toMatchObject({
       name: 'Outreach',
@@ -1688,8 +1817,7 @@ describe('the meeting schedule', () => {
       project: { slug: string; meetingStartTime: string | null }
     }[]
     expect(
-      rows.find((row) => row.project.slug === `${PREFIX}rover`)?.project
-        .meetingStartTime,
+      rows.find((row) => row.project.slug === `${PREFIX}rover`)?.project.meetingStartTime,
     ).toBe('18:00')
   })
 
@@ -1946,8 +2074,8 @@ describe('the meeting schedule', () => {
   })
 
   /**
-   * The public calendar is the officers', the same way `published` on an event is. A lead
-   * decides when the project meets; whether the front page carries that isn't theirs.
+   * Recurring meetings keep their separate officer-controlled public setting;
+   * individual events use the event editor's main-calendar checkbox.
    */
   it('refuses meetingsPublic from a lead and takes it from an officer', async () => {
     expect((await patch({ meetingsPublic: false })).status).toBe(403)
@@ -2111,7 +2239,9 @@ describe('cancelling one meeting', () => {
   it('refuses a day the schedule has no meeting on', async () => {
     // A Wednesday.
     expect((await cancel('2035-10-17')).status).toBe(404)
-    expect(await prisma.projectMeetingCancellation.count({ where: { projectId } })).toBe(0)
+    expect(await prisma.projectMeetingCancellation.count({ where: { projectId } })).toBe(
+      0,
+    )
   })
 
   it('refuses something that is not a date', async () => {
@@ -2123,9 +2253,7 @@ describe('cancelling one meeting', () => {
 
     expect((await cancel('2035-10-16', {}, paidCookie)).status).toBe(403)
     expect(
-      (
-        await request('GET', `/api/projects/${projectId}/meetings`, paidCookie)
-      ).status,
+      (await request('GET', `/api/projects/${projectId}/meetings`, paidCookie)).status,
     ).toBe(403)
   })
 })
@@ -2140,12 +2268,7 @@ describe('cancelling one meeting', () => {
  */
 describe("a member's display title", () => {
   const patch = (body: unknown) =>
-    request(
-      'PATCH',
-      `/api/projects/${projectId}/members/${paidId}`,
-      leadCookie,
-      body,
-    )
+    request('PATCH', `/api/projects/${projectId}/members/${paidId}`, leadCookie, body)
 
   beforeEach(async () => {
     await prisma.projectMember.create({ data: { projectId, userId: paidId } })
@@ -2158,10 +2281,10 @@ describe("a member's display title", () => {
     expect(await response.json()).toMatchObject({ title: 'Chassis Wiring' })
 
     const team = await request('GET', `/api/projects/${projectId}/team`, leadCookie)
-    const body = (await team.json()) as { members: { userId: string; title: string | null }[] }
-    expect(body.members.find((m) => m.userId === paidId)?.title).toBe(
-      'Chassis Wiring',
-    )
+    const body = (await team.json()) as {
+      members: { userId: string; title: string | null }[]
+    }
+    expect(body.members.find((m) => m.userId === paidId)?.title).toBe('Chassis Wiring')
   })
 
   const storedTitle = async (userId = paidId) =>
@@ -2271,12 +2394,9 @@ describe("a member's display title", () => {
   })
 
   it('takes it away when an officer stands a lead down', async () => {
-    await request(
-      'PATCH',
-      `/api/projects/${projectId}/members/${leadId}`,
-      leadCookie,
-      { title: 'Rover Lead' },
-    )
+    await request('PATCH', `/api/projects/${projectId}/members/${leadId}`, leadCookie, {
+      title: 'Rover Lead',
+    })
 
     const response = await request(
       'PATCH',
@@ -2290,14 +2410,9 @@ describe("a member's display title", () => {
   })
 
   /** Their rank and team stay the officers'. Their own title box in the editor doesn't. */
-  it("lets the lead set their own title, and still not their rank", async () => {
+  it('lets the lead set their own title, and still not their rank', async () => {
     const ownRow = (body: unknown) =>
-      request(
-        'PATCH',
-        `/api/projects/${projectId}/members/${leadId}`,
-        leadCookie,
-        body,
-      )
+      request('PATCH', `/api/projects/${projectId}/members/${leadId}`, leadCookie, body)
 
     expect((await ownRow({ title: 'Rover Lead' })).status).toBe(200)
     expect(await storedTitle(leadId)).toBe('Rover Lead')
@@ -2363,12 +2478,7 @@ describe('GET /api/me/projects', () => {
  */
 describe('duplicating a project', () => {
   const duplicate = (body: Record<string, unknown>) =>
-    request(
-      'POST',
-      `/api/officer/projects/${projectId}/duplicate`,
-      officerCookie,
-      body,
-    )
+    request('POST', `/api/officer/projects/${projectId}/duplicate`, officerCookie, body)
 
   beforeEach(async () => {
     await prisma.project.update({
@@ -2439,7 +2549,7 @@ describe('duplicating a project', () => {
    * Dates belong to the term they were picked for, and none would land in the new one. A
    * cancellation is a date too.
    */
-  it('leaves last term\'s dates and cancellations behind', async () => {
+  it("leaves last term's dates and cancellations behind", async () => {
     await prisma.project.update({
       where: { id: projectId },
       data: {
@@ -2452,7 +2562,11 @@ describe('duplicating a project', () => {
     const response = await duplicate({ slug: `${PREFIX}rover-dated` })
     const copy = (await response.json()) as { id: string }
 
-    expect(copy).toMatchObject({ meetingRepeat: null, meetingDates: [], meetingTimes: [] })
+    expect(copy).toMatchObject({
+      meetingRepeat: null,
+      meetingDates: [],
+      meetingTimes: [],
+    })
     expect(
       await prisma.projectMeetingCancellation.count({ where: { projectId: copy.id } }),
     ).toBe(0)
@@ -2467,13 +2581,9 @@ describe('duplicating a project', () => {
     const response = await duplicate({ slug: `${PREFIX}rover-empty` })
     const copy = (await response.json()) as { id: string }
 
-    expect(
-      await prisma.projectMember.count({ where: { projectId: copy.id } }),
-    ).toBe(0)
+    expect(await prisma.projectMember.count({ where: { projectId: copy.id } })).toBe(0)
     // …even though the original has its lead on it.
-    expect(
-      await prisma.projectMember.count({ where: { projectId } }),
-    ).toBeGreaterThan(0)
+    expect(await prisma.projectMember.count({ where: { projectId } })).toBeGreaterThan(0)
   })
 
   it('copies the resource links', async () => {
@@ -2610,12 +2720,7 @@ describe('duplicating a project', () => {
  */
 describe('granting a membership', () => {
   const grant = (userId: string, plan: 'SEMESTER' | 'YEAR') =>
-    request(
-      'POST',
-      `/api/officer/members/${userId}/membership`,
-      officerCookie,
-      { plan },
-    )
+    request('POST', `/api/officer/members/${userId}/membership`, officerCookie, { plan })
 
   it('covers a guest and makes them a member', async () => {
     const response = await grant(unpaidId, 'SEMESTER')
@@ -2691,10 +2796,7 @@ describe('granting a membership', () => {
   })
 
   it('404s for somebody who does not exist', async () => {
-    const response = await grant(
-      '00000000-0000-7000-8000-000000000000',
-      'SEMESTER',
-    )
+    const response = await grant('00000000-0000-7000-8000-000000000000', 'SEMESTER')
 
     expect(response.status).toBe(404)
   })
@@ -2709,8 +2811,7 @@ describe('granting a membership', () => {
 
     expect(response.status).toBe(403)
     expect(
-      (await prisma.user.findUniqueOrThrow({ where: { id: unpaidId } }))
-        .duesPaidThrough,
+      (await prisma.user.findUniqueOrThrow({ where: { id: unpaidId } })).duesPaidThrough,
     ).toBeNull()
   })
 })
@@ -2743,6 +2844,7 @@ describe('project documents', () => {
       title?: string
       description?: string
       authorUserId?: string
+      authors?: unknown
       name?: string
       bytes?: Uint8Array<ArrayBuffer>
       project?: string
@@ -2759,7 +2861,16 @@ describe('project documents', () => {
     if (fields.description !== undefined) {
       form.append('description', fields.description)
     }
-    form.append('authorUserId', fields.authorUserId ?? leadId)
+    if (fields.authors === undefined) {
+      form.append('authorUserId', fields.authorUserId ?? leadId)
+    } else {
+      form.append(
+        'authors',
+        typeof fields.authors === 'string'
+          ? fields.authors
+          : JSON.stringify(fields.authors),
+      )
+    }
 
     return app.request(`/api/projects/${fields.project ?? projectId}/documents`, {
       method: 'POST',
@@ -2777,10 +2888,11 @@ describe('project documents', () => {
     const form = new FormData()
     form.append('file', new File([bytes], name, { type: 'application/pdf' }))
 
-    return app.request(
-      `/api/projects/${projectId}/documents/${documentId}/file`,
-      { method: 'POST', body: form, headers: { cookie } },
-    )
+    return app.request(`/api/projects/${projectId}/documents/${documentId}/file`, {
+      method: 'POST',
+      body: form,
+      headers: { cookie },
+    })
   }
 
   /** The id and the file id of a freshly published document. */
@@ -2822,6 +2934,137 @@ describe('project documents', () => {
     expect(response.status).toBe(201)
   })
 
+  it('publishes multiple authors and credits a former member by name', async () => {
+    await prisma.projectMember.create({
+      data: { projectId, userId: paidId, rank: ProjectMemberRank.MEMBER },
+    })
+    const response = await publish(leadCookie, {
+      authors: [{ userId: leadId }, { userId: paidId }, { name: ' Former Member ' }],
+    })
+    expect(response.status).toBe(201)
+    const document = (await response.json()) as {
+      id: string
+      authorName: string
+      authors: { id: string; name: string }[]
+    }
+    expect(document.authorName).toBe('PM Lead, PM Paid, Former Member')
+    expect(document.authors).toEqual([
+      { id: expect.any(String), name: 'PM Lead' },
+      { id: expect.any(String), name: 'PM Paid' },
+      { id: expect.any(String), name: 'Former Member' },
+    ])
+    const publicResponse = await app.request(`/api/projects/${PREFIX}rover`)
+    const publicProject = (await publicResponse.json()) as {
+      documents: (typeof document)[]
+    }
+    expect(
+      publicProject.documents.find((row) => row.id === document.id)?.authors,
+    ).toEqual(document.authors)
+  })
+
+  it('keeps credits after an author leaves and deletes their account', async () => {
+    await prisma.projectMember.create({
+      data: { projectId, userId: paidId, rank: ProjectMemberRank.MEMBER },
+    })
+    const response = await publish(leadCookie, { authors: [{ userId: paidId }] })
+    expect(response.status).toBe(201)
+    const document = (await response.json()) as {
+      id: string
+      authors: { id: string; name: string }[]
+    }
+    await prisma.projectMember.delete({
+      where: { projectId_userId: { projectId, userId: paidId } },
+    })
+    await prisma.user.delete({ where: { id: paidId } })
+    const updated = await request(
+      'PATCH',
+      `/api/projects/${projectId}/documents/${document.id}`,
+      leadCookie,
+      {
+        authors: [{ id: document.authors[0].id }, { name: 'Another Former Member' }],
+      },
+    )
+    expect(updated.status).toBe(200)
+    expect(await updated.json()).toMatchObject({
+      authorName: 'PM Paid, Another Former Member',
+      authors: [
+        document.authors[0],
+        { id: expect.any(String), name: 'Another Former Member' },
+      ],
+    })
+    expect(
+      await prisma.projectDocumentAuthor.findUnique({
+        where: { id: document.authors[0].id },
+      }),
+    ).toMatchObject({ userId: null, name: 'PM Paid' })
+  })
+
+  it('edits and reorders authors without changing retained credit ids or revision dates', async () => {
+    const response = await publish(leadCookie, {
+      authors: [{ userId: leadId }, { name: 'Former One' }, { name: 'Former Two' }],
+    })
+    expect(response.status).toBe(201)
+    const document = (await response.json()) as {
+      id: string
+      updatedAt: string
+      authors: { id: string; name: string }[]
+    }
+    const updated = await request(
+      'PATCH',
+      `/api/projects/${projectId}/documents/${document.id}`,
+      leadCookie,
+      {
+        authors: [{ id: document.authors[2].id }, { id: document.authors[0].id }],
+      },
+    )
+    expect(updated.status).toBe(200)
+    expect(await updated.json()).toMatchObject({
+      authors: [document.authors[2], document.authors[0]],
+      authorName: 'Former Two, PM Lead',
+      updatedAt: document.updatedAt,
+    })
+    expect(
+      await prisma.projectDocumentAuthor.count({ where: { documentId: document.id } }),
+    ).toBe(2)
+  })
+
+  it.each([
+    [],
+    [{ name: '   ' }],
+    [{ userId: 'not-a-user-id' }],
+    [{ name: 'Same' }, { name: ' same ' }],
+    Array.from({ length: 21 }, (_, index) => ({ name: `Author ${index}` })),
+    '[broken',
+  ])('refuses an invalid author list: %j', async (authors) => {
+    const response = await publish(leadCookie, { authors })
+    expect(response.status).toBe(400)
+    expect(await prisma.projectDocument.count({ where: { projectId } })).toBe(0)
+  })
+
+  it('refuses repeated account selections and credits from another document', async () => {
+    expect(
+      (await publish(leadCookie, { authors: [{ userId: leadId }, { userId: leadId }] }))
+        .status,
+    ).toBe(400)
+    const first = await published()
+    const second = await published()
+    const credit = await prisma.projectDocumentAuthor.findFirstOrThrow({
+      where: { documentId: first.id },
+    })
+    const response = await request(
+      'PATCH',
+      `/api/projects/${projectId}/documents/${second.id}`,
+      leadCookie,
+      {
+        authors: [{ id: credit.id }],
+      },
+    )
+    expect(response.status).toBe(400)
+    expect(
+      await prisma.projectDocumentAuthor.count({ where: { documentId: second.id } }),
+    ).toBe(1)
+  })
+
   it('refuses a file wearing an extension that is not its own', async () => {
     const response = await publish(leadCookie, {
       name: 'notes.pdf',
@@ -2847,9 +3090,7 @@ describe('project documents', () => {
   })
 
   it('refuses a file over the cap with a 413 that names the limit', async () => {
-    const oversized = new Uint8Array(
-      env.MAX_DOCUMENT_FILE_MB * 1024 * 1024 + 128 * 1024,
-    )
+    const oversized = new Uint8Array(env.MAX_DOCUMENT_FILE_MB * 1024 * 1024 + 128 * 1024)
     oversized.set(new TextEncoder().encode('%PDF-1.7'), 0)
 
     const response = await publish(leadCookie, { bytes: oversized })
@@ -2907,8 +3148,7 @@ describe('project documents', () => {
           data: {
             project: { connect: { id: projectId } },
             title: `Filler ${index}`,
-            authorName: 'PM Lead',
-            author: { connect: { id: leadId } },
+            authors: { create: { name: 'PM Lead', userId: leadId, position: 0 } },
             file: {
               create: {
                 kind: FileKind.DOCUMENT,
@@ -2950,12 +3190,8 @@ describe('project documents', () => {
 
     // The old bytes are gone, which is the storage rule this feature ships with: nothing
     // keeps a revision nobody can reach.
-    expect(
-      await prisma.storedFile.count({ where: { id: first.fileId } }),
-    ).toBe(0)
-    expect(
-      await prisma.storedFile.count({ where: { id: document['fileId'] } }),
-    ).toBe(1)
+    expect(await prisma.storedFile.count({ where: { id: first.fileId } })).toBe(0)
+    expect(await prisma.storedFile.count({ where: { id: document['fileId'] } })).toBe(1)
   })
 
   it('does not move updatedAt when only the title changes', async () => {
@@ -3025,11 +3261,7 @@ describe('project documents', () => {
   it('takes every document’s bytes with the project', async () => {
     const first = await published()
 
-    const response = await request(
-      'DELETE',
-      `/api/projects/${projectId}`,
-      leadCookie,
-    )
+    const response = await request('DELETE', `/api/projects/${projectId}`, leadCookie)
 
     expect(response.status).toBe(200)
     // The cascade takes the row and drops the reference; without the sweep in the delete

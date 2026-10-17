@@ -1,4 +1,5 @@
-import { Link, useOutletContext } from 'react-router'
+import { useEffect, useState } from 'react'
+import { Link, useOutletContext, useSearchParams } from 'react-router'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
 import { DuesLocked } from '../../components/dashboard/DuesLocked'
 import { OfficerOnly } from '../../components/dashboard/OfficerOnly'
@@ -7,261 +8,283 @@ import {
   FormEyebrow,
   FormHeading,
   FormPanel,
-  measureClass,
+  labelClass,
 } from '../../components/shared/formChrome'
-import { apiBaseUrl } from '../../lib/api/api'
-import type { ApiSurveyQuestionTally, ApiSurveySummary } from '../../lib/api/api'
+import { FilterChips } from '../../components/shared/FilterChips'
+import { apiBaseUrl, getJson } from '../../lib/api/api'
+import type { ApiSurveySummary } from '../../lib/api/api'
+import { explainApiError } from '../../lib/api/apiErrors'
 import { duesLocked } from '../../lib/dues/dues'
-import { useApi } from '../../lib/api/useApi'
+import {
+  DEFAULT_REPORT_FILTERS,
+  readReportFilters,
+  reportDay,
+  reportParams,
+  type TallySort,
+} from '../../lib/surveyReport'
+import {
+  SurveyReportFilters,
+  reportButton,
+} from '../../components/survey/SurveyReportFilters'
+import {
+  SurveyResponses,
+  TallyCharts,
+  TallyTable,
+} from '../../components/survey/SurveyReportViews'
 
-/**
- * `/dashboard/officer/survey` — what the club learned, as counts.
- *
- * The survey exists so somebody can order the right shirts and buy food nobody has to refuse, and
- * without a page like this the answers sit in Postgres where only Prisma Studio can reach them. So
- * this is deliberately not a table of people: it is the tallies an order is placed from, and a CSV
- * for the cases a tally cannot answer.
- *
- * One panel per question, whatever the questions are — they used to be six hardcoded lists with the
- * club's own wording over them, and officers write them now at the page this one links to.
- *
- * Every option is listed, including the ones on nought. A list that omits the sizes nobody picked
- * reads as "we need none of those" rather than "nobody has asked for one", and the difference is a
- * box of shirts. The server returns the zeroes for the same reason.
- */
 export function OfficerSurveyPage() {
   const { user, membership } = useOutletContext<DashboardContext>()
-
-  // Dues before role, the order every other desk uses: a lapsed officer is
-  // still an officer, and the sentence they need is about a payment.
-  if (duesLocked(membership, user.role)) {
-    return <DuesLocked eyebrow="/ MANAGE · SURVEY" />
-  }
-
+  if (duesLocked(membership, user.role)) return <DuesLocked eyebrow="/ MANAGE · SURVEY" />
   if (!isOfficer(user.role)) {
-    return <OfficerOnly eyebrow="/ MANAGE · SURVEY" why="It carries members’ names, contact details and their allergies, so it is board business." />
+    return (
+      <OfficerOnly
+        eyebrow="/ MANAGE · SURVEY"
+        why="It carries members’ names, contact details and their allergies, so it is board business."
+      />
+    )
   }
-
   return <Results />
 }
 
-const panelLabel =
-  'text-faint mb-4 font-mono text-[10px] font-medium tracking-[0.16em]'
-
-const quietLink =
-  'btn btn-outline h-auto min-h-0 border-base-content/28 px-5 py-2.5 text-[12px] font-semibold tracking-[0.04em] text-base-content hover:border-base-content hover:bg-base-content/6 hover:text-base-content'
+type ReportState = {
+  data: ApiSurveySummary | null
+  loading: boolean
+  error: string | null
+}
 
 function Results() {
-  const summary = useApi<ApiSurveySummary>('/officer/survey')
+  const [params, setParams] = useSearchParams()
+  const applied = readReportFilters(params)
+  const query = reportParams(applied).toString()
+  const suffix = query ? `?${query}` : ''
+  const [draft, setDraft] = useState(() => readReportFilters(params))
+  const [refresh, setRefresh] = useState(0)
+  const [page, setPage] = useState<ReportState>({
+    data: null,
+    loading: true,
+    error: null,
+  })
+  const [view, setView] = useState<'charts' | 'table' | 'responses'>('charts')
+  const [sort, setSort] = useState<TallySort>('survey')
+  const [hideZero, setHideZero] = useState(false)
+  const [percentages, setPercentages] = useState(true)
 
-  if (summary.status === 'loading') {
-    return (
-      <div aria-busy="true">
-        <FormEyebrow>/ MANAGE · SURVEY</FormEyebrow>
-        <FormHeading>Counting the answers…</FormHeading>
-        <div className="border-rule bg-base-200 h-64 border" />
-      </div>
+  useEffect(() => {
+    const controller = new AbortController()
+    setDraft(readReportFilters(new URLSearchParams(query)))
+    setPage((current) => ({ ...current, loading: true, error: null }))
+    getJson<ApiSurveySummary>(
+      `/officer/survey${query ? `?${query}` : ''}`,
+      controller.signal,
     )
-  }
+      .then((data) => {
+        if (!controller.signal.aborted) setPage({ data, loading: false, error: null })
+      })
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted)
+          setPage((current) => ({
+            ...current,
+            loading: false,
+            error: explainApiError(error),
+          }))
+      })
+    return () => controller.abort()
+  }, [query, refresh])
 
-  if (summary.status === 'error') {
-    return (
-      <>
-        <FormEyebrow>/ MANAGE · SURVEY</FormEyebrow>
-        <FormHeading>We couldn&rsquo;t load that.</FormHeading>
-        <p className={`${measureClass} text-dim text-sm leading-[1.7] text-pretty`}>
-          The survey results did not come back. Try again in a moment.
-        </p>
-      </>
-    )
+  const data = page.data
+  const ready = data !== null && !page.loading && page.error === null
+  const reset = () => {
+    setDraft({ ...DEFAULT_REPORT_FILTERS })
+    setParams({})
+    setRefresh((current) => current + 1)
   }
-
-  const data = summary.data
-  const asked = data.responded + data.outstanding
+  const readQuestion = (questionId: string) => {
+    setParams(reportParams({ ...applied, questionId, answer: 'answered' }))
+    setView('responses')
+  }
 
   return (
     <>
       <FormEyebrow>/ MANAGE · SURVEY</FormEyebrow>
-      <FormHeading>What the club knows.</FormHeading>
-
-      <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
-        <p className="text-dim max-w-[42rem] text-sm leading-[1.7] text-pretty">
-          <span className="text-base-content">{data.responded}</span> answered
-          {asked > 0 && (
-            <>
-              {' '}
-              of <span className="text-base-content">{asked}</span> active members
-            </>
-          )}
-          {data.outstanding > 0 && (
-            <>
-              {' '}
-              &mdash; {data.outstanding} still to go, and they are locked out
-              until they do.
-            </>
-          )}
+      <FormHeading>
+        {!data && page.loading
+          ? 'Counting the answers…'
+          : !data && page.error
+            ? 'We couldn’t load that.'
+            : 'What the club knows.'}
+      </FormHeading>
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+        <p className="max-w-[42rem] text-sm leading-[1.7] text-pretty text-dim">
+          Explore the responses, narrow the group, and download the same results.
         </p>
-
         <div className="flex flex-wrap gap-3">
-          <Link to="/dashboard/officer/survey/questions" className={quietLink}>
+          <Link to="/dashboard/officer/survey/questions" className={reportButton}>
             EDIT THE QUESTIONS
           </Link>
-
-          {/*
-            A plain link, not a fetch. The file is served straight off the API with its own
-            `Content-Disposition`, and going through `getJson` would mean holding the whole CSV in
-            memory to hand it back to the browser that was going to download it anyway.
-            `apiBaseUrl` because the API is a different origin — a root-relative href here would ask
-            Vite for it and get `index.html` back, the trap `storedFiles.ts` documents.
-          */}
+          <button
+            type="button"
+            className={reportButton}
+            disabled={page.loading}
+            onClick={() => setRefresh((current) => current + 1)}
+          >
+            REFRESH RESULTS
+          </button>
           <a
-            href={`${apiBaseUrl}/api/officer/survey/export.csv`}
-            className={quietLink}
+            href={`${apiBaseUrl}/api/officer/survey/export.csv${suffix}`}
+            className={`${reportButton} ${ready ? '' : 'pointer-events-none opacity-40'}`}
+            aria-disabled={!ready}
+            tabIndex={ready ? undefined : -1}
           >
             DOWNLOAD CSV
           </a>
         </div>
       </div>
-
-      {data.questions.length === 0 ? (
-        <div className={measureClass}>
-          <FormPanel>
-            <p className="text-dim text-sm leading-[1.7] text-pretty">
-              There are no questions on the survey. Put some on it and the
-              answers will show up here.
-            </p>
-            <Link
-              to="/dashboard/officer/survey/questions"
-              className={`${quietLink} mt-4`}
-            >
-              EDIT THE QUESTIONS
-            </Link>
-          </FormPanel>
+      <SurveyReportFilters
+        value={draft}
+        onChange={setDraft}
+        onApply={() => setParams(reportParams(draft))}
+        onReset={reset}
+        facets={data?.facets}
+        busy={page.loading}
+      />
+      {page.error && (
+        <div role="alert" className="mb-5 border border-error/40 p-4 text-sm text-error">
+          {page.error} Clear the filters or refresh the results to try again.
         </div>
-      ) : (
-        /* The page exists to be read across rather than down — an order is
-           placed off two or three tallies at once. As many columns as fit, so a
-           monitor shows the lot without scrolling. `items-start` because one
-           question is a dozen rows and the next is four. */
-        <div className="grid-fluid items-start gap-5 [--col-min:20rem]">
-          {data.questions.map((question) => (
-            <Tally
-              key={question.id}
-              question={question}
-              total={data.responded}
-            />
-          ))}
-
-          <FormPanel>
-            <p className={panelLabel}>GRADUATION YEARS</p>
-            {data.gradYears.length === 0 ? (
-              <p className="text-faint text-[13px] leading-[1.6]">Nothing yet.</p>
-            ) : (
-              <ul className="flex flex-col gap-2">
-                {data.gradYears.map((row) => (
-                  <Row
-                    key={row.value}
-                    label={String(row.value)}
-                    count={row.count}
-                    total={data.responded}
-                  />
-                ))}
-              </ul>
+      )}
+      {page.loading && (
+        <div role="status" className="mb-5 text-sm text-dim">
+          Loading survey results…
+        </div>
+      )}
+      {ready && (
+        <>
+          <dl aria-label="Survey totals" className="mb-5 grid gap-3 sm:grid-cols-3">
+            {[
+              ['Matching responses', data.responded],
+              ['All survey responses', data.totalResponded],
+              ['Active members without a survey', data.outstanding],
+            ].map(([label, count]) => (
+              <div key={label} className="border border-rule bg-base-200 p-4">
+                <dt className="font-mono text-[10px] tracking-[0.12em] text-faint">
+                  {String(label).toUpperCase()}
+                </dt>
+                <dd className="mt-2 text-3xl font-semibold tabular-nums">{count}</dd>
+              </div>
+            ))}
+          </dl>
+          <p role="status" className="mb-5 text-[12px] leading-[1.7] text-dim">
+            {data.responded} matching {data.responded === 1 ? 'response' : 'responses'} ·{' '}
+            {data.range.label} ·{' '}
+            {data.range.dateField === 'updated' ? 'Last updated' : 'First submitted'}
+            {(data.range.from || data.range.to) && (
+              <>
+                {' '}
+                · {data.range.from
+                  ? reportDay(data.range.from)
+                  : 'Any start'} through{' '}
+                {data.range.to ? reportDay(data.range.to) : 'Any end'}
+              </>
             )}
-          </FormPanel>
-        </div>
+            {data.range.estimated && (
+              <span className="text-warning"> · Using estimated semester dates</span>
+            )}
+          </p>
+          <p className="mb-5 text-[11px] leading-[1.6] text-faint">
+            The active-member count is club-wide. All charts, responses and CSV rows use
+            your filters. Percentages use the people who answered each question.
+          </p>
+          {data.responded === 0 && (
+            <div className="mb-5 border border-rule p-5">
+              <p className="text-sm text-dim">
+                No responses match these filters. Try a wider date range or reset the
+                filters.
+              </p>
+            </div>
+          )}
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
+            <FilterChips
+              value={view}
+              onChange={setView}
+              options={[
+                { value: 'charts', label: 'CHARTS' },
+                { value: 'table', label: 'TABLE' },
+                { value: 'responses', label: 'RESPONSES' },
+              ]}
+            />
+            {view !== 'responses' && (
+              <div className="flex flex-wrap items-end gap-4">
+                <div>
+                  <label className={labelClass} htmlFor="survey-tally-sort">
+                    SORT ANSWERS
+                  </label>
+                  <select
+                    id="survey-tally-sort"
+                    className="select border-rule bg-base-200 text-sm"
+                    value={sort}
+                    onChange={(event) => setSort(event.target.value as TallySort)}
+                  >
+                    <option value="survey">Survey order</option>
+                    <option value="count_desc">Most chosen first</option>
+                    <option value="count_asc">Least chosen first</option>
+                    <option value="label">Answer, A–Z</option>
+                  </select>
+                </div>
+                <label className="flex items-center gap-2 text-[12px] text-dim">
+                  <input
+                    className="checkbox checkbox-sm"
+                    type="checkbox"
+                    checked={hideZero}
+                    onChange={(event) => setHideZero(event.target.checked)}
+                  />
+                  Hide zero counts
+                </label>
+                <label className="flex items-center gap-2 text-[12px] text-dim">
+                  <input
+                    className="checkbox checkbox-sm"
+                    type="checkbox"
+                    checked={percentages}
+                    onChange={(event) => setPercentages(event.target.checked)}
+                  />
+                  Show percentages
+                </label>
+              </div>
+            )}
+          </div>
+          {data.questions.length === 0 && (
+            <FormPanel>
+              <p className="text-sm text-dim">
+                There are no questions on the survey. Put some on it and the answers will
+                show up here.
+              </p>
+            </FormPanel>
+          )}
+          {view === 'responses' ? (
+            <SurveyResponses
+              key={query}
+              data={data}
+              sort={applied.sort}
+              onSort={(next) => setParams(reportParams({ ...applied, sort: next }))}
+            />
+          ) : view === 'table' ? (
+            <TallyTable
+              data={data}
+              sort={sort}
+              hideZero={hideZero}
+              percentages={percentages}
+              onRead={readQuestion}
+            />
+          ) : (
+            <TallyCharts
+              data={data}
+              sort={sort}
+              hideZero={hideZero}
+              percentages={percentages}
+              onRead={readQuestion}
+            />
+          )}
+        </>
       )}
     </>
-  )
-}
-
-function Tally({
-  question,
-  total,
-}: {
-  question: ApiSurveyQuestionTally
-  total: number
-}) {
-  return (
-    <FormPanel>
-      <p className={panelLabel}>{question.prompt.toUpperCase()}</p>
-
-      {/* A written answer has no tally to draw. What it has is a number of
-          people who wrote something and a spreadsheet with the words in it,
-          and saying that is better than a panel of bars on nought. */}
-      {question.kind === 'SHORT_TEXT' || question.kind === 'LONG_TEXT' ? (
-        <p className="text-dim text-[13px] leading-[1.6] text-pretty">
-          {question.answered === 0
-            ? 'Nobody has written anything yet.'
-            : `${question.answered} ${question.answered === 1 ? 'person has' : 'people have'} written something. The answers are in the CSV.`}
-        </p>
-      ) : (
-        <ul className="flex flex-col gap-2">
-          {question.options.map((option) => (
-            <Row
-              key={option.id}
-              label={option.label}
-              /* An answer the club has stopped offering, still counted because
-                 the people who gave it have not stopped meaning it. */
-              note={option.archived ? 'removed' : null}
-              count={option.count}
-              total={total}
-            />
-          ))}
-
-          {/* Its own row rather than an option, because there is no NONE
-              option — an empty set of ticks is what pressing it stores. It
-              would otherwise be the one answer on the survey nothing counted. */}
-          {question.none !== null && (
-            <Row label="None" count={question.none} total={total} />
-          )}
-        </ul>
-      )}
-    </FormPanel>
-  )
-}
-
-/**
- * One line of a tally: the name, a bar, and the number.
- *
- * The bar is a proportion of the largest possible count rather than of the largest actual one, so
- * two panels side by side can be read against each other. A row on nought draws no bar and greys
- * its number, which keeps "nobody picked this" visibly different from "this is a small number".
- */
-function Row({
-  label,
-  note = null,
-  count,
-  total,
-}: {
-  label: string
-  note?: string | null
-  count: number
-  total: number
-}) {
-  const share = total > 0 ? Math.round((count / total) * 100) : 0
-
-  return (
-    <li className="flex items-center gap-3">
-      <span className="text-dim w-36 shrink-0 truncate text-[13px] leading-[1.6]">
-        {label}
-        {note !== null && <span className="text-faint/70 ml-1.5">({note})</span>}
-      </span>
-
-      <span className="bg-base-300 h-2 min-w-0 flex-1">
-        <span
-          className="bg-primary block h-full"
-          style={{ width: `${share}%` }}
-        />
-      </span>
-
-      <span
-        className={`w-8 shrink-0 text-right font-mono text-[12px] ${
-          count === 0 ? 'text-faint' : 'text-base-content'
-        }`}
-      >
-        {count}
-      </span>
-    </li>
   )
 }

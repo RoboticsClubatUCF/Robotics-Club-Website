@@ -303,6 +303,164 @@ describe('adding a question', () => {
 })
 
 describe('editing a question', () => {
+  it.each([
+    { retired: true, label: 'Beta' },
+    { retired: true, label: ' beta ' },
+    { retired: false, label: 'Beta' },
+    { retired: false, label: ' bEtA ' },
+  ])(
+    'requires restoration when re-adding $label (already retired: $retired)',
+    async ({ retired, label }) => {
+      const prompt = `${PREFIX}readd`
+      await create(askable(prompt))
+      const before = await mine(prompt)
+      const original = before.options[1]
+      await answerWith(before.id, [original.id])
+      const keep = (option: WireOption) => ({
+        id: option.id,
+        label: option.label,
+        wantsText: option.wantsText,
+      })
+      const remaining = [keep(before.options[0]), keep(before.options[2])]
+      if (retired) {
+        expect(
+          (await edit(before.id, { ...askable(prompt), options: remaining })).status,
+        ).toBe(200)
+      }
+      const saved = await mine(prompt)
+
+      const response = await edit(before.id, {
+        ...askable(`${prompt} changed`),
+        options: [...remaining, { label, wantsText: false }],
+      })
+
+      expect(response.status).toBe(409)
+      expect(await response.json()).toEqual({
+        error:
+          '“Beta” was offered before. Restore the existing answer to keep its responses.',
+      })
+      expect(await mine(prompt)).toEqual(saved)
+
+      expect(
+        (
+          await edit(before.id, {
+            ...askable(prompt),
+            options: [...remaining, keep(original)],
+          })
+        ).status,
+      ).toBe(200)
+      const restored = await mine(prompt)
+      expect(
+        restored.options.filter((option) => option.label.toLowerCase() === 'beta'),
+      ).toEqual([{ ...original, archived: false, picked: 1 }])
+
+      const memberResponse = await send('GET', '/api/survey', memberCookie)
+      expect(memberResponse.status).toBe(200)
+      const member = (await memberResponse.json()) as {
+        questions: { id: string; options: { id: string; label: string }[] }[]
+        survey: { answers: { questionId: string; optionIds: string[] }[] }
+      }
+      expect(
+        member.questions
+          .find((question) => question.id === before.id)
+          ?.options.filter((option) => option.label.toLowerCase() === 'beta'),
+      ).toHaveLength(1)
+      expect(
+        member.survey.answers.find((answer) => answer.questionId === before.id)
+          ?.optionIds,
+      ).toEqual([original.id])
+    },
+  )
+
+  it('refuses renaming another answer to match a retired one', async () => {
+    const prompt = `${PREFIX}rename-retired`
+    await create(askable(prompt))
+    const before = await mine(prompt)
+    await answerWith(before.id, [before.options[1].id])
+    const options = [before.options[0], before.options[2]].map((option) => ({
+      id: option.id,
+      label: option.label,
+      wantsText: option.wantsText,
+    }))
+    expect((await edit(before.id, { ...askable(prompt), options })).status).toBe(200)
+    const saved = await mine(prompt)
+
+    expect(
+      (
+        await edit(before.id, {
+          ...askable(prompt),
+          options: [{ ...options[0], label: 'beta' }, options[1]],
+        })
+      ).status,
+    ).toBe(409)
+    expect(await mine(prompt)).toEqual(saved)
+  })
+
+  it('still allows unchanged choices if duplicate retired rows predate the check', async () => {
+    const prompt = `${PREFIX}existing-duplicate`
+    await create(askable(prompt))
+    const before = await mine(prompt)
+    await prisma.surveyOption.create({
+      data: {
+        questionId: before.id,
+        label: 'Beta',
+        position: 3,
+        archivedAt: new Date(),
+      },
+    })
+    const response = await edit(before.id, {
+      ...askable(prompt),
+      options: before.options.map((option) => ({
+        id: option.id,
+        label: option.label,
+        wantsText: option.wantsText,
+      })),
+    })
+    expect(response.status).toBe(200)
+  })
+
+  it('saves answer order for officers and members without changing existing picks', async () => {
+    const prompt = `${PREFIX}answer-order`
+    await create(askable(prompt))
+    const before = await mine(prompt)
+    const other = before.options[2]
+    await answerWith(before.id, [other.id], 'Biomedical')
+
+    const options = [...before.options].reverse().map((option) => ({
+      id: option.id,
+      label: option.label,
+      wantsText: option.wantsText,
+    }))
+    expect((await edit(before.id, { ...askable(prompt), options })).status).toBe(200)
+
+    const after = await mine(prompt)
+    expect(after.options.map((option) => option.id)).toEqual(
+      options.map((option) => option.id),
+    )
+    expect(after.options[0]).toMatchObject({ id: other.id, wantsText: true, picked: 1 })
+    expect(after.answered).toBe(1)
+
+    const response = await send('GET', '/api/survey', memberCookie)
+    expect(response.status).toBe(200)
+    const member = (await response.json()) as {
+      questions: { id: string; options: { id: string }[] }[]
+      survey: {
+        answers: { questionId: string; optionIds: string[]; text: string | null }[]
+      }
+    }
+    expect(
+      member.questions
+        .find((question) => question.id === before.id)
+        ?.options.map((option) => option.id),
+    ).toEqual(options.map((option) => option.id))
+    expect(
+      member.survey.answers.find((answer) => answer.questionId === before.id),
+    ).toMatchObject({
+      optionIds: [other.id],
+      text: 'Biomedical',
+    })
+  })
+
   it('rewords it and keeps the answers already given against its options', async () => {
     await create(askable(`${PREFIX}edit`))
     const before = await mine(`${PREFIX}edit`)
@@ -703,6 +861,63 @@ describe('the spreadsheet', () => {
     // The free-text half of an OTHER, in brackets after the answer that asked
     // for it, rather than in a second column empty for everybody else.
     expect(text).toContain('Other (Biomedical)')
+  })
+
+  it('exports exactly the filtered cohort and includes submission and update dates', async () => {
+    await create(askable(`${PREFIX}filtered-export`))
+    const question = await mine(`${PREFIX}filtered-export`)
+    await answerWith(question.id, [question.options[0].id])
+    await prisma.memberSurvey.update({
+      where: { userId: memberId },
+      data: {
+        submittedAt: new Date('2035-08-01T14:00:00Z'),
+        updatedAt: new Date('2035-10-15T14:00:00Z'),
+      },
+    })
+    const params = new URLSearchParams({
+      period: 'custom',
+      from: '2035-10-01',
+      to: '2035-10-31',
+      dateField: 'updated',
+      q: email('member'),
+      sort: 'name_asc',
+    })
+    const report = await send('GET', `/api/officer/survey?${params}`, officerCookie)
+    expect(report.status).toBe(200)
+    expect(report.headers.get('cache-control')).toBe('no-store')
+    expect(await report.json()).toMatchObject({
+      responded: 1,
+      responses: [{ user: { fullName: 'Survey Member' } }],
+    })
+    const exported = await send(
+      'GET',
+      `/api/officer/survey/export.csv?${params}`,
+      officerCookie,
+    )
+    expect(exported.status).toBe(200)
+    const text = await exported.text()
+    expect(text.split('\r\n')).toHaveLength(2)
+    expect(text).toContain('Survey Member')
+    expect(text).toContain('"Submitted","Updated"')
+    expect(text).toContain('2035-08-01T14:00:00.000Z')
+    expect(text).toContain('2035-10-15T14:00:00.000Z')
+    params.set('dateField', 'submitted')
+    const empty = await send(
+      'GET',
+      `/api/officer/survey/export.csv?${params}`,
+      officerCookie,
+    )
+    expect((await empty.text()).split('\r\n')).toHaveLength(1)
+  })
+
+  it('validates date filters on the export as well as the page', async () => {
+    const query = '?period=custom&from=2035-10-31&to=2035-10-01'
+    expect((await send('GET', `/api/officer/survey${query}`, officerCookie)).status).toBe(
+      400,
+    )
+    expect(
+      (await send('GET', `/api/officer/survey/export.csv${query}`, officerCookie)).status,
+    ).toBe(400)
   })
 
   /**

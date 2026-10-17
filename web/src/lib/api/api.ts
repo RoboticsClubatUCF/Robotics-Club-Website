@@ -203,11 +203,7 @@ export function putJson<T>(path: string, body: unknown, signal?: AbortSignal) {
  * can't go in the path, where it would land in browser history and in every
  * access log on the way.
  */
-export function deleteJson<T>(
-  path: string,
-  body?: unknown,
-  signal?: AbortSignal,
-) {
+export function deleteJson<T>(path: string, body?: unknown, signal?: AbortSignal) {
   return sendJson<T>('DELETE', path, body, signal)
 }
 
@@ -521,8 +517,9 @@ export type ApiProjectDocument = {
   id: string
   title: string
   description: string | null
-  /** The name frozen on at upload. Not read through the account — somebody who
-      graduates and deletes theirs still wrote it. */
+  /** Ordered, frozen credits. These ids identify credits, not private accounts. */
+  authors: { id: string; name: string }[]
+  /** Display byline containing all credited names. */
   authorName: string
   fileId: string
   /** What it was called on the uploader's machine, and what a download saves
@@ -646,6 +643,8 @@ export type ApiManagedProject = ApiProject & {
 export type ApiMyProject = {
   rank: ProjectMemberRank
   title: string | null
+  /** Public roster approval; joining and Discord access do not depend on it. */
+  publiclyListed: boolean
   team: { id: string; name: string } | null
   /**
    * Whether this project's term is the one we're in, decided by the server
@@ -672,6 +671,7 @@ export type ApiProjectTeamMember = {
   photoUrl: string | null
   title: string | null
   rank: ProjectMemberRank
+  publiclyListed: boolean
   teamId: string | null
 }
 
@@ -1934,14 +1934,47 @@ export type ApiSurveyState = {
   gradYear: number | null
 }
 
-/** `GET /api/officer/survey` — what the club learned, as counts. */
+/** `GET /api/officer/survey` — filtered counts, responses and filter choices. */
 export type ApiSurveySummary = {
   responded: number
+  totalResponded: number
   /** Active members who still owe one. Guests and admins are not counted. */
   outstanding: number
   questions: ApiSurveyQuestionTally[]
   /** Sparse and ascending: the years members actually typed, and nothing else. */
   gradYears: { value: number; count: number }[]
+  range: {
+    label: string
+    from: string | null
+    to: string | null
+    estimated: boolean
+    dateField: 'submitted' | 'updated'
+  }
+  facets: {
+    gradYears: number[]
+    questions: {
+      id: string
+      prompt: string
+      kind: SurveyQuestionKind
+      allowNone: boolean
+      options: { id: string; label: string; archived: boolean }[]
+    }[]
+  }
+  responses: ApiSurveyResponse[]
+}
+
+export type ApiSurveyResponse = {
+  id: string
+  user: {
+    fullName: string
+    email: string | null
+    discordUsername: string | null
+    gradYear: number | null
+    active: boolean
+  }
+  submittedAt: string
+  updatedAt: string
+  answers: ApiSurveyAnswer[]
 }
 
 export type ApiSurveyQuestionTally = {

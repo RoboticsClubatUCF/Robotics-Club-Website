@@ -14,8 +14,8 @@ import { createSession } from '../../auth/session.js'
  *
  * Two properties carry the suite. The matrix itself: a team lead schedules for their own team, the
  * project lead can overrule any of their teams' leads, an officer can overrule anybody. And the
- * invariant that makes lead-created events safe at all: nothing a lead creates ever reaches the
- * public `/api/events`, because `published` stays false unless an officer says otherwise.
+ * visibility rule: events stay private by default and reach the public `/api/events` only when
+ * opted in by an officer or a lead with current authority over that project or team.
  */
 
 const PREFIX = 'test-events-'
@@ -178,7 +178,7 @@ describe('creating events', () => {
     expect((await request('POST', '/api/events', cookies.lead, body)).status).toBe(201)
   })
 
-  it('pins the creator, and never publishes for a lead', async () => {
+  it('pins the creator, and keeps events private by default', async () => {
     const response = await request('POST', '/api/events', cookies.teamLead, eventBody())
     const event = (await response.json()) as Record<string, unknown>
 
@@ -186,7 +186,7 @@ describe('creating events', () => {
     expect(event.createdById).toBeTruthy()
   })
 
-  it('refuses a lead who asks to publish, in words about officers', async () => {
+  it('lets a project lead publish a project-wide event', async () => {
     const response = await request(
       'POST',
       '/api/events',
@@ -194,10 +194,19 @@ describe('creating events', () => {
       eventBody({ teamId: undefined, published: true }),
     )
 
-    expect(response.status).toBe(403)
+    expect(response.status).toBe(201)
     expect(await response.json()).toMatchObject({
-      error: expect.stringContaining('officer'),
+      published: true, projectId, teamId: null,
     })
+  })
+
+  it.each([
+    ['teamLead', 201], ['lead', 201], ['officer', 201],
+    ['siblingLead', 403], ['member', 403], ['outsider', 403],
+  ] as const)('publishing a team event by %s -> %i', async (person, status) => {
+    const response = await request('POST', '/api/events', cookies[person], eventBody({ published: true }))
+    expect(response.status).toBe(status)
+    if (status === 201) expect(await response.json()).toMatchObject({ published: true, projectId, teamId })
   })
 
   it('lets an officer publish', async () => {
@@ -275,17 +284,38 @@ describe('editing and deleting', () => {
     expect(await prisma.event.findUnique({ where: { id: event.id } })).toBeNull()
   })
 
-  it('a lead cannot flip published on their own event afterwards', async () => {
+  it.each(['teamLead', 'lead', 'officer'] as const)('%s can publish and withdraw an existing team event', async (person) => {
     const event = await teamEvent()
+    for (const published of [true, false]) {
+      const response = await request('PATCH', `/api/events/${event.id}`, cookies[person], { published })
+      expect(response.status).toBe(200)
+      expect(await response.json()).toMatchObject({ published })
+      const publicEvents = await app.request('/api/events?when=all&limit=100&from=2035-10-01T00:00:00.000Z&to=2035-11-01T00:00:00.000Z')
+      const ids = ((await publicEvents.json()) as { id: string }[]).map(row => row.id)
+      expect(ids.includes(event.id)).toBe(published)
+    }
+  })
 
-    const response = await request(
-      'PATCH',
-      `/api/events/${event.id}`,
-      cookies.teamLead,
-      { published: true },
-    )
+  it.each(['siblingLead', 'member', 'outsider'] as const)('refuses publishing and withdrawing by %s', async (person) => {
+    const event = await teamEvent()
+    for (const published of [true, false]) {
+      expect((await request('PATCH', `/api/events/${event.id}`, cookies[person], { published })).status).toBe(403)
+    }
+  })
 
-    expect(response.status).toBe(403)
+  it('does not give a former lead publishing authority just because they created the event', async () => {
+    const event = await teamEvent()
+    await prisma.projectMember.update({ where: { projectId_userId: { projectId, userId: teamLeadId } }, data: { rank: 'MEMBER' } })
+    expect((await request('PATCH', `/api/events/${event.id}`, cookies.teamLead, { title: 'Corrected title' })).status).toBe(200)
+    for (const published of [true, false]) {
+      expect((await request('PATCH', `/api/events/${event.id}`, cookies.teamLead, { published })).status).toBe(403)
+    }
+  })
+
+  it.each(['sibling team', 'whole project'])('a creator leading one team cannot publish an event for the %s', async (scope) => {
+    const event = await teamEvent()
+    await prisma.event.update({ where: { id: event.id }, data: { teamId: scope === 'sibling team' ? siblingTeamId : null } })
+    expect((await request('PATCH', `/api/events/${event.id}`, cookies.teamLead, { published: true })).status).toBe(403)
   })
 })
 
@@ -308,8 +338,7 @@ describe('who sees what', () => {
   })
 
   /**
-   * The invariant that makes the rest safe: whatever leads create, the public
-   * calendar shows only what officers published. This queries the public
+   * The public calendar shows only explicitly published events. This queries the public
    * route the site actually serves, not the model.
    */
   it('the public /api/events never returns an unpublished event', async () => {
@@ -321,6 +350,21 @@ describe('who sees what', () => {
     const ids = ((await response.json()) as { id: string }[]).map((e) => e.id)
 
     expect(ids).not.toContain(event.id)
+  })
+
+  it('a team lead’s published event reaches the main calendar and non-project members', async () => {
+    const created = await request('POST', '/api/events', cookies.teamLead, eventBody({ published: true }))
+    expect(created.status).toBe(201)
+    const event = await created.json() as { id: string }
+    const window = 'from=2035-10-01T00:00:00.000Z&to=2035-11-01T00:00:00.000Z'
+    for (const response of [
+      await app.request(`/api/events?when=all&limit=100&${window}`),
+      await request('GET', `/api/me/events?${window}`, cookies.outsider),
+    ]) {
+      expect(response.status).toBe(200)
+      const ids = ((await response.json()) as { id: string }[]).map(row => row.id)
+      expect(ids).toContain(event.id)
+    }
   })
 })
 
@@ -363,6 +407,15 @@ describe('a club-wide event', () => {
       // decision even for the person allowed to make it.
       published: false,
     })
+  })
+
+  it('requires officer standing to publish a club-wide event, including its creator', async () => {
+    const created = await request('POST', '/api/events', cookies.officer, clubBody())
+    const event = await created.json() as { id: string; createdById: string }
+    await prisma.user.update({ where: { id: event.createdById }, data: { role: 'MEMBER' } })
+    const response = await request('PATCH', `/api/events/${event.id}`, cookies.officer, { published: true })
+    expect(response.status).toBe(403)
+    expect(await response.json()).toMatchObject({ error: expect.stringContaining('officer') })
   })
 
   it('refuses a team event that names no project', async () => {

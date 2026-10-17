@@ -573,7 +573,7 @@ async function writeEverything(
         )
 
       await tx.projectMember.createMany({
-        data: memberships.map((m) => ({ ...m, rank: ProjectMemberRank.MEMBER })),
+        data: memberships.map((m) => ({ ...m, rank: ProjectMemberRank.MEMBER, publiclyListed: true })),
         skipDuplicates: true,
       })
 

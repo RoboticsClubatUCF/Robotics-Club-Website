@@ -223,7 +223,7 @@ model User {
   officerTerms      OfficerTerm[]
   termOverrides     TermOverride[]    @relation("termOverrides")
   labChanges        LabStatus[]       @relation("labChanges")
-  documentsAuthored ProjectDocument[] @relation("documentAuthors")
+  documentsAuthored ProjectDocumentAuthor[]
   slicerProfiles    SlicerProfile[]
 
   @@index([active])
@@ -640,6 +640,10 @@ model ProjectMember {
   /// inside this project. Scoped to one project by the primary key below.
   rank ProjectMemberRank @default(MEMBER)
 
+  /// Public roster approval, independent of joining, project access and Discord roles.
+  /// Existing memberships are grandfathered by the migration; future joins start unlisted.
+  publiclyListed Boolean @default(false) @map("publicly_listed")
+
   /// Which of the project's teams this person sits on, if any. The relation pins `projectId` too,
   /// so pointing at another project's team is a constraint violation rather than a bug to hunt.
   /// `Restrict` instead of `SetNull` because `projectId` is part of the primary key and cannot go
@@ -765,16 +769,9 @@ model ProjectDocument {
   fileId String     @unique @map("file_id")
   file   StoredFile @relation(fields: [fileId], references: [id], onDelete: Restrict)
 
-  /// Who wrote it, and the name as it stood when they were credited.
-  ///
-  /// The pair rather than the relation alone, for the reason `OfficerTerm` carries `fullName`
-  /// beside its `userId`: a credit is the record of who did the work, and it has to survive the
-  /// account being deleted. `SetNull` takes the link and leaves the name. It is also not the
-  /// uploader — a lead posts the write-up a member spent a term on — and the uploader is not stored
-  /// here at all, because `StoredFile.createdById` already says who sent the bytes.
-  authorId   String? @map("author_id")
-  author     User?   @relation("documentAuthors", fields: [authorId], references: [id], onDelete: SetNull)
-  authorName String  @map("author_name")
+  /// Ordered credits, including named authors who no longer have a club account.
+  /// The uploader is recorded separately by `StoredFile.createdById`.
+  authors ProjectDocumentAuthor[]
 
   /// The two dates the page prints, and they answer different questions.
   ///
@@ -791,8 +788,23 @@ model ProjectDocument {
   /// pretending to be a feature. Ordering the list by hand, if the club ever wants it, is a reorder
   /// route shaped like `PATCH /projects/:id/images/order` and a migration to carry it.
   @@index([projectId, uploadedAt])
-  @@index([authorId])
   @@map("project_documents")
+}
+
+/// A document's credit keeps its name after an account is removed. An author may
+/// also be credited by name alone, for documentation from former members.
+model ProjectDocumentAuthor {
+  id         String          @id @default(uuid(7))
+  documentId String          @map("document_id")
+  document   ProjectDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  userId     String?         @map("user_id")
+  user       User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  name       String
+  position   Int
+
+  @@index([documentId, position])
+  @@index([userId])
+  @@map("project_document_authors")
 }
 
 // --------------------------------------------------------------------- tasks

@@ -71,6 +71,7 @@ const lapsed = duesStatus({
 })
 
 const myProject = (over: Partial<ApiMyProject> = {}): ApiMyProject => ({
+  publiclyListed: true,
   rank: 'MEMBER',
   title: null,
   team: null,
@@ -113,7 +114,7 @@ const myProject = (over: Partial<ApiMyProject> = {}): ApiMyProject => ({
     meetingLocation: null,
     meetingDescription: null,
     meetingsPublic: true,
-  discordRoleId: null,
+    discordRoleId: null,
   },
   ...over,
 })
@@ -152,9 +153,7 @@ describe('DashboardLayout', () => {
 
     renderDashboard()
 
-    expect(
-      await screen.findByText(/can't reach the server/i),
-    ).toBeInTheDocument()
+    expect(await screen.findByText(/can't reach the server/i)).toBeInTheDocument()
     expect(screen.queryByText('the login page')).not.toBeInTheDocument()
     consoleError.mockRestore()
   })
@@ -215,9 +214,10 @@ describe('DashboardLayout', () => {
       expect(link.getAttribute('href')).toMatch(/^\/dashboard/)
     }
 
-    expect(
-      screen.getByRole('link', { name: 'DUES & PAYMENTS' }),
-    ).toHaveAttribute('href', '/dashboard/dues')
+    expect(screen.getByRole('link', { name: 'DUES & PAYMENTS' })).toHaveAttribute(
+      'href',
+      '/dashboard/dues',
+    )
   })
 
   /**
@@ -296,12 +296,11 @@ describe('DashboardLayout', () => {
     renderDashboard()
 
     expect(await screen.findByRole('link', { name: 'ROVER' })).toBeInTheDocument()
-    expect(
-      screen.queryByRole('link', { name: 'ROVER OLD' }),
-    ).not.toBeInTheDocument()
-    expect(
-      screen.getByRole('link', { name: 'PAST PROJECTS' }),
-    ).toHaveAttribute('href', '/dashboard/projects/past')
+    expect(screen.queryByRole('link', { name: 'ROVER OLD' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'PAST PROJECTS' })).toHaveAttribute(
+      'href',
+      '/dashboard/projects/past',
+    )
   })
 
   /**
@@ -321,9 +320,7 @@ describe('DashboardLayout', () => {
     renderDashboard()
 
     expect(await screen.findByText('Nothing this semester yet.')).toBeInTheDocument()
-    expect(
-      screen.getByRole('link', { name: 'PAST PROJECTS' }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'PAST PROJECTS' })).toBeInTheDocument()
   })
 
   /**
@@ -344,9 +341,7 @@ describe('DashboardLayout', () => {
     renderDashboard()
 
     await screen.findByRole('link', { name: 'ROVER' })
-    expect(
-      screen.queryByRole('link', { name: 'PAST PROJECTS' }),
-    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'PAST PROJECTS' })).not.toBeInTheDocument()
   })
 })
 
@@ -379,9 +374,7 @@ describe('when dues lapse', () => {
     // Still listed, so the group does not appear to have vanished...
     expect(screen.getByText('PRINT QUEUE')).toBeInTheDocument()
     // ...and no longer a way in.
-    expect(
-      screen.queryByRole('link', { name: 'PRINT QUEUE' }),
-    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'PRINT QUEUE' })).not.toBeInTheDocument()
   })
 
   /**
@@ -443,9 +436,7 @@ describe('when dues lapse', () => {
     await screen.findAllByText('LOCKED')
 
     expect(screen.queryByText(/dues have lapsed/i)).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole('link', { name: 'PAY YOUR DUES' }),
-    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'PAY YOUR DUES' })).not.toBeInTheDocument()
     // Still one press from the way out.
     expect(screen.getByRole('link', { name: 'DUES & PAYMENTS' })).toBeInTheDocument()
   })
@@ -532,9 +523,10 @@ describe('when dues lapse', () => {
 
     expect(await screen.findByText(/free right now/i)).toBeInTheDocument()
     expect(screen.queryByText(/dues have lapsed/i)).not.toBeInTheDocument()
-    expect(
-      screen.getByRole('link', { name: 'CLAIM MY MEMBERSHIP' }),
-    ).toHaveAttribute('href', '/dashboard/dues')
+    expect(screen.getByRole('link', { name: 'CLAIM MY MEMBERSHIP' })).toHaveAttribute(
+      'href',
+      '/dashboard/dues',
+    )
   })
 
   /** Nothing free running, and no date ever: the newcomer's wording. */
@@ -631,15 +623,14 @@ describe('when the survey has not been answered', () => {
 
     renderDashboard()
 
-    expect(
-      await screen.findByRole('link', { name: 'MEMBER SURVEY' }),
-    ).toHaveAttribute('href', '/dashboard/survey')
+    expect(await screen.findByRole('link', { name: 'MEMBER SURVEY' })).toHaveAttribute(
+      'href',
+      '/dashboard/survey',
+    )
 
     // The row this used to shut, and the reason the gate went: it is where
     // every other lock sends people.
-    expect(
-      screen.getByRole('link', { name: 'DUES & PAYMENTS' }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'DUES & PAYMENTS' })).toBeInTheDocument()
     expect(screen.queryByText('LOCKED')).not.toBeInTheDocument()
   })
 
@@ -650,16 +641,12 @@ describe('when the survey has not been answered', () => {
     renderDashboard()
 
     for (const label of ['3D PRINTING', 'PRINT QUEUE', 'SURVEY']) {
-      expect(
-        await screen.findByRole('link', { name: label }),
-      ).toBeInTheDocument()
+      expect(await screen.findByRole('link', { name: label })).toBeInTheDocument()
     }
 
     // Twice for an officer — their own shelf and the desk behind it — and
     // both are links rather than the padlocks a lock would leave.
-    expect(
-      await screen.findAllByRole('link', { name: 'EQUIPMENT' }),
-    ).toHaveLength(2)
+    expect(await screen.findAllByRole('link', { name: 'EQUIPMENT' })).toHaveLength(2)
     expect(screen.queryByText('LOCKED')).not.toBeInTheDocument()
   })
 
@@ -692,9 +679,7 @@ describe('when the survey has not been answered', () => {
     expect(
       await screen.findByRole('link', { name: 'DUES & PAYMENTS' }),
     ).toBeInTheDocument()
-    expect(
-      screen.queryByRole('link', { name: 'MEMBER SURVEY' }),
-    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'MEMBER SURVEY' })).not.toBeInTheDocument()
   })
 
   /**
@@ -716,9 +701,7 @@ describe('when the survey has not been answered', () => {
     expect(
       await screen.findByRole('link', { name: 'DUES & PAYMENTS' }),
     ).toBeInTheDocument()
-    expect(
-      screen.queryByRole('link', { name: 'MEMBER SURVEY' }),
-    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'MEMBER SURVEY' })).not.toBeInTheDocument()
   })
 })
 
@@ -767,9 +750,10 @@ describe('the survey prompt', () => {
     renderAt('/dashboard')
 
     expect(await screen.findByRole('dialog')).toBeInTheDocument()
-    expect(
-      screen.getByRole('link', { name: 'FILL IT IN' }),
-    ).toHaveAttribute('href', '/dashboard/survey')
+    expect(screen.getByRole('link', { name: 'FILL IT IN' })).toHaveAttribute(
+      'href',
+      '/dashboard/survey',
+    )
   })
 
   it('stays out of the way on the survey page itself', async () => {

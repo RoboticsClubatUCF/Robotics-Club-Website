@@ -30,6 +30,7 @@ const membership = (
     termSeason?: 'SPRING' | 'SUMMER' | 'FALL'
   } = {},
 ): ApiMyProject => ({
+  publiclyListed: true,
   rank: over.rank ?? 'MEMBER',
   title: null,
   team: null,
@@ -68,7 +69,7 @@ const membership = (
     meetingLocation: null,
     meetingDescription: null,
     meetingsPublic: true,
-  discordRoleId: null,
+    discordRoleId: null,
   },
 })
 
@@ -164,9 +165,7 @@ describe('PastProjectsPage', () => {
     })
 
     expect(screen.getByRole('link', { name: 'Old Rover' })).toBeInTheDocument()
-    expect(
-      screen.queryByRole('link', { name: 'New Rover' }),
-    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'New Rover' })).not.toBeInTheDocument()
   })
 
   /**

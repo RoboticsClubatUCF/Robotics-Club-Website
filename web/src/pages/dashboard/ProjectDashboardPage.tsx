@@ -27,8 +27,8 @@ export function ProjectDashboardPage() {
   if (projects.status === 'loading') {
     return (
       <div aria-busy="true">
-        <div className="bg-base-300 h-3 w-24 animate-pulse rounded-[2px]" />
-        <div className="bg-base-300 mt-6 h-9 w-72 max-w-full animate-pulse rounded-[2px]" />
+        <div className="h-3 w-24 animate-pulse rounded-[2px] bg-base-300" />
+        <div className="mt-6 h-9 w-72 max-w-full animate-pulse rounded-[2px] bg-base-300" />
       </div>
     )
   }
@@ -37,7 +37,7 @@ export function ProjectDashboardPage() {
     return (
       <div className={measureClass}>
         <FormPanel tone="accent">
-          <p className="text-dim text-sm leading-[1.7] text-pretty">
+          <p className="text-sm leading-[1.7] text-pretty text-dim">
             We couldn't load your projects just now. Try again in a moment.
           </p>
         </FormPanel>
@@ -54,7 +54,7 @@ export function ProjectDashboardPage() {
         <FormHeading>You're not on this project.</FormHeading>
         <div className={measureClass}>
           <FormPanel>
-            <p className="text-dim text-sm leading-[1.7] text-pretty">
+            <p className="text-sm leading-[1.7] text-pretty text-dim">
               Its public page has the join button, if it is taking people.{' '}
               <Link
                 to={`/projects/${slug}`}
@@ -92,9 +92,16 @@ function ProjectHome({ membership }: { membership: ApiMyProject }) {
       <FormEyebrow>/ PROJECT</FormEyebrow>
       <FormHeading>{project.title}</FormHeading>
 
+      {membership.publiclyListed === false && (
+        <p className="mb-5 text-sm leading-[1.7] text-dim">
+          You’re on the project and can receive its Discord role. Your public website
+          listing is awaiting approval from an officer, project lead, or your team lead.
+        </p>
+      )}
+
       {(standing || meets) && (
         <p
-          className={`text-faint font-mono text-[11px] font-medium tracking-[0.14em] ${
+          className={`font-mono text-[11px] font-medium tracking-[0.14em] text-faint ${
             note ? 'mb-1.5' : 'mb-6'
           }`}
         >
@@ -106,13 +113,11 @@ function ProjectHome({ membership }: { membership: ApiMyProject }) {
           is labels and it is uppercased, and this is a sentence the lead
           wrote. */}
       {note && (
-        <p className="text-dim mb-6 text-[13px] leading-[1.6] text-pretty">
-          {note}
-        </p>
+        <p className="mb-6 text-[13px] leading-[1.6] text-pretty text-dim">{note}</p>
       )}
 
       {project.summary && (
-        <p className="text-dim mb-8 text-sm leading-[1.7] text-pretty">
+        <p className="mb-8 text-sm leading-[1.7] text-pretty text-dim">
           {project.summary}
         </p>
       )}
@@ -130,7 +135,7 @@ function ProjectHome({ membership }: { membership: ApiMyProject }) {
       <div className="mt-9 flex flex-wrap items-center gap-4">
         <Link
           to={`/projects/${project.slug}`}
-          className="text-faint hover:text-primary font-mono text-[11px] font-medium tracking-[0.14em] transition-colors duration-200"
+          className="font-mono text-[11px] font-medium tracking-[0.14em] text-faint transition-colors duration-200 hover:text-primary"
         >
           PUBLIC PAGE ›
         </Link>
@@ -145,15 +150,13 @@ function Roster({ projectId }: { projectId: string }) {
   const state = useApi<ApiProjectTeamView>(`/projects/${projectId}/team`)
 
   if (state.status === 'loading') {
-    return (
-      <div aria-busy="true" className="border-rule bg-base-200 h-40 border" />
-    )
+    return <div aria-busy="true" className="h-40 border border-rule bg-base-200" />
   }
 
   if (state.status === 'error') {
     return (
       <FormPanel>
-        <p className="text-dim text-sm leading-[1.7]">
+        <p className="text-sm leading-[1.7] text-dim">
           We couldn't load the roster just now.
         </p>
       </FormPanel>
@@ -196,26 +199,26 @@ function TeamBlock({
 }) {
   return (
     <FormPanel>
-      <p className="text-faint mb-1 font-mono text-[10px] font-medium tracking-[0.16em] uppercase">
+      <p className="mb-1 font-mono text-[10px] font-medium tracking-[0.16em] text-faint uppercase">
         {name}
       </p>
       {description && (
-        <p className="text-dim mb-3 text-[13px] leading-[1.5] text-pretty">
+        <p className="mb-3 text-[13px] leading-[1.5] text-pretty text-dim">
           {description}
         </p>
       )}
 
       {members.length === 0 ? (
-        <p className="text-faint mt-3 text-[13px]">Nobody here yet.</p>
+        <p className="mt-3 text-[13px] text-faint">Nobody here yet.</p>
       ) : (
-        <ul className="divide-rule mt-3 divide-y">
+        <ul className="mt-3 divide-y divide-rule">
           {members.map((member) => (
             <li
               key={member.userId}
               className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 py-2"
             >
               <span className="text-sm font-medium">{member.fullName}</span>
-              <span className="text-faint font-mono text-[10px] font-medium tracking-[0.14em] uppercase">
+              <span className="font-mono text-[10px] font-medium tracking-[0.14em] text-faint uppercase">
                 {[
                   member.rank === 'PROJECT_LEAD'
                     ? 'Project lead'
@@ -259,13 +262,13 @@ function TaskBoard({ projectId }: { projectId: string }) {
   }, [load])
 
   if (tasks === 'loading') {
-    return <div aria-busy="true" className="border-rule bg-base-200 h-24 border" />
+    return <div aria-busy="true" className="h-24 border border-rule bg-base-200" />
   }
 
   if (tasks === null) {
     return (
       <FormPanel>
-        <p className="text-dim text-sm leading-[1.7]">
+        <p className="text-sm leading-[1.7] text-dim">
           We couldn't load the tasks just now.
         </p>
       </FormPanel>
@@ -293,14 +296,14 @@ function TaskBoard({ projectId }: { projectId: string }) {
 
   return (
     <FormPanel>
-      <p className="text-faint mb-4 font-mono text-[10px] font-medium tracking-[0.16em]">
+      <p className="mb-4 font-mono text-[10px] font-medium tracking-[0.16em] text-faint">
         TASKS
       </p>
 
       {tasks.length === 0 ? (
-        <p className="text-dim text-sm leading-[1.7]">Nothing on the board.</p>
+        <p className="text-sm leading-[1.7] text-dim">Nothing on the board.</p>
       ) : (
-        <ul className="divide-rule divide-y">
+        <ul className="divide-y divide-rule">
           {tasks.map((task) => {
             const mine = task.assignees.some((a) => a.userId === user.id)
             return (
@@ -317,7 +320,7 @@ function TaskBoard({ projectId }: { projectId: string }) {
                         ? `Reopen "${task.title}"`
                         : `Mark "${task.title}" done`
                     }
-                    className={`border-rule hover:border-primary mt-0.5 flex size-4 shrink-0 cursor-pointer items-center justify-center border text-[10px] leading-none transition-colors duration-200 disabled:opacity-50 ${
+                    className={`mt-0.5 flex size-4 shrink-0 cursor-pointer items-center justify-center border border-rule text-[10px] leading-none transition-colors duration-200 hover:border-primary disabled:opacity-50 ${
                       isSettled(task.status) ? 'text-primary' : 'text-transparent'
                     }`}
                   >
@@ -326,7 +329,7 @@ function TaskBoard({ projectId }: { projectId: string }) {
                 ) : (
                   <span
                     aria-hidden
-                    className={`border-rule mt-0.5 flex size-4 shrink-0 items-center justify-center border text-[10px] leading-none ${
+                    className={`mt-0.5 flex size-4 shrink-0 items-center justify-center border border-rule text-[10px] leading-none ${
                       isSettled(task.status) ? 'text-faint' : 'text-transparent'
                     }`}
                   >
@@ -334,10 +337,12 @@ function TaskBoard({ projectId }: { projectId: string }) {
                   </span>
                 )}
                 <div className={`min-w-0 ${isSettled(task.status) ? 'opacity-50' : ''}`}>
-                  <p className={`text-sm leading-snug font-medium ${isSettled(task.status) ? 'line-through' : ''}`}>
+                  <p
+                    className={`text-sm leading-snug font-medium ${isSettled(task.status) ? 'line-through' : ''}`}
+                  >
                     {task.title}
                   </p>
-                  <p className="text-faint mt-0.5 font-mono text-[10px] font-medium tracking-[0.12em] uppercase">
+                  <p className="mt-0.5 font-mono text-[10px] font-medium tracking-[0.12em] text-faint uppercase">
                     {[
                       // OPEN is the default and says nothing worth a word; the
                       // other four are the reason this line exists at all.
@@ -351,7 +356,7 @@ function TaskBoard({ projectId }: { projectId: string }) {
                       .join(' · ')}
                   </p>
                   {task.details && (
-                    <p className="text-dim mt-1 text-[13px] leading-[1.5] text-pretty">
+                    <p className="mt-1 text-[13px] leading-[1.5] text-pretty text-dim">
                       {task.details}
                     </p>
                   )}
@@ -392,11 +397,12 @@ function LeaveButton({ membership }: { membership: ApiMyProject }) {
         // a copy still carrying the name for up to a minute — and the obvious thing to do after
         // leaving a project is to go and look at it. A `reload` read replaces that entry; the body
         // is thrown away, the refreshed cache is the point.
-        await getJson(`/projects/${membership.project.slug}`, undefined, true)
-          .catch(() => {
+        await getJson(`/projects/${membership.project.slug}`, undefined, true).catch(
+          () => {
             // Best effort. Leaving has already succeeded, and a failed cache
             // refresh must not turn that into an error on the way out.
-          })
+          },
+        )
         void navigate('/dashboard')
       }}
     />

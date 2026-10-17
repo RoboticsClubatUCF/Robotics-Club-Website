@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { Link, useOutletContext } from 'react-router'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
 import { DuesLocked } from '../../components/dashboard/DuesLocked'
@@ -93,7 +93,9 @@ const checkbox =
 
 // ------------------------------------------------------------------- draft
 
-type OptionDraft = { id?: string; label: string; wantsText: boolean }
+type OptionDraft = { key: string; id?: string; label: string; wantsText: boolean }
+
+const optionLabelKey = (label: string) => label.trim().toLowerCase()
 
 type QuestionDraft = {
   prompt: string
@@ -114,8 +116,8 @@ const blank = (): QuestionDraft => ({
   allowNone: false,
   maxLength: '',
   options: [
-    { label: '', wantsText: false },
-    { label: '', wantsText: false },
+    { key: 'new-0', label: '', wantsText: false },
+    { key: 'new-1', label: '', wantsText: false },
   ],
 })
 
@@ -136,6 +138,7 @@ const draftFrom = (question: ApiSurveyEditorQuestion): QuestionDraft => ({
   options: question.options
     .filter((option) => !option.archived)
     .map((option) => ({
+      key: option.id,
       id: option.id,
       label: option.label,
       wantsText: option.wantsText,
@@ -485,8 +488,8 @@ function QuestionCard({
 
   return (
     <FormPanel>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
+      <div className="flex flex-col items-start gap-3 sm:flex-row">
+        <div className="min-w-0 flex-1 wrap-anywhere">
           <p className="text-sm leading-[1.6] text-base-content">{question.prompt}</p>
           <p className={`${panelLabel} mt-1.5`}>
             {kindLabel(question.kind).toUpperCase()}
@@ -505,7 +508,7 @@ function QuestionCard({
           )}
         </div>
 
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 flex-wrap gap-2">
           {/* Up and down rather than dragging. Two buttons work with a keyboard,
               survive jsdom, and are the whole of what reordering six questions
               needs. */}
@@ -567,7 +570,8 @@ function QuestionForm({
 }) {
   const id = useId()
   const [draft, setDraft] = useState(initial)
-  const [back, setBack] = useState<ApiSurveyEditorOption[]>(retired)
+  // New answers need stable keys too, so moving a row keeps keyboard focus on it.
+  const nextOptionKey = useRef(initial.options.length)
 
   const set = <K extends keyof QuestionDraft>(key: K, value: QuestionDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }))
@@ -580,13 +584,80 @@ function QuestionForm({
     }))
   }
 
+  const moveOption = (index: number, by: number) => {
+    setDraft((current) => {
+      const to = index + by
+
+      if (to < 0 || to >= current.options.length) return current
+
+      const options = [...current.options]
+      ;[options[index], options[to]] = [options[to], options[index]]
+
+      return { ...current, options }
+    })
+  }
+
   const choice = isChoice(draft.kind)
+  const storedOptions: OptionDraft[] = [
+    ...initial.options.filter((option) => option.id !== undefined),
+    ...retired.map((option) => ({
+      key: option.id,
+      id: option.id,
+      label: option.label,
+      wantsText: option.wantsText,
+    })),
+  ]
+  const back = storedOptions.filter(
+    (option) =>
+      !draft.options.some((each) => each.id === option.id && each.label.trim() !== ''),
+  )
+  const matches = choice
+    ? draft.options.map((option) => {
+        const label = optionLabelKey(option.label)
+        const previous = storedOptions.find((each) => each.id === option.id)
+
+        if (label === '' || (previous && optionLabelKey(previous.label) === label)) {
+          return undefined
+        }
+
+        return back.find((each) => optionLabelKey(each.label) === label)
+      })
+    : []
+  const needsRestore = matches.some((match) => match !== undefined)
+
+  const restoreOption = (option: OptionDraft, replaceKey?: string) => {
+    setDraft((current) => {
+      // Blank rows are omitted on save, so a cleared answer can be restored too.
+      const options = current.options.filter(
+        (each) => each.id !== option.id || each.label.trim() !== '',
+      )
+      if (options.some((each) => each.id === option.id)) return current
+
+      // The list's restore button also replaces a matching row, so it cannot
+      // append a second copy of an answer somebody has already typed back in.
+      const at = options.findIndex((each) =>
+        replaceKey === undefined
+          ? optionLabelKey(each.label) === optionLabelKey(option.label)
+          : each.key === replaceKey,
+      )
+
+      return {
+        ...current,
+        options:
+          at === -1
+            ? [...options, option]
+            : options.map((each, index) =>
+                index === at ? { ...option, key: each.key } : each,
+              ),
+      }
+    })
+  }
 
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault()
-        onSave(draft)
+        if (!needsRestore) onSave(draft)
       }}
     >
       <div className="mb-5">
@@ -699,61 +770,116 @@ function QuestionForm({
       {choice ? (
         <div className="mb-5">
           <p className={labelClass}>THE ANSWERS</p>
+          <p className="mb-3 text-[12px] leading-[1.5] text-faint">
+            Use the arrows to change the order, then save.
+          </p>
 
           <div className="flex flex-col gap-2.5">
-            {draft.options.map((option, index) => (
-              <div key={index} className="flex flex-wrap items-center gap-2.5">
-                <input
-                  type="text"
-                  aria-label={`Answer ${index + 1}`}
-                  maxLength={120}
-                  value={option.label}
-                  disabled={busy}
-                  onChange={(event) => {
-                    setOption(index, { ...option, label: event.target.value })
-                  }}
-                  className={`${fieldClass} min-w-40 flex-1`}
-                />
+            {draft.options.map((option, index) => {
+              const match = matches[index]
 
-                <label className="text-faint flex cursor-pointer items-center gap-2 text-[12px] leading-[1.5]">
+              return (
+                <div key={option.key} className="flex flex-wrap items-center gap-2.5">
                   <input
-                    type="checkbox"
-                    checked={option.wantsText}
+                    type="text"
+                    aria-label={`Answer ${index + 1}`}
+                    aria-invalid={match ? true : undefined}
+                    aria-describedby={match ? `${id}-restore-${option.key}` : undefined}
+                    maxLength={120}
+                    value={option.label}
                     disabled={busy}
                     onChange={(event) => {
-                      setOption(index, {
-                        ...option,
-                        wantsText: event.target.checked,
-                      })
+                      setOption(index, { ...option, label: event.target.value })
                     }}
-                    className={checkbox}
+                    className={`${fieldClass} min-w-40 flex-1`}
                   />
-                  asks them to say which
-                </label>
 
-                <button
-                  type="button"
-                  aria-label={`Remove answer ${index + 1}`}
-                  disabled={busy}
-                  onClick={() => {
-                    set(
-                      'options',
-                      draft.options.filter((_, at) => at !== index),
-                    )
-                  }}
-                  className={button}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
+                  <label className="flex cursor-pointer items-center gap-2 text-[12px] leading-[1.5] text-faint">
+                    <input
+                      type="checkbox"
+                      checked={option.wantsText}
+                      disabled={busy}
+                      onChange={(event) => {
+                        setOption(index, {
+                          ...option,
+                          wantsText: event.target.checked,
+                        })
+                      }}
+                      className={checkbox}
+                    />
+                    asks them to say which
+                  </label>
+
+                  <div className="flex shrink-0 gap-2">
+                    <button
+                      type="button"
+                      aria-label={`Move answer ${index + 1} up`}
+                      disabled={busy || index === 0}
+                      onClick={() => {
+                        moveOption(index, -1)
+                      }}
+                      className={button}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Move answer ${index + 1} down`}
+                      disabled={busy || index === draft.options.length - 1}
+                      onClick={() => {
+                        moveOption(index, 1)
+                      }}
+                      className={button}
+                    >
+                      ↓
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Remove answer ${index + 1}`}
+                      disabled={busy}
+                      onClick={() => {
+                        set(
+                          'options',
+                          draft.options.filter((_, at) => at !== index),
+                        )
+                      }}
+                      className={button}
+                    >
+                      ×
+                    </button>
+                  </div>
+                  {match && (
+                    <div className="w-full" role="status">
+                      <p
+                        id={`${id}-restore-${option.key}`}
+                        className="mb-2 text-[12px] leading-[1.5] text-faint"
+                      >
+                        &ldquo;{match.label}&rdquo; was offered before. Restore it to keep
+                        its responses.
+                      </p>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => {
+                          restoreOption(match, option.key)
+                        }}
+                        className={button}
+                      >
+                        RESTORE EXISTING ANSWER
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
 
           <button
             type="button"
             disabled={busy}
             onClick={() => {
-              set('options', [...draft.options, { label: '', wantsText: false }])
+              const key = `new-${nextOptionKey.current++}`
+              set('options', [...draft.options, { key, label: '', wantsText: false }])
             }}
             className={`${button} mt-3`}
           >
@@ -769,7 +895,7 @@ function QuestionForm({
           {back.length > 0 && (
             <div className="border-rule mt-4 border-t pt-3">
               <p className="text-faint mb-2 text-[12px] leading-[1.5]">
-                Retired answers, kept for the people holding them:
+                Retired or removed answers. Restore one to keep its existing responses:
               </p>
               <div className="flex flex-wrap gap-2">
                 {back.map((option) => (
@@ -778,17 +904,7 @@ function QuestionForm({
                     type="button"
                     disabled={busy}
                     onClick={() => {
-                      set('options', [
-                        ...draft.options,
-                        {
-                          id: option.id,
-                          label: option.label,
-                          wantsText: option.wantsText,
-                        },
-                      ])
-                      setBack((current) =>
-                        current.filter((each) => each.id !== option.id),
-                      )
+                      restoreOption(option)
                     }}
                     className={button}
                   >
@@ -824,7 +940,7 @@ function QuestionForm({
       )}
 
       <div className="flex flex-wrap gap-3">
-        <button type="submit" disabled={busy} className={primary}>
+        <button type="submit" disabled={busy || needsRestore} className={primary}>
           {busy ? 'SAVING…' : 'SAVE'}
         </button>
         <button

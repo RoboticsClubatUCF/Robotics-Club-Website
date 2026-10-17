@@ -22,6 +22,7 @@ import type { ApiPlacement, ApiPlateObject } from '../../lib/api/api'
 import type { CameraMoves } from '../../lib/slicer/camera'
 import { restingFaces } from '../../lib/slicer/faces'
 import type { MeshMap } from '../../lib/slicer/meshes'
+import { rotationDelta, type RotationChange } from '../../lib/slicer/orient'
 import { scaleBy } from '../../lib/slicer/plate'
 import {
   type Affine,
@@ -67,6 +68,7 @@ interface Props {
   onLayFlat: (id: string, normal: [number, number, number]) => void
   /** The camera moved. */
   onView?: (view: CameraView) => void
+  onRotation?: (change: RotationChange) => void
   /** Given the camera while the view is up, for the workspace's view keys. */
   camera?: RefObject<CameraMoves | null>
 }
@@ -183,6 +185,11 @@ export function PlateView(props: Props) {
 
     // The part's scale when the gizmo was grabbed.
     let grabbedAt = { sx: 1, sy: 1, sz: 1 }
+    const rotation = () => {
+      const q = proxy.quaternion
+      return { qx: q.x, qy: q.y, qz: q.z, qw: q.w }
+    }
+    let previousRotation = rotation()
     const placementFromProxy = (): Partial<ApiPlacement> => {
       const { mode } = latest.current
       if (mode === 'rotate') {
@@ -209,11 +216,23 @@ export function PlateView(props: Props) {
     gizmo.addEventListener('change', stage.render)
     gizmo.addEventListener('objectChange', () => {
       const id = latest.current.selected[0]
-      if (id) latest.current.onDrag(new Map([[id, placementFromProxy()]]))
+      if (id) {
+        latest.current.onDrag(new Map([[id, placementFromProxy()]]))
+        if (latest.current.mode === 'rotate' && latest.current.onRotation) {
+          const current = rotation()
+          const axis = gizmo.axis?.toLowerCase()
+          if (axis === 'x' || axis === 'y' || axis === 'z') {
+            const degrees = rotationDelta(previousRotation, current, axis)
+            if (Math.abs(degrees) > 1e-7) latest.current.onRotation({ objectId: id, axis, degrees })
+          }
+          previousRotation = current
+        }
+      }
     })
     gizmo.addEventListener('dragging-changed', (event) => {
       stage.orbit.enabled = !event.value
       if (event.value) grabbedAt = { sx: proxy.scale.x, sy: proxy.scale.y, sz: proxy.scale.z }
+      if (event.value) previousRotation = rotation()
       const id = latest.current.selected[0]
       if (!event.value && id) latest.current.onCommit(new Map([[id, placementFromProxy()]]))
     })

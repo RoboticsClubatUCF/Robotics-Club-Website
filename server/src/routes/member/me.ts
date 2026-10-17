@@ -56,6 +56,7 @@ me.get('/projects', requireAuth, async (c) => {
       select: {
         rank: true,
         title: true,
+        publiclyListed: true,
         team: { select: { id: true, name: true } },
         // The managed select rather than the public one: the dashboard prints the
         // meeting line, which public listings have no use for.

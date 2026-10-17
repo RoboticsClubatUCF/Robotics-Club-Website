@@ -10,8 +10,10 @@ import {
   documentsDirty,
   draftFromDocument,
   saveDocuments,
+  type DocumentAuthorDraft,
   type DraftDocument,
 } from '../../lib/projects/projectDocuments'
+import { draftKey } from '../../lib/projects/projectDraft'
 import { useSectionSave, type SaveRegistry } from '../../lib/projects/editorSaves'
 import type { ProjectRoster } from '../../lib/projects/useProjectRoster'
 
@@ -158,7 +160,7 @@ export function DocumentsEditor({
               <p className="text-faint mt-1 font-mono text-[11px] leading-[1.7] tracking-[0.06em]">
                 {row.stored ? (
                   <>
-                    {row.stored.authorName} · {row.stored.fileName} · UPLOADED{' '}
+                    {namesOf(people, row.authors)} · {row.stored.fileName} · UPLOADED{' '}
                     {longDate(row.stored.uploadedAt)}
                     {row.stored.updatedAt !== row.stored.uploadedAt && (
                       <> · UPDATED {longDate(row.stored.updatedAt)}</>
@@ -166,7 +168,7 @@ export function DocumentsEditor({
                   </>
                 ) : (
                   <>
-                    {nameOf(people, row.authorUserId)} · {row.file?.name} · NOT
+                    {namesOf(people, row.authors)} · {row.file?.name} · NOT
                     PUBLISHED YET
                   </>
                 )}
@@ -189,13 +191,8 @@ export function DocumentsEditor({
                   initial={{
                     title: row.title,
                     description: row.description,
-                    authorUserId: row.authorUserId,
+                    authors: row.authors,
                   }}
-                  // The credit already on the row. Passing the *name* rather
-                  // than an id is not a shortcut: the public payload carries no
-                  // user ids, on purpose, so "unchanged" is the only honest
-                  // starting value and this is what it is labelled with.
-                  currentAuthor={row.stored?.authorName}
                   defaultAuthorId={me?.id ?? ''}
                   submitLabel="DONE"
                   onCancel={() => {
@@ -278,7 +275,7 @@ export function DocumentsEditor({
             defaultAuthorId={me?.id ?? ''}
             busy={busy}
             withFile
-            initial={{ title: '', description: '', authorUserId: '' }}
+            initial={{ title: '', description: '', authors: [] }}
             submitLabel="ADD"
             onCancel={() => {
               setAdding(false)
@@ -301,7 +298,7 @@ export function DocumentsEditor({
 
               setDocuments([
                 ...documents,
-                { ...blankDocument(values.authorUserId), ...values, file },
+                { ...blankDocument(values.authors), ...values, file },
               ])
               setAdding(false)
               setMessage('')
@@ -355,11 +352,18 @@ export function DocumentsEditor({
   )
 }
 
-type Values = { title: string; description: string; authorUserId: string }
+type Values = { title: string; description: string; authors: DocumentAuthorDraft[] }
 
 /** Whoever a draft row is credited to, for the line under an unpublished one. */
-const nameOf = (people: Person[], userId: string) =>
-  people.find((person) => person.userId === userId)?.fullName ?? 'Unattributed'
+const namesOf = (people: Person[], authors: DocumentAuthorDraft[]) =>
+  authors
+    .map((author) =>
+      'userId' in author
+        ? (people.find((person) => person.userId === author.userId)?.fullName ??
+          'Unattributed')
+        : author.name,
+    )
+    .join(', ')
 
 /**
  * Title, blurb, credit — and, when adding, the file.
@@ -367,9 +371,8 @@ const nameOf = (people: Person[], userId: string) =>
  * One component for both because a document being edited and one being written have exactly the
  * same fields, and two copies is how the credit box ends up on one of them.
  *
- * `currentAuthor` tells the two apart. A new document has to choose somebody and defaults to
- * whoever is signed in; an existing one starts on "leave the credit alone", spelled with the
- * existing author's name so the select isn't lying about what it will do.
+ * Existing credits are retained by credit id, so authors who left the project or
+ * deleted their account can stay on the document while another author is added.
  */
 function DocumentFields({
   idPrefix,
@@ -377,7 +380,6 @@ function DocumentFields({
   defaultAuthorId,
   busy,
   initial,
-  currentAuthor,
   submitLabel,
   withFile = false,
   onSubmit,
@@ -393,8 +395,6 @@ function DocumentFields({
   defaultAuthorId: string
   busy: boolean
   initial: Values
-  /** The credit already on the row, when there is one. Editing, not adding. */
-  currentAuthor?: string
   submitLabel: string
   withFile?: boolean
   onSubmit: (values: Values, file?: File) => void
@@ -402,25 +402,39 @@ function DocumentFields({
 }) {
   const [values, setValues] = useState(initial)
   const [file, setFile] = useState<File | null>(null)
+  const [authors, setAuthors] = useState(() => {
+    const first = defaultAuthorId || people[0]?.userId
+    const starting: DocumentAuthorDraft[] =
+      initial.authors.length > 0
+        ? initial.authors
+        : [first ? { userId: first } : { name: '' }]
+    return starting.map((author) => ({ key: draftKey(), author }))
+  })
+  const savedAuthors = initial.authors.filter((author) => 'id' in author)
 
   const set = (patch: Partial<Values>) => {
     setValues((current) => ({ ...current, ...patch }))
   }
 
-  /**
-   * Editing starts on "leave it alone"; a new document starts on whoever is
-   * signed in, who can always honestly be credited. Naming somebody else is one
-   * press of the select either way.
-   */
-  const fallback = currentAuthor
-    ? ''
-    : defaultAuthorId || (people[0]?.userId ?? '')
-  const author = values.authorUserId || fallback
-
-  // Nothing to choose from yet — the roster read has not landed and nobody is
-  // signed in, which in practice means a test. Adding stays disabled rather
-  // than sending a credit nobody picked.
-  const chooseable = currentAuthor !== undefined || people.length > 0
+  const setAuthor = (key: string, author: DocumentAuthorDraft) => {
+    setAuthors((current) =>
+      current.map((row) => (row.key === key ? { ...row, author } : row)),
+    )
+  }
+  const identities = authors.map(({ author }) =>
+    'id' in author
+      ? `saved:${author.id}`
+      : 'userId' in author
+        ? `user:${author.userId}`
+        : `name:${author.name.trim().toLowerCase()}`,
+  )
+  const authorProblem = authors.some(({ author }) =>
+    'userId' in author ? author.userId === '' : author.name.trim() === '',
+  )
+    ? 'Choose each author, or enter their name.'
+    : new Set(identities).size !== identities.length
+      ? 'List each author only once.'
+      : null
 
   return (
     <div className="mt-3 space-y-3">
@@ -460,58 +474,138 @@ function DocumentFields({
         />
       </div>
 
-      <div className="grid gap-3 wide:grid-cols-2">
-        <div>
-          <label className={labelClass} htmlFor={`${idPrefix}-author`}>
-            WRITTEN BY
-          </label>
-          <select
-            id={`${idPrefix}-author`}
-            value={author}
-            disabled={busy || !chooseable}
-            onChange={(event) => {
-              set({ authorUserId: event.target.value })
-            }}
-            className="select border-rule bg-base-200 w-full text-sm"
-          >
-            {currentAuthor !== undefined && (
-              <option value="">{currentAuthor} — leave as is</option>
-            )}
-            {people.map((person) => (
-              <option key={person.userId} value={person.userId}>
-                {person.fullName}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {withFile && (
-          <div>
-            <label className={labelClass} htmlFor={`${idPrefix}-file`}>
-              THE FILE — PDF OR DOCX
-            </label>
-            <input
-              id={`${idPrefix}-file`}
-              type="file"
-              accept={ACCEPTED}
-              disabled={busy}
-              onChange={(event) => {
-                setFile(event.target.files?.[0] ?? null)
-              }}
-              className="file-input border-rule bg-base-200 w-full text-sm"
-            />
-          </div>
+      <fieldset className="space-y-3">
+        <legend className={labelClass}>AUTHORS</legend>
+        <p className="text-[12px] leading-[1.6] text-faint">
+          Add each author. Choose a project member or enter a name for a former member.
+        </p>
+        {authors.map(({ key, author }, index) => {
+          const selection =
+            'id' in author
+              ? `saved:${author.id}`
+              : 'userId' in author
+                ? author.userId
+                : 'name'
+          return (
+            <div key={key} className="flex flex-wrap items-end gap-2">
+              <div className="min-w-40 flex-1">
+                <label className={labelClass} htmlFor={`${idPrefix}-author-${key}`}>
+                  {index === 0 ? 'WRITTEN BY' : `AUTHOR ${index + 1}`}
+                </label>
+                <select
+                  id={`${idPrefix}-author-${key}`}
+                  value={selection}
+                  disabled={busy}
+                  onChange={(event) => {
+                    const value = event.target.value
+                    const saved = savedAuthors.find(
+                      (each) => `saved:${each.id}` === value,
+                    )
+                    setAuthor(
+                      key,
+                      saved ?? (value === 'name' ? { name: '' } : { userId: value }),
+                    )
+                  }}
+                  className="select w-full border-rule bg-base-200 text-sm"
+                >
+                  <option value="" disabled>
+                    Choose an author
+                  </option>
+                  {savedAuthors.map((saved) => (
+                    <option key={saved.id} value={`saved:${saved.id}`}>
+                      {saved.name} — leave as is
+                    </option>
+                  ))}
+                  {people.map((person) => (
+                    <option key={person.userId} value={person.userId}>
+                      {person.fullName}
+                    </option>
+                  ))}
+                  <option value="name">Enter a name (former member)</option>
+                </select>
+              </div>
+              {!('userId' in author) && !('id' in author) && (
+                <div className="min-w-40 flex-1">
+                  <label
+                    className={labelClass}
+                    htmlFor={`${idPrefix}-author-name-${key}`}
+                  >
+                    AUTHOR NAME {index + 1}
+                  </label>
+                  <input
+                    id={`${idPrefix}-author-name-${key}`}
+                    type="text"
+                    maxLength={120}
+                    value={author.name}
+                    disabled={busy}
+                    onChange={(event) => setAuthor(key, { name: event.target.value })}
+                    className={fieldClass}
+                  />
+                </div>
+              )}
+              <button
+                type="button"
+                aria-label={`Remove author ${index + 1}`}
+                disabled={busy || authors.length === 1}
+                onClick={() =>
+                  setAuthors((current) => current.filter((row) => row.key !== key))
+                }
+                className="btn btn-outline btn-sm"
+              >
+                REMOVE
+              </button>
+            </div>
+          )
+        })}
+        <button
+          type="button"
+          disabled={busy || authors.length >= 20}
+          onClick={() =>
+            setAuthors((current) => [
+              ...current,
+              { key: draftKey(), author: { userId: '' } },
+            ])
+          }
+          className="cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] text-faint hover:text-primary disabled:opacity-50"
+        >
+          + ADD ANOTHER AUTHOR
+        </button>
+        {authorProblem && (
+          <p role="status" className="text-[12px] text-error">
+            {authorProblem}
+          </p>
         )}
-      </div>
+      </fieldset>
+
+      {withFile && (
+        <div>
+          <label className={labelClass} htmlFor={`${idPrefix}-file`}>
+            THE FILE — PDF OR DOCX
+          </label>
+          <input
+            id={`${idPrefix}-file`}
+            type="file"
+            accept={ACCEPTED}
+            disabled={busy}
+            onChange={(event) => {
+              setFile(event.target.files?.[0] ?? null)
+            }}
+            className="file-input w-full border-rule bg-base-200 text-sm"
+          />
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
         <button
           type="button"
-          disabled={busy || values.title.trim() === '' || !chooseable}
+          disabled={busy || values.title.trim() === '' || authorProblem !== null}
           onClick={() => {
-            onSubmit({ ...values, authorUserId: author }, file ?? undefined)
+            onSubmit(
+              { ...values, authors: authors.map((row) => row.author) },
+              file ?? undefined,
+            )
           }}
-          className="text-primary hover:underline cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] underline-offset-2 transition-colors duration-200 disabled:cursor-default disabled:opacity-50 disabled:hover:no-underline"
+          className="cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] text-primary underline-offset-2 transition-colors duration-200 hover:underline disabled:cursor-default disabled:opacity-50 disabled:hover:no-underline"
         >
           {submitLabel}
         </button>
@@ -521,7 +615,7 @@ function DocumentFields({
             type="button"
             disabled={busy}
             onClick={onCancel}
-            className="text-faint hover:text-primary cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50"
+            className="cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] text-faint transition-colors duration-200 hover:text-primary disabled:opacity-50"
           >
             CANCEL
           </button>

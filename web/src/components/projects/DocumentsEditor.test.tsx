@@ -6,13 +6,12 @@ import type { ProjectRoster } from '../../lib/projects/useProjectRoster'
 import { SectionHarness } from '../../test/sectionHarness'
 import { bodyOf, urlOf } from '../../test/stubFetch'
 
-const document = (
-  over: Partial<ApiProjectDocument> = {},
-): ApiProjectDocument => ({
+const document = (over: Partial<ApiProjectDocument> = {}): ApiProjectDocument => ({
   id: 'd1',
   title: 'Design review',
   description: null,
   authorName: 'Ada Lovelace',
+  authors: [{ id: 'credit-ada', name: 'Ada Lovelace' }],
   fileId: 'f1',
   fileName: 'design-review.pdf',
   fileSize: 240_000,
@@ -91,6 +90,7 @@ const ROSTER: ProjectRoster = {
       photoUrl: null,
       title: null,
       rank: 'PROJECT_LEAD',
+      publiclyListed: true,
       teamId: null,
     },
     {
@@ -99,6 +99,7 @@ const ROSTER: ProjectRoster = {
       photoUrl: null,
       title: null,
       rank: 'MEMBER',
+      publiclyListed: true,
       teamId: null,
     },
   ],
@@ -174,9 +175,7 @@ describe('DocumentsEditor', () => {
 
     const author = screen.getByLabelText('WRITTEN BY')
     await waitFor(() => {
-      expect(
-        screen.getByRole('option', { name: 'Ada Lovelace' }),
-      ).toBeInTheDocument()
+      expect(screen.getByRole('option', { name: 'Ada Lovelace' })).toBeInTheDocument()
     })
     // Not merely "somebody on the roster": crediting the wrong person silently
     // is the failure worth pinning, and this caught it once already.
@@ -192,10 +191,7 @@ describe('DocumentsEditor', () => {
     fireEvent.change(screen.getByLabelText('TITLE'), {
       target: { value: 'Notes' },
     })
-    choose(
-      'THE FILE — PDF OR DOCX',
-      new File(['x'], 'notes.txt', { type: 'text/plain' }),
-    )
+    choose('THE FILE — PDF OR DOCX', new File(['x'], 'notes.txt', { type: 'text/plain' }))
     fireEvent.click(screen.getByRole('button', { name: 'ADD' }))
 
     expect(await screen.findByText(/takes PDF and DOCX files/)).toBeInTheDocument()
@@ -251,8 +247,7 @@ describe('DocumentsEditor', () => {
     await saveIt()
 
     const post = seen.mock.calls.find(
-      ([url, init]) =>
-        url.includes('/projects/p1/documents') && init?.method === 'POST',
+      ([url, init]) => url.includes('/projects/p1/documents') && init?.method === 'POST',
     )
     expect(post).toBeDefined()
     // The body is `FormData`, which jsdom will not let a test read a file back
@@ -261,7 +256,7 @@ describe('DocumentsEditor', () => {
     expect(screen.queryByText(/NOT PUBLISHED YET/)).toBeNull()
   })
 
-  it('keeps the existing credit unless the select is changed', async () => {
+  it('keeps the existing credits when only the title changes', async () => {
     const seen = vi.fn<Watcher>()
     vi.stubGlobal(
       'fetch',
@@ -292,6 +287,69 @@ describe('DocumentsEditor', () => {
 
     expect(body['title']).toBe('Renamed')
     expect(body).not.toHaveProperty('authorUserId')
+    expect(body).not.toHaveProperty('authors')
+  })
+
+  it('publishes several members and a former member in the chosen order', async () => {
+    const seen = vi.fn<Watcher>()
+    vi.stubGlobal('fetch', stub({ '/projects/p1/documents': document() }, seen))
+    show()
+    await openAddForm()
+    fireEvent.change(screen.getByLabelText('TITLE'), { target: { value: 'Team review' } })
+    fireEvent.click(screen.getByRole('button', { name: '+ ADD ANOTHER AUTHOR' }))
+    fireEvent.change(screen.getByLabelText('AUTHOR 2'), { target: { value: 'u2' } })
+    fireEvent.click(screen.getByRole('button', { name: '+ ADD ANOTHER AUTHOR' }))
+    fireEvent.change(screen.getByLabelText('AUTHOR 3'), { target: { value: 'name' } })
+    fireEvent.change(screen.getByLabelText('AUTHOR NAME 3'), {
+      target: { value: ' Former Member ' },
+    })
+    choose('THE FILE — PDF OR DOCX', pdf())
+    fireEvent.click(screen.getByRole('button', { name: 'ADD' }))
+    expect(
+      screen.getByText(/Grace Hopper, Ada Lovelace, Former Member/),
+    ).toBeInTheDocument()
+    expect(seen).not.toHaveBeenCalled()
+    await saveIt()
+    const post = seen.mock.calls.find(([, init]) => init?.method === 'POST')
+    const body = post?.[1]?.body as FormData
+    expect(JSON.parse(body.get('authors') as string)).toEqual([
+      { userId: 'u1' },
+      { userId: 'u2' },
+      { name: 'Former Member' },
+    ])
+  })
+
+  it('retains a former author credit when adding a coauthor to an existing document', async () => {
+    const seen = vi.fn<Watcher>()
+    vi.stubGlobal('fetch', stub({ '/documents/d1': document() }, seen))
+    show([document()])
+    fireEvent.click(screen.getByRole('button', { name: 'EDIT DETAILS' }))
+    fireEvent.click(screen.getByRole('button', { name: '+ ADD ANOTHER AUTHOR' }))
+    fireEvent.change(screen.getByLabelText('AUTHOR 2'), { target: { value: 'u1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'DONE' }))
+    await saveIt()
+    const patch = seen.mock.calls.find(([, init]) => init?.method === 'PATCH')
+    expect(bodyOf(patch?.[1])).toMatchObject({
+      authors: [{ id: 'credit-ada' }, { userId: 'u1' }],
+    })
+  })
+
+  it('requires an author and prevents empty or duplicate selections', async () => {
+    vi.stubGlobal('fetch', stub())
+    show()
+    await openAddForm()
+    fireEvent.change(screen.getByLabelText('TITLE'), { target: { value: 'Review' } })
+    expect(screen.getByRole('button', { name: 'Remove author 1' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: '+ ADD ANOTHER AUTHOR' }))
+    expect(screen.getByRole('button', { name: 'ADD' })).toBeDisabled()
+    fireEvent.change(screen.getByLabelText('AUTHOR 2'), { target: { value: 'u1' } })
+    expect(screen.getByText('List each author only once.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'ADD' })).toBeDisabled()
+    fireEvent.change(screen.getByLabelText('AUTHOR 2'), { target: { value: 'name' } })
+    fireEvent.change(screen.getByLabelText('AUTHOR NAME 2'), { target: { value: '   ' } })
+    expect(screen.getByRole('button', { name: 'ADD' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Remove author 2' }))
+    expect(screen.getByRole('button', { name: 'ADD' })).toBeEnabled()
   })
 
   /** Untouched rows are not re-sent. This section shares a rate-limit budget
@@ -321,8 +379,6 @@ describe('DocumentsEditor', () => {
 
     await saveIt()
 
-    expect(
-      seen.mock.calls.some(([, init]) => init?.method === 'DELETE'),
-    ).toBe(true)
+    expect(seen.mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(true)
   })
 })

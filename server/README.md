@@ -194,6 +194,12 @@ Project authority is `ProjectMember.rank`, per project:
   `PATCH /api/projects/:id/members/:userId`, which officers can also use.
 - Only officers create projects.
 - `ProjectMember.title` is free text and grants nothing.
+- Any signed-in account can join an in-progress project and receive its Discord
+  crew role, regardless of dues. `ProjectMember.publiclyListed` is separate:
+  officers and project leads can grant or withdraw public listing; team leads
+  can do so for ordinary members of their own team. Existing memberships stay
+  listed after migration, while future joins start unlisted. Appointing a lead
+  also grants public listing. Hiding a name does not remove membership or roles.
 - A task with no `projectId` is the club's own work: officers only, with at least
   one assignee.
 
@@ -218,11 +224,11 @@ List routes take `?limit=` (max 100) and `?offset=`.
 | `GET /api/health` | Also pings the database |
 | `GET /api/stats` | Landing page counts. Each equals its listing's default length; `members` is `activeMembers` (`active`, not `GUEST`) |
 | `GET /api/members` | Active members by default. `?status=alumni` is the Officer Alumni role or a closed officer term; `?status=all` is every account. Also `?role=`. `limit` up to 1000 so the page can search the whole club. Includes `profileUrl` |
-| `GET /api/members/:slug` | Adds the member's projects |
+| `GET /api/members/:slug` | Adds only projects where the member is approved for public listing |
 | `GET /api/officers` | `{ seats, officers }`: every seat in enum order and who holds one. `photoUrl` prefers the linked account's photo |
 | `GET /api/officers/past` | The archive, `{ terms, older }`. `?years=` (default 2), `&all=1` |
 | `GET /api/projects` | `?status= &season= &featured=true &term=current\|other &cover=true &images=true &description=true`. `term` is resolved from the academic calendar; `other` is everything not current, newest first. `cover=true` adds the first gallery image, `images=true` the whole gallery, `description=true` the write-up. Cover columns and section headings are always included |
-| `GET /api/projects/:slug` | Adds description and credited members |
+| `GET /api/projects/:slug` | Adds description and members approved for public listing |
 | `GET /api/terms/current` · `/api/terms/:year/:season` | A term's start, end and finals week as instants, for the meeting date picker. Years more than one from now are a 404 |
 | `GET /api/events` | `?when=upcoming\|past\|all &type= &from= &to=`. Published rows, plus project meetings (from `src/projects/meetings.ts`) when both `from` and `to` are given and the project has `meetingsPublic`. Windows match by overlap. Meeting ids start `meeting:` and can't be edited |
 | `GET /api/events/:slug` | Published only |
@@ -300,9 +306,10 @@ public block in `src/app.ts`, so no shared-cache headers reach them.
 
 | Route | Notes |
 | --- | --- |
-| `POST /api/projects/:id/join` | Requires current dues |
+| `POST /api/projects/:id/join` | Any signed-in account; no dues check. Joins unlisted and syncs the Discord crew role |
 | `DELETE /api/projects/:id/members/me` | Leave. The only lead may leave; officers get a DM |
-| `GET /api/projects/:id/team` | Members only. Teams and roster, no emails |
+| `GET /api/projects/:id/team` | Members only. Full roster, including unlisted members and their `publiclyListed` status; no emails |
+| `PATCH /api/projects/:id/members/:userId/visibility` | `{ publiclyListed: boolean }`. Officer or project lead; team leads only for plain members on their own team. Management dues checks still apply |
 | `PATCH /api/projects/:id` | Project lead. Slug and `featured` aren't editable. Takes the meeting schedule (a `meetingRepeat` pattern with its fields and both times, plus `meetingTimes` for days on other hours, or `meetingRepeat: null` to clear it), `meetingsPublic` (officers only), `discordRoleId` (pushes role changes immediately), the cover and its framing, and section headings. Returns `managedProjectSelect` plus `description` |
 | `GET /api/projects/:id/meetings` | Project lead. The rest of the term's meetings from the start of today, cancelled ones marked |
 | `PUT /api/projects/:id/meetings/:date/cancel` · `DELETE` | Project lead. Calls off, or restores, the meeting on one campus date (`YYYY-MM-DD`) with an optional `reason`. 404 if the schedule has no meeting that day |
@@ -316,7 +323,7 @@ public block in `src/app.ts`, so no shared-cache headers reach them.
 | `POST /api/projects/:id/teams` · `PATCH`/`DELETE /api/teams/:id` | Project lead |
 | `PATCH` / `DELETE /api/projects/:id/members/:userId` | Project lead (officers too). Rank up to `TEAM_LEAD`; `title` is free text under the same rules as the profile's, with a lead title needing a lead rank on this project. A lead may change their own row's title, nothing else on it |
 | `POST` / `DELETE /api/teams/:id/members/:userId` | Team lead, own team, plain members only |
-| `POST /api/events` · `PATCH`/`DELETE /api/events/:id` | The team's lead, the project's lead, or an officer for club-wide events (no `projectId`). Created unpublished; only officers publish. Can't move between projects |
+| `POST /api/events` · `PATCH`/`DELETE /api/events/:id` | The team's lead, the project's lead, or an officer for club-wide events (no `projectId`). Private by default; `published` opts into the main calendar. Publishing or withdrawing requires current officer/project/team authority, even for the original creator. Can't move between projects |
 | `GET`/`POST /api/projects/:id/tasks` · `PATCH`/`DELETE /api/tasks/:id` | Leads, scoped to their team. `POST` refuses a project not running this term (409, checked before permissions). Edits and deletes aren't restricted |
 | `POST /api/tasks` | Officers only. A task with no project; at least one assignee, also enforced on edit |
 | `POST /api/tasks/:id/status` | Assignees and leads. Any of `OPEN`, `IN_PROGRESS`, `DELAYED`, `DONE`, `CANCELED`. Only `DONE` sets `completedBy`/`completedAt` |

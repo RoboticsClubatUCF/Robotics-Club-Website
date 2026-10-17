@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Outlet, Route, Routes } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ProjectManagePage } from './ProjectManagePage'
@@ -8,6 +8,7 @@ import type {
   ApiMeEvent,
   ApiMeetingSeries,
   ApiMyProject,
+  ApiProjectTeamView,
   ApiTerm,
   UserRole,
 } from '../../lib/api/api'
@@ -70,6 +71,7 @@ const project: ApiManagedProject = {
 }
 
 const lead: ApiMyProject = {
+  publiclyListed: true,
   rank: 'PROJECT_LEAD',
   title: null,
   team: null,
@@ -162,6 +164,164 @@ const patchBody = (fetchMock: ReturnType<typeof stubDesk>) => {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+})
+
+describe('public roster approvals', () => {
+  function renderRoster(teamLead = false, refuse = false) {
+    const data: ApiProjectTeamView = {
+      project,
+      teams: [
+        { id: 't1', name: 'Software', description: null },
+        { id: 't2', name: 'Hardware', description: null },
+      ],
+      members: [
+        {
+          userId: 'u1',
+          fullName: 'Lead Test',
+          rank: teamLead ? 'TEAM_LEAD' : 'PROJECT_LEAD',
+          teamId: teamLead ? 't1' : null,
+          photoUrl: null,
+          title: null,
+          publiclyListed: true,
+        },
+        {
+          userId: 'u2',
+          fullName: 'Rowan Chen',
+          rank: 'MEMBER',
+          teamId: 't1',
+          photoUrl: null,
+          title: null,
+          publiclyListed: false,
+        },
+        {
+          userId: 'u3',
+          fullName: 'Ada Lovelace',
+          rank: 'MEMBER',
+          teamId: 't2',
+          photoUrl: null,
+          title: null,
+          publiclyListed: true,
+        },
+        {
+          userId: 'u4',
+          fullName: 'Grace Hopper',
+          rank: 'MEMBER',
+          teamId: null,
+          photoUrl: null,
+          title: null,
+          publiclyListed: false,
+        },
+      ],
+    }
+    const fetchMock = vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = urlOf(input)
+      if (url.endsWith('/projects/p1/team')) return json(data)
+      if (url.endsWith('/visibility') && init?.method === 'PATCH') {
+        if (refuse) return json({ error: 'Only your own team can be approved.' }, 403)
+        const id = url.split('/members/')[1]!.split('/')[0]
+        const member = data.members.find((row) => row.userId === id)!
+        const patch = JSON.parse(init.body as string) as { publiclyListed: boolean }
+        member.publiclyListed = patch.publiclyListed
+        return json({ userId: id, ...patch })
+      }
+      return json([])
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const ctx = context()
+    if (teamLead)
+      ctx.projects = {
+        status: 'ready',
+        data: [{ ...lead, rank: 'TEAM_LEAD', team: { id: 't1', name: 'Software' } }],
+      }
+    render(
+      <MemoryRouter initialEntries={['/rover']}>
+        <Routes>
+          <Route element={<Outlet context={ctx} />}>
+            <Route path="/:slug" element={<ProjectManagePage />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    )
+    return fetchMock
+  }
+
+  it('filters pending members and approves or hides them with a separate visibility request', async () => {
+    const fetchMock = renderRoster()
+    await screen.findByRole('button', { name: 'Approve Rowan Chen for public website' })
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: /Awaiting public listing only/ }),
+    )
+    expect(
+      screen.queryByRole('button', { name: 'Hide Ada Lovelace on public website' }),
+    ).toBeNull()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Approve Rowan Chen for public website' }),
+    )
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('button', { name: 'Approve Rowan Chen for public website' }),
+      ).toBeNull(),
+    )
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: /Awaiting public listing only/ }),
+    )
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Hide Rowan Chen on public website' }),
+    )
+    await screen.findByRole('button', { name: 'Approve Rowan Chen for public website' })
+    const writes = fetchMock.mock.calls.filter(([, init]) => init?.method === 'PATCH')
+    const refreshes = fetchMock.mock.calls.filter(([input]) => urlOf(input).endsWith('/projects/rover'))
+    expect(refreshes).toHaveLength(2)
+    expect(refreshes.every(([, init]) => init?.cache === 'reload')).toBe(true)
+    expect(
+      writes.map(([url, init]) => [
+        urlOf(url).split('/api')[1],
+        JSON.parse(init!.body as string),
+      ]),
+    ).toEqual([
+      ['/projects/p1/members/u2/visibility', { publiclyListed: true }],
+      ['/projects/p1/members/u2/visibility', { publiclyListed: false }],
+    ])
+    expect(screen.getByRole('combobox', { name: 'Team for Rowan Chen' })).toHaveValue(
+      't1',
+    )
+  })
+
+  it('gives a team lead approval controls only for their own ordinary members', async () => {
+    const fetchMock = renderRoster(true)
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Approve Rowan Chen for public website',
+      }),
+    )
+    expect(
+      await screen.findByRole('button', { name: 'Hide Rowan Chen on public website' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /Ada Lovelace.*public website/ }),
+    ).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: /Grace Hopper.*public website/ }),
+    ).toBeNull()
+    expect(screen.queryByRole('button', { name: /Lead Test.*public website/ })).toBeNull()
+    const write = fetchMock.mock.calls.find(([, init]) => init?.method === 'PATCH')!
+    expect(urlOf(write[0])).toContain('/projects/p1/members/u2/visibility')
+  })
+
+  it('keeps a refused approval pending and shows the server explanation', async () => {
+    renderRoster(false, true)
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Approve Rowan Chen for public website',
+      }),
+    )
+    expect(
+      await screen.findByText('Only your own team can be approved.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Approve Rowan Chen for public website' }),
+    ).toBeEnabled()
+  })
 })
 
 describe('the project Discord role', () => {
@@ -1168,6 +1328,61 @@ describe('the upcoming meetings', () => {
 })
 
 describe('the project events form', () => {
+  function renderEvents(rank: 'PROJECT_LEAD' | 'TEAM_LEAD', existing: ApiMeEvent[] = []) {
+    const fetchMock = vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = urlOf(input)
+      if (url.includes('/team')) return json({ project, teams: [{ id: 't1', name: 'Software', description: null }], members: [] })
+      if (url.includes('/me/events')) return json(existing)
+      if (init?.method === 'POST' || init?.method === 'PATCH') return json({ id: 'e1' })
+      return json([])
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const ctx = context()
+    ctx.projects = { status: 'ready', data: [{ ...lead, rank, team: rank === 'TEAM_LEAD' ? { id: 't1', name: 'Software' } : null }] }
+    render(<MemoryRouter initialEntries={['/rover']}><Routes>
+      <Route element={<Outlet context={ctx} />}><Route path="/:slug" element={<ProjectManagePage />} /></Route>
+    </Routes></MemoryRouter>)
+    return fetchMock
+  }
+
+  it.each([
+    ['PROJECT_LEAD', true], ['PROJECT_LEAD', false],
+    ['TEAM_LEAD', true], ['TEAM_LEAD', false],
+  ] as const)('%s creates an event with main calendar %s', async (rank, published) => {
+    const fetchMock = renderEvents(rank)
+    const title = await screen.findByLabelText('Event title')
+    fireEvent.change(title, { target: { value: 'Team demonstration' } })
+    fireEvent.change(screen.getByLabelText('START DATE'), { target: { value: '2035-10-20' } })
+    fireEvent.change(screen.getByLabelText('START TIME'), { target: { value: '18:00' } })
+    const checkbox = screen.getByRole('checkbox', { name: /main calendar/i })
+    expect(checkbox).not.toBeChecked()
+    if (published) fireEvent.click(checkbox)
+    await act(async () => { fireEvent.submit(title.closest('form')!) })
+    const post = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')!
+    expect(JSON.parse(post[1]!.body as string)).toMatchObject({
+      projectId: 'p1', teamId: rank === 'TEAM_LEAD' ? 't1' : null, published,
+    })
+  })
+
+  it.each(['PROJECT_LEAD', 'TEAM_LEAD'] as const)('%s can uncheck the main calendar on an existing event', async (rank) => {
+    const fetchMock = renderEvents(rank, [{
+      id: 'e1', slug: 'demo', title: 'Team demonstration', description: null,
+      type: 'MEETING', location: null, startsAt: '2035-10-20T22:00:00.000Z',
+      endsAt: '2035-10-20T23:00:00.000Z', allDay: false, registrationUrl: null,
+      published: true, projectId: 'p1', teamId: 't1', createdById: 'other',
+      project: { slug: 'rover', title: 'Rover' }, team: { name: 'Software' },
+    }])
+    const eventPanel = (await screen.findByText('EVENTS', { exact: true })).closest('div')!
+    fireEvent.click(await within(eventPanel).findByRole('button', { name: 'EDIT' }))
+    const checkbox = within(eventPanel).getByRole('checkbox', { name: /main calendar/i })
+    expect(checkbox).toBeChecked()
+    fireEvent.click(checkbox)
+    await act(async () => { fireEvent.submit(checkbox.closest('form')!) })
+    const patch = fetchMock.mock.calls.find(([, init]) => init?.method === 'PATCH')!
+    expect(urlOf(patch[0])).toContain('/events/e1')
+    expect(JSON.parse(patch[1]!.body as string)).toMatchObject({ published: false })
+  })
+
   it('sends an event that runs over several days', async () => {
     const fetchMock = stubDesk()
     renderPage(fetchMock)

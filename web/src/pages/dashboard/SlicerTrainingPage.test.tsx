@@ -341,6 +341,58 @@ describe('questions', () => {
 })
 
 describe('practice', () => {
+  const typeAngle = (name: string, value: string) => {
+    const input = screen.getByRole('spinbutton', { name: `Rotation ${name}` })
+    fireEvent.change(input, { target: { value } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+  }
+
+  it.each([
+    ['X', '35'], ['Y', '35'], ['X', '90'], ['Y', '90'],
+  ])('recovers from a mistaken %s turn of %s degrees before rotating Z', async (axis, angle) => {
+    startAt('try-rotate')
+    renderPage()
+    await screen.findByText(/1 on the plate/)
+    fireEvent.click(screen.getByRole('button', { name: 'Rotate' }))
+    fireEvent.click(screen.getByRole('button', { name: /Bracket/ }))
+    typeAngle(axis!, angle!)
+    expect(callout()).toMatch(/^STEP 2 OF 3/)
+    typeAngle('Z', '90')
+    expect(callout()).toMatch(/^STEP 3 OF 3Press RESET/)
+    expect(screen.getByRole('button', { name: 'NEXT' })).toBeDisabled()
+    const rotation = screen.getByRole('group', { name: 'Rotation' })
+    fireEvent.click(within(rotation).getByRole('button', { name: 'RESET' }))
+    expect(screen.getByRole('button', { name: 'NEXT' })).toBeEnabled()
+    expect(readProgress('u1').done).toContain('try-rotate')
+  })
+
+  it('clears partial turn credit on RESET and START OVER, and accepts a negative quarter-turn', async () => {
+    startAt('try-rotate')
+    renderPage()
+    await screen.findByText(/1 on the plate/)
+    const prepare = () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Rotate' }))
+      fireEvent.click(screen.getByRole('button', { name: /Bracket/ }))
+    }
+    const reset = () => fireEvent.click(within(screen.getByRole('group', { name: 'Rotation' })).getByRole('button', { name: 'RESET' }))
+    prepare()
+    typeAngle('Z', '45')
+    expect(callout()).toMatch(/^STEP 2 OF 3/)
+    reset()
+    typeAngle('Z', '45')
+    expect(callout()).toMatch(/^STEP 2 OF 3/)
+    typeAngle('Z', '90')
+    expect(callout()).toMatch(/^STEP 3 OF 3/)
+    fireEvent.click(screen.getByRole('button', { name: 'START OVER' }))
+    prepare()
+    typeAngle('Z', '45')
+    expect(callout()).toMatch(/^STEP 2 OF 3/)
+    typeAngle('Z', '-90')
+    expect(callout()).toMatch(/^STEP 3 OF 3/)
+    reset()
+    expect(screen.getByRole('button', { name: 'NEXT' })).toBeEnabled()
+  })
+
   it('runs a task on the practice plate and moves on to the next goal as one is met', async () => {
     startAt('try-the-screen')
     renderPage()

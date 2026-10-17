@@ -25,7 +25,8 @@ import type { AuthEnv, SessionUser } from './session.js'
  * something a stranger probing project ids should learn, and the fix is "ask your lead"
  * in every case.
  *
- * One gate, and it's dues. `hasAccess` is `duesPaidThrough > now` and nothing else —
+ * Management and paid resources have one gate: dues. `hasAccess` is
+ * `duesPaidThrough > now` and nothing else —
  * the same question the dashboard draws its padlocks from and the bot asks before
  * handing out the Members role. Exactly one exemption, `ADMIN`, because the club can't
  * be in a position where the only person who can fix a membership is locked out by one.
@@ -64,7 +65,8 @@ const CLAIM_IT =
   'Membership is free right now — claim it on the dues page and this opens straight away. It takes one press and costs nothing.'
 
 /**
- * The one gate. Everything that isn't reading goes through here.
+ * The gate for management and paid resources. Joining and leaving projects are
+ * open to any signed-in account; public roster approval is separate from access.
  *
  * `hasAccess` is `duesPaidThrough > now` and nothing else, so this is the same question
  * the Discord bot asks and the same one the dashboard asks before drawing a padlock.
