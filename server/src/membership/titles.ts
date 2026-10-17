@@ -23,7 +23,9 @@ import {
  *   - An office is the board's. Any seat's name, and the usual ways of claiming one ("VP",
  *     "Pres", "chair", "officer", "director"), need officer standing: `OFFICER` or `ADMIN`, or
  *     an open officer term, which is how the faculty advisor sits on the board as a plain
- *     member.
+ *     member. A former officer may name a seat they held with its years ("Treasurer,
+ *     2022–2023") as their club title, checked against their closed terms. Not on a project
+ *     roster, where a past office means nothing.
  *   - "Lead", "captain", "head", "chief" need somebody who leads. For a club title that's a
  *     project or team lead anywhere, the same union the Discord lead roles use; for a project
  *     title, that rank on that project. Officers may use them too.
@@ -135,12 +137,6 @@ function readingsOf(title: string): string[][] {
   return [wordsIn(swapped), wordsIn(plain)]
 }
 
-/** Seat names as one squashed word: `vicepresident`, `labmanager`. Read from the enum so a
-    new seat is reserved the day it's added. */
-const SEATS = Object.values(OfficerPosition).map((seat) =>
-  seat.toLowerCase().replace(/_/g, ''),
-)
-
 /**
  * Seats whose name is an ordinary word on its own ("Marketing", "Outreach"). They claim the
  * seat only as the whole title or beside a word of rank, so "Marketing team" stays free.
@@ -154,33 +150,38 @@ const PLAIN_SEATS = new Set(
     .filter((seat) => !['president', 'treasurer', 'secretary'].includes(seat)),
 )
 
-/** Found anywhere in the squashed title, so "Co-President" and "VicePresident" count. */
-const OFFICE_FRAGMENTS = [
-  'president',
-  'treasurer',
-  'secretary',
-  'officer',
-  'chairman',
-  'chairwoman',
-  'chairperson',
-  'administrator',
+/**
+ * Seat names distinctive enough to find anywhere in the squashed title, so "Co-President"
+ * counts. In this order: Vice President is taken out before President is looked for.
+ */
+const SEAT_FRAGMENTS: [string, OfficerPosition][] = [
+  ['vicepresident', OfficerPosition.VICE_PRESIDENT],
+  ['president', OfficerPosition.PRESIDENT],
+  ['treasurer', OfficerPosition.TREASURER],
+  ['secretary', OfficerPosition.SECRETARY],
 ]
 
+const FRAGMENT_SEATS = new Set(SEAT_FRAGMENTS.map(([, seat]) => seat))
+
 /**
- * Matched against whole words and against two neighbouring words run together, so
- * "Lab Manager", "LabManager" and "E-Board" count but "Collab manager" and "Directory"
- * don't.
+ * Short names for seats. These, and every seat's own name, are matched against whole words
+ * and two neighbouring words run together, so "Lab Manager", "LabManager" and "Vice-Pres"
+ * count but "Collab manager" doesn't.
  */
-const OFFICE_WORDS = new Set([
-  ...SEATS.filter((seat) => !PLAIN_SEATS.has(seat)),
-  'vp',
-  'pres',
-  'prez',
-  'veep',
-  'vicepres',
-  'copres',
-  'treas',
-  'secy',
+const SEAT_ALIASES: Record<string, OfficerPosition> = {
+  vp: OfficerPosition.VICE_PRESIDENT,
+  veep: OfficerPosition.VICE_PRESIDENT,
+  vicepres: OfficerPosition.VICE_PRESIDENT,
+  pres: OfficerPosition.PRESIDENT,
+  prez: OfficerPosition.PRESIDENT,
+  copres: OfficerPosition.PRESIDENT,
+  treas: OfficerPosition.TREASURER,
+  secy: OfficerPosition.SECRETARY,
+}
+
+/** Office words that name no particular seat, matched the same way. "Director" as a word,
+    so "Directory" is free. */
+const UNNAMED_OFFICE_WORDS = new Set([
   'exec',
   'eboard',
   'executiveboard',
@@ -194,6 +195,14 @@ const OFFICE_WORDS = new Set([
   'advisor',
   'adviser',
 ])
+
+/** The same, found anywhere in the squashed title. */
+const UNNAMED_OFFICE_FRAGMENTS = [
+  'chairman',
+  'chairwoman',
+  'chairperson',
+  'administrator',
+]
 
 const LEAD_WORDS = new Set([
   'lead',
@@ -237,21 +246,56 @@ const RANK_WORDS = new Set([
   'chair',
 ])
 
-function officeIn(words: string[]): boolean {
-  const squashed = words.join('')
-  const pairs = words.slice(1).map((word, at) => words[at] + word)
+type Offices = {
+  /** Every seat the title names. */
+  seats: Set<OfficerPosition>
+  /** Office words that name no seat: "chair", "director", "admin". */
+  unnamed: boolean
+  /** "Officer" itself, which is what the board calls somebody with no seat. */
+  officer: boolean
+}
 
-  if (OFFICE_FRAGMENTS.some((fragment) => squashed.includes(fragment))) return true
-  if (pairs.some((pair) => OFFICE_WORDS.has(pair))) return true
-  if (words.some((word, at) => OFFICE_WORDS.has(word) && !excused(words, at))) {
-    return true
+function officesIn(words: string[]): Offices {
+  const pairs = words.slice(1).map((word, at) => words[at] + word)
+  const tokens = new Set([
+    ...words.filter((_word, at) => !excused(words, at)),
+    ...pairs,
+  ])
+  const squashed = words.join('')
+  let unclaimed = squashed
+  const seats = new Set<OfficerPosition>()
+
+  for (const [fragment, seat] of SEAT_FRAGMENTS) {
+    if (!unclaimed.includes(fragment)) continue
+    seats.add(seat)
+    unclaimed = unclaimed.replaceAll(fragment, '')
   }
 
-  return (
-    PLAIN_SEATS.has(squashed) ||
-    (words.some((word) => PLAIN_SEATS.has(word)) &&
-      words.some((word) => RANK_WORDS.has(word)))
-  )
+  for (const token of tokens) {
+    const seat = SEAT_ALIASES[token]
+    if (seat) seats.add(seat)
+  }
+
+  // Every other seat by its own name, read from the enum, so a new seat is reserved the
+  // day it's added. Not the fragment seats again: "Vice President" has the word
+  // "president" in it and names one seat.
+  for (const seat of Object.values(OfficerPosition)) {
+    if (FRAGMENT_SEATS.has(seat)) continue
+    const name = seat.toLowerCase().replace(/_/g, '')
+    const named = PLAIN_SEATS.has(name)
+      ? squashed === name ||
+        (words.includes(name) && words.some((word) => RANK_WORDS.has(word)))
+      : tokens.has(name)
+    if (named) seats.add(seat)
+  }
+
+  return {
+    seats,
+    unnamed:
+      [...tokens].some((token) => UNNAMED_OFFICE_WORDS.has(token)) ||
+      UNNAMED_OFFICE_FRAGMENTS.some((fragment) => squashed.includes(fragment)),
+    officer: squashed.includes('officer'),
+  }
 }
 
 function leadIn(words: string[]): boolean {
@@ -269,29 +313,111 @@ function leadIn(words: string[]): boolean {
 
 export type TitleClaims = {
   obscene: boolean
+  /** Any office at all: a seat, an unnamed office word, or "officer". */
   office: boolean
   lead: boolean
+  seats: OfficerPosition[]
+  unnamedOffice: boolean
+  officerWord: boolean
 }
 
 /** What a title says about its holder, before anybody's standing is looked up. */
 export function claimsOf(title: string): TitleClaims {
   const readings = readingsOf(title)
+  const offices = readings.map(officesIn)
+  const seats = [...new Set(offices.flatMap((read) => [...read.seats]))]
+  const unnamedOffice = offices.some((read) => read.unnamed)
+  const officerWord = offices.some((read) => read.officer)
 
   return {
     obscene:
       matcher.hasMatch(stripInvisible(title)) ||
       readings.some((words) => matcher.hasMatch(words.join(' '))),
-    office: readings.some(officeIn),
+    office: seats.length > 0 || unnamedOffice || officerWord,
     lead: readings.some(leadIn),
+    seats,
+    unnamedOffice,
+    officerWord,
   }
+}
+
+/**
+ * The years a title names: "2022", "2022–2023", "2022-23". Four-digit years in this
+ * century or the last, and the two-digit end of a range.
+ */
+export function yearsIn(title: string): number[] {
+  const text = stripInvisible(title).normalize('NFKC')
+  const years = new Set<number>()
+
+  for (const [, first, end] of text.matchAll(
+    /\b((?:19|20)\d{2})\s*[-–—/]\s*(\d{2})(?!\d)/g,
+  )) {
+    const start = Number(first)
+    years.add(start)
+    years.add(Math.floor(start / 100) * 100 + Number(end))
+  }
+  for (const [year] of text.matchAll(/\b(?:19|20)\d{2}\b/g)) {
+    years.add(Number(year))
+  }
+
+  return [...years].sort((a, b) => a - b)
 }
 
 export const TITLE_REFUSALS = {
   obscene: 'That title isn’t allowed. Try different words.',
   office: 'Officer titles are only for officers.',
+  pastOffice:
+    'A past office needs the seat that was held and its years, like “Treasurer, 2022–2023”.',
   clubLead: 'Lead titles are only for project and team leads.',
   projectLead: 'Lead titles are only for this project’s leads.',
 } as const
+
+/**
+ * Why a former officer can't carry an office title, or null when the title names only seats
+ * they held, in years they held them: "Treasurer, 2022–2023" for somebody whose closed
+ * Treasurer term ran through those years. Every seat named needs a term covering one of the
+ * years, and every year a term of a seat named. "Officer, 2021" counts any closed term,
+ * seated or not. An office word naming no seat ("Chair") stays a sitting officer's.
+ */
+async function pastOfficeProblem(
+  userId: string,
+  title: string,
+  claims: TitleClaims,
+): Promise<string | null> {
+  const terms = await prisma.officerTerm.findMany({
+    where: { userId, endedAt: { not: null } },
+    select: { position: true, startedAt: true, endedAt: true },
+  })
+
+  // Nobody who was never on the board needs to hear about past offices.
+  if (terms.length === 0) return TITLE_REFUSALS.office
+  if (claims.unnamedOffice) return TITLE_REFUSALS.pastOffice
+
+  const years = yearsIn(title)
+  if (years.length === 0) return TITLE_REFUSALS.pastOffice
+
+  const covers = (term: (typeof terms)[number], year: number) =>
+    term.startedAt.getUTCFullYear() <= year &&
+    year <= (term.endedAt ?? term.startedAt).getUTCFullYear()
+
+  for (const seat of claims.seats) {
+    const held = terms.some(
+      (term) => term.position === seat && years.some((year) => covers(term, year)),
+    )
+    if (!held) return TITLE_REFUSALS.pastOffice
+  }
+
+  const named = claims.officerWord
+    ? terms
+    : terms.filter(
+        (term) => term.position !== null && claims.seats.includes(term.position),
+      )
+  if (!years.every((year) => named.some((term) => covers(term, year)))) {
+    return TITLE_REFUSALS.pastOffice
+  }
+
+  return null
+}
 
 /** `OFFICER` or `ADMIN`, or sitting on the board right now. */
 export async function hasOfficerStanding(userId: string): Promise<boolean> {
@@ -334,7 +460,10 @@ export async function clubTitleProblem(
   if (!claims.office && !claims.lead) return null
 
   const officer = await hasOfficerStanding(userId)
-  if (claims.office && !officer) return TITLE_REFUSALS.office
+  if (claims.office && !officer) {
+    const problem = await pastOfficeProblem(userId, title, claims)
+    if (problem) return problem
+  }
   if (!claims.lead || officer) return null
 
   const leads = await prisma.projectMember.count({

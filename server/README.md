@@ -259,7 +259,7 @@ public block in `src/app.ts`, so no shared-cache headers reach them.
 | Route | Notes |
 | --- | --- |
 | `GET /api/account` | Editable profile, plus `passwordSet` and `pendingEmail` |
-| `PATCH /api/account/profile` | `{ fullName, bio, gradYear, title? }` → `{ user }`. `title` is the line under their name on `/members`, up to 80 characters; blank clears it. 400 for an obscene title, an office without officer standing, or a lead title from somebody who leads nothing (`src/membership/titles.ts`) |
+| `PATCH /api/account/profile` | `{ fullName, bio, gradYear, title? }` → `{ user }`. `title` is the line under their name on `/members`, up to 80 characters; blank clears it. 400 for an obscene title, an office without officer standing, or a lead title from somebody who leads nothing (`src/membership/titles.ts`). A former officer may name a seat they held with its years, like "Treasurer, 2022–2023" |
 | `PATCH /api/account/profile-link` | `{ profileUrl }`, null to clear. Checked against an allowlist of platforms (`socialUrl` in `src/core/validate.ts`) because it's printed in a public `href` |
 | `POST /api/account/discord-check` | Signup's check, excusing the caller's own handle |
 | `POST /api/account/discord` | `{ discordUsername }` → `{ user }`. 422 `not_found`, 503 `unavailable` |

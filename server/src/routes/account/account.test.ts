@@ -368,6 +368,47 @@ describe('what a member may call themselves', () => {
     expect(await storedTitle()).toBe('Rover Lead')
   })
 
+  /**
+   * A former officer may name a seat they held, with its years. Their closed Treasurer term
+   * ran from August 2022 to May 2023, so 2022 and 2023 are theirs and nothing else is.
+   */
+  describe('a former officer', () => {
+    beforeEach(async () => {
+      await prisma.officerTerm.create({
+        data: {
+          userId: myId,
+          fullName: 'Test Account',
+          position: 'TREASURER',
+          source: 'MANUAL',
+          startedAt: new Date('2022-08-20T00:00:00.000Z'),
+          endedAt: new Date('2023-05-05T00:00:00.000Z'),
+        },
+      })
+    })
+
+    it.each(['Treasurer, 2022–2023', 'Former Treasurer (2022-23)', 'Officer, 2022'])(
+      'may use %j',
+      async (title) => {
+        expect((await setTitle(title)).status).toBe(200)
+        expect(await storedTitle()).toBe(title)
+      },
+    )
+
+    it.each([
+      ['Treasurer', 'no years'],
+      ['Treasurer, 2024', 'years they did not hold it'],
+      ['Treasurer, 2021–2023', 'a year outside the term'],
+      ['President, 2022–2023', 'a seat they never held'],
+      ['Chair, 2022', 'an office that names no seat'],
+    ])('may not use %j (%s)', async (title) => {
+      const response = await setTitle(title)
+
+      expect(response.status).toBe(400)
+      expect(await response.text()).toContain('past office')
+      expect(await storedTitle()).toBeNull()
+    })
+  })
+
   /** A zero-width space draws nothing, so "Le​ad" would show as "Lead" while
       reading as two words. It's stripped before the check and before storage. */
   it('strips invisible characters before checking and storing', async () => {

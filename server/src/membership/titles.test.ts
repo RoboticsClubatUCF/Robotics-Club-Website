@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { claimsOf } from './titles.js'
+import { claimsOf, yearsIn } from './titles.js'
 
 /**
  * What a title claims, read off the words alone. No database: standing is the routes'
@@ -45,7 +45,7 @@ describe('claimsOf', () => {
     'Dickinson fan',
     'Shiitake grower',
   ])('claims nothing for %j', (title) => {
-    expect(claims(title)).toEqual({ obscene: false, office: false, lead: false })
+    expect(claims(title)).toMatchObject({ obscene: false, office: false, lead: false })
   })
 
   it.each([
@@ -126,4 +126,42 @@ describe('claimsOf', () => {
       expect(claims(title).obscene).toBe(true)
     },
   )
+})
+
+/** Which seat a title names is what a former officer's title is checked against. */
+describe('the seats a title names', () => {
+  it.each([
+    ['Treasurer, 2022–2023', ['TREASURER']],
+    ['Former Treas. 2022', ['TREASURER']],
+    ['Vice President', ['VICE_PRESIDENT']],
+    ['VP of Fun', ['VICE_PRESIDENT']],
+    ['Vice President and President', ['VICE_PRESIDENT', 'PRESIDENT']],
+    ['Co-President', ['PRESIDENT']],
+    ['Lab Manager, 2021', ['LAB_MANAGER']],
+    ['Faculty Advisor', ['FACULTY_ADVISOR']],
+    ['Marketing, 2020–21', ['MARKETING']],
+    ['Head of Outreach', ['OUTREACH']],
+  ])('%j names %j', (title, seats) => {
+    expect([...claims(title).seats].sort()).toEqual([...seats].sort())
+  })
+
+  it('tells an office that names no seat from one that does', () => {
+    expect(claims('Chair, 2022')).toMatchObject({ seats: [], unnamedOffice: true })
+    expect(claims('Club Officer, 2020')).toMatchObject({ seats: [], officerWord: true })
+    expect(claims('Treasurer').unnamedOffice).toBe(false)
+  })
+})
+
+describe('yearsIn', () => {
+  it.each([
+    ['Treasurer, 2022–2023', [2022, 2023]],
+    ['Treasurer 2022-23', [2022, 2023]],
+    ['Treasurer (2022/2023)', [2022, 2023]],
+    ['Secretary, 2019', [2019]],
+    ['Treasurer, Fall 2022 to Spring 2024', [2022, 2024]],
+    ['Treasurer', []],
+    ['Team of 2000 parts, 12345', [2000]],
+  ])('%j has %j', (title, years) => {
+    expect(yearsIn(title)).toEqual(years)
+  })
 })

@@ -105,6 +105,11 @@ const clearRows = async () => {
     })
   }
 
+  // Terms before their people: `userId` is `SetNull`, and an orphaned closed term would
+  // land on the public archive. The past-seat title case makes one.
+  await prisma.officerTerm.deleteMany({
+    where: { user: { email: { startsWith: PREFIX } } },
+  })
   await prisma.user.deleteMany({ where: { email: { startsWith: PREFIX } } })
 }
 
@@ -2208,6 +2213,22 @@ describe("a member's display title", () => {
   it('refuses an obscene title', async () => {
     expect((await patch({ title: 'fvck it' })).status).toBe(400)
     expect(await storedTitle()).toBeNull()
+  })
+
+  /** A past seat is allowed as a club title on /members, not on a project's roster. */
+  it('refuses a former officer their past seat here', async () => {
+    await prisma.officerTerm.create({
+      data: {
+        userId: paidId,
+        fullName: 'PM Paid',
+        position: 'TREASURER',
+        source: 'MANUAL',
+        startedAt: new Date('2022-08-20T00:00:00.000Z'),
+        endedAt: new Date('2023-05-05T00:00:00.000Z'),
+      },
+    })
+
+    expect((await patch({ title: 'Treasurer, 2022–2023' })).status).toBe(400)
   })
 
   /** Otherwise promote, name, demote leaves a plain member carrying "Software Lead". */

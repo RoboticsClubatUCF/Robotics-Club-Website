@@ -35,6 +35,11 @@ const clearWindows = () =>
   prisma.rateLimit.deleteMany({ where: { key: { startsWith: 'officer:' } } })
 
 const clearRows = async () => {
+  // Terms before their people: `userId` is `SetNull`, and an orphaned closed term
+  // would land on the public archive.
+  await prisma.officerTerm.deleteMany({
+    where: { user: { email: { startsWith: PREFIX } } },
+  })
   await prisma.project.deleteMany({ where: { slug: { startsWith: PREFIX } } })
   await prisma.user.deleteMany({ where: { email: { startsWith: PREFIX } } })
 }
@@ -128,6 +133,23 @@ describe('PATCH /api/officer/members/:id/title', () => {
 
     expect((await setTitle(officerCookie, memberId, 'Rover Lead')).status).toBe(200)
     expect(await titleOf(memberId)).toBe('Rover Lead')
+  })
+
+  it("can give a former officer a seat they held, with its years", async () => {
+    await prisma.officerTerm.create({
+      data: {
+        userId: memberId,
+        fullName: 'Title Member',
+        position: 'SECRETARY',
+        source: 'MANUAL',
+        startedAt: new Date('2021-08-20T00:00:00.000Z'),
+        endedAt: new Date('2022-05-05T00:00:00.000Z'),
+      },
+    })
+
+    expect((await setTitle(officerCookie, memberId, 'Secretary, 2021–2022')).status).toBe(200)
+    expect((await setTitle(officerCookie, memberId, 'Secretary, 2024')).status).toBe(400)
+    expect(await titleOf(memberId)).toBe('Secretary, 2021–2022')
   })
 
   /** A title from before the rules can always be taken away. */
