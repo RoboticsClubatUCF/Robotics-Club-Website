@@ -227,6 +227,16 @@ const envSchema = z.object({
    */
   DISCORD_ROLE_SYNC_DRY_RUN: z.stringbool().default(false),
 
+  /**
+   * Copy published events onto the club's Discord as scheduled events
+   * (`src/discord/discordEvents.ts`). The bot needs Create Events.
+   *
+   * Off unless set, unlike the role ids, because it deletes what it put there: a developer's
+   * machine holding the live token and a database of its own would take down the events the
+   * live box created. Set it on the box that owns the real calendar and nowhere else.
+   */
+  DISCORD_EVENT_SYNC: z.stringbool().default(false),
+
   // ------------------------------------------------------------- sessions
 
   /**
@@ -433,6 +443,7 @@ const envSchema = z.object({
         parsed.DISCORD_LAB_CHANNEL_ID,
         parsed.DISCORD_LAB_MESSAGE_ID,
         parsed.DISCORD_PUBLIC_KEY,
+        parsed.DISCORD_EVENT_SYNC,
       ].some(Boolean) || (parsed.DISCORD_BOT_TOKEN && parsed.DISCORD_GUILD_ID),
     {
       // One-directional, unlike the pair above, because these aren't the same kind of

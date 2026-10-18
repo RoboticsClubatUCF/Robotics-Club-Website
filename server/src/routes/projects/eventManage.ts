@@ -11,6 +11,7 @@ import {
   requireTeamLead,
 } from '../../auth/authz.js'
 import { prisma } from '../../core/db.js'
+import { nudgeDiscordEvents } from '../../discord/discordEvents.js'
 import { EventType } from '../../generated/prisma/enums.js'
 import { rateLimit } from '../../core/rateLimit.js'
 import { type AuthEnv, originGuard, requireAuth } from '../../auth/session.js'
@@ -166,6 +167,9 @@ eventManage.post(
       select: managedEventSelect,
     })
 
+    // Discord follows the public calendar. A no-op unless DISCORD_EVENT_SYNC is on.
+    if (event.published) nudgeDiscordEvents()
+
     return c.json(event, 201)
   },
 )
@@ -219,6 +223,9 @@ eventManage.patch(
       select: managedEventSelect,
     })
 
+    // Every edit, since unpublishing is one and the pass skips anything unchanged.
+    nudgeDiscordEvents()
+
     return c.json(updated)
   },
 )
@@ -233,6 +240,7 @@ eventManage.delete('/:id', originGuard, requireAuth, writes, async (c) => {
 
   await requireEventManager(user, event)
   await prisma.event.delete({ where: { id: event.id } })
+  if (event.published) nudgeDiscordEvents()
 
   return c.json({ deleted: true })
 })

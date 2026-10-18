@@ -11,7 +11,8 @@ import {
 import { allowanceFor } from '../../printing/printAllowance.js'
 import { isCurrentTerm } from '../../projects/projectTerm.js'
 import { currentTerm } from '../../membership/semester.js'
-import { type AuthEnv, requireAuth } from '../../auth/session.js'
+import { type AuthEnv, originGuard, requireAuth } from '../../auth/session.js'
+import { feedTokenFor, resetFeedToken } from '../../calendar/feeds.js'
 import { loanSelect } from './equipment.js'
 import { managedProjectSelect } from '../officer/officer.js'
 import { printSelect, withGrams } from './print.js'
@@ -31,9 +32,12 @@ import { PrintRequestStatus, TaskStatus } from '../../generated/prisma/enums.js'
  *   GET /api/me/print-requests  -> my 3D print requests, newest first
  *   GET /api/me/print-allowance -> grams left for my own prints this term
  *   GET /api/me/loans           -> what I have borrowed, and asked for
+ *   GET /api/me/calendar        -> the token in my calendar subscription links
+ *   POST /api/me/calendar/reset -> a new token, killing the old links
  *
- * Reads only, answered per-caller, so the router lives outside `publicApi`, and
- * nothing here is rate limited — the dashboard calls these on every visit.
+ * Reads, plus that one reset, answered per-caller, so the router lives outside
+ * `publicApi`, and nothing here is rate limited — the dashboard calls these on every
+ * visit.
  */
 export const me = new Hono<AuthEnv>()
 
@@ -246,6 +250,18 @@ me.get(
       ),
     )
   },
+)
+
+/**
+ * The token the subscribe menus build their private links from (`routes/public/calendarFeeds.ts`).
+ * Made on the first ask, so nobody who never subscribes has one.
+ */
+me.get('/calendar', requireAuth, async (c) =>
+  c.json({ token: await feedTokenFor(c.get('user').id) }),
+)
+
+me.post('/calendar/reset', originGuard, requireAuth, async (c) =>
+  c.json({ token: await resetFeedToken(c.get('user').id) }),
 )
 
 /**

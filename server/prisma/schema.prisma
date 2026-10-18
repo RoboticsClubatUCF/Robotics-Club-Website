@@ -209,6 +209,7 @@ model User {
   passwordReset     PasswordReset?
   emailChange       EmailChange?
   memberSurvey      MemberSurvey?
+  calendarFeed      CalendarFeed?
   duesPayments      DuesPayment[]
   grantedDues       DuesPayment[]     @relation("grantedDues")
   createdEvents     Event[]           @relation("createdEvents")
@@ -968,6 +969,37 @@ model Event {
   // The dashboard calendar's window query, per project.
   @@index([projectId, startsAt])
   @@map("events")
+}
+
+/// The secret in a member's calendar subscription links (`/api/calendar/<token>/…`).
+///
+/// Stored as it is, unlike the session and reset tokens: the page has to show the link again every
+/// time somebody wants to add it to another device, and all it opens is a read of calendars the
+/// person can already see. What the feeds contain is decided on every request from the person's
+/// current projects and role, so a link stops showing a project the moment they leave it.
+/// Resetting writes a new token and kills every old link.
+model CalendarFeed {
+  userId    String   @id @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("calendar_feeds")
+}
+
+/// A published event this server has put on the club's Discord as a scheduled event.
+///
+/// No foreign key to `events`, on purpose: deleting an event (or the project it cascades from) has
+/// to leave this row behind so the sync can find it and delete the Discord copy. `fingerprint` is a
+/// hash of what was last sent, so an unchanged event costs no write.
+model DiscordScheduledEvent {
+  eventId        String   @id @map("event_id")
+  discordEventId String   @unique @map("discord_event_id")
+  fingerprint    String
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("discord_scheduled_events")
 }
 
 // --------------------------------------------------------------------- files

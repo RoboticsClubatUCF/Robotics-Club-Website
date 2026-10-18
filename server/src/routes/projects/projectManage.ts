@@ -31,6 +31,7 @@ import {
   ProjectStatus,
 } from '../../generated/prisma/enums.js'
 import { notifyOfficers } from '../../discord/officerNotify.js'
+import { nudgeDiscordEvents } from '../../discord/discordEvents.js'
 import {
   isCivilDate,
   meetingPatchFields,
@@ -1555,6 +1556,8 @@ projectManage.delete('/projects/:id', originGuard, requireAuth, writes, async (c
     roster.map((member) => member.userId),
     `${project.title} was deleted`,
   )
+  // Its events went in the cascade; this takes their copies off Discord.
+  nudgeDiscordEvents()
 
   return c.json({ deleted: true })
 })

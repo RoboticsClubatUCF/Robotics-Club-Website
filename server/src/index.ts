@@ -13,6 +13,10 @@ import {
   teamLeadRoleId,
 } from './discord/discord.js'
 import { syncOfficerAlumni } from './discord/discordAlumni.js'
+import {
+  eventSyncConfigured,
+  queueDiscordEventSync,
+} from './discord/discordEvents.js'
 import { startDiscordGateway, stopDiscordGateway } from './discord/discordGateway.js'
 import { syncDiscordOfficers } from './discord/discordOfficers.js'
 import { sweepDiscordRoles } from './discord/discordRoles.js'
@@ -146,6 +150,11 @@ const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
     .catch((error: unknown) => {
       console.error('discord: interactions endpoint check failed', error)
     })
+  console.log(
+    eventSyncConfigured
+      ? 'Discord events → published events are copied to the server as scheduled events'
+      : 'Discord events OFF (DISCORD_EVENT_SYNC is not set) — the calendar stays on the site',
+  )
   // A dues page that can't take a card looks exactly like one that can, right up to the
   // moment somebody tries.
   console.log(
@@ -309,6 +318,12 @@ const sweep = setInterval(
       .catch((error: unknown) => {
         console.error('lab status sweep failed', error)
       })
+
+    // The backstop for the nudge every event write gives it, and what deletes the Discord
+    // copy of an event whose project was deleted. Null when the switch is off.
+    void queueDiscordEventSync()?.catch((error: unknown) => {
+      console.error('discord event sync failed', error)
+    })
 
     // Unlike the sweeps above this one sends something, and it still runs on every
     // instance: the reminder is claimed by writing the deadline it's about onto the

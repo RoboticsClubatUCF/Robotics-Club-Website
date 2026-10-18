@@ -10,6 +10,7 @@ import { env } from './core/env.js'
 import { aboutPage } from './routes/officer/aboutPage.js'
 import { account } from './routes/account/account.js'
 import { auth } from './routes/account/auth.js'
+import { calendarFeeds } from './routes/public/calendarFeeds.js'
 import { content } from './routes/public/content.js'
 import { discordInteractions } from './routes/webhooks/discordInteractions.js'
 import { dues } from './routes/member/dues.js'
@@ -185,6 +186,9 @@ app.route('/api/stripe', stripeWebhook)
 // for the same reasons as the webhook above, and the raw body matters here too —
 // Discord signs the exact bytes.
 app.route('/api/discord', discordInteractions)
+// Calendar subscriptions. On this side because the private feeds are one person's and
+// set `private` themselves; the public one sets its own shared-cache header.
+app.route('/api/calendar', calendarFeeds)
 
 // Public club content, cacheable by anyone — the one part of the API that wants the
 // shared-cache headers. Mounted last so its `/api/*` middleware wraps nothing but its

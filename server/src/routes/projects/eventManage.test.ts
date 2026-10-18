@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { app } from '../../app.js'
 import { prisma } from '../../core/db.js'
 import { env } from '../../core/env.js'
@@ -8,6 +8,11 @@ import {
   UserRole,
 } from '../../generated/prisma/enums.js'
 import { createSession } from '../../auth/session.js'
+import { nudgeDiscordEvents } from '../../discord/discordEvents.js'
+
+// Event writes start a Discord sync. It's off unless DISCORD_EVENT_SYNC is set, and mocked so a
+// developer who sets it can't put fixtures on the club's server.
+vi.mock('../../discord/discordEvents.js', () => ({ nudgeDiscordEvents: vi.fn() }))
 
 /**
  * The event permission matrix, and the visibility rule it protects.
@@ -55,6 +60,7 @@ let siblingTeamId: string
 let teamLeadId: string
 
 beforeEach(async () => {
+  vi.mocked(nudgeDiscordEvents).mockClear()
   await clearWindows()
   await clearRows()
 
@@ -219,6 +225,7 @@ describe('creating events', () => {
 
     expect(response.status).toBe(201)
     expect(await response.json()).toMatchObject({ published: true })
+    expect(vi.mocked(nudgeDiscordEvents)).toHaveBeenCalled()
   })
 
   it('refuses an event that ends before it starts', async () => {

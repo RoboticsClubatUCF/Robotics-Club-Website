@@ -169,6 +169,11 @@ How roles move:
   two sweeps above. The site never writes the Officers role. Each role id is
   optional, unmatched guild members are never touched, and
   `DISCORD_ROLE_SYNC_DRY_RUN` logs changes without making them.
+- `src/discord/discordEvents.ts` copies published events that haven't finished
+  onto the guild as scheduled events (the nearest 50), and edits and deletes them
+  as the site changes. Off unless `DISCORD_EVENT_SYNC=true`; the bot needs Create
+  Events. Project meetings aren't copied, and events made by hand in Discord are
+  never touched.
 - `ADMIN` is set by hand and nothing changes it automatically.
 
 Access is `duesPaidThrough > now`, checked by `requireCurrentDues` and
@@ -232,6 +237,9 @@ List routes take `?limit=` (max 100) and `?offset=`.
 | `GET /api/terms/current` · `/api/terms/:year/:season` | A term's start, end and finals week as instants, for the meeting date picker. Years more than one from now are a 404 |
 | `GET /api/events` | `?when=upcoming\|past\|all &type= &from= &to=`. Published rows, plus project meetings (from `src/projects/meetings.ts`) when both `from` and `to` are given and the project has `meetingsPublic`. Windows match by overlap. Meeting ids start `meeting:` and can't be edited |
 | `GET /api/events/:slug` | Published only |
+| `GET /api/calendar/club.ics` | Subscription feed of the public calendar: published events and public meetings, one entry per meeting, from 60 days back to 330 ahead. Outside the cached block, `public, s-maxage=300` |
+| `GET /api/calendar/:token/projects/:slug.ics` | One project's events (published or not) and meetings, for a member of it or an officer. `token` is the person's from `/api/me/calendar`; anything that doesn't resolve is a 404. `private` |
+| `GET /api/calendar/:token/officers.ics` | Officers only: club-wide events not published yet. `private` |
 | `GET /api/posts` · `/posts/:slug` | Published, not future-dated; the list omits the body |
 | `GET /api/sponsors` | `?tier=`. Active only, ordered by tier |
 | `GET /api/sponsorship` | `{ tiers, footnotes }`. Only tiers that have been written |
@@ -286,6 +294,7 @@ public block in `src/app.ts`, so no shared-cache headers reach them.
 | `POST /api/dues/activate` | Claims the free window; promotes a `GUEST` like paying |
 | `GET /api/me/projects` | Memberships with rank, team and a `current` term flag |
 | `GET /api/me/events` | `?from= &to=`. Published events, this member's projects' unpublished ones, visible meetings, and task deadlines they opted into (`task:` ids) |
+| `GET /api/me/calendar` · `POST /api/me/calendar/reset` | `{ token }` for the private calendar feeds, made on first ask. Reset writes a new one, so every old link 404s |
 | `GET /api/me/tasks` | `?scope=mine\|managed\|all &status=open\|all &limit=`. `open` means not `DONE` or `CANCELED` |
 | `GET /api/me/print-requests` | Newest first, drafts left out; `fileId` null once settled |
 | `GET /api/me/print-allowance` | Grams left this term, computed |

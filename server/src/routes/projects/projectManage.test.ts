@@ -21,6 +21,10 @@ vi.mock('../../discord/officerNotify.js', () => ({
   notifyOfficers: vi.fn(() => Promise.resolve()),
 }))
 
+// Deleting a project starts a Discord event sync. Off unless DISCORD_EVENT_SYNC is set, and
+// mocked so it stays off.
+vi.mock('../../discord/discordEvents.js', () => ({ nudgeDiscordEvents: vi.fn() }))
+
 // And the same one step further: joining, leaving, being ranked and having a project
 // deleted all push Discord roles now. That changes what a real person can see in the
 // club's server, and the dev `.env` carries a live bot token. Nothing here may reach the

@@ -1275,6 +1275,106 @@ export async function deleteChannelMessage(
   return { status: 'unavailable', reason }
 }
 
+/**
+ * An event on the club's Discord, as `src/discord/discordEvents.ts` builds one: EXTERNAL,
+ * which is the type for something happening off Discord and the only one needing no channel.
+ * Discord starts and ends these itself at the scheduled times.
+ */
+export interface ScheduledEventBody {
+  name: string
+  description?: string
+  scheduled_start_time: string
+  scheduled_end_time: string
+  /** GUILD_ONLY, the only value Discord accepts. */
+  privacy_level: 2
+  /** EXTERNAL. */
+  entity_type: 3
+  entity_metadata: { location: string }
+}
+
+export type ScheduledEventWrite =
+  | { status: 'done'; id: string }
+  /** Not there any more, deleted by hand in Discord, or (for a delete) already gone. */
+  | { status: 'gone' }
+  /** 429. The sync stops for this pass and the next sweep carries on. */
+  | { status: 'throttled' }
+  /** 400 is a body Discord won't take, 403 a missing Create Events permission. */
+  | { status: 'refused'; code: number; reason: string }
+  | { status: 'unavailable'; reason: string }
+  | { status: 'unchecked' }
+
+const EVENT_REASON = 'Mirrors the club website calendar'
+
+async function scheduledEventAnswer(
+  response: Response | null,
+  what: string,
+): Promise<ScheduledEventWrite> {
+  if (!response) return { status: 'unavailable', reason: 'network' }
+  if (response.status === 404) return { status: 'gone' }
+  if (response.status === 429) return { status: 'throttled' }
+
+  if (!response.ok) {
+    let detail = ''
+    try {
+      detail = ` ${JSON.stringify(await response.json())}`
+    } catch {
+      // No body worth quoting.
+    }
+    const reason = `${what}: ${response.status} ${response.statusText}${detail}`
+    return response.status >= 500
+      ? { status: 'unavailable', reason }
+      : { status: 'refused', code: response.status, reason }
+  }
+
+  if (response.status === 204) return { status: 'done', id: '' }
+
+  try {
+    const id = ((await response.json()) as { id?: string }).id
+    return id
+      ? { status: 'done', id }
+      : { status: 'unavailable', reason: `${what}: no id in the answer` }
+  } catch {
+    return { status: 'unavailable', reason: `${what}: unparseable answer` }
+  }
+}
+
+/** Create one (`id` null) or replace the fields of one this bot made. */
+export async function writeScheduledEvent(
+  id: string | null,
+  body: ScheduledEventBody,
+): Promise<ScheduledEventWrite> {
+  if (!bot) return { status: 'unchecked' }
+
+  const response = await call(
+    id
+      ? `/guilds/${bot.guildId}/scheduled-events/${id}`
+      : `/guilds/${bot.guildId}/scheduled-events`,
+    {
+      method: id ? 'PATCH' : 'POST',
+      // An edit that leaves `description` out keeps the old one, so clearing it on the
+      // site has to say null.
+      body: JSON.stringify(
+        id ? { ...body, description: body.description ?? null } : body,
+      ),
+    },
+    EVENT_REASON,
+  )
+  return scheduledEventAnswer(response, id ? 'edit event' : 'create event')
+}
+
+export async function deleteScheduledEvent(
+  id: string,
+): Promise<ScheduledEventWrite> {
+  if (!bot) return { status: 'unchecked' }
+
+  const response = await call(
+    `/guilds/${bot.guildId}/scheduled-events/${id}`,
+    { method: 'DELETE' },
+    EVENT_REASON,
+  )
+  return scheduledEventAnswer(response, 'delete event')
+}
+
 export type ChannelName =
   | { status: 'found'; name: string }
   | { status: 'unavailable' }

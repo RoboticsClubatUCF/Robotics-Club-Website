@@ -87,6 +87,8 @@ const ROLE_KEYS = [
   // `env.ts` refuses it without a bot, and a developer's real one left in place would decide
   // what `interactionsConfigured` says here.
   'DISCORD_PUBLIC_KEY',
+  // A switch rather than an id, refused without a bot all the same.
+  'DISCORD_EVENT_SYNC',
 ] as const
 
 async function load(configured = true) {
