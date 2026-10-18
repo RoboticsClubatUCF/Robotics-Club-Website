@@ -21,8 +21,7 @@ import { useApi } from '../../lib/api/useApi'
  * so a level nobody has priced appears in the list of sponsors and is absent from the
  * price list, which is the honest way round.
  *
- * Every word of the pitch is the club's now. The tier amounts, benefits and
- * ways-to-help were four hardcoded PLACEHOLDER objects under a panel saying so. They're
+ * Every word of the pitch is the club's now. Tier amounts and benefits come from
  * `GET /api/sponsorship`, written by officers, and the panel went with them.
  *
  * Each tier card carries its own supporters and the roll above carries their logos —
@@ -55,7 +54,6 @@ export function SponsorsPage() {
   // Loading, empty and failed all read as "nothing to print", which is what the panels
   // below are written for.
   const tiers = pitch.status === 'ready' ? pitch.data.tiers : []
-  const inKind = pitch.status === 'ready' ? pitch.data.inKind : []
   const footnotes = pitch.status === 'ready' ? pitch.data.footnotes : null
 
   /**
@@ -88,13 +86,6 @@ export function SponsorsPage() {
         <div className="mb-9">
           <FormEyebrow>/ SPONSORS</FormEyebrow>
           <FormHeading>The people who make it possible.</FormHeading>
-          <p className="text-dim max-w-[38rem] text-sm leading-[1.7] text-pretty">
-            Dues cover the lab. Everything a competition actually costs —
-            aluminium, motors, boards, an entry fee and a van to get there —
-            comes from the companies and alumni below. If your company would like
-            to be one of them, the tiers are further down and the form at the
-            bottom reaches an officer.
-          </p>
         </div>
 
         {sponsors.status === 'loading' && <SponsorsSkeleton />}
@@ -154,11 +145,6 @@ export function SponsorsPage() {
           <h2 className="text-faint mb-5 font-mono text-[13px] font-bold tracking-[0.2em]">
             / SPONSORSHIP TIERS
           </h2>
-          <p className="text-dim max-w-[38rem] text-sm leading-[1.7] text-pretty">
-            Every level funds something specific. The club is a registered
-            student organisation at UCF, so a sponsorship is handled through the
-            university rather than paid to a group of students.
-          </p>
         </div>
 
         {tiers.length === 0 ? (
@@ -233,37 +219,6 @@ export function SponsorsPage() {
           </p>
         )}
       </section>
-
-      {/* Drawn only when there's something in it, unlike the tiers above. That section
-          answers the question a company arrived with, so it has to say something even
-          when empty; this one is the club volunteering extra ways to say yes, and an
-          empty heading over nothing is the sad version of that. */}
-      {inKind.length > 0 && (
-        <section className="border-rule px-page border-t py-12 wide:py-18">
-          <div className="mb-9">
-            <h2 className="text-faint mb-5 font-mono text-[13px] font-bold tracking-[0.2em]">
-              / OTHER WAYS TO HELP
-            </h2>
-            <p className="text-dim max-w-[38rem] text-sm leading-[1.7] text-pretty">
-              Not everything useful is money, and some of the best sponsorships
-              the club has had never involved a cheque.
-            </p>
-          </div>
-
-          <ul className="bg-rule border-rule grid gap-px border wide:grid-cols-3">
-            {inKind.map((way) => (
-              <li key={way.id} className="bg-base-100 p-5">
-                <h3 className="text-base leading-tight font-semibold tracking-[-0.01em]">
-                  {way.title}
-                </h3>
-                <p className="text-dim mt-2.5 text-[13px] leading-[1.55] text-pretty">
-                  {way.blurb}
-                </p>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
 
       {/* The site's one contact route, and its own copy already offers to talk about
           sponsoring. Reused rather than reimplemented: `POST /api/contact` is rate

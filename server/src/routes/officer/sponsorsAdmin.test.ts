@@ -5,7 +5,6 @@ import { env } from '../../core/env.js'
 import { SponsorTier, UserRole } from '../../generated/prisma/enums.js'
 import { clearCalendarCache } from '../../membership/semester.js'
 import { createSession } from '../../auth/session.js'
-import { MAX_IN_KIND } from './sponsorsAdmin.js'
 
 /**
  * The sponsor desk, and the two public reads it feeds.
@@ -20,14 +19,9 @@ import { MAX_IN_KIND } from './sponsorsAdmin.js'
  *   the club's. So this suite borrows exactly one, reads it before each test and puts it back.
  *   One tier rather than four because clearing the table would leave the club with no price
  *   list at all if a run died in the middle.
- * - `in_kind_offers` is namespaced by title and its order is borrowed, because the reorder
- *   route rewrites `sort_order` on every row there is.
  * - `sponsorship_sheet` is the club's fine print in a single row, so it's borrowed outright.
  *   "Absent" is one of the states it's restored to, because a club that has written no
  *   footnotes has no row.
- *
- * Nothing counts absolutely. The cap case fills the room that's actually left rather than
- * assuming six slots are free.
  *
  * Nothing here reaches Discord, but `fetch` is stubbed to fail all the same, because
  * `requireCurrentDues` reads UCF's calendar.
@@ -61,7 +55,6 @@ const clearWindows = () =>
 
 const clearRows = async () => {
   await prisma.sponsor.deleteMany({ where: { name: { startsWith: PREFIX } } })
-  await prisma.inKindOffer.deleteMany({ where: { title: { startsWith: PREFIX } } })
   await prisma.user.deleteMany({ where: { email: { startsWith: PREFIX } } })
 }
 
@@ -78,9 +71,6 @@ let borrowedOffer: {
 
 /** The club's own fine print, if it has written any. */
 let borrowedFootnotes: string | null = null
-
-/** The order the ways-to-help were in before this suite touched them. */
-let order: { id: string; sortOrder: number }[] = []
 
 beforeEach(async () => {
   // `requireCurrentDues` reads UCF's calendar. Stubbed to fail, which puts the
@@ -109,8 +99,6 @@ beforeEach(async () => {
     .findUnique({ where: { id: 'current' }, select: { footnotes: true } })
     .then((sheet) => sheet?.footnotes ?? null)
   await prisma.sponsorshipSheet.deleteMany({ where: { id: 'current' } })
-
-  order = await prisma.inKindOffer.findMany({ select: { id: true, sortOrder: true } })
 
   const [officer, member] = await Promise.all([
     prisma.user.create({
@@ -162,15 +150,6 @@ afterEach(async () => {
     })
   }
 
-  // Whatever the reorder case did to the club's own rows, undone. Only rows that
-  // still exist: this suite's are gone by now, and an entry an officer removed
-  // mid-run is not this suite's to put back.
-  for (const row of order) {
-    await prisma.inKindOffer.updateMany({
-      where: { id: row.id },
-      data: { sortOrder: row.sortOrder },
-    })
-  }
 })
 
 afterAll(async () => {
@@ -198,12 +177,9 @@ type WireOffer = {
   benefits: string[]
 }
 
-type WireInKind = { id: string; title: string; blurb: string }
-
 type WireDesk = {
   sponsors: WireSponsor[]
   tiers: { tier: SponsorTier; offer: WireOffer | null }[]
-  inKind: WireInKind[]
   footnotes: string | null
 }
 
@@ -237,7 +213,6 @@ const publicSponsors = async (): Promise<WireSponsor[]> => {
 
 type WirePitch = {
   tiers: WireOffer[]
-  inKind: WireInKind[]
   footnotes: string | null
 }
 
@@ -264,20 +239,22 @@ const addSponsor = async (
   return (await response.json()) as WireSponsor
 }
 
-const addWay = async (name: string): Promise<WireInKind> => {
-  const response = await send(
-    'POST',
-    '/api/officer/sponsors/in-kind',
-    officerCookie,
-    { title: `${PREFIX}${name}`, blurb: 'Something useful.' },
-  )
-
-  expect(response.status).toBe(201)
-
-  return (await response.json()) as WireInKind
-}
-
 describe('the sponsor desk', () => {
+  it('omits the retired help feature and no longer exposes its write routes', async () => {
+    expect(await deskOf()).not.toHaveProperty('inKind')
+    expect(await publicPitch()).not.toHaveProperty('inKind')
+
+    for (const [method, path] of [
+      ['POST', '/api/officer/sponsors/in-kind'],
+      ['PATCH', '/api/officer/sponsors/in-kind/order'],
+      ['PATCH', '/api/officer/sponsors/in-kind/removed'],
+      ['DELETE', '/api/officer/sponsors/in-kind/removed'],
+    ]) {
+      const response = await send(method, path, officerCookie, {})
+      expect(response.status).toBe(404)
+    }
+  })
+
   it('refuses everyone but an officer', async () => {
     const asMember = await app.request('/api/officer/sponsors', {
       headers: { cookie: memberCookie },
@@ -589,104 +566,5 @@ describe('the fine print', () => {
     })
 
     expect(response.status).toBe(403)
-  })
-})
-
-describe('the other ways to help', () => {
-  it('adds one, edits it and takes it off again', async () => {
-    const way = await addWay('machine-time')
-
-    expect((await publicPitch()).inKind.some((row) => row.id === way.id)).toBe(true)
-
-    const edited = await send(
-      'PATCH',
-      `/api/officer/sponsors/in-kind/${way.id}`,
-      officerCookie,
-      { blurb: 'An afternoon of somebody else’s shop.' },
-    )
-    expect(edited.status).toBe(200)
-    expect(((await edited.json()) as WireInKind).blurb).toBe(
-      'An afternoon of somebody else’s shop.',
-    )
-
-    const gone = await send(
-      'DELETE',
-      `/api/officer/sponsors/in-kind/${way.id}`,
-      officerCookie,
-    )
-    expect(gone.status).toBe(200)
-    expect((await publicPitch()).inKind.some((row) => row.id === way.id)).toBe(false)
-  })
-
-  /**
-   * The route takes the whole order, so this sends every row there is — the
-   * club's included, which is exactly why `afterEach` puts their `sort_order`
-   * back.
-   */
-  it('reorders the list', async () => {
-    const first = await addWay('one')
-    const second = await addWay('two')
-
-    const held = await prisma.inKindOffer.findMany({
-      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
-      select: { id: true },
-    })
-
-    const swapped = held
-      .map((row) => row.id)
-      .filter((id) => id !== first.id && id !== second.id)
-      .concat([second.id, first.id])
-
-    const response = await send(
-      'PATCH',
-      '/api/officer/sponsors/in-kind/order',
-      officerCookie,
-      { ids: swapped },
-    )
-    expect(response.status).toBe(200)
-
-    const { inKind } = await publicPitch()
-    const positions = inKind
-      .map((row) => row.id)
-      .filter((id) => id === first.id || id === second.id)
-
-    expect(positions).toEqual([second.id, first.id])
-  })
-
-  /** The lost-update guard. Two officers in two tabs, not one person in two. */
-  it('refuses an order that no longer matches the list', async () => {
-    const way = await addWay('stale')
-
-    const response = await send(
-      'PATCH',
-      '/api/officer/sponsors/in-kind/order',
-      officerCookie,
-      { ids: [way.id] },
-    )
-
-    // Unless the club's list is empty and this is genuinely the only row, in
-    // which case a one-id order is correct and the guard has nothing to catch.
-    const held = await prisma.inKindOffer.count()
-    expect(response.status).toBe(held === 1 ? 200 : 409)
-  })
-
-  /** Fills the room that is actually left — the club's own entries count too. */
-  it('refuses to add past the cap', async () => {
-    const held = await prisma.inKindOffer.count()
-    const room = MAX_IN_KIND - held
-
-    for (let index = 0; index < room; index += 1) {
-      await addWay(`filler-${index}`)
-    }
-
-    const response = await send(
-      'POST',
-      '/api/officer/sponsors/in-kind',
-      officerCookie,
-      { title: `${PREFIX}one-too-many`, blurb: 'Nope.' },
-    )
-
-    expect(response.status).toBe(409)
-    expect(await response.text()).toContain(String(MAX_IN_KIND))
   })
 })

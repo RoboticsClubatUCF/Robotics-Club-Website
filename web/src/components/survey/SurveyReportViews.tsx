@@ -1,6 +1,7 @@
 import { useId, useState } from 'react'
 import type { ApiSurveyQuestionTally, ApiSurveySummary } from '../../lib/api/api'
 import { FormPanel, labelClass } from '../shared/formChrome'
+import { InfoTip } from '../shared/InfoTip'
 import {
   reportDate,
   responseAnswer,
@@ -36,7 +37,15 @@ export function TallyCharts({
     <div className="columns-[20rem] gap-x-5 [&>*]:mb-5 [&>*]:break-inside-avoid">
       {data.questions.map((question) => (
         <FormPanel key={question.id}>
-          <h2 className={heading}>{question.prompt.toUpperCase()}</h2>
+          <h2 className={`${heading} flex items-center gap-1`}>
+            {question.prompt.toUpperCase()}
+            {question.kind === 'MULTI_CHOICE' && (
+              <InfoTip label={question.prompt}>
+                Members can select several answers; percentages can add up to more than
+                100%.
+              </InfoTip>
+            )}
+          </h2>
           <p className="mb-4 text-[12px] text-dim">
             {question.answered} answered ·{' '}
             {Math.max(0, data.responded - question.answered)} not answered
@@ -58,12 +67,6 @@ export function TallyCharts({
               {tallyRows(question, sort, hideZero).length === 0 && (
                 <p className="text-[13px] text-faint">
                   No answers to show. Turn off “Hide zero counts” to see all choices.
-                </p>
-              )}
-              {question.kind === 'MULTI_CHOICE' && (
-                <p className="mt-4 text-[11px] leading-[1.6] text-faint">
-                  Members can select several answers; percentages can add up to more than
-                  100%.
                 </p>
               )}
             </>

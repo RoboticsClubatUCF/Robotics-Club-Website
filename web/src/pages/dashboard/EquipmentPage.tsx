@@ -195,11 +195,6 @@ function EquipmentCatalogue() {
       <FormEyebrow>/ EQUIPMENT</FormEyebrow>
       <FormHeading>Borrow something.</FormHeading>
 
-      <p className="text-dim mb-8 max-w-[42rem] text-sm leading-[1.7] text-pretty">
-        An officer approves it before anything leaves the lab. The bot
-        messages you the day before it's due.
-      </p>
-
       {/* Asking for something and keeping track of what you've got are the two halves of this
           page, and neither waits on the other — so where there's room they sit side by side. The
           catalogue is the taller half by a long way, which is why the columns start at the top
@@ -524,16 +519,18 @@ function BorrowForm({
         </button>
       </div>
 
-      <p role="status" className="mt-3 min-h-5 text-[13px] leading-[1.5]">
-        {state.status === 'failed' && (
-          <span className="text-error">{state.message}</span>
-        )}
-        {state.status === 'sent' && (
-          <span className="text-success">
-            Asked. Watch for it below.
-          </span>
-        )}
-      </p>
+      {(state.status === 'failed' || state.status === 'sent') && (
+        <p role="status" className="mt-3 text-[13px] leading-[1.5]">
+          {state.status === 'failed' && (
+            <span className="text-error">{state.message}</span>
+          )}
+          {state.status === 'sent' && (
+            <span className="text-success">
+              Asked. Watch for it below.
+            </span>
+          )}
+        </p>
+      )}
     </form>
   )
 }
@@ -667,9 +664,11 @@ function BorrowWindow({
         </div>
       </div>
 
-      <p role="status" className="text-error mt-2 min-h-4 text-[12px] leading-[1.5]">
-        {problem}
-      </p>
+      {problem && (
+        <p role="status" className="text-error mt-2 text-[12px] leading-[1.5]">
+          {problem}
+        </p>
+      )}
     </FormPanel>
   )
 }
@@ -784,9 +783,11 @@ function MyLoans({
           </ul>
         ))}
 
-      <p role="status" className="text-error mt-2 min-h-4 text-[12px]">
-        {message}
-      </p>
+      {message && (
+        <p role="status" className="text-error mt-2 text-[12px]">
+          {message}
+        </p>
+      )}
     </FormPanel>
   )
 }

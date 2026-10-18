@@ -172,14 +172,6 @@ export function OfficerSlicerProfilesPage() {
       <SubNav label="Print queue pages" pages={PRINT_QUEUE_PAGES} />
 
       <div className={`${measureClass} mb-6 flex flex-wrap items-center gap-3`}>
-        <p className="text-dim w-full text-sm leading-[1.7] text-pretty">
-          Members slice with what's offered here. Upload what desktop Orca exports; the slicer
-          checks each preset with a test cube before anyone can pick it.
-        </p>
-        <p className="text-faint -mt-1 w-full text-[12.5px] leading-[1.6] text-pretty">
-          Members see each list in this order. A new plate starts on the first printer, its first
-          process and the first filament made for it.
-        </p>
         <button
           type="button"
           className={loudButton}

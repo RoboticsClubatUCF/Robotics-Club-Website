@@ -218,7 +218,6 @@ function App() {
                   three of `/sponsors`, which is why there's one desk and not three. */}
               <Route path="officer/sponsors" element={<OfficerSponsorsPage part="sponsors" />} />
               <Route path="officer/sponsors/tiers" element={<OfficerSponsorsPage part="tiers" />} />
-              <Route path="officer/sponsors/other" element={<OfficerSponsorsPage part="other" />} />
               <Route path="officer/projects" element={<OfficerProjectsPage part="all" />} />
               <Route path="officer/projects/new" element={<OfficerProjectsPage part="new" />} />
               <Route path="officer/projects/again" element={<OfficerProjectsPage part="again" />} />

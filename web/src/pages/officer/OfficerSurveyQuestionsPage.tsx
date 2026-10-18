@@ -267,19 +267,6 @@ function Editor() {
       <FormHeading>What the club asks.</FormHeading>
       <SubNav label="Survey pages" pages={SURVEY_PAGES} />
 
-      <div className="mb-7">
-        <p className="text-dim max-w-[46rem] text-sm leading-[1.7] text-pretty">
-          Every member answers this once before anything on the dashboard opens.
-          <strong className="text-base-content">
-            {' '}
-            Adding a question locks nobody out
-          </strong>{' '}
-          &mdash; the people who have already answered stay through the gate, and
-          are asked the new one next time they open the form.
-        </p>
-
-      </div>
-
       {problem !== null && (
         <p role="alert" className="text-error mb-5 text-[13px] leading-[1.6]">
           {problem}

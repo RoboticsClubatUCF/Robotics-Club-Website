@@ -1708,31 +1708,6 @@ model SponsorTierOffer {
   @@map("sponsor_tier_offers")
 }
 
-/// The things a sponsor can give that are not money.
-///
-/// Machine time, materials, an engineer for an hour a month — the half of the sponsorship page a
-/// price list cannot carry, and the half officers reword most often, because it is written to
-/// whoever they are currently talking to.
-///
-/// Its own table rather than three more columns on `SponsorTierOffer`: these are not tiered, there
-/// is no fixed number of them, and they are the one part of the page that has nothing to do with
-/// what a sponsorship costs.
-model InKindOffer {
-  id    String @id @default(uuid(7))
-  title String
-  blurb String
-
-  /// Position on the page, dense from 0 and rewritten as a whole block on reorder — the same shape
-  /// as `HeroSlide.sortOrder`, and not unique for the same reason: the reorder route writes every
-  /// row in one transaction. Reads tie-break on `createdAt`.
-  sortOrder Int @default(0) @map("sort_order")
-
-  createdAt DateTime @default(now()) @map("created_at")
-
-  @@index([sortOrder])
-  @@map("in_kind_offers")
-}
-
 /// The fine print under the tier grid — one row, always `current`.
 ///
 /// Footnote markers on a benefit ("Logo on club T-shirts *") need somewhere to be explained, and

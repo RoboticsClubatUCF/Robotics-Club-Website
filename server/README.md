@@ -234,7 +234,7 @@ List routes take `?limit=` (max 100) and `?offset=`.
 | `GET /api/events/:slug` | Published only |
 | `GET /api/posts` · `/posts/:slug` | Published, not future-dated; the list omits the body |
 | `GET /api/sponsors` | `?tier=`. Active only, ordered by tier |
-| `GET /api/sponsorship` | `{ tiers, inKind, footnotes }`. Only tiers that have been written |
+| `GET /api/sponsorship` | `{ tiers, footnotes }`. Only tiers that have been written |
 | `GET /api/hero-slides` | Landing page photographs in order, max eight. Empty is valid |
 | `GET /api/front-page` | `{ headline, headlineAccent, lede, partnersIntro, faqs, partners }`. Falls back to the shipped wording if the row doesn't exist |
 | `GET /api/about` | The about page, including `storyNotice` (null once the history is real) |
@@ -352,12 +352,11 @@ All officer-only (`requireOfficer`, which includes the dues check).
 | `POST /api/officer/front-page/partners` · `PATCH`/`DELETE /partners/:id` · `PATCH /partners/order` | Max six. `href` through `webUrl`. An empty list hides the section |
 | `POST` / `DELETE /api/officer/front-page/partners/:id/image` | Upload or replace the card image |
 | `PUT /api/officer/about` | The whole about page in one transaction; the timeline is replaced. The API's only unfiltered `deleteMany` |
-| `GET /api/officer/sponsors` | `{ sponsors, tiers, inKind }`, including hidden sponsors and an entry for every tier |
+| `GET /api/officer/sponsors` | `{ sponsors, tiers, footnotes }`, including hidden sponsors and an entry for every tier |
 | `POST /api/officer/sponsors` · `PATCH`/`DELETE /sponsors/:id` | Names unique case-insensitively. The PATCH schema has no defaults. `active: false` hides; `DELETE` is for mistakes |
 | `POST` / `DELETE /api/officer/sponsors/:id/logo` | Upload or replace the logo. A logo link goes through the PATCH |
 | `PUT` / `DELETE /api/officer/sponsors/tiers/:tier` | Upsert a tier's price sheet. An omitted `blurb` clears it. The row existing is the publication |
 | `PUT /api/officer/sponsors/sheet` | `{ footnotes }`; empty string clears |
-| `POST /api/officer/sponsors/in-kind` · `PATCH`/`DELETE /in-kind/:id` · `PATCH /in-kind/order` | Max six. Full list for reorder. Registered before `/:id` |
 | `GET /api/officer/print-queue?status=&all=` · `PATCH /api/officer/print/:id` | Drafts never appear. `all=1` returns every status. Settling deletes every file the request holds. On a sliced plate `DONE` charges `ceil(estimatedGrams)` unless `gramsUsed` is sent, and `printed` is refused; otherwise `gramsUsed` is required for a personal `DONE`. `overAllowance` to exceed the cap. Moving to `PRINTING` stamps `startedAt` |
 | `GET /api/officer/print/:id/slice-file` | The sliced plate's `.3mf`, for desktop OrcaSlicer |
 | `GET /api/officer/slicer-profiles` | Every printer with its processes, and every filament: state, the worker's refusal, what it read out of each, and how many drafts and unsettled requests name it |

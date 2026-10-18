@@ -207,9 +207,6 @@ export function SurveyReportFilters({
         <button type="button" className={reportButton} onClick={onReset}>
           RESET FILTERS
         </button>
-        <p className="text-[12px] leading-[1.6] text-faint">
-          Dates use Orlando time. Semester presets use the configured semester dates.
-        </p>
       </div>
       {invalid && (
         <p role="status" className="mt-3 text-[12px] text-error">

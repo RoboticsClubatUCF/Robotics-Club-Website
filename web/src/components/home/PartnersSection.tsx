@@ -60,9 +60,6 @@ export function PartnersSection({ copy }: { copy: ApiState<ApiFrontPage> }) {
         <h2 className="text-faint mb-5 font-mono text-[13px] font-bold tracking-[0.2em]">
           / PARTNER PROGRAMS
         </h2>
-        <p className="text-dim max-w-[46rem] text-sm leading-[1.7] text-pretty">
-          {copy.status === 'ready' ? copy.data.partnersIntro : ''}
-        </p>
       </div>
 
       <ul className={gridClass}>

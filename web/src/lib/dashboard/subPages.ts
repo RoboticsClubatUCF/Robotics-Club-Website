@@ -44,7 +44,6 @@ export const FRONT_PAGE_PAGES: readonly SubPage[] = [
 export const SPONSORS_PAGES: readonly SubPage[] = [
   { label: 'LIST', to: '/dashboard/officer/sponsors' },
   { label: 'TIERS', to: '/dashboard/officer/sponsors/tiers' },
-  { label: 'OTHER HELP', to: '/dashboard/officer/sponsors/other' },
 ]
 
 export const PROJECTS_DESK_PAGES: readonly SubPage[] = [

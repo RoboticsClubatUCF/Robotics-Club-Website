@@ -1,3 +1,4 @@
+import { InfoTip } from '../shared/InfoTip'
 import { useEffect, useId, useRef, type ReactNode } from 'react'
 import { fieldClass, labelClass } from '../shared/formChrome'
 import { MeetingDatesPicker } from './MeetingDatesPicker'
@@ -100,7 +101,7 @@ export function MeetingScheduleFields({
         maxLength={160}
         value={draft.location}
         disabled={disabled}
-        placeholder="ENG2 Lab"
+        placeholder="Meeting location"
         onChange={(change) => {
           set({ location: change.target.value })
         }}
@@ -300,9 +301,16 @@ export function MeetingScheduleFields({
 
       {draft.repeat !== 'DATES' && (
         <div className="w-48">
-          <label htmlFor={`${id}-starts`} className={labelClass}>
-            {counted ? 'FIRST MEETING' : 'STARTING (OPTIONAL)'}
-          </label>
+          <div className="mb-1.5 flex items-center gap-1 [&>label]:mb-0">
+            <label htmlFor={`${id}-starts`} className={labelClass}>
+              {counted ? 'FIRST MEETING' : 'STARTING (OPTIONAL)'}
+            </label>
+            <InfoTip label={counted ? 'First meeting' : 'Starting (optional)'}>
+              {counted
+                ? 'The weeks are counted from this date.'
+                : 'Empty starts with the semester.'}
+            </InfoTip>
+          </div>
           <input
             id={`${id}-starts`}
             type="date"
@@ -315,13 +323,6 @@ export function MeetingScheduleFields({
             className={fieldClass}
           />
         </div>
-      )}
-      {draft.repeat !== 'DATES' && (
-        <p className="text-faint -mt-2.5 text-[12px] leading-[1.5] text-pretty">
-          {counted
-            ? 'The weeks are counted from this date.'
-            : 'Empty starts with the semester.'}
-        </p>
       )}
 
       {readBack && (
@@ -454,24 +455,24 @@ export function MeetingScheduleFields({
           a meeting reaches a member's calendar with no description at all; the site doesn't
           write one for the lead. */}
       <div>
-        <label htmlFor={`${id}-note`} className={labelClass}>
-          NOTE (OPTIONAL)
-        </label>
+        <div className="mb-1.5 flex items-center gap-1 [&>label]:mb-0">
+          <label htmlFor={`${id}-note`} className={labelClass}>
+            NOTE (OPTIONAL)
+          </label>
+          <InfoTip label="Note (optional)">Members see this on the meeting in their calendar.</InfoTip>
+        </div>
         <textarea
           id={`${id}-note`}
           maxLength={400}
           rows={2}
           value={draft.note}
           disabled={disabled}
-          placeholder="Anything the time and place don't say — bring a laptop, we skip home game days"
+          placeholder="Meeting note"
           onChange={(change) => {
             set({ note: change.target.value })
           }}
           className="textarea border-rule bg-base-200 w-full text-sm"
         />
-        <p className="text-faint mt-1 text-[12px] leading-[1.5] text-pretty">
-          Members see this on the meeting in their calendar.
-        </p>
       </div>
     </div>
   )

@@ -117,9 +117,6 @@ function Results() {
       </FormHeading>
       <SubNav label="Survey pages" pages={SURVEY_PAGES} />
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <p className="max-w-[42rem] text-sm leading-[1.7] text-pretty text-dim">
-          Explore the responses, narrow the group, and download the same results.
-        </p>
         <div className="flex flex-wrap gap-3">
           <button
             type="button"
@@ -189,10 +186,6 @@ function Results() {
             {data.range.estimated && (
               <span className="text-warning"> · Using estimated semester dates</span>
             )}
-          </p>
-          <p className="mb-5 text-[11px] leading-[1.6] text-faint">
-            The active-member count is club-wide. All charts, responses and CSV rows use
-            your filters. Percentages use the people who answered each question.
           </p>
           {data.responded === 0 && (
             <div className="mb-5 border border-rule p-5">

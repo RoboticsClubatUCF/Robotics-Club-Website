@@ -233,7 +233,7 @@ describe('searching the queue', () => {
     await screen.findByText('bracket.stl')
 
     expect(urls(stub).at(-1)).not.toContain('all=1')
-    expect(screen.getByText(/searches every request/i)).toBeInTheDocument()
+    expect(screen.queryByText(/searches every request/i)).not.toBeInTheDocument()
 
     search('rowan')
     await waitFor(() => {
@@ -258,7 +258,7 @@ describe('searching the queue', () => {
     await waitFor(() => {
       expect(urls(stub).at(-1)).toContain('status=DONE')
     })
-    expect(screen.getByText(/searches done requests only/i)).toBeInTheDocument()
+    expect(screen.queryByText(/searches done requests only/i)).not.toBeInTheDocument()
 
     search('rowan')
 

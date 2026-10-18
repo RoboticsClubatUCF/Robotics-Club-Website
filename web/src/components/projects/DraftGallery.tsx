@@ -244,11 +244,11 @@ export function DraftGallery({
             }}
             className="file-input border-rule bg-base-200 w-full text-sm"
           />
-          <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
-            {busy
-              ? 'Preparing…'
-              : 'Choosing a picture opens the framing tool. Large photos are shrunk in the browser first, and nothing is uploaded until this page is saved.'}
-          </p>
+          {busy && (
+            <p role="status" className="text-faint mt-1.5 text-[11px] leading-[1.5]">
+              Preparing…
+            </p>
+          )}
         </div>
 
         <div>
@@ -260,7 +260,7 @@ export function DraftGallery({
             type="url"
             value={url}
             maxLength={500}
-            placeholder="https://…"
+            placeholder="Image URL"
             disabled={disabled || full}
             onChange={(event) => {
               setUrl(event.target.value)
@@ -282,9 +282,6 @@ export function DraftGallery({
           >
             ADD
           </button>
-          <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
-            Removing it here never deletes anything at the other end.
-          </p>
         </div>
       </div>
 
@@ -293,9 +290,11 @@ export function DraftGallery({
         {full && ' — REMOVE ONE TO ADD ANOTHER'}
       </p>
 
-      <p role="status" className="text-primary mt-2 min-h-4 text-[12px]">
-        {note}
-      </p>
+      {note && (
+        <p role="status" className="text-primary mt-2 text-[12px]">
+          {note}
+        </p>
+      )}
 
       {doomed && (
         <ConfirmDialog

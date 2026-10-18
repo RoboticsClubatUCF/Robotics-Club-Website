@@ -7,6 +7,7 @@ import { isOfficer } from '../../lib/auth/session'
 import { ConfirmDialog } from '../../components/shared/ConfirmDialog'
 import { FilterChips } from '../../components/shared/FilterChips'
 import { MemberSearch } from '../../components/shared/MemberSearch'
+import { InfoTip } from '../../components/shared/InfoTip'
 import {
   FormEyebrow,
   FormHeading,
@@ -237,13 +238,6 @@ function Archive() {
       <FormEyebrow>/ MANAGE · OFFICERS</FormEyebrow>
       <FormHeading>Who has run this club</FormHeading>
 
-      <p className="text-dim mb-8 max-w-[46rem] text-[14px] leading-[1.7] text-pretty">
-        Every tenure the club has recorded, and the only place a finished one can
-        be written. A term that has ended also files that person under{' '}
-        <strong className="text-base-content font-semibold">ALUMNI</strong> on the
-        members page, so typing in an old board is the whole job.
-      </p>
-
       {/* `grid-cols-1` so a phone gets a column that can shrink. Without a template the column
           is as wide as the longest truncated row, and the page scrolled sideways. */}
       <div className="grid grid-cols-1 items-start gap-6 wide:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
@@ -369,9 +363,11 @@ function Archive() {
             </>
           )}
 
-          <div className="mt-5">
-            <Status message={message} />
-          </div>
+          {message && (
+            <div className="mt-5">
+              <Status message={message} />
+            </div>
+          )}
         </FormPanel>
 
         <AddTerm
@@ -620,10 +616,6 @@ function TermFields({
         />
         {/* Why the name is typed even when an account is linked: it's the record of a
             year, not a view of a profile. */}
-        <p className="text-faint mt-1.5 text-[12px] leading-[1.5]">
-          Stored on the term itself, so correcting a spelling on somebody&rsquo;s
-          account never rewrites the year they served.
-        </p>
       </div>
 
       <div>
@@ -671,9 +663,14 @@ function TermFields({
         {/* On the add form as much as the edit one: a board typed in from 2011 is
             finished before it's entered, which is the case this whole desk exists for. */}
         <div>
-          <label htmlFor={`${id}-to`} className={labelClass}>
-            ENDED
-          </label>
+          <div className="mb-1.5 flex items-center gap-1 [&>label]:mb-0">
+            <label htmlFor={`${id}-to`} className={labelClass}>
+              ENDED
+            </label>
+            <InfoTip label="Ended">
+              Leave it empty for somebody still on the board.
+            </InfoTip>
+          </div>
           <input
             id={`${id}-to`}
             type="date"
@@ -684,9 +681,6 @@ function TermFields({
               set({ endedAt: event.target.value })
             }}
           />
-          <p className="text-faint mt-1.5 text-[12px] leading-[1.5]">
-            Leave it empty for somebody still on the board.
-          </p>
         </div>
       </div>
 
@@ -917,10 +911,6 @@ function AddTerm({
   return (
     <FormPanel>
       <p className={panelLabel}>ADD A TERM</p>
-      <p className="text-dim mb-4 text-[13px] leading-[1.6] text-pretty">
-        One entry per person per tenure &mdash; three years in one seat is one
-        entry, three chairs is three.
-      </p>
 
       <div className="space-y-4">
         <div>
@@ -930,11 +920,6 @@ function AddTerm({
             disabled={busy}
             label="THEIR ACCOUNT, IF THEY HAVE ONE"
           />
-          <p className="text-faint mt-1.5 text-[12px] leading-[1.5] text-pretty">
-            Optional. Most past officers were here before the site was and have
-            no account &mdash; leave it empty and type the name. Linking one
-            makes the officers page use their headshot and their profile link.
-          </p>
         </div>
 
         <TermFields

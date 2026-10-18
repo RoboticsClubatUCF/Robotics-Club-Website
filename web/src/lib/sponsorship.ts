@@ -21,11 +21,10 @@ export const tierLabel = (tier: SponsorTier): string => tier.replace(/_/g, ' ')
 
 /**
  * Mirrors of what the server refuses, so the desk cannot offer what the route
- * would reject. `MAX_IN_KIND` and `MAX_BENEFITS` in
+ * would reject. `MAX_BENEFITS` in
  * `server/src/routes/officer/sponsorsAdmin.ts` are the real limits — change one and
  * change the other. Same contract as `heroSlides.ts` beside this file.
  */
-export const MAX_IN_KIND = 6
 export const MAX_BENEFITS = 8
 
 /**

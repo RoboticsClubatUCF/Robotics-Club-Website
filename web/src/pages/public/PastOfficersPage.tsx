@@ -13,7 +13,6 @@ import {
   yearsIn,
 } from '../../lib/officerTerms'
 
-
 /**
  * `/officers` — everybody who has run this club, by the year they ran it.
  *
@@ -97,17 +96,6 @@ export function PastOfficersPage() {
             Officers" it was the same words twice. */}
         <FormEyebrow>/ OFFICERS</FormEyebrow>
         <FormHeading>Past Officers</FormHeading>
-        <p className="text-dim max-w-[34rem] text-sm leading-[1.7] text-pretty">
-          Every seat on the board, by the year it was held. The people
-          running it today are{' '}
-          <a
-            href="/#officers"
-            className="text-primary border-primary/40 hover:border-primary border-b transition-colors duration-200"
-          >
-            on the front page
-          </a>
-          .
-        </p>
       </div>
 
       {!archive && !failed && <ArchiveSkeleton />}

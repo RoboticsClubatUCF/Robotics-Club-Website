@@ -11,7 +11,6 @@ import type {
   ApiTerm,
   UserRole,
 } from '../../lib/api/api'
-import { MAX_IN_KIND } from '../../lib/sponsorship'
 import { bodyOf, urlOf } from '../../test/stubFetch'
 
 /**
@@ -137,7 +136,6 @@ const desk = (over: Partial<ApiSponsorDesk> = {}): ApiSponsorDesk => ({
     { tier: 'BOLT_BACKER', offer: null },
     { tier: 'ALUMINUM_ALLY', offer: null },
   ],
-  inKind: [],
   footnotes: null,
   ...over,
 })
@@ -372,7 +370,7 @@ describe('OfficerSponsorsPage', () => {
     })
 
     // Held, not sent: the well shows it and the desk has written nothing.
-    await screen.findByText('The logo goes up with them.')
+    await screen.findByRole('button', { name: 'REMOVE' })
     expect(callsOf(stub, 'POST')).toHaveLength(0)
 
     fireEvent.click(screen.getByRole('button', { name: 'Add a sponsor' }))
@@ -465,7 +463,7 @@ describe('OfficerSponsorsPage', () => {
     fireEvent.change(screen.getByLabelText('LOGO (OPTIONAL)'), {
       target: { files: [logoFile()] },
     })
-    await screen.findByText('The logo goes up with them.')
+    await screen.findByRole('button', { name: 'REMOVE' })
 
     fireEvent.click(screen.getByRole('button', { name: 'Add a sponsor' }))
 
@@ -533,24 +531,6 @@ describe('OfficerSponsorsPage', () => {
     const [path, init] = callsOf(stub, 'PUT')[0]
     expect(urlOf(path)).toContain('/officer/sponsors/sheet')
     expect(bodyOf(init)).toEqual({ footnotes: '* new\n\nNOTE: tax-deductible.' })
-  })
-
-  it('counts the ways to help against the cap', async () => {
-    vi.stubGlobal(
-      'fetch',
-      stubApi(
-        desk({
-          inKind: [{ id: 'k1', title: 'Machine time', blurb: 'An afternoon.' }],
-        }),
-      ),
-    )
-
-    renderPage(context(), 'other')
-
-    expect(await screen.findByLabelText('Title of way 1')).toHaveValue(
-      'Machine time',
-    )
-    expect(screen.getByText(`1 / ${MAX_IN_KIND}`)).toBeInTheDocument()
   })
 
   it('refuses a member without asking the server anything', async () => {

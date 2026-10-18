@@ -129,19 +129,17 @@ const explain = (error: unknown) =>
 
 type Message = { tone: 'error' | 'success'; text: string } | null
 
-/** The one status line every panel here renders, always present so nothing
-    below it moves when it fills. `wrap-anywhere` because it can quote a title
-    somebody typed with no spaces in it. */
+/** Panel feedback, with long names and titles allowed to wrap. */
 function Status({ message }: { message: Message }) {
+  if (!message) return null
+
   return (
-    <p role="status" className="min-h-4 text-[13px] wrap-anywhere">
-      {message && (
-        <span
-          className={message.tone === 'error' ? 'text-error' : 'text-success'}
-        >
-          {message.text}
-        </span>
-      )}
+    <p role="status" className="text-[13px] wrap-anywhere">
+      <span
+        className={message.tone === 'error' ? 'text-error' : 'text-success'}
+      >
+        {message.text}
+      </span>
     </p>
   )
 }
@@ -298,16 +296,17 @@ function SearchPicker({
           ))}
           {matches.length > MAX_ROWS && (
             <li className="text-faint px-3 py-2.5 text-[12px]">
-              {matches.length - MAX_ROWS} more &mdash; keep typing.
+              {matches.length - MAX_ROWS} more
             </li>
           )}
         </ul>
       )}
 
-      {/* Always rendered, so nothing below moves when it fills. */}
-      <p role="status" className="text-faint mt-2 min-h-4 text-[12px]">
-        {hint}
-      </p>
+      {hint && (
+        <p role="status" className="text-faint mt-2 text-[12px]">
+          {hint}
+        </p>
+      )}
     </div>
   )
 }
@@ -364,8 +363,7 @@ function GrantMembership() {
     <FormPanel>
       <p className={panelLabel}>GRANT A MEMBERSHIP</p>
       <p className="text-dim mb-4 text-[13px] leading-[1.6] text-pretty">
-        For dues paid in cash, or waived. It covers them exactly as a card
-        payment would, and records that you granted it.
+        For dues paid in cash or waived
       </p>
 
       <div className="space-y-4">
@@ -513,10 +511,6 @@ function SetTitle() {
   return (
     <FormPanel>
       <p className={panelLabel}>SET OR CLEAR A TITLE</p>
-      <p className="text-dim mb-4 text-[13px] leading-[1.6] text-pretty">
-        The line under somebody&rsquo;s name on the public roster. Members write
-        their own; this overwrites it.
-      </p>
 
       <div className="space-y-4">
         <MemberSearch
@@ -773,10 +767,6 @@ function AppointTeamLead() {
   return (
     <FormPanel>
       <p className={panelLabel}>APPOINT OR STAND DOWN A TEAM LEAD</p>
-      <p className="text-dim mb-4 text-[13px] leading-[1.6] text-pretty">
-        A team lead runs one team inside one project, so both have to be
-        named.
-      </p>
 
       <div className="space-y-4">
         <ProjectPicker
@@ -839,7 +829,7 @@ function AppointTeamLead() {
           disabled={busy}
           hint={
             !projectId
-              ? 'Pick a project first'
+              ? ''
               : loading
                 ? 'Loading…'
                 : roster.length === 0
@@ -1092,11 +1082,6 @@ function OfficerSeats() {
   return (
     <FormPanel>
       <p className={panelLabel}>THE OFFICER BOARD</p>
-      <p className="text-dim mb-4 text-[13px] leading-[1.6] text-pretty">
-        Which chair each person holds. Being <em>an officer</em> follows the
-        Discord role and is not set here, so a seat can go to somebody who is
-        not one &mdash; that is how the faculty advisor sits on the board.
-      </p>
 
       {failed && (
         <p className="text-dim mb-4 text-[13px] leading-[1.6]">
@@ -1153,10 +1138,6 @@ function OfficerSeats() {
                 </p>
                 <p className="text-faint font-mono text-[10px] tracking-[0.14em] uppercase">
                   {seatOf(seat)}
-                  {/* Where the seat came from. A hand-given one survives losing the
-                      Discord role and a synced one doesn't, which is the difference
-                      between "why is the advisor still here" and a bug. */}
-                  {seat.source === 'MANUAL' && ' · by hand'}
                 </p>
               </div>
 
@@ -1285,5 +1266,3 @@ function OfficerSeats() {
     </FormPanel>
   )
 }
-
-

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useState } from 'react'
-import { Link, useOutletContext } from 'react-router'
+import { useOutletContext } from 'react-router'
 import type {
   ApiMyProject,
   ApiOfficerMember,
@@ -13,6 +13,7 @@ import { deleteJson, getJson, patchJson, postJson } from '../../lib/api/api'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
 import { ConfirmDialog } from '../../components/shared/ConfirmDialog'
 import { FilterChips } from '../../components/shared/FilterChips'
+import { InfoTip } from '../../components/shared/InfoTip'
 import {
   FormEyebrow,
   FormHeading,
@@ -252,11 +253,6 @@ function Tasks({
           placeholder="Search — title, details, project, team, who it is for"
           className={fieldClass}
         />
-        <p className="text-faint mt-1 text-[12px] leading-[1.5]">
-          {status === 'ALL'
-            ? 'Searches every label — open, in progress, delayed, done and cancelled.'
-            : `Searches ${TASK_LABEL[status].text.toLowerCase()} tasks only.`}
-        </p>
       </div>
 
       <FormPanel>
@@ -301,9 +297,11 @@ function Tasks({
           ))}
       </FormPanel>
 
-      <p role="status" className="text-error mt-3 min-h-4 text-[12px]">
-        {message}
-      </p>
+      {message && (
+        <p role="status" className="text-error mt-3 text-[12px]">
+          {message}
+        </p>
+      )}
 
       {canWrite && (
         <div className="mt-6">
@@ -757,9 +755,14 @@ function TaskForm({
               />
             </div>
             <div className="flex-1">
-              <label htmlFor={`${id}-due-time`} className={labelClass}>
-                BY (OPTIONAL)
-              </label>
+              <div className="mb-1.5 flex items-center gap-1 [&>label]:mb-0">
+                <label htmlFor={`${id}-due-time`} className={labelClass}>
+                  BY (OPTIONAL)
+                </label>
+                <InfoTip label="By (optional)">
+                  End of the day if you leave it blank.
+                </InfoTip>
+              </div>
               <input
                 id={`${id}-due-time`}
                 name="dueTime"
@@ -770,9 +773,6 @@ function TaskForm({
                 className={fieldClass}
                 disabled={busy}
               />
-              <p className="text-faint mt-1 text-[11px] leading-[1.5]">
-                End of the day if you leave it blank.
-              </p>
             </div>
           </div>
 
@@ -823,7 +823,8 @@ function TaskForm({
             {/* No roster to tick through, so the club is the list. Officer-gated on the
                 server, which is the same audience this branch is. */}
             <MemberSearch
-              label="ADD SOMEBODY"
+              label="Find an assignee"
+              hideLabel
               picked={picked}
               disabled={busy}
               onPick={(member) => {
@@ -836,25 +837,22 @@ function TaskForm({
                 }
               }}
             />
-            <div className="mt-2 flex flex-wrap gap-2">
-              {direct.map((who) => (
-                <button
-                  key={who.id}
-                  type="button"
-                  disabled={busy}
-                  onClick={() => {
-                    setDirect(direct.filter((one) => one.id !== who.id))
-                  }}
-                  className="border-rule text-dim hover:border-error hover:text-error cursor-pointer border px-2.5 py-1 text-[12px] transition-colors duration-200 disabled:opacity-50"
-                >
-                  {who.fullName} ✕
-                </button>
-              ))}
-            </div>
-            {direct.length === 0 && (
-              <p className="text-faint mt-1 text-[11px] leading-[1.5]">
-                A task with no project has to belong to somebody.
-              </p>
+            {direct.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {direct.map((who) => (
+                  <button
+                    key={who.id}
+                    type="button"
+                    disabled={busy}
+                    onClick={() => {
+                      setDirect(direct.filter((one) => one.id !== who.id))
+                    }}
+                    className="border-rule text-dim hover:border-error hover:text-error cursor-pointer border px-2.5 py-1 text-[12px] transition-colors duration-200 disabled:opacity-50"
+                  >
+                    {who.fullName} ✕
+                  </button>
+                ))}
+              </div>
             )}
           </fieldset>
         ) : (
@@ -908,18 +906,14 @@ function TaskForm({
               CANCEL
             </button>
           )}
-          <Link
-            to="/dashboard"
-            className="text-faint hover:text-primary ml-auto font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200"
-          >
-            BACK TO OVERVIEW
-          </Link>
         </div>
       </form>
 
-      <p role="status" className="text-error mt-2 min-h-4 text-[12px]">
-        {message}
-      </p>
+      {message && (
+        <p role="status" className="text-error mt-2 text-[12px]">
+          {message}
+        </p>
+      )}
     </FormPanel>
   )
 }

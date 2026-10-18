@@ -91,20 +91,7 @@ export function EventsPage() {
         <FormEyebrow>/ EVENTS</FormEyebrow>
         <FormHeading>What&rsquo;s on.</FormHeading>
         <p className="text-dim max-w-[36rem] text-sm leading-[1.7] text-pretty">
-          Competitions, workshops, outreach and socials — everything the club has
-          published, newest first once you look backwards. Weekly project
-          meetings repeat rather than being scheduled one at a time, so they live
-          on the{' '}
-          {/* A plain `<a>`, not a `<Link>`: this one carries a hash. A `<Link>`
-              takes the navigation over and then does not scroll anywhere, which
-              is the rule in `.claude/docs/frontend.md`. */}
-          <a
-            href="/#events"
-            className="text-primary border-primary/40 hover:border-primary border-b transition-colors duration-200"
-          >
-            month grid on the front page
-          </a>
-          .
+          Competitions, workshops, outreach, socials, and anything else the club has going on.
         </p>
       </div>
 

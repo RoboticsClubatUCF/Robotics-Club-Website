@@ -8,7 +8,7 @@ import { OfficerOnly } from '../../components/dashboard/OfficerOnly'
 import { UsageBreakdown } from '../../components/dashboard/UsageBreakdown'
 import { UsageChart } from '../../components/dashboard/UsageChart'
 import { FilterChips } from '../../components/shared/FilterChips'
-import { FormEyebrow, FormHeading, FormPanel, measureClass } from '../../components/shared/formChrome'
+import { FormEyebrow, FormHeading, FormPanel } from '../../components/shared/formChrome'
 import { smallQuietButton } from '../../components/slicer/slicerChrome'
 import type { ApiPrintUsageDesk } from '../../lib/api/api'
 import { useApi } from '../../lib/api/useApi'
@@ -143,12 +143,6 @@ function Usage() {
       <FormEyebrow>{EYEBROW}</FormEyebrow>
       <FormHeading>Filament usage.</FormHeading>
       <SubNav label="Print queue pages" pages={PRINT_QUEUE_PAGES} />
-
-      <div className={`${measureClass} mb-6`}>
-        <p className="text-dim text-sm leading-[1.7] text-pretty">
-          Grams on finished filament prints, by the day they were marked done. Resin isn't counted.
-        </p>
-      </div>
 
       <div className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-3">
         <FilterChips<Preset | 'custom'>

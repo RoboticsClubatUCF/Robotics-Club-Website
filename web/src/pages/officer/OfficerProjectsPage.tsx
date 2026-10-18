@@ -1,3 +1,4 @@
+import { InfoTip } from '../../components/shared/InfoTip'
 import { useId, useState } from 'react'
 import { Link, useOutletContext } from 'react-router'
 import { DuesLocked } from '../../components/dashboard/DuesLocked'
@@ -292,7 +293,7 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
               name="title"
               required
               maxLength={160}
-              placeholder="Mars Rover"
+              placeholder="Title of Project"
               className={fieldClass}
               disabled={sending}
             />
@@ -307,8 +308,8 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
               required
               maxLength={60}
               pattern="[a-z0-9]+(-[a-z0-9]+)*"
-              title="Lowercase words joined by hyphens, like mars-rover"
-              placeholder="mars-rover"
+              title="Lowercase words joined by hyphens"
+              placeholder="Project slug"
               className={fieldClass}
               disabled={sending}
             />
@@ -316,24 +317,24 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
         </div>
 
         <div>
-          <label htmlFor={`${id}-summary`} className={labelClass}>
-            ONE-LINE SUMMARY
-          </label>
+          <div className="mb-1.5 flex items-center gap-1 [&>label]:mb-0">
+            <label htmlFor={`${id}-summary`} className={labelClass}>
+              ONE-LINE SUMMARY
+            </label>
+            <InfoTip label="Summary">Printed under the title on the projects list.</InfoTip>
+          </div>
           <input
             id={`${id}-summary`}
             name="summary"
             required
             maxLength={500}
-            placeholder="Research, design, build and test a Mars rover."
+            placeholder="Summary of Project"
             className={fieldClass}
             disabled={sending}
           />
           {/* Required, and the only one of these four that is: this is the line the projects
               list prints under the title, so a project without one is an empty row on the
               page people browse before joining. */}
-          <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
-            Printed under the title on the projects list.
-          </p>
         </div>
 
         <div className="grid-fluid gap-4 [--col-min:14rem]">
@@ -345,29 +346,29 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
               id={`${id}-season`}
               name="season"
               maxLength={40}
-              placeholder="2026-2027"
+              placeholder="Season"
               className={fieldClass}
               disabled={sending}
             />
           </div>
           <div>
-            <label htmlFor={`${id}-competition`} className={labelClass}>
-              COMPETITION
-            </label>
+            <div className="mb-1.5 flex items-center gap-1 [&>label]:mb-0">
+              <label htmlFor={`${id}-competition`} className={labelClass}>
+                COMPETITION
+              </label>
+              <InfoTip label="Competition">Optional.</InfoTip>
+            </div>
             <input
               id={`${id}-competition`}
               name="competition"
               maxLength={160}
-              placeholder="UNIVERSITY ROVER CHALLENGE"
+              placeholder="Competition name"
               className={fieldClass}
               disabled={sending}
             />
             {/* The placeholder reads as an example to follow rather than as one option, and
                 plenty of what the club builds isn't entered into anything. Blank sends
                 nothing at all, which keeps the create route's optional field optional. */}
-            <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
-              Optional.
-            </p>
           </div>
         </div>
 
@@ -388,13 +389,6 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
             }}
           />
 
-          <p className="text-faint mt-3 text-[11px] leading-[1.5] text-pretty">
-            Every calendar on the site carries this
-            {meeting.repeat === 'DATES'
-              ? '.'
-              : ', to the end of the project’s semester, and finals week is left out.'}
-          </p>
-
           {fault && <p className="text-error mt-2 text-[13px]">{fault}</p>}
         </div>
 
@@ -405,16 +399,12 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
           <textarea
             id={`${id}-description`}
             name="description"
+            placeholder="Markdown: # for a heading, - for a list, **bold**, [text](link). Leave a blank line between paragraphs."
             maxLength={20_000}
             rows={8}
             className="textarea border-rule bg-base-200 w-full text-sm"
             disabled={sending}
           />
-          <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
-            Markdown: <code>#</code> for a heading, <code>-</code> for a list,{' '}
-            <code>**bold**</code>, <code>[text](link)</code>. Leave a blank line
-            between paragraphs.
-          </p>
         </div>
 
         <div>
@@ -426,7 +416,7 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
             name="discordRoleId"
             inputMode="numeric"
             pattern="\d{17,20}"
-            placeholder="984535585270157362"
+            placeholder="Discord role ID"
             className={fieldClass}
             disabled={sending}
           />
@@ -434,10 +424,6 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
               this form is a label. The server checks the id against the guild's real roles
               before saving it — a wrong snowflake isn't an error at Discord and would
               otherwise match nobody for ever — and refuses the club's own roles outright. */}
-          <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
-            Optional. Everyone on the project is given this Discord role, and
-            loses it when they leave.
-          </p>
           {/* The four steps that end in "Copy Role ID" used to be that one sentence, which
               was the last of them. */}
           <DiscordRoleHelp />
@@ -477,16 +463,13 @@ function CreateForm({ onCreated }: { onCreated: (created: Created) => void }) {
             {sending ? state.step : 'CREATE PROJECT'}
           </button>
 
-          <p className="text-faint mt-2 text-[12px] leading-[1.5]">
-            It goes live at that moment, and can be edited or deleted
-            afterwards.
-          </p>
-
-          <p role="status" className="min-h-4 text-[13px]">
-            {state.status === 'failed' && (
-              <span className="text-error">{state.message}</span>
-            )}
-          </p>
+          {state.status === 'failed' && (
+            <p role="status" className="text-[13px]">
+              {state.status === 'failed' && (
+                <span className="text-error">{state.message}</span>
+              )}
+            </p>
+          )}
         </div>
       </form>
     </FormPanel>
@@ -620,9 +603,11 @@ function SetUpProject({
         <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
           If it was made by mistake.
         </p>
-        <p role="status" className="text-error mt-2 min-h-4 text-[12px]">
-          {message}
-        </p>
+        {message && (
+          <p role="status" className="text-error mt-2 text-[12px]">
+            {message}
+          </p>
+        )}
       </div>
 
       {dialog}
@@ -756,7 +741,7 @@ function DuplicateForm({
       </p>
       <p className="text-dim mb-4 text-[13px] leading-[1.6] text-pretty">
         Copies a project&rsquo;s writing, pictures and links into a new one
-        for a new semester. Nobody is carried over.
+        for a new semester.
       </p>
 
       <form onSubmit={submit} className="space-y-4">
@@ -807,31 +792,31 @@ function DuplicateForm({
               name="title"
               maxLength={160}
               defaultValue={source?.title ?? ''}
-              placeholder="Same as the original"
+              placeholder="New title"
               className={fieldClass}
               disabled={sending}
             />
           </div>
           <div>
-            <label htmlFor={`${id}-dup-slug`} className={labelClass}>
-              NEW SLUG — THE URL, /projects/…
-            </label>
+            <div className="mb-1.5 flex items-center gap-1 [&>label]:mb-0">
+              <label htmlFor={`${id}-dup-slug`} className={labelClass}>
+                NEW SLUG — THE URL, /projects/…
+              </label>
+              <InfoTip label="New slug">Has to be new — the original keeps its own.</InfoTip>
+            </div>
             <input
               id={`${id}-dup-slug`}
               name="slug"
               required
               maxLength={60}
               pattern="[a-z0-9]+(-[a-z0-9]+)*"
-              title="Lowercase words joined by hyphens, like mars-rover"
-              placeholder="mars-rover-2027"
+              title="Lowercase words joined by hyphens"
+              placeholder="New slug"
               className={fieldClass}
               disabled={sending}
             />
             {/* The one field with no sensible default. Two projects can't share a URL, so the
                 officer has to say how this one differs. */}
-            <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
-              Has to be new — the original keeps its own.
-            </p>
           </div>
         </div>
 
@@ -844,7 +829,7 @@ function DuplicateForm({
               id={`${id}-dup-season`}
               name="season"
               maxLength={40}
-              placeholder="2027-2028"
+              placeholder="New season"
               className={fieldClass}
               disabled={sending}
             />
@@ -867,24 +852,24 @@ function DuplicateForm({
             </select>
           </div>
           <div>
-            <label htmlFor={`${id}-dup-term-year`} className={labelClass}>
-              YEAR
-            </label>
+            <div className="mb-1.5 flex items-center gap-1 [&>label]:mb-0">
+              <label htmlFor={`${id}-dup-term-year`} className={labelClass}>
+                YEAR
+              </label>
+              <InfoTip label="Term and year">Leave both blank for the current term.</InfoTip>
+            </div>
             <input
               id={`${id}-dup-term-year`}
               name="termYear"
               type="number"
               min={2000}
               max={2100}
-              placeholder="This year"
+              placeholder="Year"
               className={fieldClass}
               disabled={sending}
             />
             {/* The two together or neither: leaving both alone stamps the term the club is
                 in, which is what duplicating usually means. */}
-            <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
-              Leave both blank for the current term.
-            </p>
           </div>
         </div>
 
@@ -901,7 +886,7 @@ function DuplicateForm({
             name="discordRoleId"
             inputMode="numeric"
             pattern="\d{17,20}"
-            placeholder="Same as the original"
+            placeholder="New Discord role ID"
             className={fieldClass}
             disabled={sending}
           />
@@ -915,11 +900,13 @@ function DuplicateForm({
           {sending ? 'COPYING…' : 'DUPLICATE IT'}
         </button>
 
-        <p role="status" className="min-h-4 text-[13px]">
-          {state.status === 'failed' && (
-            <span className="text-error">{state.message}</span>
-          )}
-        </p>
+        {state.status === 'failed' && (
+          <p role="status" className="text-[13px]">
+            {state.status === 'failed' && (
+              <span className="text-error">{state.message}</span>
+            )}
+          </p>
+        )}
       </form>
     </FormPanel>
   )
@@ -980,10 +967,6 @@ function EveryProject() {
     <FormPanel>
       <p className="text-faint mb-4 font-mono text-[10px] font-medium tracking-[0.16em]">
         EVERY PROJECT
-      </p>
-      <p className="text-dim mb-4 text-[13px] leading-[1.6] text-pretty">
-        Teams, members, events and the meeting schedule, on any project &mdash;
-        including the ones you are not on. The lead sees the same page.
       </p>
 
       {projects.status === 'loading' ? (

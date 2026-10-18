@@ -23,14 +23,8 @@ import { type AuthEnv, originGuard, requireAuth } from '../../auth/session.js'
  *   PUT    /api/officer/sponsors/tiers/:tier     -> publish what a level costs
  *   DELETE /api/officer/sponsors/tiers/:tier     -> take that level off the sheet
  *   PUT    /api/officer/sponsors/sheet           -> the fine print under the grid
- *   POST   /api/officer/sponsors/in-kind         -> add a way to help
- *   PATCH  /api/officer/sponsors/in-kind/order   -> reorder that list
- *   PATCH  /api/officer/sponsors/in-kind/:id     -> edit one
- *   DELETE /api/officer/sponsors/in-kind/:id     -> remove one
  *
- * Three tables, one desk, because they're one page. A visitor reading `/sponsors` can't
- * tell which of the three answered any part of it, and an officer writing that page is
- * thinking about what it says rather than about tables.
+ * One desk for the sponsor list, the tier sheet, and its fine print.
  *
  * The public reads aren't here. `GET /api/sponsors` and `GET /api/sponsorship` are in
  * `content.ts`, on the cached side of `app.ts`; this file exports the `select`s they
@@ -42,17 +36,6 @@ import { type AuthEnv, originGuard, requireAuth } from '../../auth/session.js'
  * Nothing here is a permission decision of its own: `requireOfficer` is the whole gate.
  */
 export const sponsorsAdmin = new Hono<AuthEnv>()
-
-/**
- * How many ways-to-help the page will carry.
- *
- * Six, against a section that draws three across. It's the last thing before the contact
- * form and it's skimmed rather than read, so the cap is about what somebody will actually
- * finish rather than about storage.
- *
- * Mirrored in `web/src/lib/sponsorship.ts` so the desk can't offer what this refuses.
- */
-export const MAX_IN_KIND = 6
 
 /**
  * How many benefits one tier may list.
@@ -92,13 +75,6 @@ export const tierOfferSelect = {
   amount: true,
   blurb: true,
   benefits: true,
-} as const
-
-/** A way to help that is not money. */
-export const inKindSelect = {
-  id: true,
-  title: true,
-  blurb: true,
 } as const
 
 /**
@@ -186,11 +162,6 @@ const tierOffer = z.object({
     .default([]),
 })
 
-const inKindFields = {
-  title: z.string().trim().min(1).max(80),
-  blurb: z.string().trim().min(1).max(300),
-}
-
 /**
  * Whether something is already listed under this name, ignoring case.
  *
@@ -227,7 +198,7 @@ async function getSponsor(id: string) {
  * is the row an officer has to see in order to publish.
  */
 sponsorsAdmin.get('/', requireAuth, requireOfficer, async (c) => {
-  const [sponsors, offers, inKind, footnotes] = await Promise.all([
+  const [sponsors, offers, footnotes] = await Promise.all([
     prisma.sponsor.findMany({
       // Hidden ones last, then the club's ranking, then alphabetical — the public list's
       // order with the hidden rows pushed under it, so the desk and the page read top to
@@ -236,10 +207,6 @@ sponsorsAdmin.get('/', requireAuth, requireOfficer, async (c) => {
       select: managedSponsorSelect,
     }),
     prisma.sponsorTierOffer.findMany({ select: tierOfferSelect }),
-    prisma.inKindOffer.findMany({
-      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
-      select: inKindSelect,
-    }),
     sheetFootnotes(),
   ])
 
@@ -248,7 +215,6 @@ sponsorsAdmin.get('/', requireAuth, requireOfficer, async (c) => {
   return c.json({
     sponsors,
     tiers: TIERS.map((tier) => ({ tier, offer: written.get(tier) ?? null })),
-    inKind,
     footnotes,
   })
 })
@@ -352,135 +318,6 @@ sponsorsAdmin.delete(
     }
 
     await prisma.sponsorTierOffer.delete({ where: { tier } })
-
-    return c.json({ deleted: true })
-  },
-)
-
-// ---------------------------------------------------- the other ways to help
-
-/** Refuses once the section is full, and says the number rather than "too many". */
-async function assertInKindRoom() {
-  const held = await prisma.inKindOffer.count()
-  if (held >= MAX_IN_KIND) {
-    throw new HTTPException(409, {
-      message: `The page shows up to ${MAX_IN_KIND} of these. Remove one before adding another.`,
-    })
-  }
-}
-
-sponsorsAdmin.post(
-  '/in-kind',
-  originGuard,
-  requireAuth,
-  requireOfficer,
-  writes,
-  validate('json', z.object(inKindFields)),
-  async (c) => {
-    const data = c.req.valid('json')
-
-    await assertInKindRoom()
-
-    // Appends: a new one lands at the end, where somebody just added it.
-    const { _max } = await prisma.inKindOffer.aggregate({
-      _max: { sortOrder: true },
-    })
-
-    const added = await prisma.inKindOffer.create({
-      data: { ...data, sortOrder: (_max.sortOrder ?? -1) + 1 },
-      select: inKindSelect,
-    })
-
-    return c.json(added, 201)
-  },
-)
-
-/**
- * The whole order at once, as a list of ids.
- *
- * The set check is the lost-update guard, and it earns more here than on a project's
- * gallery: this is one global list, so the two tabs it protects against are two different
- * officers rather than one person in two windows.
- *
- * Registered before `/in-kind/:id` for the reason the tier routes are registered first.
- */
-sponsorsAdmin.patch(
-  '/in-kind/order',
-  originGuard,
-  requireAuth,
-  requireOfficer,
-  writes,
-  validate('json', z.object({ ids: z.array(z.uuid()).min(1).max(MAX_IN_KIND) })),
-  async (c) => {
-    const { ids } = c.req.valid('json')
-
-    const held = await prisma.inKindOffer.findMany({ select: { id: true } })
-
-    const sent = new Set(ids)
-    const stale =
-      sent.size !== ids.length ||
-      held.length !== ids.length ||
-      held.some((row) => !sent.has(row.id))
-
-    if (stale) {
-      throw new HTTPException(409, {
-        message:
-          'That list changed while you were editing it. Reload the page and try again.',
-      })
-    }
-
-    await prisma.$transaction(
-      ids.map((id, index) =>
-        prisma.inKindOffer.update({ where: { id }, data: { sortOrder: index } }),
-      ),
-    )
-
-    const rows = await prisma.inKindOffer.findMany({
-      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
-      select: inKindSelect,
-    })
-
-    return c.json(rows)
-  },
-)
-
-sponsorsAdmin.patch(
-  '/in-kind/:id',
-  originGuard,
-  requireAuth,
-  requireOfficer,
-  writes,
-  validate('json', z.object(inKindFields).partial()),
-  async (c) => {
-    const id = c.req.param('id')
-    const patch = c.req.valid('json')
-
-    const held = await prisma.inKindOffer.findUnique({ where: { id } })
-    if (!held) throw new HTTPException(404, { message: 'No such entry.' })
-
-    const updated = await prisma.inKindOffer.update({
-      where: { id },
-      data: patch,
-      select: inKindSelect,
-    })
-
-    return c.json(updated)
-  },
-)
-
-sponsorsAdmin.delete(
-  '/in-kind/:id',
-  originGuard,
-  requireAuth,
-  requireOfficer,
-  writes,
-  async (c) => {
-    const id = c.req.param('id')
-
-    const held = await prisma.inKindOffer.findUnique({ where: { id } })
-    if (!held) throw new HTTPException(404, { message: 'No such entry.' })
-
-    await prisma.inKindOffer.delete({ where: { id } })
 
     return c.json({ deleted: true })
   },

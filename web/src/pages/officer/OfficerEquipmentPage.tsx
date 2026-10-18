@@ -13,6 +13,7 @@ import {
   labelClass,
 } from '../../components/shared/formChrome'
 import { ConfirmDialog } from '../../components/shared/ConfirmDialog'
+import { InfoTip } from '../../components/shared/InfoTip'
 import { ApiError, deleteJson, getJson, patchJson, postJson } from '../../lib/api/api'
 import type {
   ApiOfficerEquipment,
@@ -318,11 +319,6 @@ function LoanQueue() {
           placeholder="Search — name, Discord handle, item"
           className={fieldClass}
         />
-        <p className="text-faint mt-1 text-[12px] leading-[1.5]">
-          {filter === ''
-            ? 'Searches every loan — asked, out, back or declined.'
-            : `Searches ${FILTERS.find((f) => f.value === filter)?.label.toLowerCase()} loans only.`}
-        </p>
       </div>
 
       <div className="mb-4">
@@ -493,9 +489,11 @@ function LoanQueue() {
           </ul>
         ))}
 
-      <p role="status" className="text-error mt-3 min-h-4 text-[12px]">
-        {message}
-      </p>
+      {message && (
+        <p role="status" className="text-error mt-3 text-[12px]">
+          {message}
+        </p>
+      )}
     </FormPanel>
   )
 }
@@ -620,282 +618,276 @@ function Inventory() {
   }
 
   return (
-    <FormPanel>
-      <p className="text-faint mb-1 font-mono text-[10px] font-medium tracking-[0.16em]">
-        THE LENDING LIST
-      </p>
-      <p className="text-dim mb-4 text-[13px] leading-[1.6] text-pretty">
-        <strong className="font-semibold text-base-content">Retiring</strong> takes
-        something off the members' list and keeps its borrowing records.{' '}
-        <strong className="font-semibold text-base-content">Deleting</strong> removes
-        the item and its history for good.
-      </p>
-
-      {items === 'loading' && (
-        <div aria-busy="true" className="space-y-2.5">
-          <div className="bg-base-300 h-4 w-2/3 animate-pulse rounded-[2px]" />
-          <div className="bg-base-300 h-3 w-1/2 animate-pulse rounded-[2px]" />
-        </div>
-      )}
-
-      {items === null && (
-        <p className="text-dim text-sm leading-[1.7]">
-          We couldn't load the list just now.
-        </p>
-      )}
-
-      {/* The search is here for the same reason it is on the members' page and
-          one more: it is how an officer checks whether the club already lists
-          something before adding it a second time. */}
-      {Array.isArray(items) && items.length > 0 && (
-        <div className="mb-4">
-          <label htmlFor={`${id}-find`} className="sr-only">
-            Search the lending list
-          </label>
-          <input
-            id={`${id}-find`}
-            type="search"
-            value={query}
-            onChange={(event) => {
-              setQuery(event.target.value)
-            }}
-            placeholder="Search the list — is it already here?"
-            className={fieldClass}
-            disabled={busy}
-          />
-
-          <div className="mt-2">
-            <FilterChips
-              label="SHOWING"
-              options={STOCK}
-              value={stock}
-              onChange={setStock}
-              disabled={busy}
-            />
-          </div>
-        </div>
-      )}
-
-      {Array.isArray(items) && items.length > 0 && matched === 0 && (
-        <p className="text-dim mb-5 text-sm leading-[1.7]">
-          Nothing on the list matches “{query.trim()}”. If it belongs to the
-          club, add it below.
-        </p>
-      )}
-
-      {shown.length > 0 && (
-        <ul className="divide-rule mb-5 divide-y">
-          {shown.map((item) => (
-            <li
-              key={item.id}
-              className={`flex flex-wrap items-center gap-x-4 gap-y-2 py-2.5 ${
-                item.active ? '' : 'opacity-50'
-              }`}
-            >
-              <div className="min-w-0 flex-1 basis-40">
-                <p className="truncate text-sm font-medium">{item.name}</p>
-                <p className="text-faint font-mono text-[10px] font-medium tracking-[0.12em] uppercase">
-                  {item.out} of {item.quantity} out · Up to{' '}
-                  {capPhrase(item.maxLoanDays)}
-                  {!item.active && ' · Retired'}
-                </p>
-              </div>
-
-              <label className="flex items-center gap-2">
-                <span className="text-faint font-mono text-[10px] tracking-[0.14em]">
-                  HAVE
-                </span>
-                <input
-                  type="number"
-                  min={0}
-                  max={1000}
-                  aria-label={`How many ${item.name}`}
-                  defaultValue={item.quantity}
-                  disabled={busy}
-                  onBlur={(event) => {
-                    const quantity = Number(event.target.value)
-                    if (quantity !== item.quantity && quantity >= 0) {
-                      patch(item.id, { quantity })
-                    }
-                  }}
-                  className={`${fieldClass} h-8 w-20`}
-                />
-              </label>
-
-              <label className="flex items-center gap-2">
-                <span className="text-faint font-mono text-[10px] tracking-[0.14em]">
-                  FOR
-                </span>
-                <input
-                  type="number"
-                  min={1}
-                  max={365}
-                  aria-label={`Longest borrow of ${item.name}, in days`}
-                  defaultValue={item.maxLoanDays}
-                  disabled={busy}
-                  onBlur={(event) => {
-                    const maxLoanDays = Number(event.target.value)
-                    if (maxLoanDays !== item.maxLoanDays && maxLoanDays >= 1) {
-                      patch(item.id, { maxLoanDays })
-                    }
-                  }}
-                  className={`${fieldClass} h-8 w-20`}
-                />
-                <span className="text-faint font-mono text-[10px] tracking-[0.14em]">
-                  DAYS
-                </span>
-              </label>
-
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => {
-                  patch(item.id, { active: !item.active })
-                }}
-                className="text-faint hover:text-primary cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50"
-              >
-                {item.active ? 'RETIRE' : 'BRING BACK'}
-              </button>
-
-              {/* Quieter than RETIRE rather than louder, which is the right
-                  way round: the reversible move is the one an officer should
-                  reach for, and this one only opens a box that explains what
-                  it costs. */}
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => {
-                  setDoomed(item)
-                }}
-                className="text-faint hover:text-error cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50"
-              >
-                DELETE
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {hidden > 0 && (
-        <div className="mb-5">
-          <button
-            type="button"
-            onClick={() => {
-              setShowAll(!showAll)
-            }}
-            className="border-rule text-faint hover:text-primary hover:border-primary cursor-pointer border px-3 py-1.5 font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200"
-          >
-            {showAllLabel(hidden, showAll)}
-          </button>
-        </div>
-      )}
-
-      {/* Every field spelled out above its box rather than hinted at inside it. A placeholder
-          disappears the moment somebody types, so a form built out of them stops explaining itself
-          exactly when it's being filled in — and "1" in an unlabelled box next to a name could be
-          a quantity, a shelf number or a price. */}
-      <form onSubmit={add} className="space-y-4">
-        <p className={labelClass}>ADD SOMETHING TO THE LIST</p>
-
-        <div>
-          <label htmlFor={`${id}-name`} className={labelClass}>
-            WHAT IT IS
-          </label>
-          <input
-            id={`${id}-name`}
-            name="name"
-            required
-            maxLength={120}
-            value={name}
-            onChange={(event) => {
-              setName(event.target.value)
-            }}
-            placeholder="Cordless drill"
-            className={`${fieldClass} ${clash ? 'border-warning' : ''}`}
-            aria-invalid={clash ? true : undefined}
-            disabled={busy}
-          />
-          {clash ? (
-            <p role="status" className="text-warning mt-1 text-[12px] leading-[1.5]">
-              “{clash.name}” is already on the list, with {clash.quantity} of
-              them. Change that row's number instead of adding a second one.
-            </p>
-          ) : (
-            <p className="text-faint mt-1 text-[12px] leading-[1.5]">
-              One row per kind of thing, not per unit.
-            </p>
-          )}
-        </div>
-
-        <div className="grid-fluid gap-3 [--col-min:13rem]">
-          <div>
-            <label htmlFor={`${id}-quantity`} className={labelClass}>
-              HOW MANY THE CLUB HAS
-            </label>
-            <input
-              id={`${id}-quantity`}
-              name="quantity"
-              type="number"
-              min={0}
-              max={1000}
-              defaultValue={1}
-              className={fieldClass}
-              disabled={busy}
-            />
-            <p className="text-faint mt-1 text-[12px] leading-[1.5]">
-              How many can be out at once.
-            </p>
-          </div>
-
-          <div>
-            <label htmlFor={`${id}-days`} className={labelClass}>
-              LONGEST BORROW, IN DAYS
-            </label>
-            <input
-              id={`${id}-days`}
-              name="maxLoanDays"
-              type="number"
-              min={1}
-              max={365}
-              defaultValue={7}
-              className={fieldClass}
-              disabled={busy}
-            />
-            <p className="text-faint mt-1 text-[12px] leading-[1.5]">
-              Members cannot ask for longer.
-            </p>
-          </div>
-        </div>
-
-        <div>
-          <label htmlFor={`${id}-description`} className={labelClass}>
-            ANYTHING WORTH KNOWING (OPTIONAL)
-          </label>
-          <input
-            id={`${id}-description`}
-            name="description"
-            maxLength={500}
-            placeholder="Battery and charger in the case. Lives on the shelf by the door."
-            className={fieldClass}
-            disabled={busy}
-          />
-          <p className="text-faint mt-1 text-[12px] leading-[1.5]">
-            Shown under the name, and searched.
+    <div className="space-y-5">
+      <FormPanel>
+        <div className="mb-4 flex items-center gap-1">
+          <p className="text-faint font-mono text-[10px] font-medium tracking-[0.16em]">
+            THE LENDING LIST
           </p>
+          <InfoTip label="The lending list">
+            Retiring takes something off the members' list and keeps its borrowing records.
+            Deleting removes the item and its history for good.
+          </InfoTip>
         </div>
 
-        <button
-          type="submit"
-          disabled={busy || clash !== null}
-          className="btn btn-primary btn-cta px-5 py-2.5 text-[12px] font-semibold disabled:opacity-60"
-        >
-          ADD TO THE LIST
-        </button>
-      </form>
+        {items === 'loading' && (
+          <div aria-busy="true" className="space-y-2.5">
+            <div className="bg-base-300 h-4 w-2/3 animate-pulse rounded-[2px]" />
+            <div className="bg-base-300 h-3 w-1/2 animate-pulse rounded-[2px]" />
+          </div>
+        )}
 
-      <p role="status" className="text-error mt-2 min-h-4 text-[12px]">
-        {message}
-      </p>
+        {items === null && (
+          <p className="text-dim text-sm leading-[1.7]">
+            We couldn't load the list just now.
+          </p>
+        )}
+
+        {/* The search is here for the same reason it is on the members' page and
+            one more: it is how an officer checks whether the club already lists
+            something before adding it a second time. */}
+        {Array.isArray(items) && items.length > 0 && (
+          <div className="mb-4">
+            <label htmlFor={`${id}-find`} className="sr-only">
+              Search the lending list
+            </label>
+            <input
+              id={`${id}-find`}
+              type="search"
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value)
+              }}
+              placeholder="Search the list — is it already here?"
+              className={fieldClass}
+              disabled={busy}
+            />
+
+            <div className="mt-2">
+              <FilterChips
+                label="SHOWING"
+                options={STOCK}
+                value={stock}
+                onChange={setStock}
+                disabled={busy}
+              />
+            </div>
+          </div>
+        )}
+
+        {Array.isArray(items) && items.length > 0 && matched === 0 && (
+          <p className="text-dim mb-5 text-sm leading-[1.7]">
+            Nothing on the list matches “{query.trim()}”. If it belongs to the
+            club, add it below.
+          </p>
+        )}
+
+        {shown.length > 0 && (
+          <ul className="divide-rule mb-5 divide-y">
+            {shown.map((item) => (
+              <li
+                key={item.id}
+                className={`flex flex-wrap items-center gap-x-4 gap-y-2 py-2.5 ${
+                  item.active ? '' : 'opacity-50'
+                }`}
+              >
+                <div className="min-w-0 flex-1 basis-40">
+                  <p className="truncate text-sm font-medium">{item.name}</p>
+                  <p className="text-faint font-mono text-[10px] font-medium tracking-[0.12em] uppercase">
+                    {item.out} of {item.quantity} out · Up to{' '}
+                    {capPhrase(item.maxLoanDays)}
+                    {!item.active && ' · Retired'}
+                  </p>
+                </div>
+
+                <label className="flex items-center gap-2">
+                  <span className="text-faint font-mono text-[10px] tracking-[0.14em]">
+                    HAVE
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={1000}
+                    aria-label={`How many ${item.name}`}
+                    defaultValue={item.quantity}
+                    disabled={busy}
+                    onBlur={(event) => {
+                      const quantity = Number(event.target.value)
+                      if (quantity !== item.quantity && quantity >= 0) {
+                        patch(item.id, { quantity })
+                      }
+                    }}
+                    className={`${fieldClass} h-8 w-20`}
+                  />
+                </label>
+
+                <label className="flex items-center gap-2">
+                  <span className="text-faint font-mono text-[10px] tracking-[0.14em]">
+                    FOR
+                  </span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={365}
+                    aria-label={`Longest borrow of ${item.name}, in days`}
+                    defaultValue={item.maxLoanDays}
+                    disabled={busy}
+                    onBlur={(event) => {
+                      const maxLoanDays = Number(event.target.value)
+                      if (maxLoanDays !== item.maxLoanDays && maxLoanDays >= 1) {
+                        patch(item.id, { maxLoanDays })
+                      }
+                    }}
+                    className={`${fieldClass} h-8 w-20`}
+                  />
+                  <span className="text-faint font-mono text-[10px] tracking-[0.14em]">
+                    DAYS
+                  </span>
+                </label>
+
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    patch(item.id, { active: !item.active })
+                  }}
+                  className="text-faint hover:text-primary cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50"
+                >
+                  {item.active ? 'RETIRE' : 'BRING BACK'}
+                </button>
+
+                {/* Quieter than RETIRE rather than louder, which is the right
+                    way round: the reversible move is the one an officer should
+                    reach for, and this one only opens a box that explains what
+                    it costs. */}
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    setDoomed(item)
+                  }}
+                  className="text-faint hover:text-error cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50"
+                >
+                  DELETE
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {hidden > 0 && (
+          <div className="mb-5">
+            <button
+              type="button"
+              onClick={() => {
+                setShowAll(!showAll)
+              }}
+              className="border-rule text-faint hover:text-primary hover:border-primary cursor-pointer border px-3 py-1.5 font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200"
+            >
+              {showAllLabel(hidden, showAll)}
+            </button>
+          </div>
+        )}
+
+      </FormPanel>
+
+      <FormPanel>
+        {/* Every field spelled out above its box rather than hinted at inside it. A placeholder
+            disappears the moment somebody types, so a form built out of them stops explaining itself
+            exactly when it's being filled in — and "1" in an unlabelled box next to a name could be
+            a quantity, a shelf number or a price. */}
+        <form onSubmit={add} className="space-y-4">
+          <p className={labelClass}>ADD SOMETHING TO THE LIST</p>
+
+          <div>
+            <label htmlFor={`${id}-name`} className={labelClass}>
+              WHAT IT IS
+            </label>
+            <input
+              id={`${id}-name`}
+              name="name"
+              required
+              maxLength={120}
+              value={name}
+              onChange={(event) => {
+                setName(event.target.value)
+              }}
+              placeholder="Cordless drill"
+              className={`${fieldClass} ${clash ? 'border-warning' : ''}`}
+              aria-invalid={clash ? true : undefined}
+              disabled={busy}
+            />
+            {clash && (
+              <p role="status" className="text-warning mt-1 text-[12px] leading-[1.5]">
+                “{clash.name}” is already on the list, with {clash.quantity} of
+                them. Change that row's number instead of adding a second one.
+              </p>
+            )}
+          </div>
+
+          <div className="grid-fluid gap-3 [--col-min:13rem]">
+            <div>
+              <label htmlFor={`${id}-quantity`} className={labelClass}>
+                HOW MANY THE CLUB HAS
+              </label>
+              <input
+                id={`${id}-quantity`}
+                name="quantity"
+                type="number"
+                min={0}
+                max={1000}
+                defaultValue={1}
+                className={fieldClass}
+                disabled={busy}
+              />
+            </div>
+
+            <div>
+              <label htmlFor={`${id}-days`} className={labelClass}>
+                LONGEST BORROW, IN DAYS
+              </label>
+              <input
+                id={`${id}-days`}
+                name="maxLoanDays"
+                type="number"
+                min={1}
+                max={365}
+                defaultValue={7}
+                className={fieldClass}
+                disabled={busy}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor={`${id}-description`} className={labelClass}>
+              ANYTHING WORTH KNOWING (OPTIONAL)
+            </label>
+            <input
+              id={`${id}-description`}
+              name="description"
+              maxLength={500}
+              placeholder="Battery and charger in the case. Lives on the shelf by the door."
+              className={fieldClass}
+              disabled={busy}
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={busy || clash !== null}
+            className="btn btn-primary btn-cta px-5 py-2.5 text-[12px] font-semibold disabled:opacity-60"
+          >
+            ADD TO THE LIST
+          </button>
+        </form>
+
+        {message && (
+          <p role="status" className="text-error mt-2 text-[12px]">
+            {message}
+          </p>
+        )}
+      </FormPanel>
 
       {/* Named and counted, because "are you sure" is a question nobody has ever answered no to.
           What makes this one land is the history: an officer clearing out a typo has nothing to
@@ -927,6 +919,6 @@ function Inventory() {
           </p>
         </ConfirmDialog>
       )}
-    </FormPanel>
+    </div>
   )
 }

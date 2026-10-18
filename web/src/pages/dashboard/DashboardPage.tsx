@@ -127,10 +127,8 @@ function Membership({ state }: { state: DashboardContext['membership'] }) {
   const membership = state.data
   const gap = coverGap(membership)
 
-  // One element, not a fragment, so the button stays under the panel it belongs to.
   return (
-    <div>
-      <MembershipPanel membership={membership} />
+    <MembershipPanel membership={membership}>
 
       {/* Shown whatever the status, so somebody reading this inside a free window can
           settle the term ahead now rather than being told to come back.
@@ -146,7 +144,7 @@ function Membership({ state }: { state: DashboardContext['membership'] }) {
           {gap ? LOCK_COPY[gap].cta : 'VIEW DUES & PAYMENTS'}
         </Link>
       </div>
-    </div>
+    </MembershipPanel>
   )
 }
 
@@ -488,7 +486,7 @@ function SurveyPanel({
 
       <Link
         to="/dashboard/survey"
-        className="text-primary mt-3 inline-block font-mono text-[11px] font-medium tracking-[0.1em] underline underline-offset-2"
+        className="btn btn-outline mt-4 h-auto px-5 py-2.5 text-[12px] font-semibold"
       >
         {pending ? 'FILL IT IN' : 'UPDATE MY ANSWERS'}
       </Link>

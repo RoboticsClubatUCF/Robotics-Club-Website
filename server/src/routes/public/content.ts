@@ -31,7 +31,6 @@ import { heroSlideSelect } from '../officer/heroSlides.js'
 // Same rule for the sponsor page. `TIERS` comes with them because the club's
 // ranking is the enum's declaration order and this route must not keep a copy.
 import {
-  inKindSelect,
   sheetFootnotes,
   sponsorSelect,
   tierOfferSelect,
@@ -912,18 +911,14 @@ content.get(
  * the list above, which is the honest way round.
  *
  * `tiers` is ordered by the enum, which is the club's ranking, so the page prints
- * it as it arrives. No `limit`: four levels and at most `MAX_IN_KIND` of the other.
+ * it as it arrives. No `limit`: there are only four levels.
  *
  * Its own route rather than a field on `/sponsors` because the two answer
  * different questions — who backs the club, and what backing it would mean.
  */
 content.get('/sponsorship', async (c) => {
-  const [offers, inKind, footnotes] = await Promise.all([
+  const [offers, footnotes] = await Promise.all([
     prisma.sponsorTierOffer.findMany({ select: tierOfferSelect }),
-    prisma.inKindOffer.findMany({
-      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
-      select: inKindSelect,
-    }),
     sheetFootnotes(),
   ])
 
@@ -936,7 +931,6 @@ content.get('/sponsorship', async (c) => {
       const offer = byTier.get(tier)
       return offer ? [offer] : []
     }),
-    inKind,
     // Null when nobody has written any, which is what the page drew before this
     // row existed — the same "empty is a real answer" the slideshow relies on.
     footnotes,

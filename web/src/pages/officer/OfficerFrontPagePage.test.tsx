@@ -445,14 +445,13 @@ describe('OfficerFrontPagePage', () => {
     })
   })
 
-  it('says that emptying the partner list takes the section off the page', async () => {
+  it('shows the partner editor without a standing explanation', async () => {
     vi.stubGlobal('fetch', stubApi())
 
     renderPage(context(), 'partners')
 
-    expect(
-      await screen.findByText(/comes off the front page altogether/i),
-    ).toBeInTheDocument()
+    expect(await screen.findByText('/ PARTNER PROGRAMS')).toBeInTheDocument()
+    expect(screen.queryByText(/comes off the front page altogether/i)).not.toBeInTheDocument()
   })
 
   it('holds the artwork well open for a program that has none', async () => {

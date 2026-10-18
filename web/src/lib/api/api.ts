@@ -1331,17 +1331,9 @@ export type ApiTierOffer = {
   benefits: string[]
 }
 
-/** A way to help that is not money, in the order the officers put them in. */
-export type ApiInKindOffer = {
-  id: string
-  title: string
-  blurb: string
-}
-
 /** The pitch half of `/sponsors`, in one read. */
 export type ApiSponsorship = {
   tiers: ApiTierOffer[]
-  inKind: ApiInKindOffer[]
   /**
    * The fine print under the tier grid — what a `*` on a benefit means, and the
    * tax-deductible note. One block of text with its newlines meaningful; null when
@@ -1361,7 +1353,6 @@ export type ApiSponsorship = {
 export type ApiSponsorDesk = {
   sponsors: ApiManagedSponsor[]
   tiers: { tier: SponsorTier; offer: ApiTierOffer | null }[]
-  inKind: ApiInKindOffer[]
   footnotes: string | null
 }
 

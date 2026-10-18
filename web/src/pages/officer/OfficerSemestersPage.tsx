@@ -183,7 +183,7 @@ function Semesters() {
         <p className="text-dim mb-4 max-w-[46rem] text-[13px] leading-[1.6] text-pretty">
           These dates decide what dues cover and when a membership lapses.
           The site reads UCF&rsquo;s academic calendar &mdash; set them here
-          when UCF is late, or wrong. Nobody already charged is re-charged.
+          when UCF is late, or wrong.
         </p>
 
         <div className="mb-5 flex items-center gap-2">
@@ -331,17 +331,19 @@ function Semesters() {
           </ul>
         )}
 
-        <p role="status" className="mt-4 min-h-4 text-[13px]">
-          {message && (
-            <span
-              className={
-                message.tone === 'error' ? 'text-error' : 'text-success'
-              }
-            >
-              {message.text}
-            </span>
-          )}
-        </p>
+        {message && (
+          <p role="status" className="mt-4 text-[13px]">
+            {message && (
+              <span
+                className={
+                  message.tone === 'error' ? 'text-error' : 'text-success'
+                }
+              >
+                {message.text}
+              </span>
+            )}
+          </p>
+        )}
       </FormPanel>
 
       {resetting && (

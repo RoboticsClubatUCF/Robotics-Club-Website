@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Outlet, Route, Routes } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { EventsManagePage } from './EventsManagePage'
@@ -338,11 +338,14 @@ describe('the list', () => {
     expect(screen.queryByText('Rover meeting')).toBeNull()
   })
 
-  it('says where to find a schedule when there is nothing else', async () => {
+  it('hides the calendar panel when there are no editable events', async () => {
     vi.stubGlobal('fetch', stubDesk([]))
     renderPage(context('OFFICER', []))
 
-    expect(await screen.findByText(/set on the project/i)).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.queryByText('ON THE CALENDAR')).not.toBeInTheDocument()
+    })
+    expect(screen.getByText('NEW EVENT')).toBeInTheDocument()
   })
 
   it('says so when the calendar cannot be reached', async () => {

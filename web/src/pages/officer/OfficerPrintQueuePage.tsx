@@ -406,11 +406,6 @@ export function OfficerPrintQueuePage() {
         {/* Said out loud, because it is a rule the reader cannot see. From
             LIVE a search covers the whole archive; inside a section it stays
             in that section, which is what makes the section worth pressing. */}
-        <p className="text-faint mt-1 text-[12px] leading-[1.5]">
-          {filter === ''
-            ? 'Searches every request — waiting, printing, done or declined.'
-            : `Searches ${FILTERS.find((f) => f.value === filter)?.label.toLowerCase()} requests only.`}
-        </p>
       </div>
 
       <div className="mb-5 flex flex-wrap gap-x-6 gap-y-2">

@@ -34,7 +34,6 @@ const bare = (over: Partial<ApiTierOffer> = {}): ApiTierOffer =>
 
 const pitch = (over: Partial<ApiSponsorship> = {}): ApiSponsorship => ({
   tiers: [],
-  inKind: [],
   footnotes: null,
   ...over,
 })
@@ -201,35 +200,6 @@ describe('SponsorsPage', () => {
 
     expect(await screen.findByText(/aren’t published here yet/i)).toBeInTheDocument()
     expect(screen.getByText('/ SPONSORSHIP TIERS')).toBeInTheDocument()
-  })
-
-  /**
-   * The other half of that decision, and deliberately the opposite one: the
-   * tiers answer a question somebody came with, so they speak when empty; this
-   * section is the club volunteering extra ways to say yes, and an empty
-   * heading over nothing is the sad version of that.
-   */
-  it('leaves the other-ways section off entirely when there is nothing in it', async () => {
-    vi.stubGlobal(
-      'fetch',
-      page({
-        '/sponsorship': pitch({
-          tiers: [offer()],
-          inKind: [{ id: 'k1', title: 'Machine time', blurb: 'An afternoon of a shop.' }],
-        }),
-        '/sponsors': [sponsor()],
-      }),
-    )
-
-    const shown = render(<SponsorsPage />)
-    expect(await screen.findByText('Machine time')).toBeInTheDocument()
-    shown.unmount()
-
-    vi.stubGlobal('fetch', page({ '/sponsors': [sponsor()] }))
-    render(<SponsorsPage />)
-
-    await screen.findByText('Northgate Manufacturing')
-    expect(screen.queryByText('/ OTHER WAYS TO HELP')).not.toBeInTheDocument()
   })
 
   /** The pitch has to stand up even before anybody has signed. */

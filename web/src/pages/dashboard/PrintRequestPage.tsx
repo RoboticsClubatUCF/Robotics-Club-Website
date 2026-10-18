@@ -178,12 +178,6 @@ function PrintRequestForm({
       <FormEyebrow>/ 3D PRINTING</FormEyebrow>
       <FormHeading>Ask for a print.</FormHeading>
 
-      <p className="text-dim mb-6 max-w-[42rem] text-sm leading-[1.7] text-pretty">
-        Slice filament prints yourself and an officer prints the file. Resin
-        prints an officer slices for you. Ask early — the club's projects are
-        printing too.
-      </p>
-
       {sent && (
         <p role="status" className="text-success mb-5 text-sm">
           Sent {sent}. It's in your list.
@@ -247,29 +241,13 @@ function Allowance({ allowance }: { allowance: ApiPrintAllowance | null }) {
         aria-valuemin={0}
         aria-valuemax={limitGrams}
         aria-label="Material used this semester"
-        className="bg-base-300 mb-3 h-1.5 w-full overflow-hidden rounded-[2px]"
+        className="bg-base-300 h-1.5 w-full overflow-hidden rounded-[2px]"
       >
         <div
           className={`h-full ${over ? 'bg-error' : 'bg-primary'}`}
           style={{ width: `${String(filled)}%` }}
         />
       </div>
-
-      <p className="text-dim text-[13px] leading-[1.6] text-pretty">
-        {over ? (
-          <>
-            You are{' '}
-            <strong className="text-base-content">{grams(-remainingGrams)}</strong> past
-            your allowance for the semester, and pay for those grams. It resets with the next one.
-          </>
-        ) : (
-          <>
-            <strong className="text-base-content">{grams(remainingGrams)}</strong> left
-            for your own prints. Resets each semester.
-          </>
-        )}{' '}
-        Prints for a club project do not come out of this.
-      </p>
     </FormPanel>
   )
 }
@@ -331,10 +309,6 @@ function Filament({
       </p>
       {trained ? (
         <>
-          <p className="text-dim mb-4 text-[13px] leading-[1.6] text-pretty">
-            Put your models on the plate, choose PLA or PETG and how it prints, and slice it. The
-            officer prints the file you sliced.
-          </p>
           <Link to="/dashboard/print/slicer" className={`${submitClass} inline-flex items-center justify-center`}>
             OPEN THE SLICER
           </Link>
@@ -449,6 +423,14 @@ function RequestForm({
 }) {
   const id = useId()
   const [state, setState] = useState<FormState>({ status: 'idle' })
+  const [quantityError, setQuantityError] = useState('')
+  const quantityInput = useRef<HTMLInputElement>(null)
+  const quantityMessage = (value: number) =>
+    value > MAX_QUANTITY
+      ? `For more than ${MAX_QUANTITY} copies, ask an officer first.`
+      : !Number.isInteger(value) || value < 1
+        ? `Enter a whole number from 1 to ${MAX_QUANTITY}.`
+        : ''
   // The file comes off the input rather than out of `new FormData(form)`, unlike every other form
   // here. The body is built by hand anyway so the request says exactly what it sends, and a file
   // input needs its `value` cleared explicitly — `form.reset()` alone leaves the filename sitting
@@ -459,6 +441,13 @@ function RequestForm({
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const form = event.currentTarget
+    const fields = new FormData(form)
+    const invalidQuantity = quantityMessage(Number(fields.get('quantity')))
+    setQuantityError(invalidQuantity)
+    if (invalidQuantity) {
+      quantityInput.current?.focus()
+      return
+    }
     const file = fileInput.current?.files?.[0]
 
     if (!file) {
@@ -477,7 +466,6 @@ function RequestForm({
       return
     }
 
-    const fields = new FormData(form)
     const body = new FormData()
     body.append('file', file)
     body.append('process', 'SLA')
@@ -509,9 +497,6 @@ function RequestForm({
         <p className="text-faint mb-2 font-mono text-[10px] font-medium tracking-[0.16em]">
           RESIN — AN OFFICER SLICES IT
         </p>
-        <p className="text-dim mb-5 text-[13px] leading-[1.6] text-pretty">
-          Fine detail and smooth faces, in {resin.label}. Slower, and worth it for small parts.
-        </p>
 
         <div className="mb-5">
           <label htmlFor={`${id}-file`} className={labelClass}>
@@ -538,24 +523,36 @@ function RequestForm({
           </label>
           <input
             id={`${id}-quantity`}
+            ref={quantityInput}
             name="quantity"
             type="number"
+            required
             min={1}
             max={MAX_QUANTITY}
             step={1}
             inputMode="numeric"
             defaultValue={1}
             disabled={sending}
+            aria-invalid={quantityError ? true : undefined}
+            aria-describedby={quantityError ? `${id}-quantity-error` : undefined}
+            onChange={(event) => {
+              setQuantityError(quantityMessage(event.currentTarget.valueAsNumber))
+            }}
+            onInvalid={(event) => {
+              event.preventDefault()
+              setQuantityError(quantityMessage(event.currentTarget.valueAsNumber))
+              event.currentTarget.focus()
+            }}
             className={`${fieldClass} text-sm`}
           />
-          <p className="text-faint mt-1.5 text-[12px] leading-[1.5]">
-            Up to {MAX_QUANTITY}. More than that, ask an officer first.
-          </p>
+          {quantityError && (
+            <p id={`${id}-quantity-error`} role="alert" className="text-error mt-1.5 text-[12px] leading-[1.5]">
+              {quantityError}
+            </p>
+          )}
         </div>
 
-        {/* On its own line: this is the field that decides whether the print
-            costs anybody anything, and its helper sentence is the one worth
-            having room for. */}
+        {/* The project decides whether this is a personal or club print. */}
         <div className="mb-5">
           <label htmlFor={`${id}-project`} className={labelClass}>
             WHAT IT IS FOR
@@ -574,11 +571,6 @@ function RequestForm({
               </option>
             ))}
           </select>
-          <p className="text-faint mt-1.5 text-[12px] leading-[1.5]">
-            {projects.length === 0
-              ? 'Join a project and it appears here.'
-              : 'A project print is not counted against your allowance.'}
-          </p>
         </div>
 
         <div className="mb-5">
@@ -602,16 +594,18 @@ function RequestForm({
           {sending ? 'SENDING…' : 'SEND THE REQUEST'}
         </button>
 
-        <p role="status" className="mt-3 min-h-5 text-[13px] leading-[1.5]">
-          {state.status === 'failed' && (
-            <span className="text-error">{state.message}</span>
-          )}
-          {state.status === 'sent' && (
-            <span className="text-success">
-              Sent. It's in your list.
-            </span>
-          )}
-        </p>
+        {(state.status === 'failed' || state.status === 'sent') && (
+          <p role="status" className="mt-3 text-[13px] leading-[1.5]">
+            {state.status === 'failed' && (
+              <span className="text-error">{state.message}</span>
+            )}
+            {state.status === 'sent' && (
+              <span className="text-success">
+                Sent. It's in your list.
+              </span>
+            )}
+          </p>
+        )}
 
         <Conduct />
       </form>
@@ -727,9 +721,11 @@ function MyRequests({
           </ul>
         ))}
 
-      <p role="status" className="text-error mt-2 min-h-4 text-[12px]">
-        {message}
-      </p>
+      {message && (
+        <p role="status" className="text-error mt-2 text-[12px]">
+          {message}
+        </p>
+      )}
 
       {asking?.act === 'edit' && (
         <ConfirmDialog

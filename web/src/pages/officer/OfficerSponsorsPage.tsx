@@ -10,6 +10,7 @@ import { SubNav } from '../../components/dashboard/SubNav'
 import { SubPage } from '../../components/dashboard/SubPage'
 import { SPONSORS_PAGES } from '../../lib/dashboard/subPages'
 import { ConfirmDialog } from '../../components/shared/ConfirmDialog'
+import { InfoTip } from '../../components/shared/InfoTip'
 import {
   FormEyebrow,
   FormHeading,
@@ -26,7 +27,6 @@ import {
   putJson,
 } from '../../lib/api/api'
 import type {
-  ApiInKindOffer,
   ApiManagedSponsor,
   ApiSponsorDesk,
   ApiTierOffer,
@@ -36,8 +36,7 @@ import { explainApiError } from '../../lib/api/apiErrors'
 import { ACCEPTED_IMAGE_TYPES, downscaleImage } from '../../lib/media/downscaleImage'
 import { duesLocked } from '../../lib/dues/dues'
 import { hits } from '../../lib/equipment/catalogue'
-import { moveItem } from '../../lib/projects/projectGallery'
-import { MAX_BENEFITS, MAX_IN_KIND, tierLabel } from '../../lib/sponsorship'
+import { MAX_BENEFITS, tierLabel } from '../../lib/sponsorship'
 import { linesFromText, linesToText } from '../../lib/textLines'
 import { imageSrc, isStoredUpload } from '../../lib/media/storedFiles'
 
@@ -49,9 +48,7 @@ import { imageSrc, isStoredUpload } from '../../lib/media/storedFiles'
  * `web/src/content/sponsorship.ts` with every amount spelled PLACEHOLDER, under a panel on
  * the public page admitting as much.
  *
- * Three sections because the public page has three, and in its order: who backs the club,
- * what backing it costs, and the ways to help that aren't money. An officer working here is
- * looking at the page they're writing, top to bottom.
+ * The sponsor list and tier sheet follow the order of the public page.
  *
  * Publishing a tier is writing it; unpublishing is deleting it. There's no draft state and
  * no `published` column, because "we haven't settled this yet" and "here is what it costs"
@@ -62,12 +59,11 @@ import { imageSrc, isStoredUpload } from '../../lib/media/storedFiles'
  * that has run out is a fact about a year, not a reason to erase the club's record of who
  * paid for the rover — so HIDE is the ordinary way off the list and the cross is for a typo.
  */
-type Part = 'sponsors' | 'tiers' | 'other'
+type Part = 'sponsors' | 'tiers'
 
 const EYEBROW: Record<Part, string> = {
   sponsors: '/ MANAGE · SPONSORS · LIST',
   tiers: '/ MANAGE · SPONSORS · TIERS',
-  other: '/ MANAGE · SPONSORS · OTHER HELP',
 }
 
 export function OfficerSponsorsPage({ part }: { part: Part }) {
@@ -100,8 +96,7 @@ const rowAction =
   'cursor-pointer px-2 font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50'
 
 /**
- * One read for the whole desk, shared by its three sub-pages: the sponsors, what each tier
- * costs with the fine print under it, and the help that isn't money.
+ * One read shared by the sponsor list and the tier sheet, including its fine print.
  */
 function Desk({ part }: { part: Part }) {
   const [desk, setDesk] = useState<ApiSponsorDesk | null>(null)
@@ -110,7 +105,7 @@ function Desk({ part }: { part: Part }) {
   /**
    * One read for the whole desk, matching the route: three fetches would be three loading
    * states for a screen that means nothing with any of them missing. Each section patches its
-   * own slice, so a save in one never redraws the other two out from under somebody.
+   * own slice, so a save in one never redraws the other out from under somebody.
    */
   useEffect(() => {
     const controller = new AbortController()
@@ -189,16 +184,6 @@ function Desk({ part }: { part: Part }) {
         </div>
       </SubPage>
 
-      <SubPage shown={part === 'other'}>
-        <div className="max-w-[46rem]">
-          <InKindList
-            rows={desk.inKind}
-            onChange={(inKind) => {
-              setDesk({ ...desk, inKind })
-            }}
-          />
-        </div>
-      </SubPage>
     </>
   )
 }
@@ -411,17 +396,6 @@ function SponsorList({
   return (
     <section>
       <p className={`${panelLabel} mb-4`}>/ SPONSORS</p>
-
-      <div className="border-rule bg-base-200 mb-4 border p-4">
-        <p className="text-dim text-[13px] leading-[1.6] text-pretty">
-          <strong className="text-base-content font-semibold">Hiding</strong> takes
-          a sponsor off the front page and off <code>/sponsors</code> and keeps the
-          row — which is what a sponsorship that has run out wants.{' '}
-          <strong className="text-base-content font-semibold">Deleting</strong> is
-          for a typo. The order on the public page is the tier, then the name;
-          there is nothing to drag.
-        </p>
-      </div>
 
       {sponsors.length > 0 && (
         <div className="mb-4">
@@ -691,11 +665,6 @@ function SponsorList({
           >
             ADD
           </button>
-          <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
-            {logo
-              ? 'The logo goes up with them.'
-              : 'The logo can wait — adding a sponsor opens the box for it.'}
-          </p>
         </div>
       </div>
 
@@ -777,7 +746,7 @@ const hint = (logo: DraftLogo | null): string => {
     return 'Ready — the picture was shrunk on the way. Nothing is sent until ADD.'
   }
 
-  return 'A transparent PNG sits best — the card behind it changes colour with the theme. Nothing is sent until ADD.'
+  return ''
 }
 
 /**
@@ -807,9 +776,15 @@ function LogoChoice({
 }) {
   return (
     <div>
-      <label className={labelClass} htmlFor={id}>
-        LOGO (OPTIONAL)
-      </label>
+      <div className="mb-1.5 flex items-center gap-1 [&>label]:mb-0">
+        <label className={labelClass} htmlFor={id}>
+          LOGO (OPTIONAL)
+        </label>
+        <InfoTip label="Logo (optional)">
+          A transparent PNG sits best — the card behind it changes colour with the theme.
+          Nothing is sent until ADD.
+        </InfoTip>
+      </div>
 
       <div className="flex flex-wrap items-start gap-3">
         <LogoWell src={logo === null ? null : draftLogoSrc(logo)} />
@@ -862,7 +837,9 @@ function LogoChoice({
         </div>
       </div>
 
-      <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">{hint(logo)}</p>
+      {hint(logo) && (
+        <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">{hint(logo)}</p>
+      )}
     </div>
   )
 }
@@ -925,9 +902,14 @@ function LogoPanel({
     <div className="border-rule bg-base-100 mt-2 border p-3">
       <div className="grid gap-3">
         <div>
-          <label className={labelClass} htmlFor={`${id}-file`}>
-            LOGO FROM YOUR COMPUTER
-          </label>
+          <div className="mb-1.5 flex items-center gap-1 [&>label]:mb-0">
+            <label className={labelClass} htmlFor={`${id}-file`}>
+              LOGO FROM YOUR COMPUTER
+            </label>
+            <InfoTip label="Logo from your computer">
+              A transparent PNG sits best — the card behind it changes colour with the theme.
+            </InfoTip>
+          </div>
           <input
             id={`${id}-file`}
             type="file"
@@ -943,11 +925,11 @@ function LogoPanel({
             }}
             className="file-input border-rule bg-base-200 w-full text-sm"
           />
-          <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
-            {busy
-              ? 'Saving…'
-              : 'A transparent PNG sits best — the card behind it changes colour with the theme.'}
-          </p>
+          {busy && (
+            <p role="status" className="text-faint mt-1.5 text-[11px] leading-[1.5]">
+              Saving…
+            </p>
+          )}
         </div>
 
         <div>
@@ -1029,15 +1011,6 @@ function TierSheet({
   return (
     <section>
       <p className={`${panelLabel} mb-4`}>/ WHAT A SPONSORSHIP COSTS</p>
-
-      <div className="border-rule bg-base-200 mb-4 max-w-[46rem] border p-4">
-        <p className="text-dim text-[13px] leading-[1.6] text-pretty">
-          A tier appears on <code>/sponsors</code> once it is saved here, and a
-          level nobody has priced is left off the sheet rather than shown with a
-          number nobody agreed to. Companies already in a tier are listed above
-          whatever this says.
-        </p>
-      </div>
 
       <div className="grid-fluid gap-4 [--col-min:24rem]">
         {tiers.map(({ tier, offer }) => (
@@ -1145,8 +1118,7 @@ function TierBlock({
               will otherwise assume it wants a number and leave out the half that makes it mean
               something. */}
           <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
-            Printed exactly as written — “$500+”, “In kind, by arrangement” and
-            “$2,500 a season” are all fine.
+            Printed exactly as written
           </p>
         </div>
 
@@ -1169,10 +1141,6 @@ function TierBlock({
               PUBLISH. The club's own sheet is an amount over a list of what you get, so most of
               these are blank, and a box that looks required is one somebody writes a sentence
               into to get past it. */}
-          <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
-            Most tiers leave this empty — the amount and the list below usually
-            say it.
-          </p>
         </div>
 
         <div>
@@ -1277,10 +1245,6 @@ function FinePrint({
           }}
           className="textarea border-rule bg-base-100 w-full text-[13px]"
         />
-        <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
-          Line breaks are kept. Emptying this box takes the fine print off the
-          page altogether, which is how it was before anybody wrote any.
-        </p>
 
         {/* Named for a screen reader, because the tier blocks above carry a SAVE of their own
             and a list of buttons that reads SAVE, SAVE, SAVE says nothing about which is
@@ -1298,254 +1262,5 @@ function FinePrint({
         <Status message={message} />
       </div>
     </section>
-  )
-}
-
-// ------------------------------------------------------- the other ways to help
-
-/**
- * The half of the pitch a price list can't carry: machine time, materials, an engineer for an
- * hour a month.
- *
- * Ordered by hand, because these aren't ranked by anything the database knows — which one to
- * lead with is whatever the club is short of this semester.
- */
-function InKindList({
-  rows,
-  onChange,
-}: {
-  rows: ApiInKindOffer[]
-  onChange: (next: ApiInKindOffer[]) => void
-}) {
-  const id = useId()
-  const { message, busy, setMessage, run } = useSectionStatus()
-
-  const [title, setTitle] = useState('')
-  const [blurb, setBlurb] = useState('')
-
-  const full = rows.length >= MAX_IN_KIND
-
-  /**
-   * The reorder is debounced, and it's the one debounce here that earns itself: the route takes
-   * the whole order, so it's idempotent and a lost intermediate press costs nothing, while four
-   * arrow presses in a row would otherwise be four writes.
-   */
-  const pending = useRef<number | null>(null)
-  useEffect(
-    () => () => {
-      if (pending.current !== null) window.clearTimeout(pending.current)
-    },
-    [],
-  )
-
-  const reorder = (next: ApiInKindOffer[]) => {
-    onChange(next)
-    setMessage('')
-
-    if (pending.current !== null) window.clearTimeout(pending.current)
-    pending.current = window.setTimeout(() => {
-      pending.current = null
-      patchJson<ApiInKindOffer[]>('/officer/sponsors/in-kind/order', {
-        ids: next.map((row) => row.id),
-      })
-        .then(onChange)
-        .catch((error: unknown) => {
-          setMessage(explainApiError(error))
-        })
-    }, 600)
-  }
-
-  const patch = (row: ApiInKindOffer, body: Record<string, unknown>) =>
-    run(async () => {
-      const updated = await patchJson<ApiInKindOffer>(
-        `/officer/sponsors/in-kind/${row.id}`,
-        body,
-      )
-      onChange(rows.map((one) => (one.id === row.id ? updated : one)))
-    })
-
-  const add = () =>
-    run(async () => {
-      const added = await postJson<ApiInKindOffer>('/officer/sponsors/in-kind', {
-        title: title.trim(),
-        blurb: blurb.trim(),
-      })
-      onChange([...rows, added])
-      setTitle('')
-      setBlurb('')
-    })
-
-  const remove = (row: ApiInKindOffer) =>
-    run(async () => {
-      await deleteJson(`/officer/sponsors/in-kind/${row.id}`)
-      onChange(rows.filter((one) => one.id !== row.id))
-    })
-
-  return (
-    <section>
-      <p className={`${panelLabel} mb-4`}>/ OTHER WAYS TO HELP</p>
-
-      <div className="border-rule bg-base-200 mb-4 border p-4">
-        <p className="text-dim text-[13px] leading-[1.6] text-pretty">
-          The things a sponsor can give that are not money. With none of these
-          the section is left off <code>/sponsors</code> altogether rather than
-          drawn empty — nothing is broken by that.
-        </p>
-      </div>
-
-      {rows.length > 0 && (
-        <ul className="space-y-2">
-          {rows.map((row, index) => (
-            <li key={row.id} className="border-rule bg-base-200 border p-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <input
-                  type="text"
-                  defaultValue={row.title}
-                  maxLength={80}
-                  aria-label={`Title of way ${index + 1}`}
-                  disabled={busy}
-                  onBlur={(event) => {
-                    const next = event.target.value.trim()
-                    if (next !== '' && next !== row.title) {
-                      void patch(row, { title: next })
-                    } else {
-                      event.target.value = row.title
-                    }
-                  }}
-                  className="input border-rule bg-base-100 h-9 min-h-0 min-w-0 flex-1 basis-40 text-[13px]"
-                />
-
-                <span className="flex shrink-0 items-center gap-1">
-                  <MoveButton
-                    label={`Move way ${index + 1} earlier`}
-                    glyph="‹"
-                    disabled={index === 0 || busy}
-                    onClick={() => {
-                      reorder(moveItem(rows, index, index - 1))
-                    }}
-                  />
-                  <MoveButton
-                    label={`Move way ${index + 1} later`}
-                    glyph="›"
-                    disabled={index === rows.length - 1 || busy}
-                    onClick={() => {
-                      reorder(moveItem(rows, index, index + 1))
-                    }}
-                  />
-                  <button
-                    type="button"
-                    aria-label={`Remove way ${index + 1}`}
-                    disabled={busy}
-                    onClick={() => void remove(row)}
-                    className="text-faint hover:text-error flex size-11 cursor-pointer items-center justify-center text-sm transition-colors duration-200 disabled:opacity-50 wide:size-8"
-                  >
-                    ✕
-                  </button>
-                </span>
-              </div>
-
-              <input
-                type="text"
-                defaultValue={row.blurb}
-                maxLength={300}
-                aria-label={`Description of way ${index + 1}`}
-                disabled={busy}
-                onBlur={(event) => {
-                  const next = event.target.value.trim()
-                  if (next !== '' && next !== row.blurb) {
-                    void patch(row, { blurb: next })
-                  } else {
-                    event.target.value = row.blurb
-                  }
-                }}
-                className="input border-rule bg-base-100 mt-2 h-9 min-h-0 w-full text-[13px]"
-              />
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <div className="mt-4 grid gap-3">
-        <div className="flex flex-wrap gap-3">
-          <div className="min-w-0 flex-1 basis-40">
-            <label className={labelClass} htmlFor={`${id}-title`}>
-              WHAT IT IS
-            </label>
-            <input
-              id={`${id}-title`}
-              type="text"
-              value={title}
-              maxLength={80}
-              placeholder="Machine time"
-              disabled={busy || full}
-              onChange={(event) => {
-                setTitle(event.target.value)
-              }}
-              className={fieldClass}
-            />
-          </div>
-
-          <div className="min-w-0 flex-1 basis-60">
-            <label className={labelClass} htmlFor={`${id}-blurb`}>
-              WHAT IT MEANS
-            </label>
-            <input
-              id={`${id}-blurb`}
-              type="text"
-              value={blurb}
-              maxLength={300}
-              disabled={busy || full}
-              onChange={(event) => {
-                setBlurb(event.target.value)
-              }}
-              className={fieldClass}
-            />
-          </div>
-        </div>
-
-        <div>
-          <button
-            type="button"
-            aria-label="Add a way to help"
-            disabled={busy || full || title.trim() === '' || blurb.trim() === ''}
-            onClick={() => void add()}
-            className={button}
-          >
-            ADD
-          </button>
-        </div>
-      </div>
-
-      <p className="text-faint mt-3 font-mono text-[10px] font-medium tracking-[0.14em]">
-        {rows.length} / {MAX_IN_KIND}
-        {full && ' — REMOVE ONE TO ADD ANOTHER'}
-      </p>
-
-      <Status message={message} />
-    </section>
-  )
-}
-
-function MoveButton({
-  label,
-  glyph,
-  disabled,
-  onClick,
-}: {
-  label: string
-  glyph: string
-  disabled: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      disabled={disabled}
-      onClick={onClick}
-      className="border-rule text-dim enabled:hover:border-primary enabled:hover:text-primary flex size-11 cursor-pointer items-center justify-center border text-sm leading-none transition-colors duration-200 disabled:cursor-default disabled:opacity-30 wide:size-8"
-    >
-      {glyph}
-    </button>
   )
 }

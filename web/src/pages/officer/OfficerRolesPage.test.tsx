@@ -778,9 +778,10 @@ describe('appointing a team lead', () => {
       await vi.advanceTimersByTimeAsync(0)
     })
 
-    // Both say it: the team select's placeholder option and the member
-    // picker's status line. Neither has anything to offer until a project is.
-    expect(teamPanel().getAllByText('Pick a project first')).toHaveLength(2)
+    // The disabled team select carries the placeholder; the member picker
+    // stays disabled without repeating the instruction underneath it.
+    expect(teamPanel().getAllByText('Pick a project first')).toHaveLength(1)
+    expect(teamPanel().getByLabelText('MEMBER')).toBeDisabled()
 
     await pickProject()
 
@@ -1012,17 +1013,12 @@ describe('OfficerRolesPage — the officer board', () => {
     expect(within(samRow).getByText(/No seat yet/)).toBeInTheDocument()
   })
 
-  /**
-   * A hand-given seat survives losing the Discord role and a synced one does
-   * not. Saying which is which is the difference between "why is the advisor
-   * still here" and a bug report.
-   */
-  it('marks a seat that was given by hand', async () => {
+  it('shows manually appointed officers without a source label', async () => {
     vi.stubGlobal('fetch', stubDesk())
     renderPage(context(), 'board')
     await screen.findByText('Dr Alina Petrov')
 
-    expect(seatPanel().getByText(/by hand/)).toBeInTheDocument()
+    expect(seatPanel().queryByText(/by hand/i)).not.toBeInTheDocument()
   })
 
   it('sends the person and the seat it was given', async () => {

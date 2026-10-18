@@ -39,6 +39,7 @@ export function MemberSearch({
   onPick,
   disabled,
   label = 'FIND A MEMBER',
+  hideLabel = false,
 }: {
   picked: ApiOfficerMember | null
   onPick: (member: ApiOfficerMember | null) => void
@@ -46,6 +47,7 @@ export function MemberSearch({
   /** Overridable because two desks ask for a person for different reasons, and
       "FIND A MEMBER" twice on one page says nothing about either. */
   label?: string
+  hideLabel?: boolean
 }) {
   const id = useId()
   const [query, setQuery] = useState('')
@@ -96,6 +98,14 @@ export function MemberSearch({
     }
   }, [term])
 
+  const statusText =
+    message ||
+    (searching
+      ? 'Searching…'
+      : term.length > 0 && term.length < 2
+        ? 'Two letters or more.'
+        : '')
+
   if (picked) {
     return (
       <div className="border-rule bg-base-100 flex items-center justify-between gap-4 border px-3 py-2.5">
@@ -127,7 +137,7 @@ export function MemberSearch({
           invalid HTML — the parser drops the inner one. React builds the DOM through the API rather
           than the parser, so a nested one happened to work; that is not a thing to rely on. Enter
           is swallowed below for the same reason. */}
-      <label htmlFor={id} className={labelClass}>
+      <label htmlFor={id} className={hideLabel ? 'sr-only' : labelClass}>
         {label}
       </label>
       <input
@@ -186,20 +196,14 @@ export function MemberSearch({
         </ul>
       )}
 
-      {/* One line, always rendered, carrying whichever of the three things is
-          true — so the region exists before it has anything to announce and
-          nothing below it moves when it does. */}
-      <p
-        role="status"
-        className={`mt-2 min-h-4 text-[12px] ${message ? 'text-error' : 'text-faint'}`}
-      >
-        {message ||
-          (searching
-            ? 'Searching…'
-            : term.length > 0 && term.length < 2
-              ? 'Two letters or more.'
-              : '')}
-      </p>
+      {statusText && (
+        <p
+          role="status"
+          className={`mt-2 text-[12px] ${message ? 'text-error' : 'text-faint'}`}
+        >
+          {statusText}
+        </p>
+      )}
     </div>
   )
 }

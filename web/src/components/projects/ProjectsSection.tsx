@@ -101,10 +101,6 @@ export function ProjectsSection() {
       <div className="mb-9">
         <FormEyebrow>/ THE PROJECTS</FormEyebrow>
         <FormHeading>What we're building.</FormHeading>
-        <p className="text-dim max-w-[34rem] text-sm leading-[1.7] text-pretty">
-          What the club is running this semester. Everything we have built
-          before is at the bottom of the page.
-        </p>
       </div>
 
       {term && (

@@ -227,6 +227,30 @@ describe('PrintRequestPage', () => {
     expect(screen.getByText('×4')).toBeInTheDocument()
   })
 
+  it('refuses more than 50 copies before uploading and accepts a corrected quantity', async () => {
+    const fetchStub = stubFetch(pageData({ '/print': request() }))
+    vi.stubGlobal('fetch', fetchStub)
+    renderPage()
+    await screen.findByText(/nothing yet/i)
+
+    const quantity = screen.getByLabelText(/how many/i)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    attach('bracket.stl')
+    fireEvent.change(quantity, { target: { value: '51' } })
+    send()
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/more than 50 copies.*ask an officer/i)
+    expect(quantity).toHaveAttribute('aria-invalid', 'true')
+    expect(fetchStub.mock.calls.some((call) => call[1]?.method === 'POST')).toBe(false)
+
+    fireEvent.change(quantity, { target: { value: '50' } })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    send()
+
+    await screen.findByText(/it's in your list/i)
+    expect(sentFields(fetchStub).quantity).toBe('50')
+  })
+
   /** One of a thing is what almost every request is, so "×1" on every row
       would be noise on all of them to make the rare one legible. */
   it('does not label a request for a single item', async () => {
@@ -492,7 +516,7 @@ describe('PrintRequestPage', () => {
  * counted against you for a project's.
  */
 describe('the material allowance', () => {
-  it('shows what is left, and says project prints do not count', async () => {
+  it('shows material usage without an explanatory paragraph', async () => {
     vi.stubGlobal(
       'fetch',
       stubFetch(
@@ -505,18 +529,15 @@ describe('the material allowance', () => {
     renderPage()
 
     expect(await screen.findByText(/320 g of 500 g used/i)).toBeInTheDocument()
-    // Exact: the "of 500 g used" line above contains other gram figures, and a
-    // loose match would pass on the wrong one.
-    expect(screen.getByText('180 g')).toBeInTheDocument()
-    expect(screen.getByText(/do not come out of this/i)).toBeInTheDocument()
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '320')
+    expect(screen.queryByText(/do not come out of this/i)).not.toBeInTheDocument()
   })
 
   /**
-   * An officer can knowingly print past somebody's allowance, so the balance
-   * is allowed to go negative — and the page has to say that plainly rather
-   * than rendering "-20 g left", which reads as a bug.
+   * Usage can exceed the allowance; the bar stays full while the numbers
+   * retain the actual usage.
    */
-  it('says how far over somebody is rather than printing a negative', async () => {
+  it('keeps the actual usage visible when over the allowance', async () => {
     vi.stubGlobal(
       'fetch',
       stubFetch(
@@ -528,9 +549,9 @@ describe('the material allowance', () => {
 
     renderPage()
 
-    expect(await screen.findByText(/past your allowance/i)).toBeInTheDocument()
-    // The overage as a positive number: "-20 g left" would read as a bug.
-    expect(screen.getByText('20 g')).toBeInTheDocument()
+    expect(await screen.findByText(/520 g of 500 g used/i)).toBeInTheDocument()
+    expect(screen.getByRole('progressbar').firstElementChild).toHaveStyle({ width: '100%' })
+    expect(screen.queryByText(/past your allowance/i)).not.toBeInTheDocument()
   })
 
   it('names the inappropriate-print rule before anything is uploaded', async () => {

@@ -40,7 +40,7 @@ import { explainApiError } from '../../lib/api/apiErrors'
 import { ACCEPTED_IMAGE_TYPES, downscaleImage } from '../../lib/media/downscaleImage'
 import { duesLocked } from '../../lib/dues/dues'
 import { MAX_HERO_SLIDES } from '../../lib/heroSlides'
-import { MAX_FAQS, MAX_FAQ_STEPS, MAX_PARTNERS } from '../../lib/frontPage'
+import { MAX_FAQS, MAX_PARTNERS } from '../../lib/frontPage'
 import { linesFromText, linesToText } from '../../lib/textLines'
 import { frameStyle, safeFraming, type Framing } from '../../lib/media/imageFraming'
 import { moveItem } from '../../lib/projects/projectGallery'
@@ -417,11 +417,11 @@ function Photos() {
                 }}
                 className="file-input border-rule bg-base-200 w-full text-sm"
               />
-              <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
-                {busy
-                  ? 'Adding…'
-                  : 'Choosing a photo adds it and opens the framing tool. Large pictures are shrunk in the browser first, so the front page stays quick to load.'}
-              </p>
+              {busy && (
+                <p role="status" className="text-faint mt-1.5 text-[11px] leading-[1.5]">
+                  Adding…
+                </p>
+              )}
             </div>
 
             <div>
@@ -448,9 +448,6 @@ function Photos() {
               >
                 ADD
               </button>
-              <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
-                Removing it here never deletes anything at the other end.
-              </p>
             </div>
           </div>
 
@@ -481,20 +478,6 @@ function Photos() {
               </p>
             </FormPanel>
           )}
-
-          <div className="mt-6">
-            <FormPanel>
-              <p className="mb-1.5 text-sm font-semibold">
-                These sit next to the headline on the front page.
-              </p>
-              <p className="text-dim text-sm leading-[1.7] text-pretty">
-                The first one is what most people see, because the slideshow
-                starts there and stops the moment anybody touches it. Captions
-                are optional, and they are also what a screen reader says about a
-                photo — worth writing for the ones that show something specific.
-              </p>
-            </FormPanel>
-          </div>
         </section>
       </div>
 
@@ -600,7 +583,7 @@ type FrontPageCopy = Pick<
 >
 
 /**
- * The headline, the paragraph under it, and the line above the partner cards.
+ * The headline and the paragraph under it.
  *
  * A form with a SAVE rather than the blur-saves the lists use, and the reason is the headline:
  * it's two boxes that read as one sentence, so a field that wrote itself would put half a
@@ -619,7 +602,6 @@ function Copy({
   const [headline, setHeadline] = useState(page.headline)
   const [headlineAccent, setHeadlineAccent] = useState(page.headlineAccent)
   const [lede, setLede] = useState(page.lede)
-  const [partnersIntro, setPartnersIntro] = useState(page.partnersIntro)
   const [note, setNote] = useState('')
 
   const save = () =>
@@ -628,7 +610,7 @@ function Copy({
         headline: headline.trim(),
         headlineAccent: headlineAccent.trim(),
         lede: lede.trim(),
-        partnersIntro: partnersIntro.trim(),
+        partnersIntro: page.partnersIntro,
       })
 
       onSaved(saved)
@@ -638,8 +620,7 @@ function Copy({
   const blank =
     headline.trim() === '' ||
     headlineAccent.trim() === '' ||
-    lede.trim() === '' ||
-    partnersIntro.trim() === ''
+    lede.trim() === ''
 
   return (
     <section>
@@ -685,12 +666,6 @@ function Copy({
                 tuned around, which is why it is two boxes rather than one with
                 a newline in it — and why the preview beside them is worth its
                 space. */}
-            <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
-              The headline breaks between these two, and the second one is set in
-              the club&rsquo;s gold. Keep both short — the type is enormous on a
-              wide screen, and a headline that wraps to four lines is a different
-              design rather than a smaller one.
-            </p>
           </div>
 
           <div>
@@ -709,28 +684,6 @@ function Copy({
               }}
               className={`${fieldClass} h-auto py-2.5 leading-[1.6]`}
             />
-          </div>
-
-          <div>
-            <label className={labelClass} htmlFor={`${id}-partners-intro`}>
-              THE LINE ABOVE THE PARTNER PROGRAMS
-            </label>
-            <textarea
-              id={`${id}-partners-intro`}
-              value={partnersIntro}
-              rows={3}
-              maxLength={300}
-              disabled={busy}
-              onChange={(event) => {
-                setPartnersIntro(event.target.value)
-                setNote('')
-              }}
-              className={`${fieldClass} h-auto py-2.5 leading-[1.6]`}
-            />
-            <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
-              It says who those programs are for, which is the whole reason that
-              section is on the page — club membership is UCF students only.
-            </p>
           </div>
 
           <div>
@@ -851,13 +804,6 @@ function Questions({
     <section>
       <p className={`${panelLabel} mb-4`}>/ QUESTIONS</p>
 
-      <div className="border-rule bg-base-200 mb-4 border p-4">
-        <p className="text-dim text-[13px] leading-[1.6] text-pretty">
-          Every box here saves when you click out of it. The arrows set the
-          order they are read in on the page.
-        </p>
-      </div>
-
       {faqs.length === 0 ? (
         <p className="bg-hatch border-rule text-faint flex h-28 w-full items-center justify-center border font-mono text-[11px] font-medium tracking-[0.14em]">
           [ NO QUESTIONS YET ]
@@ -951,10 +897,6 @@ function Questions({
               {/* The one field on a row that needs saying: an answer with steps
                   in it is numbered on the page, and an empty box is the ordinary
                   case. */}
-              <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
-                Up to {MAX_FAQ_STEPS}. The page numbers them under the answer;
-                leave this empty for an answer that is a paragraph.
-              </p>
             </li>
           ))}
         </ul>
@@ -1002,9 +944,6 @@ function Questions({
           >
             ADD
           </button>
-          <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
-            It lands at the bottom of the list. Steps can go on afterwards.
-          </p>
         </div>
       </div>
 
@@ -1146,15 +1085,6 @@ function Partners({
   return (
     <section>
       <p className={`${panelLabel} mb-4`}>/ PARTNER PROGRAMS</p>
-
-      <div className="border-rule bg-base-200 mb-4 border p-4">
-        <p className="text-dim text-[13px] leading-[1.6] text-pretty">
-          These are for the people the club cannot sign up — school teams,
-          mentors, students at other universities. Every box saves when you click
-          out of it. <strong className="text-base-content font-semibold">Empty
-          the list</strong> and the section comes off the front page altogether.
-        </p>
-      </div>
 
       {partners.length === 0 ? (
         <p className="bg-hatch border-rule text-faint flex h-28 w-full items-center justify-center border font-mono text-[11px] font-medium tracking-[0.14em]">
@@ -1402,10 +1332,6 @@ function Partners({
       >
         ADD
       </button>
-      <p className="text-faint mt-1.5 text-[11px] leading-[1.5]">
-        It lands with a line to fill in and a blurb to rewrite — both are on the
-        row, and both save when you click out of them.
-      </p>
 
       <p className="text-faint mt-3 font-mono text-[10px] font-medium tracking-[0.14em]">
         {partners.length} / {MAX_PARTNERS} PROGRAMS

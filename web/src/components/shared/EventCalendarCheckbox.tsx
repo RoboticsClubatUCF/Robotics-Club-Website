@@ -17,9 +17,6 @@ export function EventCalendarCheckbox({
       />
       <span className="text-dim text-[13px] leading-[1.5] text-pretty">
         Show on the main calendar
-        <span className="text-faint block text-[12px]">
-          Visible to everyone on the public website.
-        </span>
       </span>
     </label>
   )

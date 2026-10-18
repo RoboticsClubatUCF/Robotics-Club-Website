@@ -310,87 +310,81 @@ function Events({
           list, and stacked they're far enough apart that pressing it looks like nothing
           happened. `items-start` keeps the form at the top of its column. */}
       <div className="grid-fluid items-start gap-5 [--col-min:30rem]">
-        <FormPanel>
-          <p className={panelLabel}>ON THE CALENDAR</p>
+        {(events === null || failed || mineToEdit.length > 0) && (
+          <FormPanel>
+            <p className={panelLabel}>ON THE CALENDAR</p>
 
-          {events === null && !failed && (
-            <div aria-busy="true" className="space-y-2.5">
-              {Array.from({ length: 3 }, (_, index) => (
-                <div
-                  key={index}
-                  className="bg-base-300 h-12 w-full animate-pulse rounded-[2px]"
-                />
-              ))}
-            </div>
-          )}
+            {events === null && !failed && (
+              <div aria-busy="true" className="space-y-2.5">
+                {Array.from({ length: 3 }, (_, index) => (
+                  <div
+                    key={index}
+                    className="bg-base-300 h-12 w-full animate-pulse rounded-[2px]"
+                  />
+                ))}
+              </div>
+            )}
 
-          {failed && (
-            <p className="text-dim text-sm leading-[1.7]">
-              We couldn&rsquo;t load the calendar just now. Try again in a
-              moment.
-            </p>
-          )}
+            {failed && (
+              <p className="text-dim text-sm leading-[1.7]">
+                We couldn&rsquo;t load the calendar just now. Try again in a
+                moment.
+              </p>
+            )}
 
-          {events !== null && mineToEdit.length === 0 && (
-            <p className="text-dim text-sm leading-[1.7] text-pretty">
-              Nothing scheduled that you can change. A project&rsquo;s weekly
-              meeting is not listed here — it is set on the project&rsquo;s own
-              manage page and repeats on its own.
-            </p>
-          )}
-
-          {events !== null && mineToEdit.length > 0 && (
-            <ul className="border-rule divide-y divide-[var(--color-rule)] border-y">
-              {mineToEdit.map((event) => (
-                <li
-                  key={event.id}
-                  className="flex flex-wrap items-center gap-x-4 gap-y-1 py-3"
-                >
-                  <div className="min-w-0 flex-1 basis-56">
-                    <p className="truncate text-sm font-medium">
-                      {event.title}
-                      {!event.published && (
-                        <span className="text-faint ml-2 font-mono text-[9px] tracking-[0.14em]">
-                          NOT PUBLIC
-                        </span>
-                      )}
-                    </p>
-                    <p className="text-faint font-mono text-[10px] font-medium tracking-[0.1em]">
-                      {listedWhen(event)}
-                      {' · '}
-                      {whereItHangs(event)}
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    disabled={busy}
-                    className={smallButton}
-                    onClick={() => {
-                      setEditing(event)
-                      setMessage(null)
-                      setWhen(toDateInput(event.startsAt))
-                      setUntil(toEndDateInput(event))
-                    }}
+            {events !== null && mineToEdit.length > 0 && (
+              <ul className="border-rule divide-y divide-[var(--color-rule)] border-y">
+                {mineToEdit.map((event) => (
+                  <li
+                    key={event.id}
+                    className="flex flex-wrap items-center gap-x-4 gap-y-1 py-3"
                   >
-                    EDIT
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    className={dangerButton}
-                    onClick={() => {
-                      setDeleting(event)
-                    }}
-                  >
-                    DELETE
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </FormPanel>
+                    <div className="min-w-0 flex-1 basis-56">
+                      <p className="truncate text-sm font-medium">
+                        {event.title}
+                        {!event.published && (
+                          <span className="text-faint ml-2 font-mono text-[9px] tracking-[0.14em]">
+                            NOT PUBLIC
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-faint font-mono text-[10px] font-medium tracking-[0.1em]">
+                        {listedWhen(event)}
+                        {' · '}
+                        {whereItHangs(event)}
+                      </p>
+                    </div>
 
+                    <button
+                      type="button"
+                      disabled={busy}
+                      className={smallButton}
+                      onClick={() => {
+                        setEditing(event)
+                        setMessage(null)
+                        setWhen(toDateInput(event.startsAt))
+                        setUntil(toEndDateInput(event))
+                      }}
+                    >
+                      EDIT
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      className={dangerButton}
+                      onClick={() => {
+                        setDeleting(event)
+                      }}
+                    >
+                      DELETE
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </FormPanel>
+
+        )}
         <FormPanel>
           {/* `key` swaps the form wholesale between "new" and "editing", which is what lets
               the uncontrolled inputs pick up an event's values as their defaults. */}
@@ -675,17 +669,19 @@ function Events({
             </div>
           </form>
 
-          <p role="status" className="mt-4 min-h-4 text-[13px]">
-            {message && (
-              <span
-                className={
-                  message.tone === 'error' ? 'text-error' : 'text-success'
-                }
-              >
-                {message.text}
-              </span>
-            )}
-          </p>
+          {message && (
+            <p role="status" className="mt-4 text-[13px]">
+              {message && (
+                <span
+                  className={
+                    message.tone === 'error' ? 'text-error' : 'text-success'
+                  }
+                >
+                  {message.text}
+                </span>
+              )}
+            </p>
+          )}
         </FormPanel>
       </div>
 

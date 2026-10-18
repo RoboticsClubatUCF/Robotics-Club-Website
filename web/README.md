@@ -75,6 +75,26 @@ Tests sit beside the file they test.
 - Prices and dates come from `GET /api/dues/status`; `lib/dues/dues.ts` only
   formats them.
 
+## UI copy and optional help
+
+Keep labels and controls sufficient for the task. Omit obvious helper text,
+page-purpose introductions and implementation explanations. Useful optional
+detail belongs in [`InfoTip`](src/components/shared/InfoTip.tsx) beside the
+relevant label or heading; essential decision information and actionable errors
+stay visible when relevant. Do not restore removed source labels such as
+"By hand" on officer rows.
+
+Reuse the compact SVG and its hover, click/tap and keyboard interactions.
+Centre label rows with `items-center gap-1`, put `mb-1.5` on the row and reset
+the label's margin with `[&>label]:mb-0` so neighbouring fields stay aligned.
+Placeholders are neutral input hints with separate accessible labels.
+
+[`Status`](src/components/shared/Status.tsx) renders nothing without a message.
+Remove empty wrappers, reserved height and leftover margins when deleting copy;
+check the initial form as well as error and success states. Preserve deliberate
+section spacing, skeletons and slicer geometry. Check every caller when changing
+shared help or feedback, including conditional editors.
+
 ## Placeholder data
 
 The development seed invents officer terms, roster entries and sponsors under

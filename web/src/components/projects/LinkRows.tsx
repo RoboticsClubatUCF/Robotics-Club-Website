@@ -40,7 +40,7 @@ export function LinkRows({
               type="text"
               value={link.label}
               maxLength={60}
-              placeholder="Design doc"
+              placeholder="Resource title"
               disabled={disabled}
               onChange={(event) => {
                 setLink(index, { label: event.target.value })
@@ -57,7 +57,7 @@ export function LinkRows({
               type="url"
               value={link.url}
               maxLength={500}
-              placeholder="https://…"
+              placeholder="Resource URL"
               disabled={disabled}
               onChange={(event) => {
                 setLink(index, { url: event.target.value })

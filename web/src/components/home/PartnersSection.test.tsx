@@ -51,12 +51,12 @@ const ready = (over: Partial<ApiFrontPage> = {}): ApiState<ApiFrontPage> => ({
 })
 
 describe('PartnersSection', () => {
-  it("renders every program, under the club's own introduction", () => {
+  it('renders every program without an introductory paragraph', () => {
     render(<PartnersSection copy={ready()} />)
 
     expect(
-      screen.getByText('Club membership is UCF students only.'),
-    ).toBeInTheDocument()
+      screen.queryByText('Club membership is UCF students only.'),
+    ).not.toBeInTheDocument()
 
     for (const program of partners) {
       expect(
