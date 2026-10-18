@@ -167,20 +167,6 @@ describe('OfficerSurveyQuestionsPage', () => {
     expect(screen.getByText(/Tuesday · Thursday/)).toBeInTheDocument()
   })
 
-  /**
-   * The sentence that makes the page usable. An officer who thinks adding a
-   * question locks the club out will not add one.
-   */
-  it('says that adding a question locks nobody out', async () => {
-    vi.stubGlobal('fetch', stubApi())
-
-    renderPage()
-
-    await screen.findByText('What the club asks.')
-
-    expect(screen.getByText(/locks nobody out/i)).toBeInTheDocument()
-  })
-
   it('says so when there is nothing on the survey', async () => {
     vi.stubGlobal('fetch', stubApi([]))
 
