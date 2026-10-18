@@ -2,6 +2,7 @@ import { useId, useState } from 'react'
 import { FilterChips } from '../../components/shared/FilterChips'
 import { AgendaRow, AgendaSkeleton } from '../../components/shared/MonthCalendar'
 import { FormEyebrow, FormHeading, fieldClass } from '../../components/shared/formChrome'
+import { SubscribeCalendar } from '../../components/shared/SubscribeCalendar'
 import type { ApiEvent } from '../../lib/api/api'
 import { hits } from '../../lib/equipment/catalogue'
 import { useApi } from '../../lib/api/useApi'
@@ -93,6 +94,7 @@ export function EventsPage() {
         <p className="text-dim max-w-[36rem] text-sm leading-[1.7] text-pretty">
           Competitions, workshops, outreach, socials, and anything else the club has going on.
         </p>
+        <SubscribeCalendar feed={{ kind: 'club' }} className="mt-5" />
       </div>
 
       <div className="mb-9 space-y-2.5">

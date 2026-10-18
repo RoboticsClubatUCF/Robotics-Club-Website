@@ -12,6 +12,7 @@ import {
   measureClass,
 } from '../../components/shared/formChrome'
 import { LeaveProjectButton } from '../../components/shared/LeaveProjectButton'
+import { SubscribeCalendar } from '../../components/shared/SubscribeCalendar'
 import { getJson, postJson } from '../../lib/api/api'
 import type { ApiMyProject, ApiProjectTeamView, ApiTask } from '../../lib/api/api'
 import { meetingLine, meetingNote } from '../../lib/events/meetings'
@@ -129,6 +130,12 @@ function ProjectHome({ membership }: { membership: ApiMyProject }) {
       {note && (
         <p className="mb-6 text-[13px] leading-[1.6] text-pretty text-dim">{note}</p>
       )}
+
+      {/* The project's meetings and events, kept up to date in the member's own calendar. */}
+      <SubscribeCalendar
+        feed={{ kind: 'project', slug: project.slug }}
+        className="mb-8"
+      />
 
       {project.summary && (
         <p className="mb-8 text-sm leading-[1.7] text-pretty text-dim">

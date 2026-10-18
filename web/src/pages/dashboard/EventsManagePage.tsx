@@ -4,6 +4,7 @@ import type { DashboardContext } from '../../components/dashboard/DashboardLayou
 import { DuesLocked } from '../../components/dashboard/DuesLocked'
 import { ConfirmDialog } from '../../components/shared/ConfirmDialog'
 import { EventCalendarCheckbox } from '../../components/shared/EventCalendarCheckbox'
+import { SubscribeCalendar } from '../../components/shared/SubscribeCalendar'
 import {
   FormEyebrow,
   FormHeading,
@@ -304,6 +305,14 @@ function Events({
     <>
       <FormEyebrow>/ MANAGE · EVENTS</FormEyebrow>
       <FormHeading>Events</FormHeading>
+      {/* The board's working calendar: club-wide events not ticked onto the main one yet. */}
+      {officer && (
+        <SubscribeCalendar
+          feed={{ kind: 'officers' }}
+          label="SUBSCRIBE TO OFFICER CALENDAR"
+          className="mb-6"
+        />
+      )}
 
       {/* The calendar on one side and the form on the other, wherever there's room for both.
           Editing is what makes it worth the split: EDIT fills this form from a row in that

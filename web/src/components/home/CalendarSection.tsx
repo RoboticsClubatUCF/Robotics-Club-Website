@@ -4,6 +4,7 @@ import type { ApiEvent } from '../../lib/api/api'
 import { addMonths, startOfMonth } from '../../lib/events/months'
 import { useApi } from '../../lib/api/useApi'
 import { MonthCalendar } from '../shared/MonthCalendar'
+import { SubscribeCalendar } from '../shared/SubscribeCalendar'
 
 /**
  * The landing page's calendar: the shared `MonthCalendar` over the public events endpoint.
@@ -46,14 +47,20 @@ export function CalendarSection() {
         <h2 className="text-faint font-mono text-[13px] font-bold tracking-[0.2em]">
           / EVENTS
         </h2>
-        {/* A real `<Link>` since `/events` became a page: this grid shows one
-            month, and the listing is where the rest of the term is. */}
-        <Link
-          to="/events"
-          className="text-primary border-primary/40 hover:border-primary border-b pb-0.5 text-xs font-medium transition-colors duration-200"
-        >
-          All events
-        </Link>
+        <div className="flex items-center gap-4">
+          {/* A real `<Link>` since `/events` became a page: this grid shows one
+              month, and the listing is where the rest of the term is. */}
+          <Link
+            to="/events"
+            className="text-primary border-primary/40 hover:border-primary border-b pb-0.5 text-xs font-medium transition-colors duration-200"
+          >
+            All events
+          </Link>
+          {/* Last in the row, so its panel hangs from the gutter and stays on a phone's
+              screen. The short label because the heading says what it subscribes to, and
+              the long one doesn't fit beside "All events" on a phone. */}
+          <SubscribeCalendar feed={{ kind: 'club' }} label="SUBSCRIBE" align="right" />
+        </div>
       </div>
 
       <MonthCalendar
