@@ -149,6 +149,19 @@ describe('flattening', () => {
     await expect(resolvePreset(text, 'PRINTER', stock)).rejects.toThrow(message)
   })
 
+  it.each([
+    ['an index', '1', 'Cool Plate'],
+    ['a name', 'Textured PEI Plate', 'Textured PEI Plate'],
+    ['a name in another case', 'high temp plate', 'High Temp Plate'],
+    ['nothing', undefined, 'Textured PEI Plate'],
+    ['an empty string', '', 'Textured PEI Plate'],
+    ['the Default Plate index', '0', 'Textured PEI Plate'],
+    ['the Default Plate name', 'Default Plate', 'Textured PEI Plate'],
+    ['an unknown plate', 'Glass Plate', 'Textured PEI Plate'],
+  ])('reads the bed type from %s, never as Default Plate', (_case, value, bedType) => {
+    expect(printerInfo({ ...PRINTER, default_bed_type: value }).bedType).toBe(bedType)
+  })
+
   it('refuses a process made for another printer', async () => {
     const info = printerInfo({ ...PRINTER, inherits: 'Acme One 0.4 nozzle' })
     const process = JSON.stringify({ name: 'Fine', compatible_printers: ['Bambu Lab X1 Carbon 0.4 nozzle'] })

@@ -308,7 +308,7 @@ const META_KEYS = [
   'updated_time',
 ]
 
-/** `default_bed_type` on a printer is an index into this, Orca's own order. */
+/** `default_bed_type` on a printer is an index into this, Orca's own order, or one of the names. */
 const BED_TYPES = [
   'Default Plate',
   'Cool Plate',
@@ -318,6 +318,19 @@ const BED_TYPES = [
   'Textured Cool Plate',
   'Supertack Plate',
 ]
+
+/**
+ * The plate a process slices on. "Default Plate" means "the printer's own" and the CLI segfaults
+ * on it, so a printer that names none (most third-party ones) gets Textured PEI. Leaving the key
+ * out isn't an option either: Orca then assumes a Cool Plate and its bed temperatures.
+ */
+function bedTypeOf(value: unknown): string {
+  const raw = first(value ?? '').trim()
+  const bed = /^\d+$/.test(raw)
+    ? BED_TYPES[Number(raw)]
+    : BED_TYPES.find((name) => name.toLowerCase() === raw.toLowerCase())
+  return bed && bed !== BED_TYPES[0] ? bed : 'Textured PEI Plate'
+}
 
 export interface Parent {
   name: string
@@ -444,8 +457,7 @@ export function printerInfo(profile: Profile): PrinterInfo {
   if (strings(profile['nozzle_diameter']).length > 1) {
     throw new ProfileError(`It has more than one extruder. The slicer handles one.`)
   }
-  const bedIndex = Number(first(profile['default_bed_type']))
-  const bedType = BED_TYPES[bedIndex] ?? BED_TYPES[0]!
+  const bedType = bedTypeOf(profile['default_bed_type'])
 
   const area = points(profile['printable_area'])
   const xs = area.map(([x]) => x)
