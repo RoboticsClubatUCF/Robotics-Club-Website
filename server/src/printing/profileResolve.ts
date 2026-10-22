@@ -174,13 +174,14 @@ interface StockEntry {
 }
 
 /**
- * Parents renamed in Orca 2.4 without a `renamed_from` alias, so 2.4 can't find them by the old
- * name: Elegoo's generics went from `Elegoo Generic PLA` to `Generic PLA @Elegoo`. The club's
- * PLA and several of its tuned filaments were exported against the old names.
+ * Parents Orca 2.4 no longer ships: Elegoo's old generics (`Elegoo Generic PLA`), which the club's
+ * PLA and several of its tuned filaments were exported against. Desktop Orca finds no parent and
+ * falls back to the library's generic of the same type, so the worker does too, or a filament
+ * would slice with other temperatures and fans than the officer tuned it with.
  */
 const renamedParent = (name: string): string | null => {
   const generic = /^Elegoo Generic (.+)$/.exec(name)
-  return generic ? `Generic ${generic[1]!} @Elegoo` : null
+  return generic ? `Generic ${generic[1]!} @System` : null
 }
 
 /** The shared filament library other vendors' filaments inherit from. */

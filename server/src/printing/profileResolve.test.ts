@@ -69,6 +69,11 @@ beforeAll(async () => {
       ],
     ],
   })
+  await vendor('OrcaFilamentLibrary', {
+    filament_list: [
+      ['filament/Generic PETG @System.json', { name: 'Generic PETG @System', filament_type: ['PETG'] }],
+    ],
+  })
   stock = await StockProfiles.load(root)
 })
 
@@ -112,7 +117,7 @@ describe('flattening', () => {
     expect(a.text).toBe(b.text)
   })
 
-  it('finds a parent by a name it used to have, and Elegoo’s renamed generics', async () => {
+  it('finds a parent by a name it used to have, and Elegoo’s old generics as desktop Orca does', async () => {
     const byAlias = await resolvePreset(
       JSON.stringify({ name: 'Club PETG', inherits: 'Elegoo Old PETG' }),
       'FILAMENT',
@@ -125,8 +130,9 @@ describe('flattening', () => {
       stock,
     )
     expect(renamed.flattened.substitutions).toEqual([
-      { from: 'Elegoo Generic PETG', to: 'Generic PETG @Elegoo' },
+      { from: 'Elegoo Generic PETG', to: 'Generic PETG @System' },
     ])
+    expect(renamed.flattened.inherits[0]?.source).toBe('OrcaFilamentLibrary/filament/Generic PETG @System.json')
   })
 
   it('never keeps a script to run on the G-code', async () => {
