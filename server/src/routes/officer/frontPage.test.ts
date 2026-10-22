@@ -112,6 +112,10 @@ type WirePartner = {
   blurb: string
   href: string
   imageUrl: string | null
+  imageCropped: boolean
+  focalX: number
+  focalY: number
+  zoom: number
 }
 
 const page = async () =>
@@ -444,6 +448,48 @@ describe('the partner programs', () => {
     const body = (await cleared.json()) as WirePartner
     expect(body.imageUrl).toBeNull()
     expect(body.blurb).toBe('A program.')
+  })
+
+  it('keeps a crop until the artwork changes', async () => {
+    const added = await addPartner('cropped')
+    await write('PATCH', `/partners/${added.id}`, { imageUrl: `${LINK}a.png` })
+
+    const framed = await write('PATCH', `/partners/${added.id}`, {
+      imageCropped: true,
+      focalX: 20,
+      focalY: 70,
+      zoom: 2,
+    })
+    expect(framed.status).toBe(200)
+    expect(await framed.json()).toMatchObject({
+      imageCropped: true,
+      focalX: 20,
+      focalY: 70,
+      zoom: 2,
+    })
+
+    // An edit about the words leaves the crop alone, and so does the same link again.
+    await write('PATCH', `/partners/${added.id}`, { blurb: 'Still a program.' })
+    const same = await write('PATCH', `/partners/${added.id}`, {
+      imageUrl: `${LINK}a.png`,
+    })
+    expect(((await same.json()) as WirePartner).imageCropped).toBe(true)
+
+    const replaced = await write('PATCH', `/partners/${added.id}`, {
+      imageUrl: `${LINK}b.png`,
+    })
+    expect(await replaced.json()).toMatchObject({
+      imageCropped: false,
+      focalX: 50,
+      focalY: 50,
+      zoom: 1,
+    })
+  })
+
+  it('refuses a zoom past the framer', async () => {
+    const added = await addPartner('zoomed')
+    const response = await write('PATCH', `/partners/${added.id}`, { zoom: 9 })
+    expect(response.status).toBe(400)
   })
 
   it('refuses once the section is full', async () => {

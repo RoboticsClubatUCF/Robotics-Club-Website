@@ -1892,6 +1892,14 @@ model PartnerProgram {
   /// hatch well, which is the state both of these are in.
   imageUrl String? @map("image_url")
 
+  /// Off by default: the artwork is usually a wordmark, and a logo shows whole. Once an
+  /// officer crops it, the picture fills the card's 5:2 well using the framing below,
+  /// the same metadata `HeroSlide` carries. A new image clears both.
+  imageCropped Boolean @default(false) @map("image_cropped")
+  focalX       Float   @default(50) @map("focal_x")
+  focalY       Float   @default(50) @map("focal_y")
+  zoom         Float   @default(1)
+
   /// Position on the page. Same shape and same reasoning as `Faq.sortOrder`.
   sortOrder Int @default(0) @map("sort_order")
 

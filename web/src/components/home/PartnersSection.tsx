@@ -1,5 +1,6 @@
 import type { ApiFrontPage } from '../../lib/api/api'
 import type { ApiState } from '../../lib/api/useApi'
+import { frameStyle } from '../../lib/media/imageFraming'
 import { imageSrc } from '../../lib/media/storedFiles'
 
 /**
@@ -28,12 +29,13 @@ import { imageSrc } from '../../lib/media/storedFiles'
 const gridClass = 'bg-rule border-rule grid gap-px border wide:grid-cols-2'
 
 /**
- * A fixed height whether or not there's artwork in it, the same rule the sponsor logos follow: a
- * partner who sends a wordmark must not make their card taller than the one beside it. Taller than
- * the sponsor strip's well because these cards are the subject of their section.
+ * One shape whether or not there's artwork in it, the same rule the sponsor logos follow: a
+ * partner who sends a wordmark must not make their card taller than the one beside it. A ratio
+ * rather than a height so a cropped picture shows exactly what the officer framed — the desk's
+ * framer previews at the same 5:2.
  */
 const wellClass =
-  'border-rule flex h-40 shrink-0 items-center justify-center border-b p-6'
+  'border-rule relative flex aspect-[5/2] shrink-0 items-center justify-center overflow-hidden border-b'
 
 export function PartnersSection({ copy }: { copy: ApiState<ApiFrontPage> }) {
   const programs = copy.status === 'ready' ? copy.data.partners : []
@@ -69,9 +71,17 @@ export function PartnersSection({ copy }: { copy: ApiState<ApiFrontPage> }) {
               <div
                 className={`${wellClass} ${
                   program.imageUrl ? 'bg-base-200' : 'bg-hatch'
-                }`}
+                } ${program.imageUrl && program.imageCropped ? '' : 'p-6'}`}
               >
-                {program.imageUrl ? (
+                {program.imageUrl && program.imageCropped ? (
+                  /* Cropped: fills the well the way the officer framed it. */
+                  <img
+                    src={imageSrc(program.imageUrl)}
+                    alt=""
+                    style={frameStyle(program)}
+                    className="absolute inset-0 h-full w-full"
+                  />
+                ) : program.imageUrl ? (
                   /* Decorative: the name is printed directly below, so announcing the artwork too
                      reads the program out twice. `object-contain` rather than `cover` because
                      what lands here is most likely a wordmark, and a cropped logo looks like a

@@ -26,8 +26,8 @@ import {
  * Nothing is written until the confirming press: panning is continuous, so saving as it moved would
  * be a request per frame of a drag.
  *
- * In `shared/` because three places use it — the project editor, the draft gallery on the create
- * page, and the profile photo.
+ * In `shared/` because the project editor, the create page, the profile photo, the about timeline
+ * and the front page desk all use it.
  */
 export function ImageFramer({
   url,
@@ -41,9 +41,10 @@ export function ImageFramer({
   url: string
   initial: Framing
   busy: boolean
-  /** The shape this picture is shown in. `wide` is the gallery's 16:10, and
-      `square` is the avatar — see `Avatar.tsx` for why that one is square. */
-  frame?: 'wide' | 'square'
+  /** The shape this picture is shown in. `wide` is the gallery's 16:10,
+      `square` is the avatar — see `Avatar.tsx` for why that one is square —
+      and `banner` is a partner card's 5:2 artwork well. */
+  frame?: 'wide' | 'square' | 'banner'
   /**
    * The confirming button's words.
    *
@@ -125,7 +126,9 @@ export function ImageFramer({
           // height of the whole page.
           shape === 'square'
             ? 'aspect-square max-w-[18rem]'
-            : 'aspect-[16/10]'
+            : shape === 'banner'
+              ? 'aspect-[5/2]'
+              : 'aspect-[16/10]'
         } ${dragFrom ? 'cursor-grabbing' : 'cursor-grab'}`}
       >
         <img

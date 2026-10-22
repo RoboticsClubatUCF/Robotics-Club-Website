@@ -994,6 +994,8 @@ function Partners({
   const [name, setName] = useState('')
   const [href, setHref] = useState('')
   const [doomed, setDoomed] = useState<ApiPartnerProgram | null>(null)
+  /** Which program's crop panel is open, if any. One at a time. */
+  const [cropping, setCropping] = useState<string | null>(null)
 
   const full = partners.length >= MAX_PARTNERS
 
@@ -1051,6 +1053,8 @@ function Partners({
         body,
       )
       onChange(partners.map((row) => (row.id === program.id ? saved : row)))
+      // Only the crop panel's own saves close it, so a blur elsewhere can't.
+      if ('imageCropped' in body) setCropping(null)
     })
 
   const upload = (program: ApiPartnerProgram, chosen: File) =>
@@ -1065,6 +1069,7 @@ function Partners({
         body,
       )
       onChange(partners.map((row) => (row.id === program.id ? saved : row)))
+      setCropping(null)
     })
 
   const dropImage = (program: ApiPartnerProgram) =>
@@ -1073,6 +1078,7 @@ function Partners({
         `/officer/front-page/partners/${program.id}/image`,
       )
       onChange(partners.map((row) => (row.id === program.id ? saved : row)))
+      setCropping(null)
     })
 
   const remove = (program: ApiPartnerProgram) =>
@@ -1095,19 +1101,27 @@ function Partners({
           {partners.map((program, index) => (
             <li key={program.id} className="border-rule bg-base-200 border p-2">
               <div className="flex flex-wrap items-center gap-2">
-                {/* The same well the public card draws, `object-contain` and
-                    all: what lands here is usually a wordmark, and a logo
-                    cropped to fill looks like a mistake in a way a letterboxed
-                    one does not. */}
+                {/* The same 5:2 well the public card draws: whole and
+                    letterboxed until somebody crops it, since what lands here
+                    is usually a wordmark. */}
                 <span
-                  className={`border-rule flex h-12 w-20 shrink-0 items-center justify-center border p-1 ${
+                  className={`border-rule relative flex aspect-[5/2] w-24 shrink-0 items-center justify-center overflow-hidden border ${
                     program.imageUrl === null ? 'bg-hatch' : 'bg-base-100'
-                  }`}
+                  } ${program.imageCropped ? '' : 'p-1'}`}
                 >
                   {program.imageUrl === null ? (
                     <span className="text-faint font-mono text-[8px] font-medium tracking-[0.14em]">
                       [ IMAGE ]
                     </span>
+                  ) : program.imageCropped ? (
+                    <img
+                      src={imageSrc(program.imageUrl)}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      style={frameStyle(program)}
+                      className="absolute inset-0 h-full w-full"
+                    />
                   ) : (
                     <img
                       src={imageSrc(program.imageUrl)}
@@ -1137,6 +1151,24 @@ function Partners({
                 />
 
                 <span className="flex shrink-0 items-center gap-1">
+                  {program.imageUrl !== null && (
+                    <button
+                      type="button"
+                      aria-label={`Crop the artwork for program ${String(index + 1)}`}
+                      aria-expanded={cropping === program.id}
+                      disabled={busy}
+                      onClick={() => {
+                        setCropping(cropping === program.id ? null : program.id)
+                      }}
+                      className={`flex min-h-11 cursor-pointer items-center px-2 font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50 wide:min-h-8 ${
+                        cropping === program.id
+                          ? 'text-primary'
+                          : 'text-faint hover:text-primary'
+                      }`}
+                    >
+                      CROP
+                    </button>
+                  )}
                   <MoveButton
                     label={`Move program ${String(index + 1)} earlier`}
                     glyph="‹"
@@ -1166,6 +1198,21 @@ function Partners({
                   </button>
                 </span>
               </div>
+
+              {cropping === program.id && program.imageUrl !== null && (
+                <ImageFramer
+                  url={program.imageUrl}
+                  initial={safeFraming(program)}
+                  busy={busy}
+                  frame="banner"
+                  onCancel={() => {
+                    setCropping(null)
+                  }}
+                  onSave={(next) =>
+                    void patch(program, { ...next, imageCropped: true })
+                  }
+                />
+              )}
 
               <div className="mt-2 grid gap-2 wide:grid-cols-2">
                 <input
@@ -1269,6 +1316,17 @@ function Partners({
                     className="file-input border-rule bg-base-100 h-9 w-full text-[12px]"
                   />
                 </div>
+
+                {program.imageCropped && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void patch(program, { imageCropped: false })}
+                    className={button}
+                  >
+                    SHOW IT WHOLE
+                  </button>
+                )}
 
                 {program.imageUrl !== null && (
                   <button

@@ -25,6 +25,10 @@ const partners: ApiPartnerProgram[] = [
     href: 'https://www.vexrobotics.com/',
     linkLabel: 'Visit VEX Robotics',
     imageUrl: null,
+    imageCropped: false,
+    focalX: 50,
+    focalY: 50,
+    zoom: 1,
   },
   {
     id: 'first',
@@ -34,6 +38,10 @@ const partners: ApiPartnerProgram[] = [
     href: 'https://www.firstinspires.org/',
     linkLabel: 'Visit FIRST',
     imageUrl: '/api/files/abc',
+    imageCropped: false,
+    focalX: 50,
+    focalY: 50,
+    zoom: 1,
   },
 ]
 
@@ -99,6 +107,27 @@ describe('PartnersSection', () => {
     render(<PartnersSection copy={ready()} />)
 
     expect(screen.getAllByText('[ IMAGE ]')).toHaveLength(1)
+  })
+
+  /** A logo shows whole until an officer crops it; a crop fills the well. */
+  it('letterboxes artwork until it is cropped', () => {
+    const { container, rerender } = render(<PartnersSection copy={ready()} />)
+    const art = () => container.querySelector('img')!
+
+    expect(art()).toHaveClass('object-contain')
+
+    rerender(
+      <PartnersSection
+        copy={ready({
+          partners: [
+            { ...partners[1]!, imageCropped: true, focalX: 20, focalY: 80, zoom: 2 },
+          ],
+        })}
+      />,
+    )
+    expect(art()).not.toHaveClass('object-contain')
+    expect(art().style.objectPosition).toBe('20% 80%')
+    expect(art().style.transform).toBe('scale(2)')
   })
 
   /**

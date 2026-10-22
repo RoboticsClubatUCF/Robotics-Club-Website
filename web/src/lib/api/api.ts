@@ -308,6 +308,11 @@ export type ApiPartnerProgram = {
   href: string
   linkLabel: string
   imageUrl: string | null
+  /** False shows the artwork whole; true fills the well using the framing. */
+  imageCropped: boolean
+  focalX: number
+  focalY: number
+  zoom: number
 }
 
 /**

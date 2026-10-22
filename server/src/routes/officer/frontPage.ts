@@ -11,6 +11,7 @@ import { rateLimit } from '../../core/rateLimit.js'
 import type { Prisma } from '../../generated/prisma/client.js'
 import { validate, webUrl } from '../../core/validate.js'
 import { type AuthEnv, originGuard, requireAuth } from '../../auth/session.js'
+import { framingFields } from '../projects/projectManage.js'
 
 /**
  * The landing page's words, written by officers.
@@ -91,7 +92,14 @@ export const partnerSelect = {
   href: true,
   linkLabel: true,
   imageUrl: true,
+  imageCropped: true,
+  focalX: true,
+  focalY: true,
+  zoom: true,
 } as const
+
+/** What a fresh picture starts with: shown whole, framing back to centre. */
+const UNCROPPED = { imageCropped: false, focalX: 50, focalY: 50, zoom: 1 } as const
 
 /** The copy, from the one row there is. */
 export const frontPageCopySelect = {
@@ -168,7 +176,11 @@ const editFaq = z.object({
   steps: z.array(z.string().trim().min(1).max(200)).max(MAX_FAQ_STEPS).optional(),
 })
 
-const editPartner = z.object(partnerFields).partial()
+/** Framing comes in on the edit only: a program has no picture to crop when it is added. */
+const editPartner = z
+  .object(partnerFields)
+  .partial()
+  .extend({ ...framingFields, imageCropped: z.boolean().optional() })
 
 /** Refuses once a list is full, and says the number rather than "too many". */
 async function assertRoom(
@@ -443,7 +455,9 @@ frontPage.patch(
       where: { id: partner.id },
       data: {
         ...rest,
-        ...(imageUrl === undefined ? {} : { imageUrl: imageUrl ?? null }),
+        ...(imageUrl === undefined || imageUrl === partner.imageUrl
+          ? {}
+          : { imageUrl: imageUrl ?? null, ...UNCROPPED }),
       },
       select: partnerSelect,
     })
@@ -525,7 +539,7 @@ frontPage.post(
 
     const updated = await prisma.partnerProgram.update({
       where: { id: partner.id },
-      data: { imageUrl: url },
+      data: { imageUrl: url, ...UNCROPPED },
       select: partnerSelect,
     })
 
@@ -550,7 +564,7 @@ frontPage.delete(
 
     const updated = await prisma.partnerProgram.update({
       where: { id: partner.id },
-      data: { imageUrl: null },
+      data: { imageUrl: null, ...UNCROPPED },
       select: partnerSelect,
     })
 

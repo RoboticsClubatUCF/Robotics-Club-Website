@@ -123,6 +123,10 @@ const PROGRAM: ApiPartnerProgram = {
   href: 'https://www.vexrobotics.com/',
   linkLabel: 'Visit VEX Robotics',
   imageUrl: null,
+  imageCropped: false,
+  focalX: 50,
+  focalY: 50,
+  zoom: 1,
 }
 
 const PAGE: ApiFrontPage = {
@@ -463,6 +467,38 @@ describe('OfficerFrontPagePage', () => {
     expect(
       screen.queryByRole('button', { name: 'TAKE THE ARTWORK OFF' }),
     ).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /crop/i })).not.toBeInTheDocument()
+  })
+
+  it('offers a crop only once there is artwork, and saves it as a crop', async () => {
+    const withArt = { ...PROGRAM, imageUrl: '/api/files/logo' }
+    const stub = stubApi(undefined, undefined, { ...PAGE, partners: [withArt] })
+    vi.stubGlobal('fetch', stub)
+
+    renderPage(context(), 'partners')
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Crop the artwork for program 1' }),
+    )
+    expect(
+      screen.getByRole('application', { name: /drag to choose/i }),
+    ).toHaveClass('aspect-[5/2]')
+
+    fireEvent.click(screen.getByRole('button', { name: 'DONE' }))
+
+    await waitFor(() => {
+      expect(callsOf(stub, 'PATCH')).toHaveLength(1)
+    })
+    expect(bodyOf(callsOf(stub, 'PATCH')[0]![1])).toEqual({
+      focalX: 50,
+      focalY: 50,
+      zoom: 1,
+      imageCropped: true,
+    })
+    await waitFor(() => {
+      expect(screen.queryByRole('application')).not.toBeInTheDocument()
+    })
+    expect(screen.getByRole('button', { name: 'SHOW IT WHOLE' })).toBeInTheDocument()
   })
 
   it('is closed to anybody who is not an officer', () => {
