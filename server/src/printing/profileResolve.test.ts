@@ -168,6 +168,17 @@ describe('flattening', () => {
     expect(printerInfo({ ...PRINTER, default_bed_type: value }).bedType).toBe(bedType)
   })
 
+  it('refuses a filament made for another printer, and takes one made for it', async () => {
+    const info = printerInfo({ ...PRINTER, inherits: 'Acme One 0.4 nozzle' })
+    const filament = (printers: string[]) =>
+      JSON.stringify({ name: 'Silk', inherits: 'Generic PLA @Acme', compatible_printers: printers })
+    await expect(
+      resolvePreset(filament(['Bambu Lab X1 Carbon 0.4 nozzle']), 'FILAMENT', stock, { name: 'Club One', info }),
+    ).rejects.toThrow(/made for Bambu Lab X1 Carbon/)
+    const fits = await resolvePreset(filament(['Acme One 0.4 nozzle']), 'FILAMENT', stock, { name: 'Club One', info })
+    expect(fits.kind).toBe('FILAMENT')
+  })
+
   it('refuses a process made for another printer', async () => {
     const info = printerInfo({ ...PRINTER, inherits: 'Acme One 0.4 nozzle' })
     const process = JSON.stringify({ name: 'Fine', compatible_printers: ['Bambu Lab X1 Carbon 0.4 nozzle'] })

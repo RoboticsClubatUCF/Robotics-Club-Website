@@ -22,7 +22,8 @@ import { NOUN, checking } from '../../lib/slicer/profileDesk'
  *
  * An officer uploads what desktop Orca exports and the slicer worker reads each preset and slices
  * a test cube with it before members can pick it, so a new row says CHECKING for a few seconds
- * and the page keeps asking until it's done. Order here is the order in the workspace, and the
+ * and the page keeps asking until it's done. Processes and filaments belong to a printer, since
+ * the same spool is tuned differently on each. Order here is the order in the workspace, and the
  * first of each is what a new plate starts with.
  */
 
@@ -32,10 +33,14 @@ const POLL_EVERY = 2_000
 type Load = { status: 'loading' } | { status: 'failed' } | { status: 'ready'; desk: ApiSlicerDesk }
 
 type Dialog =
-  | { kind: 'add'; printer?: ApiDeskProfile }
+  | { kind: 'add'; printer?: ApiDeskProfile; only?: 'PROCESS' | 'FILAMENT' }
   | { kind: 'replace'; profile: ApiDeskProfile }
   | { kind: 'delete'; profile: ApiDeskProfile }
   | { kind: 'hide'; profile: ApiDeskProfile }
+
+/** "process", "2 processes", or null for none. */
+const count = (n: number, one: string, many: string) =>
+  n === 0 ? null : n === 1 ? one : `${String(n)} ${many}`
 
 function explain(error: unknown): string {
   if (error instanceof ApiError) {
@@ -116,23 +121,38 @@ export function OfficerSlicerProfilesPage() {
 
   const desk = load.status === 'ready' ? load.desk : null
 
-  /** The list a profile is ordered within: printers, filaments, or one printer's processes. */
+  /** The list a profile is ordered within: the printers, or one printer's processes or filaments. */
   const siblings = (profile: ApiDeskProfile): ApiDeskProfile[] => {
     if (!desk) return []
     if (profile.kind === 'PRINTER') return desk.printers
-    if (profile.kind === 'FILAMENT') return desk.filaments
-    return desk.printers.find((printer) => printer.processes.some((p) => p.id === profile.id))?.processes ?? []
+    const list = (printer: ApiSlicerDesk['printers'][number]) =>
+      profile.kind === 'PROCESS' ? printer.processes : printer.filaments
+    const owner = desk.printers.find((printer) => list(printer).some((p) => p.id === profile.id))
+    return owner ? list(owner) : []
+  }
+
+  /** "PLA on CC1" for a process or filament, since two printers can each have a PLA. */
+  const called = (profile: ApiDeskProfile): string => {
+    const owner = desk?.printers.find((printer) =>
+      [...printer.processes, ...printer.filaments].some((p) => p.id === profile.id),
+    )
+    return owner ? `${profile.label} on ${owner.label}` : profile.label
+  }
+  /** "the PLA filament on CC1", for a dialog's title. */
+  const named = (profile: ApiDeskProfile): string => {
+    const owner = called(profile).slice(profile.label.length)
+    return `the ${profile.label} ${NOUN[profile.kind]}${owner}`
   }
 
   const setOffered = (profile: ApiDeskProfile, offered: boolean) =>
-    write(`Couldn't ${offered ? 'offer' : 'hide'} ${profile.label}`, () =>
+    write(`Couldn't ${offered ? 'offer' : 'hide'} ${called(profile)}`, () =>
       patchJson<ApiSlicerDesk>(`/officer/slicer-profiles/${profile.id}`, { offered }),
     )
 
   const actions: ProfileActions = {
     busy,
     onSave: (profile, change) =>
-      write(`Couldn't save ${profile.label}`, () =>
+      write(`Couldn't save ${called(profile)}`, () =>
         patchJson<ApiSlicerDesk>(`/officer/slicer-profiles/${profile.id}`, change),
       ),
     onToggle: (profile) => {
@@ -152,7 +172,7 @@ export function OfficerSlicerProfilesPage() {
       const to = from + by
       if (from < 0 || to < 0 || to >= ids.length) return Promise.resolve(false)
       ;[ids[from], ids[to]] = [ids[to]!, ids[from]!]
-      return write(`Couldn't move ${profile.label}`, () =>
+      return write(`Couldn't move ${called(profile)}`, () =>
         patchJson<ApiSlicerDesk>('/officer/slicer-profiles/order', { ids }),
       )
     },
@@ -162,8 +182,12 @@ export function OfficerSlicerProfilesPage() {
   const hiding = dialog?.kind === 'hide' ? dialog.profile : null
   const draftsLine = (drafts: number) =>
     `${drafts === 1 ? '1 draft uses' : `${String(drafts)} drafts use`} it.`
-  const deletingProcesses =
-    deleting?.kind === 'PRINTER' ? (desk?.printers.find((p) => p.id === deleting.id)?.processes.length ?? 0) : 0
+  const deletingPrinter = deleting?.kind === 'PRINTER' ? desk?.printers.find((p) => p.id === deleting.id) : undefined
+  const goesWith = [
+    count(deletingPrinter?.processes.length ?? 0, 'process', 'processes'),
+    count(deletingPrinter?.filaments.length ?? 0, 'filament', 'filaments'),
+  ].filter(Boolean)
+  const goes = (deletingPrinter?.processes.length ?? 0) + (deletingPrinter?.filaments.length ?? 0) === 1 ? 'goes' : 'go'
 
   return (
     <>
@@ -232,92 +256,50 @@ export function OfficerSlicerProfilesPage() {
       )}
 
       {desk && (
-        <div className="grid-fluid gap-5 [--col-min:30rem]">
-          <section aria-labelledby="printers-heading">
-            <h2 id="printers-heading" className="text-faint mb-2 font-mono text-[11px] font-medium tracking-[0.16em]">
-              PRINTERS
-            </h2>
-            <FormPanel>
-              {desk.printers.length === 0 ? (
+        <section aria-labelledby="printers-heading">
+          <h2 id="printers-heading" className="text-faint mb-2 font-mono text-[11px] font-medium tracking-[0.16em]">
+            PRINTERS
+          </h2>
+          {desk.printers.length === 0 ? (
+            <div className={measureClass}>
+              <FormPanel>
                 <p className="text-dim text-sm leading-[1.6]">
-                  No printers yet. Add a printer bundle (.orca_printer) with its processes.
+                  No printers yet. Add a printer bundle (.orca_printer) with its processes and filaments.
                 </p>
-              ) : (
-                <div className="divide-rule divide-y">
-                  {desk.printers.map((printer, index) => (
-                    <ProfileRow
-                      key={printer.id}
-                      profile={printer}
-                      desk={desk}
-                      first={index === 0}
-                      last={index === desk.printers.length - 1}
-                      actions={actions}
-                    >
-                      <div className="border-rule mt-4 border-l-2 pl-4">
-                        <p className="text-faint mb-1 font-mono text-[10px] font-medium tracking-[0.16em]">
-                          PROCESSES
-                        </p>
-                        {printer.processes.length === 0 ? (
-                          <p className="text-dim text-[12.5px] leading-[1.5]">None yet.</p>
-                        ) : (
-                          <div className="divide-rule divide-y">
-                            {printer.processes.map((process, at) => (
-                              <ProfileRow
-                                key={process.id}
-                                profile={process}
-                                desk={desk}
-                                first={at === 0}
-                                last={at === printer.processes.length - 1}
-                                actions={actions}
-                              />
-                            ))}
-                          </div>
-                        )}
-                        <button
-                          type="button"
-                          className={`${quietButton} mt-3`}
-                          aria-disabled={busy}
-                          aria-label={`Add processes to the ${printer.label} printer`}
-                          onClick={() => {
-                            if (!busy) setDialog({ kind: 'add', printer })
+              </FormPanel>
+            </div>
+          ) : (
+            <div className="grid-fluid items-start gap-5 [--col-min:30rem]">
+              {desk.printers.map((printer, index) => (
+                <FormPanel key={printer.id}>
+                  <ProfileRow
+                    profile={printer}
+                    desk={desk}
+                    first={index === 0}
+                    last={index === desk.printers.length - 1}
+                    actions={actions}
+                  >
+                    {/* Side by side when one printer has the whole width, so the rows stay short. */}
+                    <div className="grid-fluid items-start gap-x-6 [--col-min:24rem]">
+                      {(['PROCESS', 'FILAMENT'] as const).map((kind) => (
+                        <PrinterList
+                          key={kind}
+                          kind={kind}
+                          printer={printer}
+                          desk={desk}
+                          actions={actions}
+                          onAdd={() => {
+                            if (!busy) setDialog({ kind: 'add', printer, only: kind })
                           }}
-                        >
-                          ADD PROCESSES
-                        </button>
-                      </div>
-                    </ProfileRow>
-                  ))}
-                </div>
-              )}
-            </FormPanel>
-          </section>
-
-          <section aria-labelledby="filaments-heading">
-            <h2 id="filaments-heading" className="text-faint mb-2 font-mono text-[11px] font-medium tracking-[0.16em]">
-              FILAMENTS
-            </h2>
-            <FormPanel>
-              {desk.filaments.length === 0 ? (
-                <p className="text-dim text-sm leading-[1.6]">
-                  No filaments yet. Add a filament bundle (.orca_filament) or a printer bundle that has them.
-                </p>
-              ) : (
-                <div className="divide-rule divide-y">
-                  {desk.filaments.map((filament, index) => (
-                    <ProfileRow
-                      key={filament.id}
-                      profile={filament}
-                      desk={desk}
-                      first={index === 0}
-                      last={index === desk.filaments.length - 1}
-                      actions={actions}
-                    />
-                  ))}
-                </div>
-              )}
-            </FormPanel>
-          </section>
-        </div>
+                        />
+                      ))}
+                    </div>
+                  </ProfileRow>
+                </FormPanel>
+              ))}
+            </div>
+          )}
+        </section>
       )}
 
       {desk && (dialog?.kind === 'add' || dialog?.kind === 'replace') && (
@@ -336,12 +318,12 @@ export function OfficerSlicerProfilesPage() {
 
       {deleting && (
         <ConfirmDialog
-          title={`Delete the ${deleting.label} ${NOUN[deleting.kind]}?`}
+          title={`Delete ${named(deleting)}?`}
           confirmLabel="DELETE"
           busy={busy}
           onConfirm={() => {
             setDialog(null)
-            void write(`Couldn't delete ${deleting.label}`, () =>
+            void write(`Couldn't delete ${called(deleting)}`, () =>
               deleteJson<ApiSlicerDesk>(`/officer/slicer-profiles/${deleting.id}`),
             )
           }}
@@ -349,9 +331,9 @@ export function OfficerSlicerProfilesPage() {
             setDialog(null)
           }}
         >
-          {deletingProcesses > 0 && (
+          {goesWith.length > 0 && (
             <p>
-              Its {deletingProcesses === 1 ? 'process goes' : `${String(deletingProcesses)} processes go`} with it.
+              Its {goesWith.join(' and ')} {goes} with it.
             </p>
           )}
           {deleting.uses.drafts > 0 && (
@@ -367,7 +349,7 @@ export function OfficerSlicerProfilesPage() {
 
       {hiding && (
         <ConfirmDialog
-          title={`Hide the ${hiding.label} ${NOUN[hiding.kind]}?`}
+          title={`Hide ${named(hiding)}?`}
           confirmLabel="HIDE IT"
           tone="primary"
           busy={busy}
@@ -399,5 +381,58 @@ export function OfficerSlicerProfilesPage() {
         </ErrorDialog>
       )}
     </>
+  )
+}
+
+const PLURAL = { PROCESS: 'processes', FILAMENT: 'filaments' } as const
+
+/** One printer's processes or filaments, under it, with the button that adds more. */
+function PrinterList({
+  kind,
+  printer,
+  desk,
+  actions,
+  onAdd,
+}: {
+  kind: 'PROCESS' | 'FILAMENT'
+  printer: ApiSlicerDesk['printers'][number]
+  desk: ApiSlicerDesk
+  actions: ProfileActions
+  onAdd: () => void
+}) {
+  const list = kind === 'PROCESS' ? printer.processes : printer.filaments
+  const plural = PLURAL[kind]
+  return (
+    <section aria-label={`${printer.label} ${plural}`} className="border-rule mt-4 border-l-2 pl-4">
+      <h4 className="text-faint mb-1 font-mono text-[10px] font-medium tracking-[0.16em]">
+        {plural.toUpperCase()}
+      </h4>
+      {list.length === 0 ? (
+        <p className="text-dim text-[12.5px] leading-[1.5]">None yet.</p>
+      ) : (
+        <div className="divide-rule divide-y">
+          {list.map((profile, at) => (
+            <ProfileRow
+              key={profile.id}
+              profile={profile}
+              desk={desk}
+              first={at === 0}
+              last={at === list.length - 1}
+              actions={actions}
+              printer={printer.label}
+            />
+          ))}
+        </div>
+      )}
+      <button
+        type="button"
+        className={`${quietButton} mt-3`}
+        aria-disabled={actions.busy}
+        aria-label={`Add ${plural} to the ${printer.label} printer`}
+        onClick={onAdd}
+      >
+        ADD {plural.toUpperCase()}
+      </button>
+    </section>
   )
 }

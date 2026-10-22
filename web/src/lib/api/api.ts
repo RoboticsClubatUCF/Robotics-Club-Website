@@ -2041,9 +2041,8 @@ export type ApiDeskProfile = {
 }
 
 export type ApiSlicerDesk = {
-  printers: (ApiDeskProfile & { processes: ApiDeskProfile[] })[]
-  /** `fits` is the printers it's made for, by id, or null until it's resolved. */
-  filaments: (ApiDeskProfile & { fits: string[] | null })[]
+  /** Each printer with its own processes and filaments: a filament is set up per printer. */
+  printers: (ApiDeskProfile & { processes: ApiDeskProfile[]; filaments: ApiDeskProfile[] })[]
   workerOnline: boolean
   limit: number
 }
@@ -2051,7 +2050,7 @@ export type ApiSlicerDesk = {
 /** What's in an uploaded export, from `POST /api/officer/slicer-profiles/inspect`. */
 export type ApiProfileFile = {
   fileName: string
-  /** The bundle's printer, when it's already here; its processes are matched against it. */
+  /** The bundle's printer, when it's already here; its processes and filaments are matched against it. */
   printer: { id: string; label: string } | null
   presets: {
     entry: string

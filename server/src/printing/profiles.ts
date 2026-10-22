@@ -4,15 +4,14 @@ import { prisma } from '../core/db.js'
 import type { Prisma } from '../generated/prisma/client.js'
 import { SlicerJobState, SlicerProfileKind } from '../generated/prisma/enums.js'
 import type { FilamentInfo, PrinterInfo, ProcessInfo } from './profileResolve.js'
-import { fitsPrinter } from './profileResolve.js'
 
 /**
  * The club's slicer profiles, as the API and the worker read them back out of `slicer_profiles`.
  *
  * Officers upload them on the profiles desk (`routes/officer/slicerProfiles.ts`) and the worker
  * resolves them (`profileResolve.ts`). A member sees only READY, offered ones; a plate names one
- * printer, one of that printer's processes and a filament that fits the printer, and every route
- * that changes or slices a plate checks that here.
+ * printer and one of that printer's processes and filaments, and every route that changes or
+ * slices a plate checks that here.
  */
 
 type Db = Prisma.TransactionClient
@@ -62,7 +61,7 @@ type ProfileRow = Prisma.SlicerProfileGetPayload<{ select: typeof profileSelect 
 
 const order = [{ position: 'asc' }, { createdAt: 'asc' }] as const
 
-/** What a member can pick from: printers with their processes, and filaments with the printers they fit. */
+/** What a member can pick from: printers with their processes, and filaments with the printer they're on. */
 export async function workspaceProfiles(db: Db = prisma) {
   const rows = await db.slicerProfile.findMany({
     where: { state: SlicerJobState.READY, offered: true },
@@ -110,11 +109,7 @@ export async function workspaceProfiles(db: Db = prisma) {
   const filaments = rows.flatMap((row) => {
     if (row.kind !== SlicerProfileKind.FILAMENT) return []
     const info = filamentInfo.safeParse(row.info)
-    if (!info.success) return []
-    const fits = printers
-      .filter((printer) => fitsPrinter(info.data.compatiblePrinters, printer))
-      .map((printer) => printer.id)
-    if (fits.length === 0) return []
+    if (!info.success || !printers.some((printer) => printer.id === row.printerId)) return []
     return [
       {
         id: row.id,
@@ -122,7 +117,8 @@ export async function workspaceProfiles(db: Db = prisma) {
         name: row.name,
         description: row.description,
         type: info.data.type,
-        printers: fits,
+        // A list, so the workspace reads it the way it did when one filament fit several.
+        printers: [row.printerId!],
       },
     ]
   })
@@ -192,18 +188,8 @@ export async function checkChoice(
   if ((changed.printer || changed.process) && printer && process && process.printerId !== printer.id) {
     throw refuse(`The ${process.label} process is for another printer. Pick one of this printer's.`)
   }
-  if ((changed.printer || changed.filament) && printer && filament) {
-    const fits = filamentInfo.safeParse(filament.info)
-    const stock = printerInfo.safeParse(printer.info)
-    if (
-      fits.success &&
-      !fitsPrinter(fits.data.compatiblePrinters, {
-        name: printer.name,
-        stockName: stock.success ? stock.data.stockName : '',
-      })
-    ) {
-      throw refuse(`${filament.label} isn't made for the ${printer.label}. Pick another filament.`)
-    }
+  if ((changed.printer || changed.filament) && printer && filament && filament.printerId !== printer.id) {
+    throw refuse(`That ${filament.label} is set up for another printer. Pick one of this printer's.`)
   }
   return { printer, process, filament }
 }

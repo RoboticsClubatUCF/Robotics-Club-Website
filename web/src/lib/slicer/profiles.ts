@@ -2,8 +2,8 @@ import type { ApiSlicedWith, ApiSlicerPrinter, ApiSlicerWorkspace } from '../api
 
 /**
  * The printer, process and filament a plate names, and the rules for picking them, which the
- * server checks again (`server/src/printing/profiles.ts`): a process belongs to one printer, and
- * a filament goes on the printers it's made for. Any id can be null, or name something the
+ * server checks again (`server/src/printing/profiles.ts`): a process and a filament each belong to
+ * one printer, since a spool is tuned per printer. Any id can be null, or name something the
  * workspace no longer offers, when an officer has deleted or hidden it since.
  */
 
@@ -32,8 +32,8 @@ export function defaultChoice(profiles: Profiles): PlateChoice {
 }
 
 /**
- * Moving a plate to another printer. The process can't come along, so it's the new printer's one
- * of the same name if it has one, or its first. The filament stays if it fits.
+ * Moving a plate to another printer. Neither the process nor the filament can come along, so each
+ * is the new printer's one of the same name if it has one, or its first.
  */
 export function onPrinter(profiles: Profiles, choice: PlateChoice, printerId: string): PlateChoice {
   const printer = printerOf(profiles, printerId)
@@ -42,14 +42,13 @@ export function onPrinter(profiles: Profiles, choice: PlateChoice, printerId: st
   )
   const process =
     printer?.processes.find((p) => wasProcess && p.label === wasProcess.label) ?? printer?.processes[0]
+  const wasFilament = profiles.filaments.find((f) => f.id === choice.filamentId)
   const filaments = filamentsFor(profiles, printerId)
-  return {
-    printerId,
-    processId: process?.id ?? null,
-    filamentId: filaments.some((f) => f.id === choice.filamentId)
-      ? choice.filamentId
-      : (filaments[0]?.id ?? null),
-  }
+  const filament =
+    filaments.find((f) => f.id === choice.filamentId) ??
+    filaments.find((f) => wasFilament && f.label === wasFilament.label) ??
+    filaments[0]
+  return { printerId, processId: process?.id ?? null, filamentId: filament?.id ?? null }
 }
 
 /**
@@ -72,7 +71,7 @@ export function choiceProblem(
   if (!printer.processes.some((process) => process.id === choice.processId)) return gone('process', 'processId')
   const filament = profiles.filaments.find((f) => f.id === choice.filamentId)
   if (filament && !filament.printers.includes(printer.id)) {
-    return `${filament.label} isn't made for the ${printer.label}. Pick a filament.`
+    return `That ${filament.label} is set up for another printer. Pick a filament.`
   }
   return filament ? null : gone('filament', 'filamentId')
 }

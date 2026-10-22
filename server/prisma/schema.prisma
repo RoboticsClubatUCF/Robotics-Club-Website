@@ -1417,8 +1417,8 @@ model SlicerProfile {
   id   String            @id @default(uuid(7))
   kind SlicerProfileKind
 
-  /// The preset's own name, which the `.3mf` carries and desktop Orca shows. One printer or
-  /// filament per name, and one process per name on its printer: desktop Orca matches by name.
+  /// The preset's own name, which the `.3mf` carries and desktop Orca shows. One printer per
+  /// name, and one process or filament per name on its printer: desktop Orca matches by name.
   name        String
   /// What members pick it by, and an optional line under it. The workspace describes a process
   /// nobody described from its walls and infill.
@@ -1429,10 +1429,11 @@ model SlicerProfile {
   /// Its place in its list. The first offered one is what a new plate starts with.
   position    Int     @default(0)
 
-  /// A process's printer. Its processes go with it.
+  /// The printer a process or filament belongs to, null on a printer. A filament is per printer
+  /// because the same spool is tuned differently on each. Its processes and filaments go with it.
   printerId String?         @map("printer_id")
-  printer   SlicerProfile?  @relation("printerProcesses", fields: [printerId], references: [id], onDelete: Cascade)
-  processes SlicerProfile[] @relation("printerProcesses")
+  printer   SlicerProfile?  @relation("printerProfiles", fields: [printerId], references: [id], onDelete: Cascade)
+  profiles  SlicerProfile[] @relation("printerProfiles")
 
   /// The one preset as exported, and the file and entry it came out of.
   source     String

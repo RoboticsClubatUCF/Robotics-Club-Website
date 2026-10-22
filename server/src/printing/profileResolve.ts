@@ -559,7 +559,7 @@ export type Resolved =
 /**
  * One uploaded preset, flattened and checked. A process needs its printer, already resolved: the
  * CLI takes the plate from the process, and without the printer's it falls back to Cool Plate
- * and then refuses PETG.
+ * and then refuses PETG. A filament given its printer is checked against it too.
  */
 export async function resolvePreset(
   source: string,
@@ -584,14 +584,14 @@ export async function resolvePreset(
     return { kind, text: serialise(profile), info, flattened }
   }
 
+  const compatiblePrinters = strings(profile['compatible_printers'])
+  // Orca won't load a preset onto a printer it doesn't list.
+  if (printer && !fitsPrinter(compatiblePrinters, { name: printer.name, stockName: printer.info.stockName })) {
+    throw new ProfileError(`It's made for ${compatiblePrinters.join(', ')}, not ${printer.name}.`)
+  }
+
   if (kind === 'PROCESS') {
     if (!printer) throw new Error('a process is resolved with its printer')
-    const compatiblePrinters = strings(profile['compatible_printers'])
-    if (!fitsPrinter(compatiblePrinters, { name: printer.name, stockName: printer.info.stockName })) {
-      throw new ProfileError(
-        `It's made for ${compatiblePrinters.join(', ')}, not ${printer.name}.`,
-      )
-    }
     profile['curr_bed_type'] = printer.info.bedType
     profile['post_process'] = []
     const values = presetValues(profile)
@@ -611,7 +611,7 @@ export async function resolvePreset(
     info: {
       type,
       vendor: first(profile['filament_vendor'] ?? ''),
-      compatiblePrinters: strings(profile['compatible_printers']),
+      compatiblePrinters,
     },
     flattened,
   }

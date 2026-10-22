@@ -29,6 +29,7 @@ export function ProfileRow({
   first,
   last,
   actions,
+  printer,
   children,
 }: {
   profile: ApiDeskProfile
@@ -36,7 +37,9 @@ export function ProfileRow({
   first: boolean
   last: boolean
   actions: ProfileActions
-  /** A printer's processes, under it. */
+  /** The label of the printer a process or filament is on. */
+  printer?: string
+  /** A printer's processes and filaments, under it. */
   children?: ReactNode
 }) {
   const id = useId()
@@ -47,10 +50,14 @@ export function ProfileRow({
   const up = useRef<HTMLButtonElement>(null)
   const down = useRef<HTMLButtonElement>(null)
   const state = profileState(profile)
-  const facts = profileFacts(profile, desk)
+  const facts = profileFacts(profile)
   const blocked = unreachable(profile, desk)
   const used = usesLine(profile.uses)
   const noun = NOUN[profile.kind]
+  // Two printers can each have a PLA, so a process's or filament's controls say whose it is.
+  const on = printer ? ` on ${printer}` : ''
+  const named = `the ${profile.label} ${noun}${on}`
+  const Title = profile.kind === 'PRINTER' ? 'h3' : 'span'
   const resolving = profile.state === 'QUEUED' || profile.state === 'RUNNING'
   const busy = actions.busy
 
@@ -86,17 +93,18 @@ export function ProfileRow({
     <div className="py-4 first:pt-0 last:pb-0">
       <div className="flex items-start gap-x-4 gap-y-2">
         <div className="min-w-0 flex-1">
-          <p className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-            <span className="text-base-content min-w-0 text-[15px] font-semibold [overflow-wrap:anywhere]">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+            {/* A printer heads its panel, so heading navigation can jump between printers. */}
+            <Title className="text-base-content min-w-0 text-[15px] font-semibold [overflow-wrap:anywhere]">
               {profile.label}
-            </span>
+            </Title>
             <span
               aria-live="polite"
               className={`font-mono text-[10px] font-semibold tracking-[0.14em] ${STATUS_TONE[state.tone]}`}
             >
               {state.text}
             </span>
-          </p>
+          </div>
           {profile.label !== profile.name && (
             <p className="text-faint text-[12px] [overflow-wrap:anywhere]">{profile.name}</p>
           )}
@@ -139,7 +147,7 @@ export function ProfileRow({
             className={smallQuietButton}
             disabled={first}
             aria-disabled={busy}
-            aria-label={`Move ${profile.label} up`}
+            aria-label={`Move ${profile.label}${on} up`}
             onClick={() => {
               move(-1)
             }}
@@ -152,7 +160,7 @@ export function ProfileRow({
             className={smallQuietButton}
             disabled={last}
             aria-disabled={busy}
-            aria-label={`Move ${profile.label} down`}
+            aria-label={`Move ${profile.label}${on} down`}
             onClick={() => {
               move(1)
             }}
@@ -227,7 +235,7 @@ export function ProfileRow({
             type="button"
             className={smallQuietButton}
             aria-disabled={busy}
-            aria-label={`Edit the ${profile.label} ${noun}`}
+            aria-label={`Edit ${named}`}
             onClick={unless(startEditing)}
           >
             EDIT
@@ -236,7 +244,7 @@ export function ProfileRow({
             type="button"
             className={smallQuietButton}
             aria-disabled={busy}
-            aria-label={`Replace the ${profile.label} ${noun}'s file`}
+            aria-label={`Replace the file of ${named}`}
             onClick={unless(() => {
               actions.onReplace(profile)
             })}
@@ -249,7 +257,7 @@ export function ProfileRow({
               type="button"
               className={smallQuietButton}
               aria-disabled={busy}
-              aria-label={`${profile.offered ? 'Hide' : 'Offer'} the ${profile.label} ${noun}`}
+              aria-label={`${profile.offered ? 'Hide' : 'Offer'} ${named}`}
               onClick={unless(() => {
                 actions.onToggle(profile)
               })}
@@ -261,7 +269,7 @@ export function ProfileRow({
             type="button"
             className={smallDangerButton}
             aria-disabled={busy}
-            aria-label={`Delete the ${profile.label} ${noun}`}
+            aria-label={`Delete ${named}`}
             onClick={unless(() => {
               actions.onDelete(profile)
             })}

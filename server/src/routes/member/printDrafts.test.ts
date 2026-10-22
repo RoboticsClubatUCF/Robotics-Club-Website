@@ -208,19 +208,24 @@ beforeEach(async () => {
     q: await profile(SlicerProfileKind.PROCESS, 'Q', processInfo(3), { printerId: printer, position: 1 }),
     qs: await profile(SlicerProfileKind.PROCESS, 'Q-S', processInfo(6), { printerId: printer, position: 2 }),
     otherProcess: await profile(SlicerProfileKind.PROCESS, 'Other', processInfo(2), { printerId: otherPrinter }),
-    pla: await profile(SlicerProfileKind.FILAMENT, 'PLA', { type: 'PLA', vendor: 'Generic', compatiblePrinters: [] }),
+    pla: await profile(
+      SlicerProfileKind.FILAMENT,
+      'PLA',
+      { type: 'PLA', vendor: 'Generic', compatiblePrinters: [] },
+      { printerId: printer },
+    ),
     petg: await profile(
       SlicerProfileKind.FILAMENT,
       'PETG',
       { type: 'PETG', vendor: 'Elegoo', compatiblePrinters: ['Fixture Stock Printer 0.4 nozzle'] },
-      { position: 1 },
+      { printerId: printer, position: 1 },
     ),
-    // Made for the other printer only.
+    // On the other printer only.
     tpu: await profile(
       SlicerProfileKind.FILAMENT,
       'TPU',
       { type: 'TPU', vendor: 'Overture', compatiblePrinters: ['Another Stock Printer'] },
-      { position: 2 },
+      { printerId: otherPrinter },
     ),
   }
 })
@@ -428,7 +433,7 @@ describe('the workspace', () => {
     expect(printer.processes[0]!.description).toBe('2 walls, 15% line')
     expect(printer.bed.width).toBe(256)
     const fits = (id: string) => body.profiles.filaments.find((f) => f.id === id)?.printers
-    expect(fits(ids.pla)).toEqual(expect.arrayContaining([ids.printer, ids.otherPrinter]))
+    expect(fits(ids.pla)).toEqual([ids.printer])
     expect(fits(ids.petg)).toEqual([ids.printer])
     expect(fits(ids.tpu)).toEqual([ids.otherPrinter])
     expect(body.workerOnline).toBe(true)
@@ -562,7 +567,7 @@ describe('drafts', () => {
 
   it.each([
     ['a process for another printer', () => settings({ processId: ids.otherProcess })],
-    ['a filament not made for the printer', () => settings({ filamentId: ids.tpu })],
+    ['a filament set up for another printer', () => settings({ filamentId: ids.tpu })],
     ['a filament named as the process', () => settings({ processId: ids.pla })],
     ['a profile that doesn’t exist', () => settings({ filamentId: 'nope' })],
   ])('refuses %s', async (_case, choice) => {

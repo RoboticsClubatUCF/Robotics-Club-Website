@@ -71,19 +71,21 @@ const process = (over: Partial<ApiDeskProfile> = {}) =>
   })
 
 const desk = (over: Partial<ApiSlicerDesk> = {}): ApiSlicerDesk => ({
-  printers: [{ ...printer, processes: [process(), process({ id: 'q', label: 'Q', name: 'Q preset', info: { summary: '3 walls, 10% gyroid', values: {} } })] }],
-  filaments: [
-    { ...profile(), fits: ['cc1'] },
+  printers: [
     {
-      ...profile({
-        id: 'tpu',
-        name: 'Overture TPU',
-        label: 'TPU',
-        state: 'FAILED',
-        failure: "Orca couldn't slice a test cube with it.",
-        info: null,
-      }),
-      fits: null,
+      ...printer,
+      processes: [process(), process({ id: 'q', label: 'Q', name: 'Q preset', info: { summary: '3 walls, 10% gyroid', values: {} } })],
+      filaments: [
+        profile(),
+        profile({
+          id: 'tpu',
+          name: 'Overture TPU',
+          label: 'TPU',
+          state: 'FAILED',
+          failure: "Orca couldn't slice a test cube with it.",
+          info: null,
+        }),
+      ],
     },
   ],
   workerOnline: true,
@@ -161,7 +163,7 @@ describe('OfficerSlicerProfilesPage', () => {
     expect(screen.queryByRole('button', { name: /add from an export/i })).not.toBeInTheDocument()
   })
 
-  it('lists printers with their processes and the filaments, with what each one is', async () => {
+  it('lists printers with their processes and filaments, with what each one is', async () => {
     vi.stubGlobal('fetch', stubFetch({ '/officer/slicer-profiles': desk() }))
     renderPage()
 
@@ -172,23 +174,32 @@ describe('OfficerSlicerProfilesPage', () => {
     expect(printers.getByText('2 walls, 15% line')).toBeInTheDocument()
     expect(printers.getAllByText('Test-sliced on CC1, PLA.')).toHaveLength(2)
 
-    const filaments = within(screen.getByRole('region', { name: 'FILAMENTS' }))
-    expect(filaments.getByText('PLA · Generic · for CC1')).toBeInTheDocument()
-    expect(filaments.getByText('REFUSED')).toBeInTheDocument()
-    expect(filaments.getByText("Orca couldn't slice a test cube with it.")).toBeInTheDocument()
+    expect(printers.getByText('FILAMENTS')).toBeInTheDocument()
+    expect(printers.getByText('PLA · Generic')).toBeInTheDocument()
+    expect(printers.getByText('REFUSED')).toBeInTheDocument()
+    expect(printers.getByText("Orca couldn't slice a test cube with it.")).toBeInTheDocument()
     // Nothing to hide or offer until it works.
-    expect(filaments.queryByRole('button', { name: 'Hide the TPU filament' })).not.toBeInTheDocument()
-    expect(filaments.getByRole('button', { name: 'Delete the TPU filament' })).toBeInTheDocument()
+    expect(printers.queryByRole('button', { name: 'Hide the TPU filament on CC1' })).not.toBeInTheDocument()
+    expect(printers.getByRole('button', { name: 'Delete the TPU filament on CC1' })).toBeInTheDocument()
+  })
+
+  it('says a printer can’t be picked while none of its filaments is offered', async () => {
+    const bare = desk()
+    bare.printers[0]!.filaments = []
+    vi.stubGlobal('fetch', stubFetch({ '/officer/slicer-profiles': bare }))
+    renderPage()
+    expect(await screen.findByText('Members can’t pick it until one of its filaments is offered.')).toBeInTheDocument()
+    expect(screen.getAllByText('None yet.')).toHaveLength(1)
   })
 
   it('asks before hiding a profile drafts use', async () => {
     const used = desk()
-    used.filaments[0]!.uses = { drafts: 2, sent: 0 }
+    used.printers[0]!.filaments[0]!.uses = { drafts: 2, sent: 0 }
     const stub = stubFetch({ '/officer/slicer-profiles': used })
     vi.stubGlobal('fetch', stub)
     renderPage()
     expect(await screen.findByText('Used by 2 drafts.')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Hide the PLA filament' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Hide the PLA filament on CC1' }))
     const dialog = within(screen.getByRole('dialog'))
     expect(dialog.getByText(/2 drafts use it. They can't be sliced or sent/)).toBeInTheDocument()
     expect(stub.mock.calls.some(([, init]) => init?.method === 'PATCH')).toBe(false)
@@ -230,6 +241,40 @@ describe('OfficerSlicerProfilesPage', () => {
     })
   })
 
+  it('adds filaments to the printer they were asked for, and lists only filaments', async () => {
+    const contents: ApiProfileFile = {
+      fileName: 'N4 Plus 2.orca_printer',
+      printer: { id: 'cc1', label: 'CC1' },
+      presets: [
+        { entry: 'printer/N4.json', kind: 'PRINTER', name: 'N4 Plus 2', inherits: 'Elegoo Neptune 4 Plus 0.4 nozzle', existing: null },
+        { entry: 'process/Fine.json', kind: 'PROCESS', name: 'Fine', inherits: '0.15mm SPEED', existing: null },
+        { entry: 'filament/Silk.json', kind: 'FILAMENT', name: 'Silk PLA', inherits: 'Generic PLA', existing: null },
+        { entry: 'filament/TPU.json', kind: 'FILAMENT', name: 'Overture TPU', inherits: 'Generic PLA', existing: null },
+      ],
+    }
+    const stub = stubFetch({ '/officer/slicer-profiles/inspect': contents, '/officer/slicer-profiles': desk() })
+    vi.stubGlobal('fetch', stub)
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Add filaments to the CC1 printer' }))
+    const dialog = within(screen.getByRole('dialog'))
+    expect(dialog.getByRole('heading', { name: 'Add filaments to CC1' })).toBeInTheDocument()
+    fireEvent.change(dialog.getByLabelText('FILE'), { target: { files: [new File(['PK'], 'N4 Plus 2.orca_printer')] } })
+    // A bundle's filaments are opt-in.
+    expect(await dialog.findByRole('checkbox', { name: /Silk PLA/ })).not.toBeChecked()
+    expect(dialog.queryByRole('checkbox', { name: /Fine/ })).not.toBeInTheDocument()
+    expect(dialog.queryByRole('radio', { name: /N4 Plus 2/ })).not.toBeInTheDocument()
+    fireEvent.click(dialog.getByRole('checkbox', { name: /Silk PLA/ }))
+    fireEvent.click(dialog.getByRole('button', { name: 'ADD PRESET' }))
+    await waitFor(() => {
+      const call = stub.mock.calls.find(
+        ([input, init]) => init?.method === 'POST' && urlOf(input).endsWith('/officer/slicer-profiles'),
+      )
+      const form = call?.[1]?.body as FormData | undefined
+      expect(form?.get('printerId')).toBe('cc1')
+      expect(JSON.parse(form?.get('entries') as string)).toEqual(['filament/Silk.json'])
+    })
+  })
+
   it('forgets the last file’s ticks when the next one can’t be read', async () => {
     const contents: ApiProfileFile = {
       fileName: 'Silk.json',
@@ -263,10 +308,9 @@ describe('OfficerSlicerProfilesPage', () => {
   })
 
   it('says when there is nothing yet', async () => {
-    vi.stubGlobal('fetch', stubFetch({ '/officer/slicer-profiles': desk({ printers: [], filaments: [] }) }))
+    vi.stubGlobal('fetch', stubFetch({ '/officer/slicer-profiles': desk({ printers: [] }) }))
     renderPage()
     expect(await screen.findByText(/No printers yet/)).toBeInTheDocument()
-    expect(screen.getByText(/No filaments yet/)).toBeInTheDocument()
   })
 
   it('warns when the slicer is offline', async () => {
@@ -279,7 +323,7 @@ describe('OfficerSlicerProfilesPage', () => {
     const stub = stubFetch({ '/officer/slicer-profiles': desk() })
     vi.stubGlobal('fetch', stub)
     renderPage()
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit the PLA filament' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit the PLA filament on CC1' }))
     fireEvent.change(screen.getByLabelText('NAME MEMBERS SEE'), { target: { value: 'Rapid PLA' } })
     fireEvent.click(screen.getByRole('button', { name: 'SAVE' }))
     await waitFor(() => {
@@ -293,7 +337,7 @@ describe('OfficerSlicerProfilesPage', () => {
     const stub = stubFetch({ '/officer/slicer-profiles': desk() })
     vi.stubGlobal('fetch', stub)
     renderPage()
-    fireEvent.click(await screen.findByRole('button', { name: 'Hide the PLA filament' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Hide the PLA filament on CC1' }))
     await waitFor(() => {
       const call = stub.mock.calls.find(([, init]) => init?.method === 'PATCH')
       expect(bodyOf(call?.[1])).toEqual({ offered: false })
@@ -304,13 +348,13 @@ describe('OfficerSlicerProfilesPage', () => {
     const stub = stubFetch({ '/officer/slicer-profiles': desk() })
     vi.stubGlobal('fetch', stub)
     renderPage()
-    fireEvent.click(await screen.findByRole('button', { name: 'Move Standard down' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Move Standard on CC1 down' }))
     await waitFor(() => {
       const call = stub.mock.calls.find(([, init]) => init?.method === 'PATCH')
       expect(call && urlOf(call[0])).toContain('/officer/slicer-profiles/order')
       expect(bodyOf(call?.[1])).toEqual({ ids: ['q', 'std'] })
     })
-    expect(screen.getByRole('button', { name: 'Move Standard up' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Move Standard on CC1 up' })).toBeInTheDocument()
   })
 
   it('asks before deleting, saying what uses it and what goes with it', async () => {
@@ -321,7 +365,7 @@ describe('OfficerSlicerProfilesPage', () => {
     renderPage()
     fireEvent.click(await screen.findByRole('button', { name: 'Delete the CC1 printer' }))
     const dialog = within(screen.getByRole('dialog'))
-    expect(dialog.getByText('Its 2 processes go with it.')).toBeInTheDocument()
+    expect(dialog.getByText('Its 2 processes and 2 filaments go with it.')).toBeInTheDocument()
     expect(dialog.getByText(/2 drafts use it. Their owners will be asked to pick another printer/)).toBeInTheDocument()
     expect(dialog.getByText('Requests already sent keep their sliced file.')).toBeInTheDocument()
     expect(stub.mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(false)
@@ -378,6 +422,60 @@ describe('OfficerSlicerProfilesPage', () => {
     })
   })
 
+  it('asks which printer a filament is for when the file has none', async () => {
+    const contents: ApiProfileFile = {
+      fileName: 'Silk.json',
+      printer: null,
+      presets: [{ entry: 'Silk.json', kind: 'FILAMENT', name: 'Silk PLA', inherits: 'Generic PLA', existing: null }],
+    }
+    vi.stubGlobal('fetch', stubFetch({ '/officer/slicer-profiles/inspect': contents, '/officer/slicer-profiles': desk() }))
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: /add from an export/i }))
+    const dialog = within(screen.getByRole('dialog'))
+    fireEvent.change(dialog.getByLabelText('FILE'), { target: { files: [new File(['{}'], 'Silk.json')] } })
+    expect(await dialog.findByRole('combobox', { name: 'FOR WHICH PRINTER' })).toBeInTheDocument()
+  })
+
+  it('reads the file again for the printer picked, so what that printer has shows as taken', async () => {
+    const preset = { entry: 'Silk.json', kind: 'FILAMENT' as const, name: 'Silk PLA', inherits: 'Generic PLA' }
+    const inspected: (string | null)[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string | URL | Request, init?: RequestInit) => {
+        if (urlOf(input).includes('/inspect')) {
+          const printerId = (init!.body as FormData).get('printerId') as string | null
+          inspected.push(printerId)
+          const contents: ApiProfileFile = {
+            fileName: 'Silk.json',
+            printer: null,
+            presets: [{ ...preset, existing: printerId === 'cc1' ? { id: 'silk', label: 'Silk' } : null }],
+          }
+          return Promise.resolve(new Response(JSON.stringify(contents), { status: 200 }))
+        }
+        return Promise.resolve(new Response(JSON.stringify(desk()), { status: 200 }))
+      }),
+    )
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: /add from an export/i }))
+    const dialog = within(screen.getByRole('dialog'))
+    fireEvent.change(dialog.getByLabelText('FILE'), { target: { files: [new File(['{}'], 'Silk.json')] } })
+    expect(await dialog.findByRole('checkbox', { name: /Silk PLA/ })).toBeChecked()
+    fireEvent.change(dialog.getByRole('combobox', { name: 'FOR WHICH PRINTER' }), { target: { value: 'cc1' } })
+    expect(await dialog.findByText(/Already here as Silk/)).toBeInTheDocument()
+    expect(dialog.getByRole('checkbox', { name: /Silk PLA/ })).not.toBeChecked()
+    expect(dialog.getByRole('checkbox', { name: /Silk PLA/ })).toBeDisabled()
+    expect(inspected).toEqual([null, 'cc1'])
+  })
+
+  it('names the printer in a filament’s confirm', async () => {
+    const used = desk()
+    used.printers[0]!.filaments[0]!.uses = { drafts: 1, sent: 0 }
+    vi.stubGlobal('fetch', stubFetch({ '/officer/slicer-profiles': used }))
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete the PLA filament on CC1' }))
+    expect(within(screen.getByRole('dialog')).getByRole('heading', { name: 'Delete the PLA filament on CC1?' })).toBeInTheDocument()
+  })
+
   it('asks which printer processes are for when the file has none', async () => {
     const contents: ApiProfileFile = {
       fileName: 'Fine.json',
@@ -391,6 +489,6 @@ describe('OfficerSlicerProfilesPage', () => {
     fireEvent.change(dialog.getByLabelText('FILE'), { target: { files: [new File(['{}'], 'Fine.json')] } })
     expect(await dialog.findByRole('combobox', { name: 'FOR WHICH PRINTER' })).toBeInTheDocument()
     fireEvent.click(dialog.getByRole('button', { name: 'ADD PRESET' }))
-    expect(await dialog.findByRole('alert')).toHaveTextContent('Say which printer the processes are for.')
+    expect(await dialog.findByRole('alert')).toHaveTextContent('Say which printer they’re for.')
   })
 })

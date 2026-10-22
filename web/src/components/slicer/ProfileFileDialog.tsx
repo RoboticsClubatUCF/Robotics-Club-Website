@@ -24,9 +24,11 @@ function explain(error: unknown): string {
   return `That didn't go through. Try again in a moment.`
 }
 
+const PLURAL = { PROCESS: 'processes', FILAMENT: 'filaments' } as const
+
 /**
- * Adding presets from an Orca export, adding processes to one printer, or replacing one profile
- * with a newer export of it.
+ * Adding presets from an Orca export, adding processes or filaments to one printer, or replacing
+ * one profile with a newer export of it.
  *
  * The file is read twice: once to list what's in it (a printer bundle carries the printer, its
  * processes and every filament the officer had), and again with the presets they picked. A preset
@@ -39,8 +41,10 @@ export function ProfileFileDialog({
   onDone,
   onDismiss,
 }: {
-  mode: { kind: 'add'; printer?: ApiDeskProfile } | { kind: 'replace'; profile: ApiDeskProfile }
-  /** The printers already here, for processes uploaded without theirs. */
+  mode:
+    | { kind: 'add'; printer?: ApiDeskProfile; only?: 'PROCESS' | 'FILAMENT' }
+    | { kind: 'replace'; profile: ApiDeskProfile }
+  /** The printers already here, for processes and filaments uploaded without theirs. */
   printers: ApiDeskProfile[]
   onDone: (desk: ApiSlicerDesk) => void
   onDismiss: () => void
@@ -58,9 +62,10 @@ export function ProfileFileDialog({
   useDialogFocus(panelRef, fileRef, onDismiss)
 
   const replacing = mode.kind === 'replace' ? mode.profile : null
-  // Pressed under a printer: only processes, and they go on that printer.
+  // Pressed under a printer: only its processes or its filaments, and they go on that printer.
   const onto = mode.kind === 'add' ? (mode.printer ?? null) : null
-  const only = replacing?.kind ?? (onto ? 'PROCESS' : null)
+  const ontoKind = mode.kind === 'add' && onto ? (mode.only ?? 'PROCESS') : null
+  const only = replacing?.kind ?? ontoKind
   const presets = (contents?.presets ?? []).filter((preset) => !only || preset.kind === only)
   const usable = (preset: (typeof presets)[number]) =>
     preset.existing === null || (replacing !== null && preset.existing.id === replacing.id)
@@ -82,17 +87,42 @@ export function ProfileFileDialog({
         const same = of(replacing.kind)
         setPicked(same.length === 1 ? [same[0]!.entry] : [])
         if (same.length === 0) setProblem(`That file has no ${NOUN[replacing.kind]} in it.`)
-      } else if (onto) {
-        setPicked(of('PROCESS').filter((p) => p.existing === null).map((p) => p.entry))
-        if (of('PROCESS').length === 0) setProblem('That file has no processes in it.')
+      } else if (ontoKind) {
+        const fresh = of(ontoKind).filter((p) => p.existing === null)
+        // A bundle carries every filament on the officer's machine, so those are opt-in unless
+        // there's only the one.
+        setPicked(ontoKind === 'PROCESS' || fresh.length === 1 ? fresh.map((p) => p.entry) : [])
+        if (of(ontoKind).length === 0) setProblem(`That file has no ${PLURAL[ontoKind]} in it.`)
       } else if (found.presets.length === 1) {
         setPicked(found.presets.filter((p) => p.existing === null).map((p) => p.entry))
       } else {
         // A printer bundle also carries every filament on the officer's machine; those are opt-in.
         setPicked([...of('PRINTER'), ...of('PROCESS')].filter((p) => p.existing === null).map((p) => p.entry))
       }
-      // Processes from a bundle whose printer is already here go on that printer.
+      // Processes and filaments from a bundle whose printer is already here go on that printer.
       if (found.printer && printerId === '') setPrinterId(found.printer.id)
+    } catch (error) {
+      setProblem(explain(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /** Picking the printer reads the file again against it, so what that printer has shows as taken. */
+  const pickPrinter = async (id: string) => {
+    setPrinterId(id)
+    if (!file || id === '') return
+    setProblem(null)
+    setBusy(true)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      form.append('printerId', id)
+      const found = await postForm<ApiProfileFile>('/officer/slicer-profiles/inspect', form)
+      setContents(found)
+      setPicked((current) =>
+        current.filter((entry) => found.presets.find((p) => p.entry === entry)?.existing === null),
+      )
     } catch (error) {
       setProblem(explain(error))
     } finally {
@@ -114,12 +144,16 @@ export function ProfileFileDialog({
 
   const pickedOf = (kind: SlicerProfileKind) =>
     picked.filter((entry) => presets.find((p) => p.entry === entry)?.kind === kind)
-  const needsPrinter = !replacing && !onto && pickedOf('PROCESS').length > 0 && pickedOf('PRINTER').length === 0
+  const needsPrinter =
+    !replacing &&
+    !onto &&
+    pickedOf('PROCESS').length + pickedOf('FILAMENT').length > 0 &&
+    pickedOf('PRINTER').length === 0
 
   const send = async () => {
     if (!file || picked.length === 0) return
     if (needsPrinter && printerId === '') {
-      setProblem('Say which printer the processes are for.')
+      setProblem('Say which printer they’re for.')
       return
     }
     setBusy(true)
@@ -146,8 +180,8 @@ export function ProfileFileDialog({
 
   const title = replacing
     ? `Replace ${replacing.label}`
-    : onto
-      ? `Add processes to ${onto.label}`
+    : onto && ontoKind
+      ? `Add ${PLURAL[ontoKind]} to ${onto.label}`
       : 'Add from an Orca export'
   const action = replacing
     ? 'REPLACE'
@@ -174,9 +208,11 @@ export function ProfileFileDialog({
           <p className="text-dim mb-4 text-sm leading-[1.6] text-pretty">
             {replacing
               ? `Export it again from desktop Orca. Plates sliced with the old one will need slicing again.`
-              : onto
-                ? `From a printer bundle or a process's .json. Only its processes are added, to this printer.`
-                : `A printer bundle, a filament bundle, or a preset's .json, from desktop Orca's File › Export.`}
+              : ontoKind === 'FILAMENT'
+                ? `From a printer bundle, a filament bundle, or a filament's .json. Only its filaments are added, to this printer.`
+                : ontoKind === 'PROCESS'
+                  ? `From a printer bundle or a process's .json. Only its processes are added, to this printer.`
+                  : `A printer bundle, a filament bundle, or a preset's .json, from desktop Orca's File › Export.`}
           </p>
 
           <label htmlFor={`${id}-file`} className={labelClass}>
@@ -259,8 +295,9 @@ export function ProfileFileDialog({
                 <select
                   id={`${id}-printer`}
                   value={printerId}
+                  disabled={busy}
                   onChange={(event) => {
-                    setPrinterId(event.target.value)
+                    void pickPrinter(event.target.value)
                   }}
                   className={smallSelect}
                 >

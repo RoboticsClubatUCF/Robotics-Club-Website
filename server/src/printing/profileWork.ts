@@ -4,17 +4,11 @@ import { prisma } from '../core/db.js'
 import type { Prisma } from '../generated/prisma/client.js'
 import { SlicerJobState, SlicerProfileKind } from '../generated/prisma/enums.js'
 import type { OrcaRunner } from './orcaRunner.js'
-import {
-  type ClaimedProfile,
-  readyFilaments,
-  readyPrinters,
-  untestedProcesses,
-} from './profileJobs.js'
+import { type ClaimedProfile, firstReady, untestedProcesses } from './profileJobs.js'
 import {
   type PrinterInfo,
   ProfileError,
   type StockProfiles,
-  fitsPrinter,
   resolvePreset,
   sha256,
 } from './profileResolve.js'
@@ -33,9 +27,9 @@ import type { ClaimedSlice } from './sliceJobs.js'
  * slices: a 5 mm layer height crashes it there. So the test is what catches a bad export before a
  * member does.
  *
- * A process can't be tested before some filament fits its printer, and a filament needs a printer
- * with a process. Whichever comes first is marked untested, and the first filament that fits tests
- * the processes left waiting.
+ * Processes and filaments belong to a printer and are tested on it: a process with the printer's
+ * first filament, a filament with its first process. Whichever comes first is marked untested,
+ * and the printer's first filament tests the processes left waiting.
  */
 
 /** A 20 mm cube, as triangle positions. */
@@ -139,7 +133,7 @@ export async function resolveProfile(
   signal?: AbortSignal,
 ): Promise<ProfileOutcome> {
   let printer: { row: Partner; profile: LoadedProfile<PrinterInfo> } | null = null
-  if (job.kind === SlicerProfileKind.PROCESS) {
+  if (job.kind !== SlicerProfileKind.PRINTER) {
     const row = await prisma.slicerProfile.findFirst({
       where: { id: job.printerId ?? '', state: SlicerJobState.READY },
       select: { id: true, name: true, label: true, resolved: true, info: true },
@@ -169,49 +163,36 @@ export async function resolveProfile(
 
   if (resolved.kind === 'PROCESS' && printer) {
     const { row: printerRow, profile: machine } = printer
-    const stockName = { name: printerRow.name, stockName: machine.info.stockName }
-    const filament = (await readyFilaments())
-      .map((row) => ({ row, profile: loaded(row, filamentInfo) }))
-      .find(({ profile }) => profile && fitsPrinter(profile.info.compatiblePrinters, stockName))
-    if (filament?.profile) {
+    const row = await firstReady('FILAMENT', printerRow.id)
+    const filament = row ? loaded(row, filamentInfo) : null
+    if (row && filament) {
       const failure = await testSlice(
         runner,
-        { printer: machine, process: { ...self, info: resolved.info }, filament: filament.profile },
+        { printer: machine, process: { ...self, info: resolved.info }, filament },
         deadline,
         signal,
       )
-      if (failure) {
-        return { failure: `${failure} (tested on ${printerRow.label} with ${filament.row.label})` }
-      }
-      testedWith = `${printerRow.label}, ${filament.row.label}`
+      if (failure) return { failure: `${failure} (tested on ${printerRow.label} with ${row.label})` }
+      testedWith = `${printerRow.label}, ${row.label}`
     }
   }
 
-  if (resolved.kind === 'FILAMENT') {
+  if (resolved.kind === 'FILAMENT' && printer) {
+    const { row: printerRow, profile: machine } = printer
     const filament = { ...self, info: resolved.info }
-    const fits = (await readyPrinters()).flatMap((row) => {
-      const profile = loaded(row, printerInfo)
-      return profile &&
-        fitsPrinter(resolved.info.compatiblePrinters, { name: row.name, stockName: profile.info.stockName })
-        ? [{ row, profile }]
-        : []
-    })
-    const first = fits.find(({ row }) => row.processes.length > 0)
-    const process = first?.row.processes[0] ? loaded(first.row.processes[0], processInfo) : null
-    if (first && process) {
-      const failure = await testSlice(runner, { printer: first.profile, process, filament }, deadline, signal)
-      if (failure) {
-        return { failure: `${failure} (tested on ${first.row.label} with ${first.row.processes[0]!.label})` }
-      }
-      testedWith = `${first.row.label}, ${first.row.processes[0]!.label}`
+    const row = await firstReady('PROCESS', printerRow.id)
+    const process = row ? loaded(row, processInfo) : null
+    if (row && process) {
+      const failure = await testSlice(runner, { printer: machine, process, filament }, deadline, signal)
+      if (failure) return { failure: `${failure} (tested on ${printerRow.label} with ${row.label})` }
+      testedWith = `${printerRow.label}, ${row.label}`
     }
     // The processes nothing could test until now.
-    for (const row of await untestedProcesses(fits.map(({ row }) => row.id))) {
-      const owner = fits.find(({ row: printerRow }) => printerRow.id === row.printerId)
-      const waiting = loaded(row, processInfo)
-      if (!owner || !waiting || signal?.aborted) continue
-      const failure = await testSlice(runner, { printer: owner.profile, process: waiting, filament }, deadline, signal)
-      await markTested(row.id, row.resolved, failure, `${owner.row.label}, ${job.label}`)
+    for (const waitingRow of await untestedProcesses(printerRow.id)) {
+      const waiting = loaded(waitingRow, processInfo)
+      if (!waiting || signal?.aborted) continue
+      const failure = await testSlice(runner, { printer: machine, process: waiting, filament }, deadline, signal)
+      await markTested(waitingRow.id, waitingRow.resolved, failure, `${printerRow.label}, ${job.label}`)
     }
   }
 

@@ -118,13 +118,11 @@ interface DeskProfile {
   uses: { drafts: number; sent: number }
 }
 interface Desk {
-  printers: (DeskProfile & { processes: DeskProfile[] })[]
-  filaments: (DeskProfile & { fits: string[] | null })[]
+  printers: (DeskProfile & { processes: DeskProfile[]; filaments: DeskProfile[] })[]
 }
 
 const ours = (desk: Desk) => ({
   printers: desk.printers.filter((p) => p.name.startsWith(PREFIX)),
-  filaments: desk.filaments.filter((f) => f.name.startsWith(PREFIX)),
 })
 
 async function addBundle(fields: Record<string, string>, bundle = printerBundle()) {
@@ -186,6 +184,24 @@ describe('uploading', () => {
     expect(body.presets.find((p) => p.name === `${PREFIX}Standard`)?.existing).toBeNull()
   })
 
+  it('matches filaments against the printer they are being added to, not other printers', async () => {
+    await addBundle({ entries: ALL })
+    await addBundle(
+      { entries: JSON.stringify(['printer/MK4.json']) },
+      printerBundle('MK4', [], []),
+    )
+    const [cc1, mk4] = await Promise.all(
+      ['CC1', 'MK4'].map((name) => prisma.slicerProfile.findFirstOrThrow({ where: { name: `${PREFIX}${name}` } })),
+    )
+    const existing = async (printerId: string) => {
+      const response = await post('/inspect', fileForm(printerBundle(), 'CC1.orca_printer', { printerId }))
+      const body = (await response.json()) as { presets: { name: string; existing: unknown }[] }
+      return body.presets.find((p) => p.name === `${PREFIX}PLA`)?.existing
+    }
+    expect(await existing(cc1.id)).not.toBeNull()
+    expect(await existing(mk4.id)).toBeNull()
+  })
+
   it('adds a printer with its processes and a filament, queued for the worker', async () => {
     const response = await addBundle({ entries: ALL })
     expect(response.status).toBe(201)
@@ -199,23 +215,37 @@ describe('uploading', () => {
       uploadedBy: 'Profiles officer',
     })
     expect(printer.processes.map((p) => p.name)).toEqual([`${PREFIX}Standard`, `${PREFIX}Fine`])
-    expect(desk.filaments.map((f) => f.name)).toEqual([`${PREFIX}PLA`])
+    expect(printer.filaments.map((f) => f.name)).toEqual([`${PREFIX}PLA`])
 
     const row = await prisma.slicerProfile.findFirstOrThrow({ where: { name: `${PREFIX}Fine` } })
     expect(row.printerId).toBe(printer.id)
     expect(JSON.parse(row.source)).toMatchObject({ inherits: 'Some Stock Preset' })
+    const pla = await prisma.slicerProfile.findFirstOrThrow({ where: { name: `${PREFIX}PLA` } })
+    expect(pla.printerId).toBe(printer.id)
   })
 
-  it('takes one preset’s .json on its own', async () => {
+  it('takes one preset’s .json on its own, for a printer that is already set up', async () => {
+    await addBundle({ entries: JSON.stringify(['printer/CC1.json']) })
+    const printer = await prisma.slicerProfile.findFirstOrThrow({ where: { name: `${PREFIX}CC1` } })
+    const silk = strToU8(preset('Silk', { filament_type: ['PLA'] }))
     const response = await post(
       '',
-      fileForm(strToU8(preset('Silk', { filament_type: ['PLA'] })), 'Silk.json', {
-        entries: JSON.stringify(['Silk.json']),
-      }),
+      fileForm(silk, 'Silk.json', { entries: JSON.stringify(['Silk.json']), printerId: printer.id }),
     )
     expect(response.status).toBe(201)
     const desk = ours((await response.json()) as Desk)
-    expect(desk.filaments[0]).toMatchObject({ name: `${PREFIX}Silk`, sourceFile: 'Silk.json' })
+    expect(desk.printers[0]!.filaments[0]).toMatchObject({ name: `${PREFIX}Silk`, sourceFile: 'Silk.json' })
+  })
+
+  it('takes the same filament on two printers, set up apart', async () => {
+    await addBundle({ entries: ALL })
+    const response = await addBundle(
+      { entries: JSON.stringify(['printer/MK4.json', 'filament/PLA.json']) },
+      printerBundle('MK4', [], ['PLA']),
+    )
+    expect(response.status).toBe(201)
+    const rows = await prisma.slicerProfile.findMany({ where: { name: `${PREFIX}PLA` } })
+    expect(new Set(rows.map((row) => row.printerId)).size).toBe(2)
   })
 
   it('puts processes on a printer that is already set up', async () => {
@@ -234,6 +264,7 @@ describe('uploading', () => {
     ['nothing picked', { entries: '[]' }, 400],
     ['an entry the file doesn’t have', { entries: JSON.stringify(['process/Nope.json']) }, 400],
     ['a process with no printer', { entries: JSON.stringify(['process/Fine.json']) }, 400],
+    ['a filament with no printer', { entries: JSON.stringify(['filament/PLA.json']) }, 400],
   ])('refuses %s', async (_case, fields, status) => {
     expect((await addBundle(fields)).status).toBe(status)
   })
@@ -245,9 +276,10 @@ describe('uploading', () => {
     expect(nameless.status).toBe(400)
   })
 
-  it('refuses a name that’s taken, and says to replace it', async () => {
-    expect((await addBundle({ entries: JSON.stringify(['filament/PLA.json']) })).status).toBe(201)
-    const again = await addBundle({ entries: JSON.stringify(['filament/PLA.json']) })
+  it('refuses a name that’s taken on that printer, and says to replace it', async () => {
+    expect((await addBundle({ entries: ALL })).status).toBe(201)
+    const printer = await prisma.slicerProfile.findFirstOrThrow({ where: { name: `${PREFIX}CC1` } })
+    const again = await addBundle({ entries: JSON.stringify(['filament/PLA.json']), printerId: printer.id })
     expect(again.status).toBe(409)
     expect(((await again.json()) as { error: string }).error).toContain('Replace that one')
   })
@@ -256,7 +288,7 @@ describe('uploading', () => {
 describe('editing', () => {
   async function setUp() {
     const desk = ours((await (await addBundle({ entries: ALL })).json()) as Desk)
-    return { printer: desk.printers[0]!, filament: desk.filaments[0]! }
+    return { printer: desk.printers[0]!, filament: desk.printers[0]!.filaments[0]! }
   }
 
   it('renames, describes and hides a profile', async () => {
@@ -267,7 +299,7 @@ describe('editing', () => {
       offered: false,
     })
     expect(response.status).toBe(200)
-    expect(ours((await response.json()) as Desk).filaments[0]).toMatchObject({
+    expect(ours((await response.json()) as Desk).printers[0]!.filaments[0]).toMatchObject({
       label: 'PLA',
       description: 'The everyday one.',
       offered: false,
@@ -291,7 +323,7 @@ describe('editing', () => {
     ])
   })
 
-  it('replaces a profile’s file and queues it again, with a printer’s processes', async () => {
+  it('replaces a profile’s file and queues it again, with a printer’s processes and filaments', async () => {
     const { printer } = await setUp()
     await prisma.slicerProfile.updateMany({
       where: { name: { startsWith: PREFIX } },
@@ -307,8 +339,7 @@ describe('editing', () => {
     expect(byName('CC1')).toMatchObject({ state: 'QUEUED', sha256: null, resolved: null })
     expect(byName('CC1').sourceFile).toBe('CC1 v2.orca_printer: printer/CC1.json')
     expect(byName('Fine')).toMatchObject({ state: 'QUEUED', sha256: null })
-    // A filament isn't the printer's.
-    expect(byName('PLA')).toMatchObject({ state: 'READY', sha256: 'old' })
+    expect(byName('PLA')).toMatchObject({ state: 'QUEUED', sha256: null })
   })
 
   it('refuses a replacement of another kind', async () => {
@@ -322,7 +353,7 @@ describe('editing', () => {
 })
 
 describe('deleting', () => {
-  it('takes a printer’s processes with it and leaves drafts asking for another', async () => {
+  it('takes a printer’s processes and filaments with it and leaves drafts asking for another', async () => {
     const desk = ours((await (await addBundle({ entries: ALL })).json()) as Desk)
     const printer = desk.printers[0]!
     const draft = await prisma.printRequest.create({
@@ -335,7 +366,7 @@ describe('deleting', () => {
         termSeason: Season.FALL,
         printerProfileId: printer.id,
         processProfileId: printer.processes[0]!.id,
-        filamentProfileId: desk.filaments[0]!.id,
+        filamentProfileId: printer.filaments[0]!.id,
         slicedWith: { printer: 'CC1', process: 'Standard', filament: 'PLA' },
       },
     })
@@ -346,8 +377,7 @@ describe('deleting', () => {
     expect((await send('DELETE', `/${printer.id}`, {})).status).toBe(200)
     expect(await prisma.slicerProfile.count({ where: { printerId: printer.id } })).toBe(0)
     const after = await prisma.printRequest.findUniqueOrThrow({ where: { id: draft.id } })
-    expect(after).toMatchObject({ printerProfileId: null, processProfileId: null })
-    expect(after.filamentProfileId).toBe(desk.filaments[0]!.id)
+    expect(after).toMatchObject({ printerProfileId: null, processProfileId: null, filamentProfileId: null })
     expect(after.slicedWith).toEqual({ printer: 'CC1', process: 'Standard', filament: 'PLA' })
 
     expect((await send('DELETE', `/${printer.id}`, {})).status).toBe(404)
@@ -355,19 +385,20 @@ describe('deleting', () => {
 })
 
 describe('the worker’s queue', () => {
-  it('hands out a printer before its processes, and a process only once its printer is READY', async () => {
+  it('hands out a printer first, then its process, then its filament, once the printer is READY', async () => {
     const { claimProfile } = await import('../../printing/profileJobs.js')
     // Other queued rows in the table would be claimed too, so this runs only on a quiet queue.
     const others = await prisma.slicerProfile.count({
       where: { state: { in: [SlicerJobState.QUEUED, SlicerJobState.RUNNING] }, name: { not: { startsWith: PREFIX } } },
     })
     if (others > 0) return
-    await addBundle({ entries: JSON.stringify(['process/Fine.json', 'printer/CC1.json']) })
+    await addBundle({ entries: JSON.stringify(['filament/PLA.json', 'process/Fine.json', 'printer/CC1.json']) })
     const first = await claimProfile()
     expect(first).toMatchObject({ kind: SlicerProfileKind.PRINTER, name: `${PREFIX}CC1` })
-    // The process waits while its printer is still being resolved.
+    // Both wait while their printer is still being resolved.
     expect(await claimProfile()).toBeNull()
     await prisma.slicerProfile.update({ where: { id: first!.id }, data: { state: SlicerJobState.READY } })
     expect(await claimProfile()).toMatchObject({ kind: SlicerProfileKind.PROCESS, name: `${PREFIX}Fine` })
+    expect(await claimProfile()).toMatchObject({ kind: SlicerProfileKind.FILAMENT, name: `${PREFIX}PLA` })
   })
 })

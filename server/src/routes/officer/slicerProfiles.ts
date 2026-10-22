@@ -13,8 +13,7 @@ import {
   SlicerJobState,
   SlicerProfileKind,
 } from '../../generated/prisma/enums.js'
-import { ProfileError, type UploadedPreset, fitsPrinter, readPresetFile } from '../../printing/profileResolve.js'
-import { filamentInfo, printerInfo } from '../../printing/profiles.js'
+import { ProfileError, type UploadedPreset, readPresetFile } from '../../printing/profileResolve.js'
 import { workerOnline } from '../../printing/sliceJobs.js'
 
 /**
@@ -26,7 +25,7 @@ import { workerOnline } from '../../printing/sliceJobs.js'
  *   PATCH  /api/officer/slicer-profiles/order        -> reorder one list
  *   PATCH  /api/officer/slicer-profiles/:id          -> label, description, offered
  *   POST   /api/officer/slicer-profiles/:id/replace  -> a newer export of the same preset
- *   DELETE /api/officer/slicer-profiles/:id          -> remove it, and a printer's processes
+ *   DELETE /api/officer/slicer-profiles/:id          -> remove it, and a printer's processes and filaments
  *
  * Officers upload what desktop Orca exports (`.orca_printer`, `.orca_filament`, a zip of presets
  * or one `.json`) and pick which presets in it to add. The API only reads the file; the worker
@@ -41,7 +40,7 @@ export const slicerProfiles = new Hono<AuthEnv>()
 const writes = rateLimit('officer', 60)
 const uploads = rateLimit('profiles', 30)
 
-/** Room for a few printers, their processes and a shelf of filaments, and no runaway. */
+/** Room for a few printers with their processes and filaments, and no runaway. */
 export const MAX_PROFILES = 100
 
 const uploadLimit = bodyLimit({
@@ -128,35 +127,20 @@ async function deskView() {
       uses: uses.get(row.id) ?? { drafts: 0, sent: 0 },
     }
   }
-  const printerRows = rows.filter((row) => row.kind === SlicerProfileKind.PRINTER)
-  const printers = printerRows.map((row) => ({
-    ...view(row),
-    processes: rows
-      .filter((process) => process.kind === SlicerProfileKind.PROCESS && process.printerId === row.id)
-      .map(view),
-  }))
-  const filaments = rows
-    .filter((row) => row.kind === SlicerProfileKind.FILAMENT)
-    .map((row) => {
-      const fits = filamentInfo.safeParse(row.info)
-      return {
-        ...view(row),
-        // Which printers it can go on, by the names it lists. Unknown until it's resolved.
-        fits: fits.success
-          ? printerRows
-              .filter((printer) => {
-                const stock = printerInfo.safeParse(printer.info)
-                return fitsPrinter(fits.data.compatiblePrinters, {
-                  name: printer.name,
-                  stockName: stock.success ? stock.data.stockName : '',
-                })
-              })
-              .map((printer) => printer.id)
-          : null,
-      }
-    })
-  return { printers, filaments, workerOnline: online, limit: MAX_PROFILES }
+  const on = (printerId: string, kind: SlicerProfileKind) =>
+    rows.filter((row) => row.kind === kind && row.printerId === printerId).map(view)
+  const printers = rows
+    .filter((row) => row.kind === SlicerProfileKind.PRINTER)
+    .map((row) => ({
+      ...view(row),
+      processes: on(row.id, SlicerProfileKind.PROCESS),
+      filaments: on(row.id, SlicerProfileKind.FILAMENT),
+    }))
+  return { printers, workerOnline: online, limit: MAX_PROFILES }
 }
+
+/** Processes and filaments belong to a printer; names and order are per printer for them. */
+const onPrinter = (kind: SlicerProfileKind) => kind !== SlicerProfileKind.PRINTER
 
 /** The uploaded file's presets, or a 400 saying what's wrong with it. */
 async function readUpload(value: unknown): Promise<{ fileName: string; presets: UploadedPreset[] }> {
@@ -204,21 +188,21 @@ async function assertNameFree(
     where: {
       kind,
       name,
-      ...(kind === SlicerProfileKind.PROCESS ? { printerId } : {}),
+      ...(onPrinter(kind) ? { printerId } : {}),
       ...(except ? { id: { not: except } } : {}),
     },
     select: { label: true },
   })
   if (taken) {
     throw new HTTPException(409, {
-      message: `There's already a ${NOUN[kind]} called "${name}"${kind === SlicerProfileKind.PROCESS ? ' on that printer' : ''}. Replace that one instead.`,
+      message: `There's already a ${NOUN[kind]} called "${name}"${onPrinter(kind) ? ' on that printer' : ''}. Replace that one instead.`,
     })
   }
 }
 
 async function nextPosition(tx: Tx, kind: SlicerProfileKind, printerId: string | null) {
   const { _max } = await tx.slicerProfile.aggregate({
-    where: { kind, ...(kind === SlicerProfileKind.PROCESS ? { printerId } : {}) },
+    where: { kind, ...(onPrinter(kind) ? { printerId } : {}) },
     _max: { position: true },
   })
   return (_max.position ?? -1) + 1
@@ -239,14 +223,14 @@ slicerProfiles.post(
   async (c) => {
     const body = await c.req.parseBody()
     const { fileName, presets } = await readUpload(body['file'])
-    // Processes being added to a printer on the desk are matched against that printer's.
+    // Presets being added to a printer on the desk are matched against that printer's.
     const target = typeof body['printerId'] === 'string' && body['printerId'] !== '' ? body['printerId'] : null
     const existing = await prisma.slicerProfile.findMany({
       where: { name: { in: presets.map((preset) => preset.name) } },
       select: { id: true, kind: true, name: true, label: true, printerId: true },
     })
-    // A bundle for a printer that's already here: its processes go on that printer, so they're
-    // matched against its processes, and the desk offers it as where they go.
+    // A bundle for a printer that's already here: its processes and filaments go on that printer,
+    // so they're matched against its own, and the desk offers it as where they go.
     const bundled = presets.find((preset) => preset.kind === 'PRINTER')
     const printer = target
       ? await prisma.slicerProfile.findFirst({
@@ -261,7 +245,7 @@ slicerProfiles.post(
         (candidate) =>
           candidate.kind === preset.kind &&
           candidate.name === preset.name &&
-          (preset.kind !== 'PROCESS' || (printer !== null && candidate.printerId === printer.id)),
+          (preset.kind === 'PRINTER' || (printer !== null && candidate.printerId === printer.id)),
       )
       return row ? { id: row.id, label: row.label } : null
     }
@@ -300,12 +284,12 @@ slicerProfiles.post('/', originGuard, requireAuth, requireOfficer, uploadLimit, 
   }
   const printers = chosen.filter((preset) => preset.kind === 'PRINTER')
   if (printers.length > 1) {
-    throw new HTTPException(400, { message: 'Add one printer at a time, with its processes.' })
+    throw new HTTPException(400, { message: 'Add one printer at a time, with its processes and filaments.' })
   }
-  const processes = chosen.filter((preset) => preset.kind === 'PROCESS')
-  if (processes.length > 0 && printers.length === 0 && !printerField) {
+  const children = chosen.filter((preset) => preset.kind !== 'PRINTER')
+  if (children.length > 0 && printers.length === 0 && !printerField) {
     throw new HTTPException(400, {
-      message: `A process belongs to a printer. Pick the printer in this file too, or one that's already set up.`,
+      message: `Processes and filaments belong to a printer. Pick the printer in this file too, or one that's already set up.`,
     })
   }
   for (const kind of ['PRINTER', 'PROCESS', 'FILAMENT'] as const) {
@@ -353,8 +337,7 @@ slicerProfiles.post('/', originGuard, requireAuth, requireOfficer, uploadLimit, 
         throw new HTTPException(404, { message: 'That printer has been removed.' })
       }
     }
-    for (const preset of processes) ids.push((await make(preset, printerId)).id)
-    for (const preset of chosen.filter((p) => p.kind === 'FILAMENT')) ids.push((await make(preset, null)).id)
+    for (const preset of children) ids.push((await make(preset, printerId)).id)
     return ids
   })
 
@@ -383,7 +366,7 @@ slicerProfiles.patch(
       const group = await tx.slicerProfile.findMany({
         where: {
           kind: first.kind,
-          ...(first.kind === SlicerProfileKind.PROCESS ? { printerId: first.printerId } : {}),
+          ...(onPrinter(first.kind) ? { printerId: first.printerId } : {}),
         },
         select: { id: true },
       })
@@ -481,7 +464,8 @@ slicerProfiles.post(
           uploadedById: user.id,
         },
       })
-      // A process takes its plate type from its printer, so it's resolved again with it.
+      // Its processes and filaments are checked against it, and a process takes its plate type,
+      // so they're resolved again with it.
       if (profile.kind === SlicerProfileKind.PRINTER) {
         await tx.slicerProfile.updateMany({ where: { printerId: profile.id }, data: queued })
       }

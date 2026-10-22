@@ -8,8 +8,8 @@ import { LEASE_SECONDS, MAX_ATTEMPTS } from './sliceJobs.js'
  * The worker's third queue: officers' uploads waiting to be resolved (`slicer_profiles`).
  *
  * Claimed and leased the way slices and meshes are (`sliceJobs.ts`). A printer goes before its
- * processes, which can't be resolved without its plate type, and processes before filaments, which
- * are test-sliced on a printer's first process.
+ * processes and filaments, which are checked against it and processes take its plate type, and
+ * processes before filaments, which are test-sliced on their printer's first process.
  */
 
 export interface ClaimedProfile {
@@ -44,7 +44,7 @@ async function failAbandoned(): Promise<void> {
 export async function claimProfile(): Promise<ClaimedProfile | null> {
   await failAbandoned()
   const token = randomUUID()
-  // A process waits for its printer; one whose printer failed is failed with it (`failProfile`).
+  // A process or filament waits for its printer, and fails with it (`failProfile`).
   const rows = await prisma.$queryRaw<
     {
       id: string
@@ -63,7 +63,7 @@ export async function claimProfile(): Promise<ClaimedProfile | null> {
       SELECT p.id FROM slicer_profiles p
       LEFT JOIN slicer_profiles printer ON printer.id = p.printer_id
       WHERE (p.state = 'QUEUED' OR (p.state = 'RUNNING' AND p.lease_expires_at < now()))
-        AND (p.kind <> 'PROCESS' OR printer.state = 'READY')
+        AND (p.kind = 'PRINTER' OR printer.state = 'READY')
       ORDER BY CASE p.kind WHEN 'PRINTER' THEN 0 WHEN 'PROCESS' THEN 1 ELSE 2 END, p.requested_at
       FOR UPDATE OF p SKIP LOCKED
       LIMIT 1
@@ -90,7 +90,7 @@ export async function renewProfile(id: string, token: string): Promise<boolean> 
   return count === 1
 }
 
-/** Refused, in a sentence for the officer. A printer takes its waiting processes down with it. */
+/** Refused, in a sentence for the officer. A printer takes its waiting processes and filaments down with it. */
 export async function failProfile(
   id: string,
   token: string,
@@ -182,34 +182,22 @@ const partner = { id: true, name: true, label: true, resolved: true, info: true 
 // Offered ones first: a hidden profile is usually one on its way out.
 const partnerOrder = [{ offered: 'desc' }, { position: 'asc' }, { createdAt: 'asc' }] as const
 
-/** Every READY filament, for testing a process with the first that fits its printer. */
-export async function readyFilaments() {
-  return prisma.slicerProfile.findMany({
-    where: { kind: SlicerProfileKind.FILAMENT, ...ready },
+/** A printer's first READY process or filament, to test the other kind with. */
+export async function firstReady(kind: 'PROCESS' | 'FILAMENT', printerId: string) {
+  return prisma.slicerProfile.findFirst({
+    where: { kind: SlicerProfileKind[kind], printerId, ...ready },
     orderBy: [...partnerOrder],
     select: partner,
   })
 }
 
-/** Every READY printer with its first READY process, for testing a filament. */
-export async function readyPrinters() {
-  return prisma.slicerProfile.findMany({
-    where: { kind: SlicerProfileKind.PRINTER, ...ready },
-    orderBy: [...partnerOrder],
-    select: {
-      ...partner,
-      processes: { where: ready, orderBy: [...partnerOrder], select: partner, take: 1 },
-    },
-  })
-}
-
-/** Processes resolved before any filament could test them, on a printer a new filament fits. */
-export async function untestedProcesses(printerIds: string[]) {
+/** A printer's processes resolved before it had a filament to test them with. */
+export async function untestedProcesses(printerId: string) {
   return prisma.slicerProfile.findMany({
     where: {
       kind: SlicerProfileKind.PROCESS,
       state: SlicerJobState.READY,
-      printerId: { in: printerIds },
+      printerId,
       info: { path: ['tested'], equals: false },
     },
     select: { id: true, name: true, label: true, printerId: true, resolved: true, info: true },

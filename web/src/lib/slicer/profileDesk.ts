@@ -23,7 +23,7 @@ const text = (value: unknown): string | null => (typeof value === 'string' && va
 const number = (value: unknown): number | null => (typeof value === 'number' ? value : null)
 
 /** One line of facts: "Elegoo Centauri Carbon · 0.4 mm nozzle · 256 × 256 × 256 mm · Textured PEI Plate". */
-export function profileFacts(profile: ApiDeskProfile, desk: ApiSlicerDesk): string {
+export function profileFacts(profile: ApiDeskProfile): string {
   const info = profile.info ?? {}
   if (profile.kind === 'PRINTER') {
     const bed = (info['bed'] ?? {}) as Record<string, unknown>
@@ -38,17 +38,7 @@ export function profileFacts(profile: ApiDeskProfile, desk: ApiSlicerDesk): stri
       .join(' · ')
   }
   if (profile.kind === 'PROCESS') return text(info['summary']) ?? ''
-  const filament = desk.filaments.find((f) => f.id === profile.id)
-  const fits = filament?.fits
-    ? desk.printers.filter((printer) => filament.fits!.includes(printer.id)).map((printer) => printer.label)
-    : null
-  return [
-    text(info['type']),
-    text(info['vendor']),
-    fits === null ? null : fits.length === 0 ? null : `for ${fits.join(', ')}`,
-  ]
-    .filter(Boolean)
-    .join(' · ')
+  return [text(info['type']), text(info['vendor'])].filter(Boolean).join(' · ')
 }
 
 /** Why a READY, offered profile still isn't something a member can pick, or null. */
@@ -56,20 +46,16 @@ export function unreachable(profile: ApiDeskProfile, desk: ApiSlicerDesk): strin
   if (profile.state !== 'READY' || !profile.offered) return null
   if (profile.kind === 'PRINTER') {
     const printer = desk.printers.find((p) => p.id === profile.id)
-    return printer?.processes.some((p) => p.state === 'READY' && p.offered)
-      ? null
-      : 'Members can’t pick it until one of its processes is offered.'
-  }
-  if (profile.kind === 'FILAMENT') {
-    const fits = desk.filaments.find((f) => f.id === profile.id)?.fits
-    if (fits && fits.length === 0) return 'It isn’t made for any printer here, so members can’t pick it.'
+    const usable = (list: ApiDeskProfile[] | undefined) => list?.some((p) => p.state === 'READY' && p.offered)
+    if (!usable(printer?.processes)) return 'Members can’t pick it until one of its processes is offered.'
+    if (!usable(printer?.filaments)) return 'Members can’t pick it until one of its filaments is offered.'
   }
   return null
 }
 
 /** Whether anything on the desk is still with the worker, so the page keeps asking. */
 export const checking = (desk: ApiSlicerDesk): boolean =>
-  [...desk.printers.flatMap((p) => [p, ...p.processes]), ...desk.filaments].some(
+  desk.printers.flatMap((p) => [p, ...p.processes, ...p.filaments]).some(
     (profile) => profile.state === 'QUEUED' || profile.state === 'RUNNING',
   )
 
