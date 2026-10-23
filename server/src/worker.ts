@@ -59,7 +59,7 @@ if (!version) {
 }
 const stock = await StockProfiles.load(env.ORCA_PROFILES_DIR)
 
-const runner = new OrcaRunner(scratch, version)
+const runner = new OrcaRunner(scratch, version, stock)
 const workerId = hostname()
 let stopping = false
 let current: AbortController | null = null

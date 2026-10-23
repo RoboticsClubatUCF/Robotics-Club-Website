@@ -213,8 +213,9 @@ async function main() {
   const scratch = env.SLICER_SCRATCH_DIR ?? '/tmp'
   const version = await orcaVersion(env.ORCA_BINARY, scratch)
   if (!version) throw new Error(`${env.ORCA_BINARY} didn't say which OrcaSlicer it is`)
-  const runner = new OrcaRunner(scratch, version)
-  const club = await clubProfiles(await StockProfiles.load(env.ORCA_PROFILES_DIR))
+  const stock = await StockProfiles.load(env.ORCA_PROFILES_DIR)
+  const runner = new OrcaRunner(scratch, version, stock)
+  const club = await clubProfiles(stock)
 
   await mkdir(join(out, 'parts'), { recursive: true })
   await mkdir(join(out, 'slices'), { recursive: true })

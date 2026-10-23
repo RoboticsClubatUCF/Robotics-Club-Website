@@ -6,6 +6,8 @@ import { PreviewError, buildPreview } from './gcodePreview.js'
 import { type ProjectHeader, readProjectHeader, writeProject } from './orcaProject.js'
 import { type FitProblem, fitProblem, placementAffine } from './plateTransform.js'
 import { orcaOverrides, vaseRefusal } from './processSettings.js'
+import type { ProfileKind, StockProfiles } from './profileResolve.js'
+import { markChangedSettings, stockParent } from './projectChanges.js'
 import type { SliceProfiles } from './profiles.js'
 import { runProcess } from './runProcess.js'
 import type { ClaimedSlice, SliceOutput } from './sliceJobs.js'
@@ -18,7 +20,8 @@ import { triangleCount, writeBinaryStl } from './stl.js'
  * and exports a project without slicing: Orca won't slice a project with no settings in it, and
  * given a project and presets together it merges them by its own rules. That project's settings
  * go into the plate's project, which the second run slices with arranging and orienting off, so
- * every copy stays exactly where the member put it.
+ * every copy stays exactly where the member put it. The result then gets the list of changed
+ * settings desktop Orca needs to open it as sliced (`projectChanges.ts`).
  *
  * Every message a member can see is written here, except vase mode's, which the workspace and the
  * SLICE route give first (`vaseRefusal` in `processSettings.ts`). Orca's own output goes to the
@@ -119,11 +122,27 @@ function cube(): Uint8Array {
 
 export class OrcaRunner {
   private headers = new Map<string, ProjectHeader>()
+  private parents = new Map<string, Promise<Record<string, unknown> | null>>()
+  private stockHeaders = new Map<string, Record<string, unknown>>()
 
   constructor(
     private readonly scratchRoot: string,
     readonly version: string,
+    private readonly stock: StockProfiles,
   ) {}
+
+  /** A club profile, parsed, with the stock preset it was made from. */
+  private async withParent(kind: ProfileKind, text: string) {
+    const own = JSON.parse(text) as Record<string, unknown>
+    const name = typeof own['inherits'] === 'string' ? own['inherits'] : ''
+    const key = `${kind}:${name}`
+    let parent = this.parents.get(key)
+    if (!parent) {
+      parent = stockParent(this.stock, kind, name)
+      this.parents.set(key, parent)
+    }
+    return { own, parent: await parent }
+  }
 
   /** The isolated environment each run gets: its own home, temp and data folders. */
   private async jobDir(name: string) {
@@ -172,6 +191,53 @@ export class OrcaRunner {
     }
   }
 
+  /**
+   * Orca's own project for a process, printer and filament, sliced onto nothing: every setting
+   * written the way Orca writes it. Null with the run's details when Orca refused.
+   */
+  private async exportSettings(
+    texts: { process: string; printer: string; filament: string },
+    outDir: string,
+    dirs: Awaited<ReturnType<OrcaRunner['jobDir']>>,
+    timeoutMs: number,
+    signal?: AbortSignal,
+  ): Promise<ProjectHeader | { run: Awaited<ReturnType<typeof runProcess>>; result: { code: number; message: string } | null }> {
+    await mkdir(outDir, { recursive: true, mode: 0o700 })
+    const processFile = join(outDir, 'process.json')
+    const printerFile = join(outDir, 'printer.json')
+    const filamentFile = join(outDir, 'filament.json')
+    const cubeFile = join(outDir, 'cube.stl')
+    await writeFile(processFile, texts.process)
+    await writeFile(printerFile, texts.printer)
+    await writeFile(filamentFile, texts.filament)
+    await writeFile(cubeFile, cube())
+
+    const run = await runProcess(
+      env.ORCA_BINARY,
+      [
+        '--datadir',
+        dirs.data,
+        '--load-settings',
+        `${processFile};${printerFile}`,
+        '--load-filaments',
+        filamentFile,
+        '--outputdir',
+        outDir,
+        '--arrange',
+        '1',
+        '--orient',
+        '0',
+        '--export-3mf',
+        'header.3mf',
+        cubeFile,
+      ],
+      { cwd: dirs.root, env: this.orcaEnv(dirs), timeoutMs, signal },
+    )
+    const result = await this.orcaResult(outDir)
+    if (run.code !== 0 || !result || result.code !== 0) return { run, result }
+    return readProjectHeader(new Uint8Array(await readFile(join(outDir, 'header.3mf'))))
+  }
+
   private async header(
     spec: ClaimedSlice['spec'],
     profiles: SliceProfiles,
@@ -189,56 +255,72 @@ export class OrcaRunner {
     const cached = this.headers.get(key)
     if (cached) return cached
 
-    const processProfile = {
+    const processText = JSON.stringify({
       ...(JSON.parse(profiles.process.text) as object),
       ...overrides,
-    }
-    const processFile = join(dirs.header, 'process.json')
-    const printerFile = join(dirs.header, 'printer.json')
-    const filamentFile = join(dirs.header, 'filament.json')
-    const cubeFile = join(dirs.header, 'cube.stl')
-    await writeFile(processFile, JSON.stringify(processProfile))
-    await writeFile(printerFile, profiles.printer.text)
-    await writeFile(filamentFile, profiles.filament.text)
-    await writeFile(cubeFile, cube())
-
-    const run = await runProcess(
-      env.ORCA_BINARY,
-      [
-        '--datadir',
-        dirs.data,
-        '--load-settings',
-        `${processFile};${printerFile}`,
-        '--load-filaments',
-        filamentFile,
-        '--outputdir',
-        dirs.header,
-        '--arrange',
-        '1',
-        '--orient',
-        '0',
-        '--export-3mf',
-        'header.3mf',
-        cubeFile,
-      ],
-      { cwd: dirs.root, env: this.orcaEnv(dirs), timeoutMs, signal },
+    })
+    const header = await this.exportSettings(
+      { process: processText, printer: profiles.printer.text, filament: profiles.filament.text },
+      dirs.header,
+      dirs,
+      timeoutMs,
+      signal,
     )
-    const result = await this.orcaResult(dirs.header)
-    if (run.code !== 0 || !result || result.code !== 0) {
+    if ('run' in header) {
+      const { run, result } = header
       return {
         failure: run.timedOut ? FAILURES.tooSlow : FAILURES.setup,
         retryable: true,
         transient: !result && !run.timedOut,
-        detail: `settings run: exit ${String(run.code)}, ${JSON.stringify(result)}\n${run.stderr.slice(-2000)}`,
+        detail: `settings run: exit ${String(run.code)}, ${JSON.stringify(result)}
+${run.stderr.slice(-2000)}`,
         orca: result?.message,
       }
     }
-    const header = readProjectHeader(
-      new Uint8Array(await readFile(join(dirs.header, 'header.3mf'))),
-    )
     if (this.headers.size > 64) this.headers.clear()
     this.headers.set(key, header)
     return header
+  }
+
+  /**
+   * What desktop Orca compares a project against: the stock presets the club's were made from,
+   * every key filled in and written by Orca itself, so a setting Orca stores differently from the
+   * stock file (a one-value list it keeps as two) doesn't read as changed. When Orca won't export
+   * the stock presets, the stock files themselves, which only ever name too much.
+   */
+  private async stockSettings(
+    parents: Record<'process' | 'printer' | 'filament', Record<string, unknown> | null>,
+    bedType: string,
+    dirs: Awaited<ReturnType<OrcaRunner['jobDir']>>,
+    timeoutMs: number,
+    signal?: AbortSignal,
+  ): Promise<Record<string, unknown> | null> {
+    const { process, printer, filament } = parents
+    if (!process || !printer || !filament) return null
+    const key = JSON.stringify([process['inherits'], printer['inherits'], filament['inherits'], bedType])
+    const cached = this.stockHeaders.get(key)
+    if (cached) return cached
+
+    const named = (profile: Record<string, unknown>) => ({ ...profile, name: profile['inherits'] })
+    const header = await this.exportSettings(
+      {
+        process: JSON.stringify({ ...named(process), curr_bed_type: bedType }),
+        printer: JSON.stringify(named(printer)),
+        filament: JSON.stringify(named(filament)),
+      },
+      join(dirs.root, 'stock'),
+      dirs,
+      timeoutMs,
+      signal,
+    )
+    if ('run' in header) {
+      console.warn(`slicer: stock settings run failed: ${JSON.stringify(header.result)}`)
+      return null
+    }
+    const settings = JSON.parse(header.settings) as Record<string, unknown>
+    if (this.stockHeaders.size > 64) this.stockHeaders.clear()
+    this.stockHeaders.set(key, settings)
+    return settings
   }
 
   async slice(
@@ -337,7 +419,7 @@ export class OrcaRunner {
         }
       }
 
-      const output = new Uint8Array(await readFile(join(dirs.out, 'rccf.3mf')))
+      let output = new Uint8Array(await readFile(join(dirs.out, 'rccf.3mf')))
       let summary
       try {
         summary = readSlicedProject(output, {
@@ -355,6 +437,23 @@ export class OrcaRunner {
           ? { failure: FAILURES.doesntFit, retryable: false, detail: error.message }
           : { failure: FAILURES.setup, retryable: true, detail: error.message, orca: error.message }
       }
+
+      const processPreset = await this.withParent('PROCESS', profiles.process.text)
+      const filament = await this.withParent('FILAMENT', profiles.filament.text)
+      const printer = await this.withParent('PRINTER', profiles.printer.text)
+      const stockSettings = await this.stockSettings(
+        { process: processPreset.parent, printer: printer.parent, filament: filament.parent },
+        profiles.printer.info.bedType,
+        dirs,
+        left(),
+        signal,
+      )
+      output = markChangedSettings(output, {
+        process: { ...processPreset, extra: Object.keys(orcaOverrides(spec.overrides)) },
+        filament,
+        printer,
+        stock: stockSettings,
+      })
 
       let preview: Uint8Array | null = null
       let previewFailure: string | null = null
