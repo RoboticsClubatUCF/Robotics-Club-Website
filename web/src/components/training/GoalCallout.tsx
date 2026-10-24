@@ -19,6 +19,12 @@ interface Shown {
  */
 const AVOID = ['tools', 'house', 'drawer:settings', 'drawer:objects', 'slice-log']
 
+/**
+ * What a callout never covers while another side will do: the task's START OVER, BACK and NEXT.
+ * Pointing at SLICE PLATE, just under them on a phone, it used to sit right on top of them.
+ */
+const KEEP_CLEAR = ['task-actions']
+
 /** The arrow on the edge facing the target: where it sits, and its shape in an 18 by 10 box. */
 const ARROW: Record<Side, { edge: string; path: string; across: boolean }> = {
   below: { edge: '-top-2.5', path: 'M0 10L9 0L18 10Z', across: true },
@@ -65,12 +71,15 @@ export function GoalCallout({
     let next: Shown
     if (found) {
       // Kept clear of the plate's own controls where another side will do.
-      const avoid = AVOID.flatMap((name) => [...frame.querySelectorAll(selectorOf(name))])
-        .filter((control) => control.getClientRects().length > 0)
-        .map((control) => control.getBoundingClientRect())
-        .filter((rect) => !intersect(rect, found.rect))
+      // Not what it points at: DONE points at NEXT itself.
+      const rects = (names: string[]) =>
+        names
+          .flatMap((name) => [...frame.querySelectorAll(selectorOf(name))])
+          .filter((control) => control.getClientRects().length > 0)
+          .map((control) => control.getBoundingClientRect())
+          .filter((rect) => !intersect(rect, found.rect))
       const size = { width: element.offsetWidth, height: element.offsetHeight }
-      const placed = place(found.rect, size, bounds, found.side, avoid)
+      const placed = place(found.rect, size, bounds, found.side, rects(AVOID), rects(KEEP_CLEAR))
       next = {
         left: placed.left - origin.left,
         top: placed.top - origin.top,

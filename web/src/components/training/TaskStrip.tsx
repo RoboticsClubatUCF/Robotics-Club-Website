@@ -51,7 +51,7 @@ export function TaskStrip({
             </details>
           )}
         </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+        <div data-coach="task-actions" className="flex shrink-0 flex-wrap items-center gap-1.5">
           <button type="button" onClick={onStartOver} className={smallQuietButton}>
             START OVER
           </button>
