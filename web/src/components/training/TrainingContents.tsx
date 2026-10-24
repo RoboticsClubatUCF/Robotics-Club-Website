@@ -1,24 +1,28 @@
 import { useEffect, useRef } from 'react'
-import type { PlacedStep } from '../../lib/training/curriculum'
+import { type PlacedStep, isOptional } from '../../lib/training/curriculum'
 import { useDialogFocus } from '../../lib/useDialogFocus'
 
 const KIND = { read: 'READ', check: 'QUESTION', try: 'TRY IT', finish: 'FINISH' } as const
 
 /**
- * Every step of the training, by chapter, as a panel over the page. Completed and restarted
- * tasks stay available; other unfinished steps after the first one not yet done are locked.
+ * Every step of the training, by chapter, as a panel over the page, with the optional chapters
+ * under their own heading. Completed and restarted tasks stay available; other unfinished steps
+ * after the first one not yet done are locked.
  */
 export function TrainingContents({
   steps,
   current,
-  done,
+  finished,
+  unlocked,
   open,
   onGo,
   onClose,
 }: {
   steps: PlacedStep[]
   current: number
-  done: ReadonlySet<string>
+  finished: (placed: PlacedStep) => boolean
+  /** Chapters done; the optional ones among them have unlocked their settings. */
+  unlocked: ReadonlySet<string>
   open: (index: number) => boolean
   onGo: (index: number) => void
   onClose: () => void
@@ -33,6 +37,7 @@ export function TrainingContents({
   }, [])
 
   const chapters = steps.filter((placed, index) => index === 0 || steps[index - 1]!.chapter !== placed.chapter)
+  const firstOptional = chapters.find((placed) => isOptional(placed.chapter))
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70" onClick={onClose}>
@@ -60,14 +65,23 @@ export function TrainingContents({
         <ol className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
           {chapters.map((first) => (
             <li key={first.chapter.id} className="mb-3">
+              {first === firstOptional && (
+                <p className="border-rule text-faint mx-3 mt-5 mb-3 border-t pt-4 font-mono text-[11px] font-bold tracking-[0.16em]">
+                  / OPTIONAL
+                </p>
+              )}
               <p className="text-faint px-3 pb-1 font-mono text-[10px] font-medium tracking-[0.16em]">
-                {String(first.chapterIndex + 1).padStart(2, '0')} · {first.chapter.title.toUpperCase()}
+                {isOptional(first.chapter) ? '' : `${String(first.chapterIndex + 1).padStart(2, '0')} · `}
+                {first.chapter.title.toUpperCase()}
+                {isOptional(first.chapter) && unlocked.has(first.chapter.id) && (
+                  <span className="text-success"> · UNLOCKED</span>
+                )}
               </p>
               <ol>
                 {steps
                   .filter((placed) => placed.chapter === first.chapter)
                   .map((placed) => {
-                    const finished = done.has(placed.step.id)
+                    const done = finished(placed)
                     const here = placed.index === current
                     return (
                       <li key={placed.step.id}>
@@ -82,13 +96,13 @@ export function TrainingContents({
                             here ? 'border-primary bg-primary/8 text-primary' : 'border-transparent hover:bg-base-content/5'
                           } ${open(placed.index) ? '' : 'text-faint'}`}
                         >
-                          <span aria-hidden="true" className={`w-3 shrink-0 font-mono ${finished ? 'text-success' : ''}`}>
-                            {finished ? '✓' : ''}
+                          <span aria-hidden="true" className={`w-3 shrink-0 font-mono ${done ? 'text-success' : ''}`}>
+                            {done ? '✓' : ''}
                           </span>
                           <span className="min-w-0 flex-1">{placed.step.title}</span>
                           <span className="text-faint shrink-0 font-mono text-[9.5px] tracking-[0.12em]">
                             {open(placed.index) ? KIND[placed.step.kind] : 'LOCKED'}
-                            {finished && <span className="sr-only">, done</span>}
+                            {done && <span className="sr-only">, done</span>}
                           </span>
                         </button>
                       </li>

@@ -12,6 +12,7 @@ import type {
 } from '../../lib/api/api'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
 import { bodyOf, stubFetch, urlOf } from '../../test/stubFetch'
+import { OPTIONAL_CHAPTERS, REQUIRED_CHAPTERS } from '../../lib/slicer/trainingChapters'
 
 /**
  * The slicer workspace, with the 3D views stood in for: jsdom has no WebGL, and what's under test
@@ -89,6 +90,7 @@ const workspace = (over: Partial<ApiSlicerWorkspace> = {}): ApiSlicerWorkspace =
     ],
   },
   workerOnline: true,
+  chapters: [...REQUIRED_CHAPTERS, ...OPTIONAL_CHAPTERS],
   limits: { drafts: 3, models: 10, objects: 50, fileMb: 30, slicesPerHour: 20 },
   ...over,
 })
@@ -302,6 +304,30 @@ describe('a plate in progress', () => {
       const patch = fetchStub.mock.calls.find((c) => c[1]?.method === 'PATCH')
       expect(patch && bodyOf(patch[1])).toEqual({ revision: 3, overrides: { wall_loops: 4 } })
     })
+  })
+
+  it('locks what the member hasn’t taken the chapter for, and says which', async () => {
+    vi.stubGlobal(
+      'fetch',
+      stubFetch({
+        '/print/workspace': workspace({ chapters: [...REQUIRED_CHAPTERS, 'adhesion'] }),
+        '/me/print-allowance': allowance,
+        '/print/drafts/d1': draft(),
+      }),
+    )
+    renderAt('/dashboard/print/slicer/d1')
+    await screen.findByText('1 on the plate')
+
+    expect(screen.getByRole('combobox', { name: 'FILAMENT' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('tab', { name: /strength/i }))
+    expect(screen.getByLabelText('Walls')).toBeDisabled()
+    expect(screen.getByRole('link', { name: 'Strength settings' })).toHaveAttribute(
+      'href',
+      '/dashboard/profile/training?chapter=strength',
+    )
+    fireEvent.click(screen.getByRole('tab', { name: /others/i }))
+    expect(screen.getByLabelText('Brim')).toBeEnabled()
+    expect(screen.getByLabelText('Vase mode')).toBeDisabled()
   })
 
   it('undoes a move with Ctrl+Z and redoes it with Ctrl+Y', async () => {

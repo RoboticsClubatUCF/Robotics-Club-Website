@@ -131,6 +131,10 @@ function stubApi(
     if (url.includes('/survey')) {
       return json({ questions, survey, gradYear: account.gradYear })
     }
+    // The slicer training panel's read, from somebody who hasn't started.
+    if (url.includes('/print/training')) {
+      return json({ steps: [], at: null, restarted: [], chapters: [], trainedAt: null })
+    }
 
     return json({})
   })

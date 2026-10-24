@@ -15,9 +15,8 @@ export function TrainingNeeded({ eyebrow }: { eyebrow: string }) {
         <FormPanel tone="accent">
           <p className="mb-1.5 text-sm font-semibold">It&rsquo;s on your profile page.</p>
           <p className="text-dim text-sm leading-[1.7] text-pretty">
-            It walks you through the slicer on a practice plate: moving and turning parts, supports, brims and
-            every setting. Finish it and the slicer opens. You can stop and pick up where you left off in
-            the same browser.
+            It walks you through the slicer on a practice plate, from moving parts to sending a plate. Finish
+            it and the slicer opens. You can stop and pick up where you left off, on any device.
           </p>
           <Link
             to="/dashboard/profile/training"

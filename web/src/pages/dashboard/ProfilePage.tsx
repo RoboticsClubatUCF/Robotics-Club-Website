@@ -170,7 +170,7 @@ export function ProfilePage({ part }: { part: Part }) {
           first={
             <>
               <Standing account={account} role={user.role} />
-              <ProfileTrainingPanel userId={user.id} membership={membership} />
+              <ProfileTrainingPanel membership={membership} />
             </>
           }
           second={

@@ -11,13 +11,15 @@ import { iconSize, smallField, smallSelect } from './slicerChrome'
 /**
  * One process setting: the preset's value until the member changes it, then theirs, marked in
  * gold with a way back. Numbers are committed on Enter or when the field loses focus, so typing
- * "12" doesn't save a 1 on the way.
+ * "12" doesn't save a 1 on the way. A locked one can still be put back to the preset.
  */
 export function SettingField({
   def,
   value,
   presetValue,
   disabled,
+  locked = false,
+  describedBy,
   onChange,
 }: {
   def: SettingDef
@@ -25,6 +27,9 @@ export function SettingField({
   value: SettingValue | undefined
   presetValue: SettingValue
   disabled: boolean
+  /** Its training chapter isn't done; `describedBy` names the line that says which. */
+  locked?: boolean
+  describedBy?: string
   /** Undefined puts it back to the preset. */
   onChange: (value: SettingValue | undefined) => void
 }) {
@@ -43,7 +48,14 @@ export function SettingField({
         {def.label}
       </label>
 
-      <Control id={id} def={def} shown={shown} disabled={disabled} onChange={onChange} />
+      <Control
+        id={id}
+        def={def}
+        shown={shown}
+        disabled={disabled || locked}
+        describedBy={describedBy}
+        onChange={onChange}
+      />
 
       {changed ? (
         <button
@@ -71,12 +83,14 @@ function Control({
   def,
   shown,
   disabled,
+  describedBy,
   onChange,
 }: {
   id: string
   def: SettingDef
   shown: SettingValue
   disabled: boolean
+  describedBy: string | undefined
   onChange: (value: SettingValue | undefined) => void
 }) {
   if (def.kind === 'bool') {
@@ -87,6 +101,7 @@ function Control({
         role="switch"
         checked={shown === true}
         disabled={disabled}
+        aria-describedby={describedBy}
         onChange={(event) => {
           onChange(event.target.checked)
         }}
@@ -101,6 +116,7 @@ function Control({
         id={id}
         value={String(shown)}
         disabled={disabled}
+        aria-describedby={describedBy}
         onChange={(event) => {
           onChange(event.target.value)
         }}
@@ -115,7 +131,16 @@ function Control({
     )
   }
 
-  return <NumberControl id={id} def={def} shown={shown as number} disabled={disabled} onChange={onChange} />
+  return (
+    <NumberControl
+      id={id}
+      def={def}
+      shown={shown as number}
+      disabled={disabled}
+      describedBy={describedBy}
+      onChange={onChange}
+    />
+  )
 }
 
 function NumberControl({
@@ -123,12 +148,14 @@ function NumberControl({
   def,
   shown,
   disabled,
+  describedBy,
   onChange,
 }: {
   id: string
   def: Extract<SettingDef, { kind: 'float' | 'int' | 'percent' }>
   shown: number
   disabled: boolean
+  describedBy: string | undefined
   onChange: (value: SettingValue | undefined) => void
 }) {
   // What's typed, until it's committed. Null means "showing the saved value".
@@ -167,7 +194,7 @@ function NumberControl({
         value={typed ?? String(shown)}
         disabled={disabled}
         aria-invalid={wrong || undefined}
-        aria-describedby={wrong ? `${id}-range` : undefined}
+        aria-describedby={wrong ? `${id}-range` : describedBy}
         onChange={(event) => {
           setTyped(event.target.value)
           setWrong(false)

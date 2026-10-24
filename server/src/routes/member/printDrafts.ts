@@ -27,18 +27,27 @@ import {
   printStorageBytes,
   storageCapBytes,
 } from '../../printing/printLifecycle.js'
-import { processOverrides, vaseRefusal } from '../../printing/processSettings.js'
+import { processOverrides, settingDef, vaseRefusal } from '../../printing/processSettings.js'
 import {
   type PlateChoice,
+  type WorkspaceProfiles,
   checkChoice,
   choiceLabels,
   missingChoice,
+  missingKinds,
   processInfo,
   slicedWith,
   workspaceProfiles,
 } from '../../printing/profiles.js'
 import { currentSpec, fingerprintOf, workerOnline } from '../../printing/sliceJobs.js'
 import { MeshError, parseStl } from '../../printing/stl.js'
+import {
+  PROFILE_KEYS,
+  REQUIRED_CHAPTERS,
+  isChapter,
+  lockedChange,
+  unlocked,
+} from '../../printing/trainingChapters.js'
 import { printSelect, withGrams } from './print.js'
 
 /**
@@ -56,7 +65,9 @@ import { printSelect, withGrams } from './print.js'
  *   DELETE /api/print/drafts/:id            -> discard it
  *   POST   /api/print/:id/unsubmit          -> take a waiting plate back to edit
  *   GET    /api/print/models/:id/mesh       -> a model's mesh, for the workspace
- *   POST   /api/print/training              -> the slicer training is finished
+ *   GET    /api/print/training              -> where I am in the slicer training
+ *   PUT    /api/print/training              -> save where I am, and the chapters finished
+ *   POST   /api/print/training              -> the required chapters are finished
  *
  * A draft is a `PrintRequest` in DRAFT: private, charging nothing, expiring on its own. Every
  * edit, SLICE and SUBMIT names the revision it saw, so a stale tab gets a 409 rather than
@@ -70,9 +81,10 @@ import { printSelect, withGrams } from './print.js'
  * The per-member limits are checked under that member's advisory lock, so two tabs can't both
  * slip under one.
  *
- * Everything that makes, changes, slices or sends a plate also needs the slicer training
- * (`requireSlicerTraining`), which the profile page runs. Its practice happens in the browser
- * and touches none of these routes.
+ * Everything that makes, changes, slices or sends a plate also needs the slicer training's
+ * required chapters (`requireSlicerTraining`), which the profile page runs. Its practice happens
+ * in the browser and touches none of these routes. Changing a setting, or choosing a profile, also
+ * needs the optional chapter that teaches it (`printing/trainingChapters.ts`).
  */
 export const printDrafts = new Hono<AuthEnv>()
 
@@ -424,12 +436,57 @@ async function myDraft(tx: Tx, id: string, userId: string) {
       processProfileId: true,
       filamentProfileId: true,
       slicedWith: true,
+      overrides: true,
     },
   })
   if (!draft || draft.userId !== userId || draft.status !== PrintRequestStatus.DRAFT) {
     throw notFound()
   }
   return draft
+}
+
+/** The slicer training chapters a member has finished. */
+async function chaptersOf(db: Pick<Tx, 'slicerTraining'>, userId: string) {
+  const row = await db.slicerTraining.findUnique({
+    where: { userId },
+    select: { chapters: true },
+  })
+  return row?.chapters ?? []
+}
+
+const lockedSetting = (key: string) =>
+  new HTTPException(403, {
+    message: `To change ${settingDef(key)?.label ?? key}, take its chapter of the slicer training first.`,
+  })
+
+const lockedProfile = (kind: (typeof PROFILE_KEYS)[number]) =>
+  new HTTPException(403, {
+    message: `To choose the ${kind}, take its chapter of the slicer training first.`,
+  })
+
+/**
+ * A new plate's profiles: the member's where they may choose them, and otherwise what a new plate
+ * starts with, which is what the workspace showed them. Taking the default rather than refusing
+ * means an officer reordering the lists mid-upload doesn't cost the member their upload.
+ */
+function startingChoice(
+  offered: WorkspaceProfiles,
+  asked: PlateChoice,
+  chapters: readonly string[],
+): PlateChoice {
+  const printerId = unlocked(chapters, 'printer')
+    ? asked.printerId
+    : (offered.printers[0]?.id ?? null)
+  const printer = offered.printers.find((p) => p.id === printerId)
+  return {
+    printerId,
+    processId: unlocked(chapters, 'process')
+      ? asked.processId
+      : (printer?.processes[0]?.id ?? null),
+    filamentId: unlocked(chapters, 'filament')
+      ? asked.filamentId
+      : (offered.filaments.find((f) => printer && f.printers.includes(printer.id))?.id ?? null),
+  }
 }
 
 printDrafts.get('/workspace', requireAuth, requireDuesForRoute, requireSlicerTraining, async (c) => {
@@ -442,6 +499,8 @@ printDrafts.get('/workspace', requireAuth, requireDuesForRoute, requireSlicerTra
   return c.json({
     profiles,
     workerOnline: await workerOnline(),
+    // The training chapters finished, which say what the workspace leaves unlocked.
+    chapters: await chaptersOf(prisma, c.get('user').id),
     limits: {
       drafts: env.PRINT_DRAFT_MAX,
       models: env.PRINT_PLATE_MAX_MODELS,
@@ -452,9 +511,84 @@ printDrafts.get('/workspace', requireAuth, requireDuesForRoute, requireSlicerTra
   })
 })
 
+// ------------------------------------------------------------------ the training
+
+const stepId = z.string().regex(/^[a-z0-9-]{1,64}$/)
+
+const trainingPlace = z.object({
+  steps: z.array(stepId).max(300),
+  at: stepId.nullable(),
+  restarted: z.array(stepId).max(300),
+  // Unknown ids are dropped rather than refused, so a page from a newer deploy still saves.
+  chapters: z.array(z.string().max(64)).max(64),
+})
+
+async function trainingView(userId: string, trainedAt: Date | null) {
+  const row = await prisma.slicerTraining.findUnique({
+    where: { userId },
+    select: { steps: true, at: true, restarted: true, chapters: true },
+  })
+  return {
+    steps: row?.steps ?? [],
+    at: row?.at ?? null,
+    restarted: row?.restarted ?? [],
+    chapters: row?.chapters ?? [],
+    trainedAt: trainedAt?.toISOString() ?? null,
+  }
+}
+
 /**
- * Records the slicer training as finished. Not dues-gated: anyone signed in can do it ahead of
- * paying. Filtered on the null so doing it again doesn't move the date.
+ * Chapters are added to what's stored, never taken away, so a tab left open from before can't
+ * lock what another has since unlocked. The place-keeping is the latest tab's.
+ */
+async function saveTraining(
+  userId: string,
+  place: Partial<Omit<z.infer<typeof trainingPlace>, 'chapters'>>,
+  chapters: readonly string[],
+) {
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`training:${userId}`}))`
+    const was = await tx.slicerTraining.findUnique({
+      where: { userId },
+      select: { chapters: true },
+    })
+    const fields = {
+      ...(place.steps ? { steps: [...new Set(place.steps)] } : {}),
+      ...(place.at !== undefined ? { at: place.at } : {}),
+      ...(place.restarted ? { restarted: [...new Set(place.restarted)] } : {}),
+      chapters: [...new Set([...(was?.chapters ?? []), ...chapters.filter(isChapter)])],
+    }
+    await tx.slicerTraining.upsert({
+      where: { userId },
+      create: { userId, ...fields },
+      update: fields,
+    })
+  })
+}
+
+/** Not dues-gated, like the rest of the training: anyone signed in can do it ahead of paying. */
+printDrafts.get('/training', requireAuth, async (c) => {
+  const user = c.get('user')
+  return c.json(await trainingView(user.id, user.slicerTrainedAt))
+})
+
+printDrafts.put(
+  '/training',
+  originGuard,
+  requireAuth,
+  edits,
+  validate('json', trainingPlace),
+  async (c) => {
+    const user = c.get('user')
+    const { chapters, ...place } = c.req.valid('json')
+    await saveTraining(user.id, place, chapters)
+    return c.json(await trainingView(user.id, user.slicerTrainedAt))
+  },
+)
+
+/**
+ * Records the required chapters as finished, which opens the slicer. Filtered on the null so
+ * doing it again doesn't move the date.
  */
 printDrafts.post('/training', originGuard, requireAuth, edits, async (c) => {
   const user = c.get('user')
@@ -462,12 +596,15 @@ printDrafts.post('/training', originGuard, requireAuth, edits, async (c) => {
     where: { id: user.id, slicerTrainedAt: null },
     data: { slicerTrainedAt: new Date() },
   })
+  await saveTraining(user.id, {}, REQUIRED_CHAPTERS)
   const { slicerTrainedAt } = await prisma.user.findUniqueOrThrow({
     where: { id: user.id },
     select: { slicerTrainedAt: true },
   })
-  return c.json({ trainedAt: slicerTrainedAt?.toISOString() ?? null })
+  return c.json(await trainingView(user.id, slicerTrainedAt))
 })
+
+// ------------------------------------------------------------------ plates
 
 printDrafts.get('/drafts', requireAuth, requireDuesForRoute, async (c) => {
   const drafts = await prisma.printRequest.findMany({
@@ -517,11 +654,18 @@ printDrafts.post(
       draftSettings,
       `Those slicer settings aren't valid.`,
     )
-    const choice = {
-      printerId: settings.printerId,
-      processId: settings.processId,
-      filamentId: settings.filamentId,
-    }
+    const chapters = await chaptersOf(prisma, user.id)
+    const locked = lockedChange(chapters, {}, settings.overrides)
+    if (locked) throw lockedSetting(locked)
+    const choice = startingChoice(
+      await workspaceProfiles(),
+      {
+        printerId: settings.printerId,
+        processId: settings.processId,
+        filamentId: settings.filamentId,
+      },
+      chapters,
+    )
     const object = jsonField(
       body['object'],
       newObject,
@@ -705,9 +849,31 @@ printDrafts.patch(
         process: edit.processId !== undefined,
         filament: edit.filamentId !== undefined,
       }
+      const choosing = changed.printer || changed.process || changed.filament
+      const chapters = edit.overrides || choosing ? await chaptersOf(tx, user.id) : []
+      if (edit.overrides) {
+        const before =
+          draft.overrides && typeof draft.overrides === 'object' && !Array.isArray(draft.overrides)
+            ? draft.overrides
+            : {}
+        const locked = lockedChange(chapters, before, edit.overrides)
+        if (locked) throw lockedSetting(locked)
+      }
+
       let profiles = {}
-      if (changed.printer || changed.process || changed.filament) {
+      if (choosing) {
         const was = choiceOf(draft)
+        const asked = { printer: edit.printerId, process: edit.processId, filament: edit.filamentId }
+        const kinds = PROFILE_KEYS.filter(
+          (kind) => asked[kind] !== undefined && asked[kind] !== was[`${kind}Id`],
+        )
+        if (kinds.some((kind) => !unlocked(chapters, kind))) {
+          // A profile an officer has taken away can be replaced without the chapter, or the
+          // plate could never slice again.
+          const gone = missingKinds(await workspaceProfiles(tx), was)
+          const refused = kinds.find((kind) => !unlocked(chapters, kind) && !gone[kind])
+          if (refused) throw lockedProfile(refused)
+        }
         const choice = {
           printerId: edit.printerId ?? was.printerId,
           processId: edit.processId ?? was.processId,

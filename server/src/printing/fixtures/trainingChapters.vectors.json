@@ -1,0 +1,44 @@
+{
+  "required": [
+    "basics",
+    "screen",
+    "camera",
+    "placing",
+    "turning",
+    "copies",
+    "fitting",
+    "orientation",
+    "slicing",
+    "sending"
+  ],
+  "unlocks": {
+    "supports": [
+      "enable_support",
+      "support_type",
+      "support_threshold_angle",
+      "support_on_build_plate_only",
+      "raft_layers"
+    ],
+    "adhesion": ["brim_type", "brim_width", "skirt_loops"],
+    "materials": ["printer", "process", "filament"],
+    "quality": [
+      "layer_height",
+      "initial_layer_print_height",
+      "wall_generator",
+      "seam_position",
+      "ironing_type"
+    ],
+    "strength": [
+      "wall_loops",
+      "top_shell_layers",
+      "top_shell_thickness",
+      "bottom_shell_layers",
+      "bottom_shell_thickness",
+      "sparse_infill_density",
+      "sparse_infill_pattern",
+      "top_surface_pattern",
+      "bottom_surface_pattern"
+    ],
+    "others": ["spiral_mode", "fuzzy_skin", "enable_support"]
+  }
+}

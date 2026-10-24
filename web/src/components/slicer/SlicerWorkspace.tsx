@@ -758,6 +758,7 @@ export function WorkspaceView({
           <SettingsPanel
             profiles={workspace.profiles}
             settings={local}
+            chapters={workspace.chapters}
             disabled={!editable}
             onChange={(settings) => {
               plate.edit(settings)

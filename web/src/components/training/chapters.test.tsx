@@ -2,7 +2,8 @@ import { render } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
 import { PROCESS_SETTINGS } from '../../lib/slicer/processSettings'
-import { flatten } from '../../lib/training/curriculum'
+import { CHAPTER_TITLES, OPTIONAL_CHAPTERS, REQUIRED_CHAPTERS } from '../../lib/slicer/trainingChapters'
+import { flatten, isOptional } from '../../lib/training/curriculum'
 import { CHAPTERS } from './chapters'
 
 /**
@@ -66,6 +67,19 @@ describe('the slicer training', () => {
       if (step.kind === 'check') expect(step.options.filter((option) => option.right)).toHaveLength(1)
       if (step.kind === 'try') expect(step.goals.length).toBeGreaterThan(0)
     }
-    expect(steps.at(-1)?.step.kind).toBe('finish')
+  })
+
+  it('puts the required chapters first, then the end, then the optional ones', () => {
+    // The server opens the slicer and unlocks settings by these ids (`trainingChapters.ts`).
+    expect(CHAPTERS.map((chapter) => chapter.id)).toEqual([...REQUIRED_CHAPTERS, 'finish', ...OPTIONAL_CHAPTERS])
+    expect(steps.filter(({ step }) => step.kind === 'finish').map(({ chapter }) => chapter.id)).toEqual(['finish'])
+    for (const chapter of CHAPTERS.filter(isOptional)) expect(chapter.title).toBe(CHAPTER_TITLES[chapter.id])
+  })
+
+  it('sets the plate up for every optional chapter’s first task, since they can be taken in any order', () => {
+    for (const chapter of CHAPTERS.filter(isOptional)) {
+      const task = chapter.steps.find((step) => step.kind === 'try')
+      expect(task && 'setUp' in task && task.setUp, chapter.id).toBeTruthy()
+    }
   })
 })
