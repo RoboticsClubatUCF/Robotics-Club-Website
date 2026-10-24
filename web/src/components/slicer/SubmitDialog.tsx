@@ -71,7 +71,8 @@ export function SubmitDialog({
         className="select border-rule bg-base-100 mb-1.5 w-full text-sm"
       >
         <option value="">Personal print</option>
-        {projects.map((membership) => (
+        {/* This term's only: a project rerun each term keeps its title, so past terms repeat it. */}
+        {projects.filter((membership) => membership.current).map((membership) => (
           <option key={membership.project.id} value={membership.project.id}>
             {membership.project.title}
           </option>

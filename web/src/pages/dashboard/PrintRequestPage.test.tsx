@@ -742,10 +742,17 @@ describe('when dues have lapsed', () => {
       rank: 'MEMBER',
       role: null,
       team: null,
+      current: true,
       project: { id: 'p1', slug: 'mars-rover', title: 'Mars Rover' },
     } as unknown as ApiMyProject
+    // Last term's run of the same project: same title, so offering it would list it twice.
+    const lastTerm = {
+      ...membership,
+      current: false,
+      project: { id: 'p0', slug: 'mars-rover-spring-2026', title: 'Mars Rover' },
+    } as unknown as ApiMyProject
 
-    renderIn(context(true, [membership]))
+    renderIn(context(true, [membership, lastTerm]))
     await screen.findByText(/nothing yet/i)
 
     const picker = screen.getByLabelText(/what it is for/i) as HTMLSelectElement
