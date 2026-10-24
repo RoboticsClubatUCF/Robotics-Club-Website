@@ -238,6 +238,20 @@ export function missingChoice(
   return fits ? null : 'filament'
 }
 
+/** Each of a plate's three profiles that's gone, hidden, or doesn't fit the plate's printer. */
+export function missingKinds(profiles: WorkspaceProfiles, choice: PlateChoice) {
+  const printer = profiles.printers.find((p) => p.id === choice.printerId)
+  return {
+    printer: !printer,
+    process: !printer?.processes.some((p) => p.id === choice.processId),
+    filament:
+      !printer ||
+      !profiles.filaments.some(
+        (f) => f.id === choice.filamentId && f.printers.includes(printer.id),
+      ),
+  }
+}
+
 /** What a new plate starts with: the first offered printer, its first process, and the first filament that fits. */
 export function defaultChoice(profiles: WorkspaceProfiles): PlateChoice | null {
   const printer = profiles.printers[0]

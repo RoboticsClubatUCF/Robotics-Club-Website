@@ -4,18 +4,18 @@ import { MemoryRouter, Outlet, Route, Routes } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
 import { CHAPTERS } from '../../components/training/chapters'
-import type { ApiTerm } from '../../lib/api/api'
+import type { ApiTerm, ApiTraining } from '../../lib/api/api'
 import type { CameraMoves } from '../../lib/slicer/camera'
 import type { Preview } from '../../lib/slicer/preview'
 import type { CameraView } from '../../lib/slicer/scene'
-import { flatten } from '../../lib/training/curriculum'
-import { readProgress, writeProgress } from '../../lib/training/progress'
-import { stubFetch, stubFetchStatus, urlOf } from '../../test/stubFetch'
+import { OPTIONAL_CHAPTERS, REQUIRED_CHAPTERS } from '../../lib/slicer/trainingChapters'
+import { finishedChapters, flatten } from '../../lib/training/curriculum'
+import { bodyOf, stubFetch, urlOf } from '../../test/stubFetch'
 import { SlicerTrainingPage } from './SlicerTrainingPage'
 
 /**
  * The training page around its steps: moving through them, what unlocks the next one, where it
- * keeps your place, and finishing. jsdom has no WebGL, so the 3D views are stood in for, and the
+ * keeps your place (a fake of the server's record), finishing, and the optional chapters after it. jsdom has no WebGL, so the 3D views are stood in for, and the
  * practice parts are a stub mesh rather than files fetched from the site.
  */
 
@@ -206,9 +206,9 @@ const context = (trained = false, reloadMembership = vi.fn(() => Promise.resolve
   reloadMembership,
 })
 
-const renderPage = (dashboard = context()) =>
+const page = (dashboard: DashboardContext, path: string) =>
   render(
-    <MemoryRouter initialEntries={['/dashboard/profile/training']}>
+    <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route element={<Outlet context={dashboard} />}>
           <Route path="/dashboard/profile/training" element={<SlicerTrainingPage />} />
@@ -217,10 +217,61 @@ const renderPage = (dashboard = context()) =>
     </MemoryRouter>,
   )
 
-/** Everything before `id` done, and the page opened on it. */
-const startAt = (id: string) => {
-  writeProgress('u1', { done: ids.slice(0, ids.indexOf(id)), at: id, total: ids.length })
+/** Renders the page and waits for it to have read where somebody is. */
+async function renderPage(dashboard = context(), path = '/dashboard/profile/training') {
+  const rendered = page(dashboard, path)
+  await screen.findByRole('button', { name: 'CONTENTS' })
+  return rendered
 }
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
+
+/** The training's record on the server, which the page reads once and saves to as it goes. */
+let record: ApiTraining
+/** How `POST /print/training` answers: as the server does, unreachable, or refusing. */
+let finishing: 'ok' | 'unreachable' | { status: number; error: string } = 'ok'
+const EVERY_CHAPTER = [...REQUIRED_CHAPTERS, ...OPTIONAL_CHAPTERS]
+
+const api = vi.fn((input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+  if (!urlOf(input).includes('/print/training')) return files(input, init)
+  if (init?.method === 'PUT') {
+    const body = bodyOf(init) as Omit<ApiTraining, 'trainedAt'>
+    record = { ...record, ...body, chapters: [...new Set([...record.chapters, ...body.chapters])] }
+  }
+  if (init?.method === 'POST') {
+    if (finishing === 'unreachable') return Promise.reject(new TypeError('Failed to fetch'))
+    if (typeof finishing === 'object') return Promise.resolve(json({ error: finishing.error }, finishing.status))
+    record = {
+      ...record,
+      trainedAt: record.trainedAt ?? '2026-10-08T12:00:00.000Z',
+      chapters: [...new Set([...record.chapters, ...REQUIRED_CHAPTERS])],
+    }
+  }
+  return Promise.resolve(json(record))
+})
+
+/** What the server has now. */
+const saved = () => ({ done: record.steps, at: record.at, restarted: record.restarted, chapters: record.chapters })
+
+const keep = (progress: { done: string[]; at: string | null; restarted?: string[]; chapters?: string[] }) => {
+  record = {
+    steps: progress.done,
+    at: progress.at,
+    restarted: progress.restarted ?? [],
+    chapters: progress.chapters ?? finishedChapters(CHAPTERS, progress.done),
+    trainedAt: null,
+  }
+}
+
+/** Everything before `id` done, and the page opened on it. */
+const startAt = (id: string, chapters?: string[]) => {
+  keep({ done: ids.slice(0, ids.indexOf(id)), at: id, ...(chapters ? { chapters } : {}) })
+}
+
+/** Calls to the API other than the training's own record. */
+const otherCalls = () =>
+  api.mock.calls.filter(([input]) => urlOf(input).includes('/api/') && !urlOf(input).includes('/print/training'))
 
 const heading = () => document.querySelector('[data-step-heading]')?.textContent
 
@@ -266,9 +317,14 @@ const manifest = {
 /** Practice slicing waits a second or so before it lands. */
 const slicing = { timeout: 3_000 }
 
+const files = stubFetch({ '/training/slices.json': manifest, '/training/slices/': {} })
+
 beforeEach(() => {
   localStorage.clear()
-  vi.stubGlobal('fetch', stubFetch({ '/training/slices.json': manifest, '/training/slices/': {} }))
+  keep({ done: [], at: null })
+  finishing = 'ok'
+  api.mockClear()
+  vi.stubGlobal('fetch', api)
 })
 
 /** Presses SLICE PLATE, waits for the preview, and moves its slider to `layer` if there is one. */
@@ -284,25 +340,58 @@ afterEach(() => {
 })
 
 describe('reading', () => {
-  it('starts at the beginning and keeps your place as you go', () => {
-    renderPage()
+  it('starts at the beginning and keeps your place on the server as you go', async () => {
+    await renderPage()
     expect(heading()).toBe('What a slicer does')
     expect(screen.getByRole('button', { name: 'BACK' })).toBeDisabled()
 
     fireEvent.click(screen.getByRole('button', { name: 'NEXT' }))
     expect(heading()).toBe('How a print request works here')
-    expect(readProgress('u1')).toEqual({ done: ['what-slicing-is'], at: 'how-requests-work', total: ids.length })
+    await waitFor(() =>
+      expect(saved()).toEqual({ done: ['what-slicing-is'], at: 'how-requests-work', restarted: [], chapters: [] }),
+    )
   })
 
-  it('opens where you left off', () => {
+  it('opens where you left off', async () => {
     startAt('how-requests-work')
-    renderPage()
+    await renderPage()
     expect(heading()).toBe('How a print request works here')
   })
 
-  it('won’t open a step past the first one not done yet', () => {
+  it('says when your place didn’t load, and tries again', async () => {
+    let up = false
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string | URL | Request, init?: RequestInit) =>
+        up ? api(input, init) : Promise.reject(new TypeError('Failed to fetch')),
+      ),
+    )
+    page(context(), '/dashboard/profile/training')
+    expect(await screen.findByText('Your place in the training didn’t load.')).toBeInTheDocument()
+    up = true
+    fireEvent.click(screen.getByRole('button', { name: 'TRY AGAIN' }))
+    await screen.findByRole('button', { name: 'CONTENTS' })
+    expect(heading()).toBe('What a slicer does')
+  })
+
+  it('says when your place wasn’t saved, and saves it again', async () => {
+    await renderPage()
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new TypeError('Failed to fetch'))))
+    fireEvent.click(screen.getByRole('button', { name: 'NEXT' }))
+    expect(await screen.findByText('NOT SAVED')).toBeInTheDocument()
+    vi.stubGlobal('fetch', api)
+    fireEvent.click(screen.getByRole('button', { name: 'SAVE AGAIN' }))
+    await waitFor(() => expect(screen.queryByText('NOT SAVED')).not.toBeInTheDocument())
+    expect(saved().at).toBe('how-requests-work')
+    // Focus goes to what replaced the button, which says it worked.
+    await waitFor(() => expect(screen.getByText('SAVED')).toHaveFocus())
+    fireEvent.click(screen.getByRole('button', { name: 'NEXT' }))
+    expect(screen.queryByText('SAVED')).not.toBeInTheDocument()
+  })
+
+  it('won’t open a step past the first one not done yet', async () => {
     startAt('how-requests-work')
-    renderPage()
+    await renderPage()
     fireEvent.click(screen.getByRole('button', { name: 'CONTENTS' }))
     const contents = screen.getByRole('dialog', { name: 'Training contents' })
     expect(within(contents).getByRole('button', { name: /What a slicer does/ })).toBeEnabled()
@@ -312,18 +401,42 @@ describe('reading', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('opens every step to somebody who has finished', () => {
-    renderPage(context(true))
+  it('opens every required step to somebody who has finished, and each optional chapter in order', async () => {
+    await renderPage(context(true))
+    expect(heading()).toBe('You’re ready')
+    fireEvent.click(screen.getByRole('button', { name: 'CONTENTS' }))
+    const contents = screen.getByRole('dialog', { name: 'Training contents' })
+    expect(within(contents).getByRole('button', { name: /Check: what the slicer makes/ })).toBeEnabled()
+    expect(within(contents).getByRole('button', { name: /You’re ready/ })).toBeEnabled()
+    expect(within(contents).getByRole('button', { name: /What supports are/ })).toBeEnabled()
+    expect(within(contents).getByRole('button', { name: /The Support tab/ })).toBeDisabled()
+    expect(within(contents).getByRole('button', { name: /^Infill/ })).toBeDisabled()
+  })
+
+  it('keeps the optional chapters shut until the required ones are finished', async () => {
+    startAt('finish')
+    await renderPage()
     fireEvent.click(screen.getByRole('button', { name: 'CONTENTS' }))
     const contents = screen.getByRole('dialog', { name: 'Training contents' })
     expect(within(contents).getByRole('button', { name: /You’re ready/ })).toBeEnabled()
+    expect(within(contents).getByRole('button', { name: /What supports are/ })).toBeDisabled()
+    expect(within(contents).getByText('/ OPTIONAL')).toBeInTheDocument()
+  })
+
+  it('opens every step of a chapter whose settings are unlocked', async () => {
+    keep({ done: [], at: null, chapters: EVERY_CHAPTER })
+    await renderPage(context(true))
+    fireEvent.click(screen.getByRole('button', { name: 'CONTENTS' }))
+    const contents = screen.getByRole('dialog', { name: 'Training contents' })
+    expect(within(contents).getByRole('button', { name: /Check: vase mode/ })).toBeEnabled()
+    expect(within(contents).getByText(/VASE MODE AND FUZZY SKIN/).textContent).toMatch(/UNLOCKED$/)
   })
 })
 
 describe('questions', () => {
-  it('hold NEXT until they’re answered right, and say why a wrong answer is wrong', () => {
+  it('hold NEXT until they’re answered right, and say why a wrong answer is wrong', async () => {
     startAt('check-what-slicer-makes')
-    renderPage()
+    await renderPage()
     const next = screen.getByRole('button', { name: 'NEXT' })
     expect(next).toBeDisabled()
 
@@ -334,7 +447,7 @@ describe('questions', () => {
     fireEvent.click(screen.getByRole('button', { name: /The list of moves/ }))
     expect(screen.getByText(/RIGHT/)).toBeInTheDocument()
     expect(next).toBeEnabled()
-    expect(readProgress('u1').done).toContain('check-what-slicer-makes')
+    await waitFor(() => expect(saved().done).toContain('check-what-slicer-makes'))
     // A right answer stays: the others can't be picked over it.
     expect(screen.getByRole('button', { name: /A 3D model of your part/ })).toBeDisabled()
   })
@@ -351,7 +464,7 @@ describe('practice', () => {
     ['X', '35'], ['Y', '35'], ['X', '90'], ['Y', '90'],
   ])('recovers from a mistaken %s turn of %s degrees before rotating Z', async (axis, angle) => {
     startAt('try-rotate')
-    renderPage()
+    await renderPage()
     await screen.findByText(/1 on the plate/)
     fireEvent.click(screen.getByRole('button', { name: 'Rotate' }))
     fireEvent.click(screen.getByRole('button', { name: /Bracket/ }))
@@ -363,12 +476,12 @@ describe('practice', () => {
     const rotation = screen.getByRole('group', { name: 'Rotation' })
     fireEvent.click(within(rotation).getByRole('button', { name: 'RESET' }))
     expect(screen.getByRole('button', { name: 'NEXT' })).toBeEnabled()
-    expect(readProgress('u1').done).toContain('try-rotate')
+    expect(saved().done).toContain('try-rotate')
   })
 
   it('clears partial turn credit on RESET and START OVER, and accepts a negative quarter-turn', async () => {
     startAt('try-rotate')
-    renderPage()
+    await renderPage()
     await screen.findByText(/1 on the plate/)
     const prepare = () => {
       fireEvent.click(screen.getByRole('button', { name: 'Rotate' }))
@@ -395,7 +508,7 @@ describe('practice', () => {
 
   it('runs a task on the practice plate and moves on to the next goal as one is met', async () => {
     startAt('try-the-screen')
-    renderPage()
+    await renderPage()
     expect(await screen.findByText(/1 on the plate/)).toBeInTheDocument()
     expect(heading()).toBe('TRY IT · LOOK AROUND')
     expect(callout()).toMatch(/^STEP 1 OF 4Press SLICE PLATE/)
@@ -408,14 +521,13 @@ describe('practice', () => {
     expect(screen.getByText('Done. Next: Go back to PREPARE.')).toBeInTheDocument()
     // The slice opened PREVIEW, which mustn't count as the next goal, going back to PREPARE.
     expect(screen.getByRole('tab', { name: 'PREVIEW' })).toHaveAttribute('aria-selected', 'true')
-    // Nothing on the practice plate goes near the server.
-    const fetch = vi.mocked(globalThis.fetch)
-    expect(fetch.mock.calls.filter((call) => urlOf(call[0]).includes('/api/'))).toHaveLength(0)
+    // Nothing on the practice plate goes near the server; only the place is saved.
+    expect(otherCalls()).toHaveLength(0)
   })
 
   it('says why a plate with no practice slice wasn’t sliced, without calling it a failure', async () => {
     startAt('try-scale')
-    renderPage()
+    await renderPage()
     await screen.findByText(/1 on the plate/)
 
     fireEvent.click(screen.getByRole('button', { name: 'SLICE PLATE' }))
@@ -428,7 +540,7 @@ describe('practice', () => {
 
   it('can be done from the keyboard, the view task included, with no way to skip it', async () => {
     startAt('try-camera')
-    renderPage()
+    await renderPage()
     await screen.findByText(/on the plate/)
     const next = screen.getByRole('button', { name: 'NEXT' })
     expect(next).toBeDisabled()
@@ -461,12 +573,12 @@ describe('practice', () => {
       expect(next).toBeEnabled()
     })
     expect(callout()).toBe('DONEPress NEXT to carry on.')
-    expect(readProgress('u1').done).toContain('try-camera')
+    expect(saved().done).toContain('try-camera')
   })
 
   it('adds a second part without modifiers and completes the placing task', async () => {
     startAt('try-placing')
-    renderPage()
+    await renderPage()
     await screen.findByText(/2 on the plate/)
     fireEvent.click(screen.getByRole('button', { name: 'OBJECTS · 2' }))
     fireEvent.click(screen.getByRole('button', { name: /Cube/ }))
@@ -488,12 +600,12 @@ describe('practice', () => {
       fireEvent.keyDown(input, { key: 'Enter' })
     }
     await waitFor(() => expect(screen.getByRole('button', { name: 'NEXT' })).toBeEnabled())
-    expect(readProgress('u1').done).toContain('try-placing')
+    expect(saved().done).toContain('try-placing')
   })
 
   it('starts over on a clean plate, without counting what was done before', async () => {
     startAt('try-the-screen')
-    renderPage()
+    await renderPage()
     await screen.findByText(/1 on the plate/)
     fireEvent.click(screen.getByRole('button', { name: 'SLICE PLATE' }))
     await waitFor(() => {
@@ -509,7 +621,7 @@ describe('practice', () => {
 
   it('keeps REQUEST PRINT disabled outside the sending module, even after a successful slice', async () => {
     startAt('try-the-screen')
-    renderPage()
+    await renderPage()
     await screen.findByText(/1 on the plate/)
     fireEvent.click(screen.getByRole('button', { name: 'SLICE PLATE' }))
     await waitFor(() => expect(screen.getByRole('tab', { name: 'PREVIEW' })).toHaveAttribute('aria-selected', 'true'), slicing)
@@ -522,7 +634,7 @@ describe('practice', () => {
 
   it('allows the sending module to finish with a browser-only practice request', async () => {
     startAt('try-send')
-    renderPage()
+    await renderPage()
     await screen.findByText(/1 on the plate/)
     const request = screen.getByRole('button', { name: 'REQUEST PRINT' })
     expect(request).toBeDisabled()
@@ -533,36 +645,39 @@ describe('practice', () => {
     fireEvent.click(screen.getByRole('button', { name: 'SEND IT' }))
     await waitFor(() => expect(screen.getByRole('button', { name: 'NEXT' })).toBeEnabled())
     expect(screen.getByRole('status', { name: 'Plate status' })).toHaveTextContent('nothing was sent')
-    expect(readProgress('u1').done).toContain('try-send')
+    expect(saved().done).toContain('try-send')
     expect(vi.mocked(globalThis.fetch).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
   })
 
   it('lets somebody who has finished move on without doing a task again', async () => {
     startAt('try-the-screen')
-    renderPage(context(true))
+    await renderPage(context(true))
     await screen.findByText(/1 on the plate/)
     expect(screen.getByRole('button', { name: 'NEXT' })).toBeEnabled()
     expect(callout()).toBe('DONEPress NEXT to carry on.')
   })
 
   it.each([false, true])('resets only a completed task, persists the reset and lets it be finished again (trained=%s)', async (trained) => {
-    writeProgress('u1', { done: ids, at: 'try-strength', total: ids.length })
-    const page = renderPage(context(trained))
+    keep({ done: ids, at: 'try-strength' })
+    const first = await renderPage(context(trained))
     await screen.findByText(/1 on the plate/)
     expect(screen.getByRole('button', { name: 'NEXT' })).toBeEnabled()
 
     fireEvent.click(screen.getByRole('button', { name: 'START OVER' }))
     expect(callout()).toMatch(/^STEP 1 OF 5Press SLICE PLATE, then drag the layer slider halfway down/)
     expect(screen.getByRole('button', { name: 'NEXT' })).toBeDisabled()
-    await waitFor(() => expect(readProgress('u1').done).toEqual(ids.filter((id) => id !== 'try-strength')))
-    expect(readProgress('u1').restarted).toEqual(['try-strength'])
-    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', String(ids.length - 1))
+    await waitFor(() => expect(saved().done).toEqual(ids.filter((id) => id !== 'try-strength')))
+    expect(saved().restarted).toEqual(['try-strength'])
+    // Starting over locks nothing again.
+    expect(saved().chapters).toContain('strength')
+    if (trained) expect(screen.getByText(/6\/6 UNLOCKED/)).toBeInTheDocument()
+    else expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', String(ids.indexOf('finish')))
     fireEvent.click(screen.getByRole('button', { name: 'CONTENTS' }))
     expect(within(screen.getByRole('dialog', { name: 'Training contents' })).getByRole('button', { name: /Check: a part that snaps/ })).toBeEnabled()
     fireEvent.click(screen.getByRole('button', { name: 'CLOSE' }))
 
-    page.unmount()
-    const resumed = renderPage(context(trained))
+    first.unmount()
+    const resumed = await renderPage(context(trained))
     await screen.findByText(/1 on the plate/)
     expect(callout()).toMatch(/^STEP 1 OF 5/)
     expect(screen.getByRole('button', { name: 'NEXT' })).toBeDisabled()
@@ -602,29 +717,30 @@ describe('practice', () => {
     ])
     // DONE shows after several slices too, even where it covers part of the log.
     expect(callout()).toBe('DONECompare your slices, then press NEXT.')
-    await waitFor(() => expect(readProgress('u1').done).toContain('try-strength'))
-    expect(new Set(readProgress('u1').done)).toEqual(new Set(ids))
-    expect(readProgress('u1').restarted).toBeUndefined()
+    await waitFor(() => expect(saved().done).toContain('try-strength'))
+    expect(new Set(saved().done)).toEqual(new Set(ids))
+    expect(saved().restarted).toEqual([])
 
     resumed.unmount()
-    renderPage(context(trained))
+    await renderPage(context(trained))
     await screen.findByText(/1 on the plate/)
     expect(callout()).toBe('DONEPress NEXT to carry on.')
     // Five practice slices of a second or so each.
   }, 20_000)
 
-  it('keeps an explicitly restarted task incomplete even when training completion supplied its original DONE state', async () => {
-    startAt('try-strength')
-    const page = renderPage(context(true))
+  it('keeps an explicitly restarted task incomplete even when an unlocked chapter supplied its DONE state', async () => {
+    // Trained before the chapters were optional: every chapter came with it, and no steps.
+    startAt('try-strength', EVERY_CHAPTER)
+    const first = await renderPage(context(true))
     await screen.findByText(/1 on the plate/)
     expect(screen.getByRole('button', { name: 'NEXT' })).toBeEnabled()
-    const previous = readProgress('u1').done
+    const previous = saved().done
     fireEvent.click(screen.getByRole('button', { name: 'START OVER' }))
     expect(screen.getByRole('button', { name: 'NEXT' })).toBeDisabled()
-    await waitFor(() => expect(readProgress('u1').restarted).toEqual(['try-strength']))
-    expect(readProgress('u1').done).toEqual(previous)
-    page.unmount()
-    renderPage(context(true))
+    await waitFor(() => expect(saved().restarted).toEqual(['try-strength']))
+    expect(saved().done).toEqual(previous)
+    first.unmount()
+    await renderPage(context(true))
     await screen.findByText(/1 on the plate/)
     expect(callout()).toMatch(/^STEP 1 OF 5/)
     expect(screen.getByRole('button', { name: 'NEXT' })).toBeDisabled()
@@ -632,27 +748,39 @@ describe('practice', () => {
 
   it('keeps the step somebody had reached open after they start an earlier task over', async () => {
     const reached = ids.indexOf('check-strength')
-    writeProgress('u1', { done: ids.slice(0, reached), at: 'try-strength', total: ids.length })
-    renderPage()
+    keep({ done: ids.slice(0, reached), at: 'try-strength' })
+    await renderPage(context(true))
     await screen.findByText(/1 on the plate/)
     fireEvent.click(screen.getByRole('button', { name: 'START OVER' }))
-    await waitFor(() => expect(readProgress('u1').restarted).toEqual(['try-strength']))
+    await waitFor(() => expect(saved().restarted).toEqual(['try-strength']))
 
     fireEvent.click(screen.getByRole('button', { name: 'CONTENTS' }))
     const contents = screen.getByRole('dialog', { name: 'Training contents' })
     expect(within(contents).getByRole('button', { name: /Check: a part that snaps/ })).toBeEnabled()
-    expect(within(contents).getByRole('button', { name: /The rest of the Others tab/ })).toBeDisabled()
-    // Finishing still waits for the task to be done again.
-    expect(within(contents).getByRole('button', { name: /You’re ready/ })).toBeDisabled()
+    expect(within(contents).getByRole('button', { name: /Check: vase mode/ })).toBeDisabled()
   })
 
-  it('reopens a saved restart before membership has loaded, even with no other local progress', async () => {
-    writeProgress('u1', { done: [], at: 'try-strength', total: ids.length, restarted: ['try-strength'] })
-    renderPage({ ...context(true), membership: { status: 'loading' } })
+  it('opens the end after a required task is started over, but finishing waits for it', async () => {
+    keep({ done: ids.slice(0, ids.indexOf('finish')), at: 'try-send' })
+    await renderPage()
+    await screen.findByText(/1 on the plate/)
+    fireEvent.click(screen.getByRole('button', { name: 'START OVER' }))
+    await waitFor(() => expect(saved().restarted).toEqual(['try-send']))
+
+    fireEvent.click(screen.getByRole('button', { name: 'CONTENTS' }))
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Training contents' })).getByRole('button', { name: /You’re ready/ }),
+    )
+    expect(screen.getByRole('button', { name: 'FINISH THE TRAINING' })).toBeDisabled()
+  })
+
+  it('reopens a saved restart before membership has loaded, even with no other progress', async () => {
+    keep({ done: [], at: 'try-strength', restarted: ['try-strength'] })
+    await renderPage({ ...context(true), membership: { status: 'loading' } })
     await waitFor(() => expect(heading()).toBe('TRY IT · STRENGTH SETTINGS'))
     expect(callout()).toMatch(/^STEP 1 OF 5/)
     expect(screen.getByRole('button', { name: 'NEXT' })).toBeDisabled()
-    expect(readProgress('u1').at).toBe('try-strength')
+    expect(saved().at).toBe('try-strength')
   })
 })
 
@@ -660,24 +788,25 @@ describe('finishing', () => {
   it('records it on the server and reloads the standing', async () => {
     startAt('finish')
     const reload = vi.fn(() => Promise.resolve())
-    const fetch = stubFetch({ '/print/training': { trainedAt: '2026-10-08T12:00:00.000Z' } })
-    vi.stubGlobal('fetch', fetch)
-    renderPage(context(false, reload))
+    await renderPage(context(false, reload))
 
     fireEvent.click(screen.getByRole('button', { name: 'FINISH THE TRAINING' }))
-    // Progress is stored by an effect after the render, which can land after `reload` is called.
     await waitFor(() => {
       expect(reload).toHaveBeenCalled()
-      expect(readProgress('u1').done).toContain('finish')
+      expect(saved().done).toContain('finish')
     })
-    const call = fetch.mock.calls.find((c) => urlOf(c[0]).includes('/print/training'))
-    expect(call?.[1]?.method).toBe('POST')
+    expect(
+      api.mock.calls.some(([input, init]) => urlOf(input).includes('/print/training') && init?.method === 'POST'),
+    ).toBe(true)
+    expect(screen.getByRole('link', { name: 'OPEN THE SLICER' })).toBeInTheDocument()
+    // The chapters after it open now.
+    expect(screen.getByRole('button', { name: 'Start Strength settings' })).toBeEnabled()
   })
 
   it('says so when the server can’t be reached', async () => {
     startAt('finish')
-    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new TypeError('Failed to fetch'))))
-    renderPage()
+    finishing = 'unreachable'
+    await renderPage()
 
     fireEvent.click(screen.getByRole('button', { name: 'FINISH THE TRAINING' }))
     expect(await screen.findByText(/Couldn't reach the server/)).toBeInTheDocument()
@@ -685,16 +814,73 @@ describe('finishing', () => {
 
   it('shows the server’s reason when it refuses', async () => {
     startAt('finish')
-    vi.stubGlobal('fetch', stubFetchStatus(429, { error: 'Too many requests. Try again shortly.' }))
-    renderPage()
+    finishing = { status: 429, error: 'Too many requests. Try again shortly.' }
+    await renderPage()
 
     fireEvent.click(screen.getByRole('button', { name: 'FINISH THE TRAINING' }))
     expect(await screen.findByText('Too many requests. Try again shortly.')).toBeInTheDocument()
   })
 
-  it('offers the slicer once it’s done', () => {
+  it('offers the slicer once it’s done', async () => {
     startAt('finish')
-    renderPage(context(true))
+    await renderPage(context(true))
     expect(screen.getByRole('link', { name: 'OPEN THE SLICER' })).toHaveAttribute('href', '/dashboard/print/slicer')
+  })
+})
+
+describe('the optional chapters', () => {
+  it('are listed at the end, each with what it unlocks, and wait for the training', async () => {
+    startAt('finish')
+    await renderPage()
+    const list = screen.getByRole('region', { name: '/ MORE SETTINGS' })
+    expect(within(list).getAllByRole('listitem')).toHaveLength(OPTIONAL_CHAPTERS.length)
+    expect(within(list).getByText('Walls, infill, tops and bottoms')).toBeInTheDocument()
+    expect(within(list).getByRole('button', { name: 'Start Strength settings' })).toBeDisabled()
+  })
+
+  it('open where they pick up', async () => {
+    keep({ done: ['walls-and-shells'], at: 'finish', chapters: [...REQUIRED_CHAPTERS] })
+    await renderPage(context(true))
+    fireEvent.click(screen.getByRole('button', { name: 'Continue Strength settings' }))
+    expect(heading()).toBe('Infill')
+  })
+
+  it('lead back to the list once done, with the chapter unlocked', async () => {
+    startAt('check-fewer-supports', [...REQUIRED_CHAPTERS])
+    await renderPage(context(true))
+    fireEvent.click(screen.getByRole('button', { name: /Turning the part/ }))
+    await waitFor(() => expect(saved().chapters).toContain('supports'))
+    fireEvent.click(screen.getByRole('button', { name: 'NEXT' }))
+    expect(heading()).toBe('You’re ready')
+    // Focus skips the checklist to what was just unlocked.
+    expect(screen.getByText('Supports, and needing fewer unlocked in the slicer.')).toHaveFocus()
+    const row = screen.getByRole('button', { name: 'Review Supports, and needing fewer' }).closest('li')!
+    expect(within(row).getByText('UNLOCKED')).toBeInTheDocument()
+    expect(screen.getByText('1/6 UNLOCKED')).toBeInTheDocument()
+  })
+
+  it('go back to the list from their first step, not into another chapter', async () => {
+    startAt('adhesion', [...REQUIRED_CHAPTERS])
+    await renderPage(context(true))
+    expect(heading()).toBe('Brim, skirt and raft')
+    fireEvent.click(screen.getByRole('button', { name: 'BACK' }))
+    expect(heading()).toBe('You’re ready')
+    // Nothing was finished on the way, so it's the list that takes focus.
+    expect(screen.getByRole('heading', { name: '/ MORE SETTINGS' })).toHaveFocus()
+    expect(screen.queryByText(/unlocked in the slicer/)).not.toBeInTheDocument()
+  })
+
+  it('are where the profile’s MORE SETTINGS lands, wherever the member last was', async () => {
+    keep({ done: [], at: 'adhesion', chapters: [...REQUIRED_CHAPTERS] })
+    await renderPage(context(true), '/dashboard/profile/training?chapter=finish')
+    expect(heading()).toBe('You’re ready')
+    expect(screen.getByRole('heading', { name: '/ MORE SETTINGS' })).toHaveFocus()
+  })
+
+  it('open on the chapter a locked setting in the slicer links to', async () => {
+    keep({ done: [], at: 'finish', chapters: [...REQUIRED_CHAPTERS] })
+    await renderPage(context(true), '/dashboard/profile/training?chapter=adhesion')
+    expect(heading()).toBe('Brim, skirt and raft')
+    expect(screen.getByText('OPTIONAL')).toBeInTheDocument()
   })
 })

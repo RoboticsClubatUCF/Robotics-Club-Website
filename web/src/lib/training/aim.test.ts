@@ -43,6 +43,18 @@ describe('place', () => {
     expect(place(corner, size, bounds, 'below', blocking).side).toBe('below')
   })
 
+  it('covers another control before it covers the task’s NEXT', () => {
+    // SLICE PLATE on a phone: NEXT just above it, the SETTINGS button just below.
+    const phone = { left: 0, top: 0, width: 375, height: 800 }
+    const slice = { left: 130, top: 320, width: 110, height: 44 }
+    const next = { left: 20, top: 210, width: 210, height: 44 }
+    const drawers = { left: 10, top: 400, width: 200, height: 44 }
+    expect(place(slice, size, phone, undefined, [drawers]).side).toBe('above')
+    const placed = place(slice, size, phone, undefined, [drawers], [next])
+    expect(placed.side).toBe('below')
+    expect(placed.top).toBeGreaterThan(next.top + next.height)
+  })
+
   it('keeps the caret off the corners', () => {
     const placed = place({ left: 0, top: 100, width: 4, height: 4 }, size, bounds)
     expect(placed.caret).toBe(14)

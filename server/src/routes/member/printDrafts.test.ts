@@ -15,6 +15,7 @@ import {
 } from '../../generated/prisma/enums.js'
 import { sweepPrintDrafts } from '../../printing/printLifecycle.js'
 import { writeBinaryStl } from '../../printing/stl.js'
+import { OPTIONAL_CHAPTERS, REQUIRED_CHAPTERS } from '../../printing/trainingChapters.js'
 
 /**
  * Filament drafts, slicing and submitting, against the database.
@@ -169,6 +170,8 @@ beforeEach(async () => {
         duesPaidThrough: PAID_UP,
         surveyCompletedAt: SURVEYED,
         slicerTrainedAt: TRAINED,
+        // Every chapter, so a case changing settings needn't think about the locks.
+        slicerTraining: { create: { chapters: [...REQUIRED_CHAPTERS, ...OPTIONAL_CHAPTERS] } },
       },
     })
   const [member, other, officer] = await Promise.all([
@@ -504,6 +507,155 @@ describe('the training gate', () => {
 
     await prisma.user.update({ where: { id: memberId }, data: { duesPaidThrough: PAID_UP } })
     expect((await createDraft()).status).toBe(201)
+  })
+
+  it('counts the required chapters as done once the training is', async () => {
+    await untrain()
+    await prisma.slicerTraining.delete({ where: { userId: memberId } })
+    const body = (await (await send('POST', '/api/print/training', {})).json()) as {
+      chapters: string[]
+    }
+    expect(body.chapters).toEqual([...REQUIRED_CHAPTERS])
+  })
+})
+
+describe('the training chapters', () => {
+  /** Only the required chapters, as somebody who has just finished them. */
+  const basicsOnly = (...more: string[]) =>
+    prisma.slicerTraining.update({
+      where: { userId: memberId },
+      data: { chapters: [...REQUIRED_CHAPTERS, ...more] },
+    })
+  const errorOf = async (response: Response) =>
+    ((await response.json()) as { error: string }).error
+  const edit = (draft: Draft, body: Record<string, unknown>) =>
+    send('PATCH', `/api/print/drafts/${draft.id}`, { revision: draft.revision, ...body })
+  const place = (body: Record<string, unknown>) =>
+    send('PUT', '/api/print/training', { steps: [], at: null, restarted: [], chapters: [], ...body })
+
+  it('keeps where somebody is, and only ever adds chapters', async () => {
+    await prisma.slicerTraining.delete({ where: { userId: memberId } })
+    const empty = await app.request('/api/print/training', { headers: { cookie: memberCookie } })
+    expect(await empty.json()).toEqual({
+      steps: [],
+      at: null,
+      restarted: [],
+      chapters: [],
+      trainedAt: TRAINED.toISOString(),
+    })
+
+    const saved = await place({
+      steps: ['what-slicing-is', 'try-camera', 'what-slicing-is'],
+      at: 'try-placing',
+      restarted: ['try-camera'],
+      chapters: ['basics', 'no-such-chapter'],
+    })
+    expect(saved.status).toBe(200)
+    expect(await saved.json()).toMatchObject({
+      steps: ['what-slicing-is', 'try-camera'],
+      at: 'try-placing',
+      restarted: ['try-camera'],
+      chapters: ['basics'],
+    })
+
+    // A tab left open from before moves the place back, but can't take a chapter away.
+    const stale = await place({ steps: ['what-slicing-is'], at: 'what-slicing-is' })
+    expect(await stale.json()).toMatchObject({
+      steps: ['what-slicing-is'],
+      at: 'what-slicing-is',
+      restarted: [],
+      chapters: ['basics'],
+    })
+    expect((await place({ at: 'Not a step!' })).status).toBe(400)
+  })
+
+  it('tells the workspace which chapters are done', async () => {
+    await basicsOnly('adhesion')
+    const response = await app.request('/api/print/workspace', { headers: { cookie: memberCookie } })
+    expect(((await response.json()) as { chapters: string[] }).chapters).toEqual([
+      ...REQUIRED_CHAPTERS,
+      'adhesion',
+    ])
+  })
+
+  it('locks every setting outside the basics until its chapter is done', async () => {
+    const draft = await newDraft()
+    await basicsOnly()
+    const walls = await edit(draft, { overrides: { wall_loops: 4 } })
+    expect(walls.status).toBe(403)
+    expect(await errorOf(walls)).toBe('To change Walls, take its chapter of the slicer training first.')
+    // Placing parts needs nothing more.
+    const moved = await edit(draft, { objects: draft.objects.map((o) => ({ ...o, x: 100 })) })
+    expect(moved.status).toBe(200)
+
+    expect((await place({ chapters: ['strength'] })).status).toBe(200)
+    expect((await edit(await read(draft.id), { overrides: { wall_loops: 4 } })).status).toBe(200)
+    // The brim is another chapter's.
+    const brim = await edit(await read(draft.id), {
+      overrides: { wall_loops: 4, brim_type: 'outer_only' },
+    })
+    expect(brim.status).toBe(403)
+    expect((await read(draft.id)).overrides).toEqual({ wall_loops: 4 })
+  })
+
+  it('lets a locked setting go back to the process, and leaves one already changed alone', async () => {
+    const draft = await newDraft()
+    await prisma.printRequest.update({
+      where: { id: draft.id },
+      data: { overrides: { wall_loops: 4, sparse_infill_density: 30 } },
+    })
+    await basicsOnly()
+    expect((await edit(draft, { overrides: { wall_loops: 4 } })).status).toBe(200)
+    expect((await read(draft.id)).overrides).toEqual({ wall_loops: 4 })
+  })
+
+  it('lets vase mode’s chapter switch supports off, and nothing else of theirs', async () => {
+    const draft = await newDraft()
+    await basicsOnly('others')
+    expect((await edit(draft, { overrides: { spiral_mode: true, enable_support: false } })).status).toBe(200)
+    const type = await edit(await read(draft.id), {
+      overrides: { spiral_mode: true, enable_support: false, support_type: 'normal(auto)' },
+    })
+    expect(type.status).toBe(403)
+  })
+
+  it('keeps the printer, filament and process to their chapter, unless an officer took one away', async () => {
+    const draft = await newDraft()
+    await basicsOnly()
+    const petg = await edit(draft, { filamentId: ids.petg })
+    expect(petg.status).toBe(403)
+    expect(await errorOf(petg)).toBe('To choose the filament, take its chapter of the slicer training first.')
+    // Naming the one it has already isn't a change.
+    expect((await edit(draft, { filamentId: ids.pla })).status).toBe(200)
+
+    await prisma.slicerProfile.update({ where: { id: ids.pla }, data: { offered: false } })
+    expect((await edit(await read(draft.id), { filamentId: ids.petg })).status).toBe(200)
+    // The process is still offered, so it still can't change.
+    expect((await edit(await read(draft.id), { processId: ids.q })).status).toBe(403)
+
+    await basicsOnly('materials')
+    expect((await edit(await read(draft.id), { processId: ids.q })).status).toBe(200)
+  })
+
+  it('starts a new plate on the defaults, without locked settings', async () => {
+    await basicsOnly()
+    const brim = await createDraft(memberCookie, {
+      settings: settings({ overrides: { brim_type: 'outer_only' } }),
+    })
+    expect(brim.status).toBe(403)
+
+    // The first offered printer may be one of the club's, so the defaults are read, not assumed.
+    const offered = (await workspace()).profiles
+    const first = offered.printers[0]!
+    const response = await createDraft(memberCookie, {
+      settings: settings({ processId: ids.q, filamentId: ids.petg }),
+    })
+    expect(response.status).toBe(201)
+    expect(await response.json()).toMatchObject({
+      printerId: first.id,
+      processId: first.processes[0]!.id,
+      filamentId: offered.filaments.find((f) => f.printers.includes(first.id))!.id,
+    })
   })
 })
 

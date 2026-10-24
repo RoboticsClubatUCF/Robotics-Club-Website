@@ -86,13 +86,13 @@ jobs:
       - name: Test
         run: npm --prefix web run test
 
-      # The workspace and the slicer worker each carry a copy of the plate
-      # transform and the settings table, tested against the same vectors. Two
-      # copies of the vectors that drifted apart would let both suites pass
-      # while the browser and Orca disagree.
+      # The workspace and the server each carry a copy of the plate transform,
+      # the settings table and the training chapters, tested against the same
+      # vectors. Two copies that drifted apart would let both suites pass while
+      # the browser and the worker or the API disagree.
       - name: Check the slicer's shared test vectors match
         run: |
-          for f in plateTransform processSettings; do
+          for f in plateTransform processSettings trainingChapters; do
             cmp "server/src/printing/fixtures/$f.vectors.json" "web/src/lib/slicer/fixtures/$f.vectors.json"
           done
 

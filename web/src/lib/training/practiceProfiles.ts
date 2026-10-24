@@ -1,4 +1,5 @@
 import type { ApiSlicerProcess, ApiSlicerWorkspace } from '../api/api'
+import { OPTIONAL_CHAPTERS, REQUIRED_CHAPTERS } from '../slicer/trainingChapters'
 
 /**
  * The printer, processes and filaments the training's practice plate offers: the club's CC1 and
@@ -102,6 +103,8 @@ export const PRACTICE_WORKSPACE: ApiSlicerWorkspace = {
     ],
   },
   workerOnline: true,
+  // Practice leaves every setting open: the chapters' tasks change them, in any order.
+  chapters: [...REQUIRED_CHAPTERS, ...OPTIONAL_CHAPTERS],
   limits: { drafts: 5, models: 10, objects: 20, fileMb: 50, slicesPerHour: 60 },
 }
 

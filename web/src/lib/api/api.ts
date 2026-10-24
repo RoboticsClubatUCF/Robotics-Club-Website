@@ -989,6 +989,8 @@ export type ApiSlicerWorkspace = {
     filaments: ApiSlicerFilament[]
   }
   workerOnline: boolean
+  /** The slicer training chapters finished, which unlock settings (`lib/slicer/trainingChapters.ts`). */
+  chapters: string[]
   limits: {
     drafts: number
     models: number
@@ -996,6 +998,20 @@ export type ApiSlicerWorkspace = {
     fileMb: number
     slicesPerHour: number
   }
+}
+
+/** Where somebody is in the slicer training, from `GET /api/print/training`. */
+export type ApiTraining = {
+  /** Ids of the steps finished. */
+  steps: string[]
+  /** The step they were last on. */
+  at: string | null
+  /** Tasks started over and not finished again. */
+  restarted: string[]
+  /** Chapters finished, required and optional. Only ever added to. */
+  chapters: string[]
+  /** When the required chapters were finished, which opened the slicer. */
+  trainedAt: string | null
 }
 
 /**

@@ -154,7 +154,7 @@ export const CHAPTERS: Chapter[] = [
           <>
             <List ordered>
               <li>You open the slicer from the printing page and put your model on the plate.</li>
-              <li>You choose the plastic and how it prints.</li>
+              <li>It starts with the club&rsquo;s usual plastic and settings, which suit most prints.</li>
               <li>
                 You press <Name>SLICE PLATE</Name>. The club&rsquo;s slicer makes the file and shows you what it
                 will print.
@@ -171,6 +171,10 @@ export const CHAPTERS: Chapter[] = [
             <P>
               Resin prints work differently: an officer slices those for you, from the form on the printing page.
               This training is about filament.
+            </P>
+            <P>
+              The chapters up to <Name>You&rsquo;re ready</Name> open the slicer. The ones after it are optional:
+              each unlocks more settings, like brims and infill, when you want them.
             </P>
             <Careful>
               The tasks in this training use a practice copy of the slicer. Nothing you do in it is saved,
@@ -872,7 +876,7 @@ export const CHAPTERS: Chapter[] = [
           {
             text: 'Standing on one of its L-shaped ends',
             right: true,
-            why: 'Right. Every layer is a whole L, so the corner is solid plastic in every layer. It’s a small face to stand on, so it wants a brim, which comes later.',
+            why: 'Right. Every layer is a whole L, so the corner is solid plastic in every layer. It’s a small face to stand on, so it wants a brim, which has a chapter of its own.',
           },
         ],
       },
@@ -929,8 +933,8 @@ export const CHAPTERS: Chapter[] = [
               Change anything after slicing and the status line says so. Slice again before you send it.
             </P>
             <P>
-              From here on, the tasks have you change a setting, slice again and compare. In the practice copy,{' '}
-              <Name>YOUR SLICES</Name> above the plate keeps each slice&rsquo;s time, plastic and layers side by side.
+              In the practice copy, <Name>YOUR SLICES</Name> above the plate keeps each slice&rsquo;s time, plastic
+              and layers side by side, so you can change something, slice again and compare.
             </P>
             <P>
               <Name>SLICE PLATE</Name> stays grey while something is wrong: nothing on the plate, a red part, a STEP
@@ -1019,6 +1023,108 @@ export const CHAPTERS: Chapter[] = [
     ],
   },
 
+  {
+    id: 'sending',
+    title: 'Sending it to print',
+    steps: [
+      {
+        kind: 'read',
+        id: 'sending',
+        title: 'Sending it to print',
+        body: (
+          <>
+            <P>
+              Once the plate is sliced, <Name>REQUEST PRINT</Name> turns gold. It opens a short form:
+            </P>
+            <Terms
+              items={[
+                [
+                  'What it is for',
+                  'A personal print comes out of your allowance for the semester, and the form says what you’ll have left. A club project you’re on doesn’t count against it.',
+                ],
+                ['Special requests', 'Anything the officer should know, like a colour.'],
+              ]}
+            />
+            <P>
+              <Name>SEND IT</Name> puts it in the queue. It shows on the printing page as <Name>WAITING</Name>. Until
+              an officer starts it, <Name>EDIT</Name> takes it back to the slicer; send it again when you&rsquo;re done.
+            </P>
+            <P>
+              Plates you haven&rsquo;t sent are drafts. They save as you go and are listed on the printing page under{' '}
+              <Name>MY DRAFTS</Name>. A draft left alone for a while is deleted, and the list says when.
+            </P>
+            <P>
+              You can go over your allowance. An officer still has to approve the print, and you pay for every gram
+              past it. Officers may also turn
+              down a plate that won&rsquo;t print well, and they&rsquo;ll say why.
+            </P>
+          </>
+        ),
+      },
+      {
+        kind: 'try',
+        id: 'try-send',
+        title: 'Send it',
+        brief: 'The whole thing, start to finish. Practice sends nothing.',
+        setUp: { objects: () => [placed('mushroom', 'mushroom', MIDDLE, MIDDLE, { turns: [turn('x', 180)] })] },
+        goals: [
+          {
+            text: 'Slice the plate.',
+            done: (s, memory) => {
+              memory['sent'] = s.sent
+              return isSliced(s)
+            },
+            aim: [{ at: 'slice' }],
+          },
+          {
+            text: 'Press REQUEST PRINT, choose what it’s for and press SEND IT.',
+            done: (s, memory) => s.sent > Number(memory['sent'] ?? s.sent),
+            aim: [{ at: 'request' }],
+          },
+        ],
+      },
+      {
+        kind: 'check',
+        id: 'check-allowance',
+        title: 'Check: going over',
+        question: 'You have 100 g of your allowance left and send a personal print that needs 120 g. What happens?',
+        options: [
+          { text: 'It’s refused', why: 'Going over is allowed, but you pay for the grams past your allowance.' },
+          {
+            text: 'It’s sent, and you pay for the 20 g over',
+            right: true,
+            why: 'Right. Only the grams past your allowance, and only once an officer approves the print. The form warns you before you send it.',
+          },
+          { text: 'It’s charged to a project', why: 'Only if you choose a project you’re on.' },
+        ],
+      },
+      {
+        kind: 'check',
+        id: 'check-edit',
+        title: 'Check: fixing a sent plate',
+        question: 'You spot a mistake right after sending. What do you do?',
+        options: [
+          { text: 'Send another one', why: 'That puts two in the queue.' },
+          {
+            text: 'Press EDIT on the printing page, fix it and send it again',
+            right: true,
+            why: 'Right. That works until an officer starts printing it. After that, talk to them.',
+          },
+          { text: 'Nothing can be done', why: 'EDIT takes it back while it’s still waiting.' },
+        ],
+      },
+    ],
+  },
+
+  {
+    id: 'finish',
+    title: 'Finish',
+    steps: [{ kind: 'finish', id: 'finish', title: 'You’re ready' }],
+  },
+
+  // Optional from here, and open once the chapters above are done. Each unlocks the settings it
+  // teaches in the slicer (`lib/slicer/trainingChapters.ts`), so every task sets its own plate up:
+  // they can be taken in any order.
   {
     id: 'supports',
     title: 'Supports, and needing fewer',
@@ -1651,104 +1757,5 @@ export const CHAPTERS: Chapter[] = [
         ],
       },
     ],
-  },
-
-  {
-    id: 'sending',
-    title: 'Sending it to print',
-    steps: [
-      {
-        kind: 'read',
-        id: 'sending',
-        title: 'Sending it to print',
-        body: (
-          <>
-            <P>
-              Once the plate is sliced, <Name>REQUEST PRINT</Name> turns gold. It opens a short form:
-            </P>
-            <Terms
-              items={[
-                [
-                  'What it is for',
-                  'A personal print comes out of your allowance for the semester, and the form says what you’ll have left. A club project you’re on doesn’t count against it.',
-                ],
-                ['Special requests', 'Anything the officer should know, like a colour.'],
-              ]}
-            />
-            <P>
-              <Name>SEND IT</Name> puts it in the queue. It shows on the printing page as <Name>WAITING</Name>. Until
-              an officer starts it, <Name>EDIT</Name> takes it back to the slicer; send it again when you&rsquo;re done.
-            </P>
-            <P>
-              Plates you haven&rsquo;t sent are drafts. They save as you go and are listed on the printing page under{' '}
-              <Name>MY DRAFTS</Name>. A draft left alone for a while is deleted, and the list says when.
-            </P>
-            <P>
-              You can go over your allowance. An officer still has to approve the print, and you pay for every gram
-              past it. Officers may also turn
-              down a plate that won&rsquo;t print well, and they&rsquo;ll say why.
-            </P>
-          </>
-        ),
-      },
-      {
-        kind: 'try',
-        id: 'try-send',
-        title: 'Send it',
-        brief: 'The whole thing, start to finish. Practice sends nothing.',
-        setUp: { objects: () => [placed('mushroom', 'mushroom', MIDDLE, MIDDLE, { turns: [turn('x', 180)] })] },
-        goals: [
-          {
-            text: 'Slice the plate.',
-            done: (s, memory) => {
-              memory['sent'] = s.sent
-              return isSliced(s)
-            },
-            aim: [{ at: 'slice' }],
-          },
-          {
-            text: 'Press REQUEST PRINT, choose what it’s for and press SEND IT.',
-            done: (s, memory) => s.sent > Number(memory['sent'] ?? s.sent),
-            aim: [{ at: 'request' }],
-          },
-        ],
-      },
-      {
-        kind: 'check',
-        id: 'check-allowance',
-        title: 'Check: going over',
-        question: 'You have 100 g of your allowance left and send a personal print that needs 120 g. What happens?',
-        options: [
-          { text: 'It’s refused', why: 'Going over is allowed, but you pay for the grams past your allowance.' },
-          {
-            text: 'It’s sent, and you pay for the 20 g over',
-            right: true,
-            why: 'Right. Only the grams past your allowance, and only once an officer approves the print. The form warns you before you send it.',
-          },
-          { text: 'It’s charged to a project', why: 'Only if you choose a project you’re on.' },
-        ],
-      },
-      {
-        kind: 'check',
-        id: 'check-edit',
-        title: 'Check: fixing a sent plate',
-        question: 'You spot a mistake right after sending. What do you do?',
-        options: [
-          { text: 'Send another one', why: 'That puts two in the queue.' },
-          {
-            text: 'Press EDIT on the printing page, fix it and send it again',
-            right: true,
-            why: 'Right. That works until an officer starts printing it. After that, talk to them.',
-          },
-          { text: 'Nothing can be done', why: 'EDIT takes it back while it’s still waiting.' },
-        ],
-      },
-    ],
-  },
-
-  {
-    id: 'finish',
-    title: 'Finish',
-    steps: [{ kind: 'finish', id: 'finish', title: 'You’re ready' }],
   },
 ]

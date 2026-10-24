@@ -1,7 +1,11 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import { MemoryRouter } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
 import type { ApiSlicerPrinter, ApiSlicerWorkspace } from '../../lib/api/api'
+import { OPTIONAL_CHAPTERS, REQUIRED_CHAPTERS } from '../../lib/slicer/trainingChapters'
 import { SettingsPanel } from './SettingsPanel'
+
+const EVERY_CHAPTER = [...REQUIRED_CHAPTERS, ...OPTIONAL_CHAPTERS]
 
 const values = {
   layer_height: 0.2,
@@ -62,15 +66,19 @@ const show = (
   overrides: Record<string, number | boolean | string> = {},
   choice: Partial<typeof SETTINGS> | { [K in keyof typeof SETTINGS]?: string | null } = {},
   shown = profiles,
+  chapters: readonly string[] = EVERY_CHAPTER,
 ) => {
   const onChange = vi.fn()
   render(
-    <SettingsPanel
-      profiles={shown}
-      settings={{ ...SETTINGS, ...choice, overrides }}
-      disabled={false}
-      onChange={onChange}
-    />,
+    <MemoryRouter>
+      <SettingsPanel
+        profiles={shown}
+        settings={{ ...SETTINGS, ...choice, overrides }}
+        chapters={chapters}
+        disabled={false}
+        onChange={onChange}
+      />
+    </MemoryRouter>,
   )
   fireEvent.click(screen.getByRole('tab', { name: /strength/i }))
   return onChange
@@ -160,5 +168,55 @@ describe('SettingsPanel', () => {
     expect(screen.getByRole('option', { name: 'Choose a filament' })).toBeInTheDocument()
     expect(screen.getByText('Pick a process to change how it prints.')).toBeInTheDocument()
     expect(screen.queryByLabelText('Walls')).not.toBeInTheDocument()
+  })
+})
+
+describe('SettingsPanel before the optional chapters', () => {
+  const basics = [...REQUIRED_CHAPTERS]
+
+  it('locks the settings, naming the chapter that unlocks them', () => {
+    show({}, {}, profiles, basics)
+    expect(screen.getByLabelText('Walls')).toBeDisabled()
+    expect(screen.getByLabelText('Infill pattern')).toBeDisabled()
+    expect(screen.getByLabelText('Walls')).toHaveAccessibleDescription('Locked. Training chapter: Strength settings')
+    expect(screen.getByRole('link', { name: 'Strength settings' })).toHaveAttribute(
+      'href',
+      '/dashboard/profile/training?chapter=strength',
+    )
+    expect(screen.getByRole('tab', { name: 'Strength, locked' })).toBeInTheDocument()
+    // One line for the run of settings, not one each.
+    expect(screen.getAllByRole('link', { name: 'Strength settings' })).toHaveLength(1)
+  })
+
+  it('locks the printer, filament and process while there are others to pick', () => {
+    show({}, {}, profiles, basics)
+    expect(screen.getByRole('combobox', { name: 'FILAMENT' })).toBeDisabled()
+    expect(screen.getByRole('combobox', { name: 'PROCESS' })).toBeDisabled()
+    expect(screen.getByRole('link', { name: 'Printer, filament and process' })).toHaveAttribute(
+      'href',
+      '/dashboard/profile/training?chapter=materials',
+    )
+  })
+
+  it('lets a profile an officer took away be picked again', () => {
+    show({}, { filamentId: 'gone' }, profiles, basics)
+    expect(screen.getByRole('combobox', { name: 'FILAMENT' })).toBeEnabled()
+    expect(screen.getByRole('combobox', { name: 'PROCESS' })).toBeDisabled()
+  })
+
+  it('opens only what a finished chapter teaches, a run of settings at a time', () => {
+    show({}, {}, profiles, [...basics, 'adhesion'])
+    fireEvent.click(screen.getByRole('tab', { name: /others/i }))
+    expect(screen.getByLabelText('Brim')).toBeEnabled()
+    expect(screen.getByLabelText('Skirt loops')).toBeEnabled()
+    expect(screen.getByLabelText('Vase mode')).toBeDisabled()
+    expect(screen.getAllByRole('link', { name: 'Vase mode and fuzzy skin' })).toHaveLength(1)
+    expect(screen.getByRole('tab', { name: 'Others' })).toBeInTheDocument()
+  })
+
+  it('still lets a locked setting go back to the process', () => {
+    const onChange = show({ wall_loops: 4 }, {}, profiles, basics)
+    fireEvent.click(screen.getByRole('button', { name: /reset walls to the preset's 2/i }))
+    expect(onChange).toHaveBeenCalledWith({ overrides: {} })
   })
 })

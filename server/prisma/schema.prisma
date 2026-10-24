@@ -194,10 +194,11 @@ model User {
   /// who changes their mind. Cleared by answering, so the row never claims somebody declined a
   /// survey they went on to fill in.
   surveyPromptDismissedAt   DateTime? @map("survey_prompt_dismissed_at")
-  /// When they finished the slicer training on the profile page, or null. The slicer's routes
+  /// When they finished the slicer training's required chapters, or null. The slicer's routes
   /// refuse until it's set (`requireSlicerTraining`), officers included. The training's tasks and
-  /// questions are checked in the browser; this only records that someone got to the end. Never
-  /// cleared, and on the session for the same reason as the survey columns.
+  /// questions are checked in the browser; this only records that someone got that far. Never
+  /// cleared, and on the session for the same reason as the survey columns. Where they are in the
+  /// training, and the optional chapters that unlock settings, are in `SlicerTraining`.
   slicerTrainedAt           DateTime? @map("slicer_trained_at")
   createdAt                 DateTime  @default(now()) @map("created_at")
   updatedAt                 DateTime  @updatedAt @map("updated_at")
@@ -225,6 +226,7 @@ model User {
   labChanges        LabStatus[]       @relation("labChanges")
   documentsAuthored ProjectDocumentAuthor[]
   slicerProfiles    SlicerProfile[]
+  slicerTraining    SlicerTraining?
 
   @@index([active])
   // The alumni chip on `/members` selects on this alone, and it is a couple of
@@ -1390,6 +1392,29 @@ model PrintSlice {
 
   @@index([state, requestedAt])
   @@map("print_slices")
+}
+
+/// Where somebody is in the slicer training, kept here so it follows them between devices.
+///
+/// `steps`, `at` and `restarted` are the training page's place-keeping, and only it reads them.
+/// `chapters` is what the slicer reads: each optional chapter finished unlocks the settings it
+/// teaches (`printing/trainingChapters.ts`), and the draft routes refuse a change to anything still
+/// locked. Chapters are only ever added, so starting a task over locks nothing again. Like
+/// `slicerTrainedAt`, it's the browser's word that the tasks were done.
+model SlicerTraining {
+  userId    String   @id @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Ids of the steps finished.
+  steps     String[] @default([])
+  /// The step they were last on.
+  at        String?
+  /// Tasks started over and not finished again.
+  restarted String[] @default([])
+  /// Chapters finished, required and optional.
+  chapters  String[] @default([])
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("slicer_training")
 }
 
 /// A slicer worker saying it's alive, every twenty seconds. SLICE is refused unless one was seen

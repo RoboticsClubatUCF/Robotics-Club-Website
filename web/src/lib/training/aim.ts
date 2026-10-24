@@ -80,7 +80,9 @@ const clamp = (value: number, low: number, high: number) => Math.max(low, Math.m
 /**
  * A callout of `size` beside `target`, inside `bounds`: on the `prefer`red side if it fits there,
  * else below, above, right or left, whichever fits first, else wherever has the most room. A side
- * that would cover one of the controls in `avoid` comes after every side that wouldn't.
+ * that would cover one of the controls in `avoid` comes after every side that wouldn't. `keepClear`
+ * is stronger: a side covering it is only used when every side would, since the callout takes no
+ * pointer but hides what's under it, and a task's NEXT hidden is a task that can't be left.
  */
 export function place(
   target: Rect,
@@ -88,6 +90,7 @@ export function place(
   bounds: Rect,
   prefer?: Side,
   avoid: Rect[] = [],
+  keepClear: Rect[] = [],
 ): Placement {
   const right = bounds.left + bounds.width
   const bottom = bounds.top + bounds.height
@@ -123,13 +126,21 @@ export function place(
 
   const depth = (side: Side) => (side === 'below' || side === 'above' ? size.height : size.width)
   const sides = [...new Set<Side>([prefer ?? 'below', 'below', 'above', 'right', 'left'])]
-  const fits = sides.filter((side) => room[side] >= depth(side))
-  const clear = fits.find((side) => {
+  const covers = (side: Side, rects: Rect[]) => {
     const { left, top } = on(side)
-    return !avoid.some((rect) => intersect({ left, top, ...size }, rect))
-  })
+    return rects.some((rect) => intersect({ left, top, ...size }, rect))
+  }
+  const fits = sides.filter((side) => room[side] >= depth(side))
+  const open = fits.filter((side) => !covers(side, keepClear))
+  const usable = open.length > 0 ? open : fits
+  const clear = usable.find((side) => !covers(side, avoid))
+  const roomy = sides.filter((side) => !covers(side, keepClear))
   return on(
-    clear ?? fits[0] ?? sides.reduce((best, side) => (room[side] / depth(side) > room[best] / depth(best) ? side : best)),
+    clear ??
+      usable[0] ??
+      (roomy.length > 0 ? roomy : sides).reduce((best, side) =>
+        room[side] / depth(side) > room[best] / depth(best) ? side : best,
+      ),
   )
 }
 
