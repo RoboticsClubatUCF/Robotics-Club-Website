@@ -156,7 +156,9 @@ services:
   # and carries `rccf.club` to this container on 4173; the route lives in the
   # Cloudflare dashboard. deploy/README.md has the rest.
   web:
-    image: nginx:1.27-alpine
+    # The stable branch. `1.30-alpine` follows its patch releases, so a pull
+    # picks up security fixes; 1.27 had its last release in 2025.
+    image: nginx:1.30-alpine
     container_name: rccf-v13-web
     profiles: [web]
     restart: unless-stopped
