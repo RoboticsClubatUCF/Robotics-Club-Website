@@ -4,7 +4,8 @@ import { env } from '../core/env.js'
 import { UserRole } from '../generated/prisma/enums.js'
 
 /**
- * Tell the officers something happened — a new print request, a loan to approve.
+ * Tell the officers something happened — a loan to approve. New prints go to the print
+ * channel instead, in `printNotify.ts`.
  *
  * Who gets the DM: `OFFICER_ALERT_DISCORD_IDS` if the club set it, otherwise every ADMIN/OFFICER
  * account with a confirmed `discordId`, capped so a mis-seeded database cannot make the bot spam

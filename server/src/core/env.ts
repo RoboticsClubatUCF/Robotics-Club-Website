@@ -393,7 +393,15 @@ const envSchema = z.object({
   SLICER_SCRATCH_DIR: z.string().min(1).optional(),
 
   /**
-   * Who the bot DMs about new print and equipment requests: Discord user ids,
+   * The channel the bot posts new 3D prints into. Needs Send Messages there.
+   */
+  DISCORD_PRINT_CHANNEL_ID: z
+    .string()
+    .regex(/^\d{17,20}$/, 'must be a Discord snowflake (17-20 digits)')
+    .default('1204281218406027334'),
+
+  /**
+   * Who the bot DMs about new equipment requests: Discord user ids,
    * comma-separated. Unset, it falls back to every ADMIN/OFFICER account with a
    * confirmed `discordId`. Does nothing without the bot pair above.
    */

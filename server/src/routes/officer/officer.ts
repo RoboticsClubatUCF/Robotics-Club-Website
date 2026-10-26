@@ -34,6 +34,7 @@ import {
 import { MATERIAL_LABEL, printedColumns, printedSettings } from '../../printing/printSettings.js'
 import { slicedWith } from '../../printing/profiles.js'
 import { deleteHeldFiles } from '../../printing/printLifecycle.js'
+import { notifyPrintOwner } from '../../discord/printNotify.js'
 import {
   NO_SCHEDULE,
   meetingFields,
@@ -636,6 +637,7 @@ officer.patch(
         termSeason: true,
         slicedWith: true,
         estimatedGrams: true,
+        user: { select: { id: true, fullName: true, discordId: true, discordUsername: true } },
       },
     })
     if (!request || request.status === PrintRequestStatus.DRAFT) {
@@ -745,6 +747,12 @@ officer.patch(
         select: printSelect,
       })
     })
+
+    if (updated.status !== request.status) {
+      void notifyPrintOwner(request.user, updated).catch((error: unknown) => {
+        console.error('print owner notify failed', error)
+      })
+    }
 
     return c.json(withGrams(updated))
   },

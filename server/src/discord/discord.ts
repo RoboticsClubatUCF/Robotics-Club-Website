@@ -913,7 +913,7 @@ export async function postChannelMessage(
     // the bot can see. Both need a person and neither starts working on its own.
     if (response.status === 403 || response.status === 404) {
       console.error(
-        `discord lab: refused ${reason} — check the bot can see channel ${channelId} and has Send Messages in it`,
+        `discord: refused ${reason} — check the bot can see channel ${channelId} and has Send Messages in it`,
       )
       return { status: 'refused', reason }
     }

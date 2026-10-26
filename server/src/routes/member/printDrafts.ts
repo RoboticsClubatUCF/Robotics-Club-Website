@@ -9,7 +9,7 @@ import { prisma } from '../../core/db.js'
 import { env } from '../../core/env.js'
 import { consume, rateLimit } from '../../core/rateLimit.js'
 import { validate } from '../../core/validate.js'
-import { notifyOfficers } from '../../discord/officerNotify.js'
+import { notifyPrintChannel } from '../../discord/printNotify.js'
 import { looksLikePrintModel } from '../../files/files.js'
 import type { Prisma } from '../../generated/prisma/client.js'
 import {
@@ -1218,10 +1218,10 @@ printDrafts.post(
       sent.estimatedGrams === null
         ? ''
         : `, about ${String(Math.ceil(sent.estimatedGrams))} g`
-    void notifyOfficers(
+    void notifyPrintChannel(
       `🖨️ New 3D print from ${user.fullName}: ${sent.fileName}${copies} (${how}${grams}), ${forWhom}. Queue: ${env.SITE_URL}/dashboard/officer/print`,
     ).catch((error: unknown) => {
-      console.error('officer notify failed', error)
+      console.error('print channel notify failed', error)
     })
 
     return c.json(withGrams(sent))

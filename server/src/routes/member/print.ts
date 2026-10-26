@@ -7,7 +7,7 @@ import { env } from '../../core/env.js'
 import { looksLikePrintModel } from '../../files/files.js'
 import type { Prisma } from '../../generated/prisma/client.js'
 import { FileKind, PrintProcess, PrintRequestStatus } from '../../generated/prisma/enums.js'
-import { notifyOfficers } from '../../discord/officerNotify.js'
+import { notifyPrintChannel } from '../../discord/printNotify.js'
 import {
   MATERIAL_LABEL,
   printSettings,
@@ -254,10 +254,10 @@ print.post(
     // than as a form.
     const howMany = request.quantity > 1 ? ` ×${String(request.quantity)}` : ''
     // Fire and forget — the member's upload must not wait on Discord.
-    void notifyOfficers(
+    void notifyPrintChannel(
       `🖨️ New 3D print request from ${user.fullName}: ${request.fileName}${howMany} (${mb} MB) — ${request.process}, ${MATERIAL_LABEL[request.material]}, ${forWhom}. Queue: ${env.SITE_URL}/dashboard/officer/print`,
     ).catch((error: unknown) => {
-      console.error('officer notify failed', error)
+      console.error('print channel notify failed', error)
     })
 
     return c.json(withGrams(request), 201)

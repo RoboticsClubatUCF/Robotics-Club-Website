@@ -9,6 +9,7 @@ import {
 } from '../../generated/prisma/enums.js'
 import { currentTerm } from '../../membership/semester.js'
 import { createSession } from '../../auth/session.js'
+import { notifyPrintChannel, notifyPrintOwner } from '../../discord/printNotify.js'
 
 /**
  * Print requests, against the live database.
@@ -28,6 +29,12 @@ vi.mock('../../discord/discord.js', async (importOriginal) => ({
   sendDirectMessage: vi.fn(() =>
     Promise.resolve({ status: 'refused' as const, reason: 'privacy settings' }),
   ),
+}))
+
+// The print channel is real and members' Discord handles resolve, so neither sender runs here.
+vi.mock('../../discord/printNotify.js', () => ({
+  notifyPrintChannel: vi.fn(() => Promise.resolve()),
+  notifyPrintOwner: vi.fn(() => Promise.resolve()),
 }))
 
 const PREFIX = 'test-print-'
@@ -83,6 +90,8 @@ const PAID_UP = new Date('2035-12-31T23:59:59')
 const SURVEYED = new Date('2035-09-01T00:00:00')
 
 beforeEach(async () => {
+  vi.mocked(notifyPrintChannel).mockClear()
+  vi.mocked(notifyPrintOwner).mockClear()
   await clearWindows()
   await clearRows()
 
@@ -258,6 +267,13 @@ describe('submitting', () => {
       fileSize: bytes.byteLength,
       status: 'PENDING',
     })
+  })
+
+  it('posts the new request to the print channel', async () => {
+    await upload(memberCookie, 'bracket.stl', asciiStl())
+
+    expect(notifyPrintChannel).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(notifyPrintChannel).mock.calls[0]![0]).toContain('bracket.stl')
   })
 
   it('sends a filament print to the slicer instead', async () => {
@@ -804,6 +820,16 @@ describe('the officer queue', () => {
    * print already running being stopped — and this column is the only thing that tells them apart.
    * The dashboard reads it to name the action.
    */
+  it('tells the member each time their print moves, and not when only the note changes', async () => {
+    const id = await submit()
+    await patchStatus(id, { status: 'PRINTING' })
+    await patchStatus(id, { status: 'PRINTING', officerNote: 'Second plate' })
+
+    expect(notifyPrintOwner).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(notifyPrintOwner).mock.calls[0]![0].id).toBe(memberId)
+    expect(vi.mocked(notifyPrintOwner).mock.calls[0]![1].status).toBe('PRINTING')
+  })
+
   it('stamps when a print went on a printer, and only then', async () => {
     const declined = await submit()
     await patchStatus(declined, { status: 'REJECTED' })

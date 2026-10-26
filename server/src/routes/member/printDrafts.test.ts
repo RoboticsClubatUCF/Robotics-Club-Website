@@ -4,7 +4,7 @@ import { app } from '../../app.js'
 import { createSession } from '../../auth/session.js'
 import { prisma } from '../../core/db.js'
 import { env } from '../../core/env.js'
-import { notifyOfficers } from '../../discord/officerNotify.js'
+import { notifyPrintChannel } from '../../discord/printNotify.js'
 import {
   FileKind,
   PrintRequestStatus,
@@ -39,8 +39,9 @@ vi.mock('../../discord/discord.js', async (importOriginal) => ({
   ),
 }))
 
-vi.mock('../../discord/officerNotify.js', () => ({
-  notifyOfficers: vi.fn(() => Promise.resolve()),
+vi.mock('../../discord/printNotify.js', () => ({
+  notifyPrintChannel: vi.fn(() => Promise.resolve()),
+  notifyPrintOwner: vi.fn(() => Promise.resolve()),
 }))
 
 const PREFIX = 'test-draft-'
@@ -159,7 +160,7 @@ beforeEach(async () => {
   await clearRows()
   env.PRINT_DRAFT_MAX = limits.drafts
   env.PRINT_SLICES_PER_HOUR = limits.slices
-  vi.mocked(notifyOfficers).mockClear()
+  vi.mocked(notifyPrintChannel).mockClear()
 
   const make = (name: string, role: UserRole) =>
     prisma.user.create({
@@ -1099,9 +1100,9 @@ describe('submitting', () => {
     })
     const row = await prisma.printRequest.findUniqueOrThrow({ where: { id: draft.id } })
     expect(row.submittedAt).not.toBeNull()
-    expect(notifyOfficers).toHaveBeenCalledTimes(1)
-    expect(vi.mocked(notifyOfficers).mock.calls[0]![0]).toContain('about 37 g')
-    expect(vi.mocked(notifyOfficers).mock.calls[0]![0]).toContain('PLA, Standard on the printer')
+    expect(notifyPrintChannel).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(notifyPrintChannel).mock.calls[0]![0]).toContain('about 37 g')
+    expect(vi.mocked(notifyPrintChannel).mock.calls[0]![0]).toContain('PLA, Standard on the printer')
 
     const queue = (await (
       await app.request('/api/officer/print-queue', {
