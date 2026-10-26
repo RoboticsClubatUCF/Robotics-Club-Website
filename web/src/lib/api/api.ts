@@ -1201,13 +1201,18 @@ export type ApiMeEvent = ApiEvent & {
   team: { name: string } | null
 }
 
-/** One of `/api/officer/google-calendars`. The secret address itself is never sent back. */
+/**
+ * One of `/api/officer/google-calendars` (the club's) or `/api/projects/:id/google-calendars` (a
+ * project's). The secret address itself is never sent back.
+ */
 export type ApiGoogleCalendar = {
   id: string
   /** Google's own name for it, once a sync has read one. */
   name: string | null
   /** What it reads, like `club@group.calendar.google.com`. */
   calendar: string | null
+  /** Whether its events go on the public calendar. Always true for a club calendar. */
+  published: boolean
   syncedAt: string | null
   syncError: string | null
 }

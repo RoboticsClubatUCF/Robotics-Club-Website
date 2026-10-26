@@ -16,6 +16,7 @@ const calendar = (over: Partial<ApiGoogleCalendar> = {}): ApiGoogleCalendar => (
   id: 'c1',
   name: 'RCCF General',
   calendar: 'general@group.calendar.google.com',
+  published: true,
   syncedAt: null,
   syncError: null,
   ...over,
@@ -37,7 +38,7 @@ function stub(
 }
 
 const renderPanel = (onImported = vi.fn(() => Promise.resolve())) => {
-  render(<GoogleCalendarPanel onImported={onImported} />)
+  render(<GoogleCalendarPanel basePath="/officer/google-calendars" onImported={onImported} />)
   return onImported
 }
 
@@ -169,5 +170,60 @@ describe('GoogleCalendarPanel', () => {
     renderPanel()
 
     expect(await screen.findByText(/couldn.t load this just now/)).toBeInTheDocument()
+  })
+})
+
+describe("GoogleCalendarPanel for a project", () => {
+  const BASE = '/projects/p1/google-calendars'
+
+  it('asks whether a new calendar goes on the main calendar, off by default', async () => {
+    const fetchStub = stub([], () =>
+      json({ calendars: [calendar({ published: true })], report: { created: 1, updated: 0, removed: 0 } }, 201),
+    )
+    vi.stubGlobal('fetch', fetchStub)
+    render(<GoogleCalendarPanel basePath={BASE} project />)
+
+    const field = await screen.findByLabelText('SECRET ADDRESS IN ICAL FORMAT')
+    const box = screen.getByRole('checkbox', { name: 'Show on the main calendar' })
+    expect(box).not.toBeChecked()
+    fireEvent.click(box)
+    fireEvent.change(field, { target: { value: ADDRESS } })
+    fireEvent.submit(field.closest('form')!)
+
+    await screen.findByText(/Connected\./)
+    const post = fetchStub.mock.calls.find(([, init]) => init?.method === 'POST')
+    expect(urlOf(post![0])).toContain(BASE)
+    expect(bodyOf(post![1])).toEqual({ url: ADDRESS, published: true })
+  })
+
+  it('switches a calendar between the main calendar and the project only', async () => {
+    const fetchStub = stub([calendar({ published: true })], (method) =>
+      method === 'PATCH'
+        ? json({ calendars: [calendar({ published: false })] })
+        : Promise.reject(new Error('unexpected')),
+    )
+    vi.stubGlobal('fetch', fetchStub)
+    render(<GoogleCalendarPanel basePath={BASE} project />)
+
+    const row = (await screen.findByText('RCCF General')).closest('li')!
+    const box = within(row).getByRole('checkbox', { name: 'Show on the main calendar' })
+    expect(box).toBeChecked()
+    fireEvent.click(box)
+
+    expect(
+      await screen.findByText('RCCF General is on the project calendar only.'),
+    ).toBeInTheDocument()
+    expect(within(row).getByRole('checkbox', { name: 'Show on the main calendar' })).not.toBeChecked()
+    const patch = fetchStub.mock.calls.find(([, init]) => init?.method === 'PATCH')
+    expect(urlOf(patch![0])).toContain(`${BASE}/c1`)
+    expect(bodyOf(patch![1])).toEqual({ published: false })
+  })
+
+  it('has no such switch for the club', async () => {
+    vi.stubGlobal('fetch', stub([calendar()]))
+    renderPanel()
+
+    await screen.findByText('RCCF General')
+    expect(screen.queryByRole('checkbox', { name: 'Show on the main calendar' })).toBeNull()
   })
 })

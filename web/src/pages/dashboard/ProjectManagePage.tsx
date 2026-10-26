@@ -59,6 +59,7 @@ import { useApi } from '../../lib/api/useApi'
 import { isOfficer } from '../../lib/auth/session'
 import { SubNav } from '../../components/dashboard/SubNav'
 import { SubPage } from '../../components/dashboard/SubPage'
+import { GoogleCalendarPanel } from '../../components/dashboard/GoogleCalendarPanel'
 import { projectPages, type ManagePart } from '../../lib/dashboard/subPages'
 
 /**
@@ -99,6 +100,7 @@ const PART_LABEL: Record<ManagePart, string> = {
   tasks: 'PROJECT TASKS',
   events: 'PROJECT EVENTS',
   meetings: 'MEETINGS',
+  calendars: 'CALENDARS',
   settings: 'SETTINGS',
 }
 
@@ -367,6 +369,13 @@ function Manage({
                   projectId={projectId}
                 />
               )}
+            </div>
+          </SubPage>
+          {/* Google Calendars that feed this project's events, each on the main calendar or
+              the project's only. */}
+          <SubPage shown={part === 'calendars'}>
+            <div className="max-w-[46rem]">
+              <GoogleCalendarPanel basePath={`/projects/${projectId}/google-calendars`} project />
             </div>
           </SubPage>
           <SubPage shown={part === 'settings'}>

@@ -19,6 +19,7 @@ import { files } from './routes/public/files.js'
 import { forms } from './routes/public/forms.js'
 import { frontPage } from './routes/officer/frontPage.js'
 import { googleCalendar } from './routes/officer/googleCalendar.js'
+import { projectCalendars } from './routes/projects/projectCalendars.js'
 import { heroSlides } from './routes/officer/heroSlides.js'
 import { lab } from './routes/public/lab.js'
 import { me } from './routes/member/me.js'
@@ -140,6 +141,8 @@ app.route('/api/dues', dues)
 // The signed-in surfaces: the member's own view, project management, and the
 // officer desk.
 app.route('/api/me', me)
+// Before `projectManage`, which also answers under `/api/projects/:id`.
+app.route('/api/projects/:projectId/google-calendars', projectCalendars)
 app.route('/api', projectManage)
 app.route('/api', tasks)
 app.route('/api/events', eventManage)

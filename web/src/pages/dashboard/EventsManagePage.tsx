@@ -739,7 +739,9 @@ function Events({
           )}
         </FormPanel>
 
-        {officer && <GoogleCalendarPanel onImported={reload} />}
+        {officer && (
+          <GoogleCalendarPanel basePath="/officer/google-calendars" onImported={reload} />
+        )}
       </div>
 
       {deleting && (

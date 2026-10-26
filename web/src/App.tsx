@@ -185,6 +185,7 @@ function App() {
               <Route path="projects/:slug/manage/tasks" element={<ProjectManagePage part="tasks" />} />
               <Route path="projects/:slug/manage/events" element={<ProjectManagePage part="events" />} />
               <Route path="projects/:slug/manage/meetings" element={<ProjectManagePage part="meetings" />} />
+              <Route path="projects/:slug/manage/calendars" element={<ProjectManagePage part="calendars" />} />
               <Route path="projects/:slug/manage/settings" element={<ProjectManagePage part="settings" />} />
               <Route path="officer/roles" element={<OfficerRolesPage part="board" />} />
               <Route path="officer/roles/leads" element={<OfficerRolesPage part="leads" />} />
