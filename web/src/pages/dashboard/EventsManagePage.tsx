@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useState } from 'react'
 import { useOutletContext } from 'react-router'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
 import { DuesLocked } from '../../components/dashboard/DuesLocked'
+import { GoogleCalendarPanel } from '../../components/dashboard/GoogleCalendarPanel'
 import { ConfirmDialog } from '../../components/shared/ConfirmDialog'
 import { EventCalendarCheckbox } from '../../components/shared/EventCalendarCheckbox'
 import {
@@ -155,7 +156,12 @@ function Events({
         `/me/events?from=${encodeURIComponent(new Date().toISOString())}&limit=200`,
       )
       // Generated meetings have no row behind them — see the header.
-      setEvents(all.filter((event) => !isGeneratedMeeting(event)))
+      const rows = all.filter((event) => !isGeneratedMeeting(event))
+      setEvents(rows)
+      // An import or a disconnect can change the event being edited, its lock included.
+      setEditing((current) =>
+        current ? (rows.find((row) => row.id === current.id) ?? current) : null,
+      )
       setFailed(false)
     } catch {
       setFailed(true)
@@ -197,12 +203,19 @@ function Events({
   const canTouch = (event: ApiMeEvent) =>
     officer || event.createdById === user.id || leadsEvent(event)
   const canPublish = !editing || officer || leadsEvent(editing)
+  // Google owns these fields on an imported event; the server refuses changes to them.
+  const locked = Boolean(editing?.googleId)
+  // DaisyUI's disabled input looks like an empty enabled one, so a locked field says so itself.
+  const lockedClass = (base: string) =>
+    locked
+      ? `${base} disabled:border-dashed disabled:bg-transparent disabled:text-dim`
+      : base
 
   const mineToEdit = (events ?? []).filter(canTouch)
 
   /** Finals week, when any day the event covers falls in one. */
   const finalsWarning = (() => {
-    if (!when || terms.status !== 'ready') return null
+    if (locked || !when || terms.status !== 'ready') return null
 
     const from = new Date(`${when}T12:00`).getTime()
     const to = until > when ? new Date(`${until}T12:00`).getTime() : from
@@ -226,6 +239,24 @@ function Events({
     const text = (name: string) => {
       const raw = data.get(name)
       return typeof raw === 'string' ? raw.trim() : ''
+    }
+
+    if (editing && locked) {
+      const body = {
+        type: text('type') as EventType,
+        registrationUrl: text('registrationUrl') || null,
+        ...(canPublish ? { published: data.get('published') === 'on' } : {}),
+      }
+      run(async () => {
+        await patchJson(`/events/${editing.id}`, body)
+        setEditing(null)
+        setSaves((count) => count + 1)
+        setWhen('')
+        setUntil('')
+        setMessage({ tone: 'success', text: 'Saved.' })
+        await reload()
+      })
+      return
     }
 
     const allDay = data.get('allDay') === 'on'
@@ -352,32 +383,45 @@ function Events({
                         {listedWhen(event)}
                         {' · '}
                         {whereItHangs(event)}
+                        {/* On this line rather than beside the title, which truncates on a phone. */}
+                        {event.googleId && ' · GOOGLE'}
                       </p>
                     </div>
 
-                    <button
-                      type="button"
-                      disabled={busy}
-                      className={smallButton}
-                      onClick={() => {
-                        setEditing(event)
-                        setMessage(null)
-                        setWhen(toDateInput(event.startsAt))
-                        setUntil(toEndDateInput(event))
-                      }}
-                    >
-                      EDIT
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      className={dangerButton}
-                      onClick={() => {
-                        setDeleting(event)
-                      }}
-                    >
-                      DELETE
-                    </button>
+                    {/* One group, so a row wraps EDIT and DELETE together and EDIT lines up
+                        whether or not DELETE is there. */}
+                    <div className="flex gap-4">
+                      <button
+                        type="button"
+                        disabled={busy}
+                        className={smallButton}
+                        onClick={() => {
+                          setEditing(event)
+                          setMessage(null)
+                          setWhen(toDateInput(event.startsAt))
+                          setUntil(toEndDateInput(event))
+                        }}
+                      >
+                        EDIT
+                      </button>
+                      {/* The next sync would bring it back; it's deleted in Google. */}
+                      {event.googleId ? (
+                        <span aria-hidden="true" className={`${dangerButton} invisible`}>
+                          DELETE
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          className={dangerButton}
+                          onClick={() => {
+                            setDeleting(event)
+                          }}
+                        >
+                          DELETE
+                        </button>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -396,10 +440,17 @@ function Events({
               if (message?.tone === 'error') setMessage(null)
             }}
             className="space-y-4"
+            aria-describedby={locked ? `${id}-locked` : undefined}
           >
             <p className={panelLabel}>
               {editing ? `EDITING — ${editing.title.toUpperCase()}` : 'NEW EVENT'}
             </p>
+
+            {locked && (
+              <p id={`${id}-locked`} className="text-dim text-[13px] leading-[1.5] text-pretty">
+                From Google Calendar. Change the title, time, place and detail there.
+              </p>
+            )}
 
             {/* Where it hangs is fixed once it exists — moving an event between projects is
                 deleting and recreating it, which keeps the permission question
@@ -466,8 +517,8 @@ function Events({
                 maxLength={160}
                 placeholder="Design review"
                 defaultValue={editing?.title ?? ''}
-                className={fieldClass}
-                disabled={busy}
+                className={lockedClass(fieldClass)}
+                disabled={busy || locked}
               />
             </div>
 
@@ -508,8 +559,8 @@ function Events({
                     type="date"
                     required
                     defaultValue={editing ? toDateInput(editing.startsAt) : ''}
-                    className={fieldClass}
-                    disabled={busy}
+                    className={lockedClass(fieldClass)}
+                    disabled={busy || locked}
                     onChange={(change) => {
                       setWhen(change.target.value)
                     }}
@@ -524,8 +575,8 @@ function Events({
                     name="start"
                     type="time"
                     defaultValue={editing ? toTimeInput(editing.startsAt) : ''}
-                    className={fieldClass}
-                    disabled={busy}
+                    className={lockedClass(fieldClass)}
+                    disabled={busy || locked}
                   />
                 </div>
               </div>
@@ -540,9 +591,9 @@ function Events({
                     name="endDate"
                     type="date"
                     defaultValue={editing ? toEndDateInput(editing) : ''}
-                    aria-describedby={`${id}-end-date-hint`}
-                    className={fieldClass}
-                    disabled={busy}
+                    aria-describedby={locked ? undefined : `${id}-end-date-hint`}
+                    className={lockedClass(fieldClass)}
+                    disabled={busy || locked}
                     onChange={(change) => {
                       setUntil(change.target.value)
                     }}
@@ -559,29 +610,33 @@ function Events({
                     defaultValue={
                       editing?.endsAt ? toTimeInput(editing.endsAt) : ''
                     }
-                    className={fieldClass}
-                    disabled={busy}
+                    className={lockedClass(fieldClass)}
+                    disabled={busy || locked}
                   />
                 </div>
               </div>
 
-              <p
-                id={`${id}-end-date-hint`}
-                className="text-faint text-[12px] leading-[1.5]"
-              >
-                Leave the end date empty for a one-day event.
-              </p>
+              {!locked && (
+                <p
+                  id={`${id}-end-date-hint`}
+                  className="text-faint text-[12px] leading-[1.5]"
+                >
+                  Leave the end date empty for a one-day event.
+                </p>
+              )}
             </div>
 
-            <label className="flex cursor-pointer items-center gap-2.5">
+            <label
+              className={`flex items-center gap-2.5 ${locked ? '' : 'cursor-pointer'}`}
+            >
               <input
                 type="checkbox"
                 name="allDay"
                 defaultChecked={editing?.allDay ?? false}
-                disabled={busy}
+                disabled={busy || locked}
                 className="checkbox checkbox-sm border-rule"
               />
-              <span className="text-dim text-[13px]">
+              <span className={`${locked ? 'text-faint' : 'text-dim'} text-[13px]`}>
                 All day — ignore the times above
               </span>
             </label>
@@ -597,8 +652,8 @@ function Events({
                   maxLength={160}
                   placeholder="ENG2 Lab"
                   defaultValue={editing?.location ?? ''}
-                  className={fieldClass}
-                  disabled={busy}
+                  className={lockedClass(fieldClass)}
+                  disabled={busy || locked}
                 />
               </div>
               <div>
@@ -628,8 +683,8 @@ function Events({
                 rows={3}
                 maxLength={5000}
                 defaultValue={editing?.description ?? ''}
-                className={`${fieldClass} h-auto py-2 leading-[1.6]`}
-                disabled={busy}
+                className={lockedClass(`${fieldClass} h-auto py-2 leading-[1.6]`)}
+                disabled={busy || locked}
               />
             </div>
 
@@ -683,6 +738,8 @@ function Events({
             </p>
           )}
         </FormPanel>
+
+        {officer && <GoogleCalendarPanel onImported={reload} />}
       </div>
 
       {deleting && (

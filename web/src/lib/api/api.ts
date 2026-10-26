@@ -1195,9 +1195,21 @@ export type ApiMeEvent = ApiEvent & {
   projectId: string | null
   teamId: string | null
   createdById: string | null
+  /** Set on events imported from the club's Google Calendar, which owns their copy and times. */
+  googleId?: string | null
   project: { slug: string; title: string } | null
   team: { name: string } | null
 }
+
+/** `/api/officer/google-calendar`. The secret address itself is never sent back. */
+export type ApiGoogleCalendar = {
+  /** The calendar being imported, like `club@group.calendar.google.com`; null when off. */
+  calendar: string | null
+  syncedAt: string | null
+  syncError: string | null
+}
+
+export type ApiGoogleCalendarReport = { created: number; updated: number; removed: number }
 
 export type EventType =
   'MEETING' | 'COMPETITION' | 'OUTREACH' | 'WORKSHOP' | 'FUNDRAISER' | 'SOCIAL'

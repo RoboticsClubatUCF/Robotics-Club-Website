@@ -158,6 +158,9 @@ function stubDesk(events: ApiMeEvent[] = [meEvent()]) {
     const url = urlOf(input)
 
     if (url.includes('/me/events')) return json(events)
+    if (url.includes('/officer/google-calendar')) {
+      return json({ calendar: null, syncedAt: null, syncError: null })
+    }
     if (url.includes('/officer/semesters')) {
       return json([
         {
@@ -587,5 +590,124 @@ describe('an event over several days', () => {
     fireEvent.click(within(row).getByRole('button', { name: 'EDIT' }))
     // Blank, so moving it to another day is one field rather than two.
     expect(screen.getByLabelText('END DATE')).toHaveValue('')
+  })
+})
+
+describe('an event imported from Google Calendar', () => {
+  const imported = meEvent({
+    id: 'g1',
+    title: 'General body meeting',
+    projectId: null,
+    project: null,
+    createdById: null,
+    published: true,
+    googleId: 'abc@google.com',
+  })
+
+  it('has no DELETE, and its edit sends only what the site owns', async () => {
+    const fetchStub = stubDesk([imported])
+    vi.stubGlobal('fetch', fetchStub)
+    renderPage(context('OFFICER', []))
+
+    const row = (await screen.findByText('General body meeting')).closest('li')!
+    expect(within(row).getByText(/· GOOGLE$/)).toBeInTheDocument()
+    expect(within(row).queryByRole('button', { name: 'DELETE' })).toBeNull()
+
+    fireEvent.click(within(row).getByRole('button', { name: 'EDIT' }))
+    const form = within(screen.getByText(/^EDITING/).closest('form')!)
+    expect(form.getByLabelText('TITLE')).toBeDisabled()
+    expect(form.getByLabelText('START DATE')).toBeDisabled()
+    expect(form.getByLabelText('TYPE')).toBeEnabled()
+    expect(form.queryByText(/Leave the end date empty/)).toBeNull()
+
+    fireEvent.change(form.getByLabelText('TYPE'), { target: { value: 'SOCIAL' } })
+    fireEvent.submit(form.getByRole('button', { name: 'SAVE CHANGES' }).closest('form')!)
+
+    await waitFor(() => {
+      const patch = fetchStub.mock.calls.find(([, init]) => init?.method === 'PATCH')
+      expect(patch).toBeDefined()
+      expect(bodyOf(patch![1])).toEqual({
+        type: 'SOCIAL',
+        registrationUrl: null,
+        published: true,
+      })
+    })
+  })
+})
+
+describe('the Google Calendar panel', () => {
+  it('is for officers only', async () => {
+    vi.stubGlobal('fetch', stubDesk())
+    renderPage(context('MEMBER', [membership('p1', 'Rover', 'PROJECT_LEAD')]))
+    await screen.findByText('NEW EVENT')
+
+    expect(screen.queryByText('GOOGLE CALENDAR')).toBeNull()
+  })
+
+  it('connects with the pasted address and says what came in', async () => {
+    const desk = stubDesk([])
+    const fetchStub = vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      if (urlOf(input).includes('/officer/google-calendar') && init?.method === 'PUT') {
+        return json({
+          calendar: 'club@group.calendar.google.com',
+          syncedAt: '2035-09-01T12:00:00.000Z',
+          syncError: null,
+          report: { created: 3, updated: 0, removed: 0 },
+        })
+      }
+      return desk(input, init)
+    })
+    vi.stubGlobal('fetch', fetchStub)
+    renderPage(context('OFFICER', []))
+
+    const field = await screen.findByLabelText('SECRET ADDRESS IN ICAL FORMAT')
+    fireEvent.change(field, {
+      target: { value: 'https://calendar.google.com/calendar/ical/x/private-y/basic.ics' },
+    })
+    fireEvent.submit(field.closest('form')!)
+
+    expect(await screen.findByText('Connected. 3 added, 0 updated, 0 removed.')).toBeInTheDocument()
+    expect(screen.getByText('club@group.calendar.google.com')).toBeInTheDocument()
+    const put = fetchStub.mock.calls.find(([, init]) => init?.method === 'PUT')
+    expect(bodyOf(put![1])).toEqual({
+      url: 'https://calendar.google.com/calendar/ical/x/private-y/basic.ics',
+    })
+  })
+
+  it('shows the last failure', async () => {
+    const desk = stubDesk([])
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string | URL | Request, init?: RequestInit) =>
+        urlOf(input).includes('/officer/google-calendar')
+          ? json({
+              calendar: 'club@group.calendar.google.com',
+              syncedAt: null,
+              syncError: 'Google Calendar answered 404.',
+            })
+          : desk(input, init),
+      ),
+    )
+    renderPage(context('OFFICER', []))
+
+    expect(
+      await screen.findByText('Last import failed. Google Calendar answered 404.'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'IMPORT NOW' })).toBeInTheDocument()
+  })
+
+  it('says so when it cannot load', async () => {
+    const desk = stubDesk([])
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string | URL | Request, init?: RequestInit) =>
+        urlOf(input).includes('/officer/google-calendar')
+          ? Promise.reject(new TypeError('Failed to fetch'))
+          : desk(input, init),
+      ),
+    )
+    renderPage(context('OFFICER', []))
+
+    expect(await screen.findByText(/couldn.t load this just now/)).toBeInTheDocument()
   })
 })

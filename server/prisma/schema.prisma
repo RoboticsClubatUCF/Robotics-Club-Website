@@ -963,6 +963,12 @@ model Event {
   teamId    String?  @map("team_id")
   team      Team?    @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
+  /// Set on events copied from the club's Google Calendar (`src/calendar/googleCalendar.ts`): the
+  /// event's iCal UID, plus the occurrence's start for one instance of a repeating event. The sync
+  /// owns title, description, location and times on these rows; type, sign-up link and `published`
+  /// stay the site's, so an officer can retype or hide one without the next sync undoing it.
+  googleId String? @unique @map("google_id")
+
   @@index([startsAt])
   @@index([published, startsAt])
   // upcoming/past splits on endsAt, falling back to startsAt for one-day events.
@@ -2673,4 +2679,26 @@ model RateLimit {
 
   @@index([expiresAt])
   @@map("rate_limits")
+}
+
+// ------------------------------------------------------------ google calendar
+
+/// The club Google Calendar the site imports from, set on the events desk. One row, always
+/// `current`; no row or a null address means the import is off. `src/calendar/googleCalendar.ts`
+/// reads it on every sync.
+model GoogleCalendar {
+  /// Always `current`.
+  id String @id @default("current")
+
+  /// The calendar's "Secret address in iCal format". It reads the whole calendar, private events
+  /// included, so the API never hands it back to a browser.
+  icsUrl String? @map("ics_url")
+
+  /// The last sync that finished, and why the last one failed (cleared by the next success).
+  syncedAt  DateTime? @map("synced_at")
+  syncError String?   @map("sync_error")
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("google_calendar")
 }
