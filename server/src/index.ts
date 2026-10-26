@@ -1,6 +1,6 @@
 import { serve } from '@hono/node-server'
 import { app } from './app.js'
-import { syncGoogleCalendar } from './calendar/googleCalendar.js'
+import { syncGoogleCalendars } from './calendar/googleCalendar.js'
 import { prisma } from './core/db.js'
 import {
   confirmInteractionEndpoint,
@@ -171,15 +171,12 @@ const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
   })
 })
 
-// Closed rate-limit windows and expired signup links are dead rows. Every instance
-// sweeps; the deletes are idempotent, so overlapping runs are harmless. unref() keeps
-// the timer from holding the process open during shutdown.
 /**
- * Club Google Calendar into `events`, when officers have set one on the events desk. Quiet unless
- * something changed; a failure is also kept on the settings row for the desk to show.
+ * The club's Google Calendars into `events`, when officers have added any on the events desk. Quiet
+ * unless something changed; each calendar's failure is logged and kept on its row for the desk.
  */
 function importGoogleCalendar() {
-  void syncGoogleCalendar()
+  void syncGoogleCalendars()
     .then((report) => {
       if (report.created + report.updated + report.removed > 0) {
         console.log(
@@ -192,6 +189,9 @@ function importGoogleCalendar() {
     })
 }
 
+// Closed rate-limit windows and expired signup links are dead rows. Every instance
+// sweeps; the deletes are idempotent, so overlapping runs are harmless. unref() keeps
+// the timer from holding the process open during shutdown.
 const sweep = setInterval(
   () => {
     importGoogleCalendar()

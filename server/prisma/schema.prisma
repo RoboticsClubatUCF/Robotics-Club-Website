@@ -963,12 +963,17 @@ model Event {
   teamId    String?  @map("team_id")
   team      Team?    @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
-  /// Set on events copied from the club's Google Calendar (`src/calendar/googleCalendar.ts`): the
-  /// event's iCal UID, plus the occurrence's start for one instance of a repeating event. The sync
-  /// owns title, description, location and times on these rows; type, sign-up link and `published`
-  /// stay the site's, so an officer can retype or hide one without the next sync undoing it.
-  googleId String? @unique @map("google_id")
+  /// Set on events copied from one of the club's Google Calendars (`src/calendar/googleCalendar.ts`).
+  /// `googleId` is the event's iCal UID, plus the occurrence's start for one instance of a repeating
+  /// event, unique within its calendar. The sync owns title, description, location and times on these
+  /// rows; type, sign-up link and `published` stay the site's, so an officer can retype or hide one
+  /// without the next sync undoing it. Disconnecting a calendar clears both columns, which turns its
+  /// imports into ordinary events.
+  googleCalendarId String?         @map("google_calendar_id")
+  googleCalendar   GoogleCalendar? @relation(fields: [googleCalendarId], references: [id], onDelete: SetNull)
+  googleId         String?         @map("google_id")
 
+  @@unique([googleCalendarId, googleId])
   @@index([startsAt])
   @@index([published, startsAt])
   // upcoming/past splits on endsAt, falling back to startsAt for one-day events.
@@ -2681,24 +2686,28 @@ model RateLimit {
   @@map("rate_limits")
 }
 
-// ------------------------------------------------------------ google calendar
+// ----------------------------------------------------------- google calendars
 
-/// The club Google Calendar the site imports from, set on the events desk. One row, always
-/// `current`; no row or a null address means the import is off. `src/calendar/googleCalendar.ts`
-/// reads it on every sync.
+/// A Google Calendar the site imports from, added on the events desk. `src/calendar/googleCalendar.ts`
+/// syncs every row on the ten-minute tick.
 model GoogleCalendar {
-  /// Always `current`.
-  id String @id @default("current")
+  id String @id @default(uuid(7))
 
   /// The calendar's "Secret address in iCal format". It reads the whole calendar, private events
   /// included, so the API never hands it back to a browser.
-  icsUrl String? @map("ics_url")
+  icsUrl String @unique @map("ics_url")
+
+  /// The calendar's own name from its feed (`X-WR-CALNAME`), refreshed on every sync.
+  name String?
 
   /// The last sync that finished, and why the last one failed (cleared by the next success).
   syncedAt  DateTime? @map("synced_at")
   syncError String?   @map("sync_error")
 
+  createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@map("google_calendar")
+  events Event[]
+
+  @@map("google_calendars")
 }

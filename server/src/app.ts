@@ -166,8 +166,8 @@ app.route('/api/officer/sponsors', sponsorsAdmin)
 app.route('/api/officer/archive', officerArchive)
 // And the printers, processes and filaments the slicer offers, which the worker resolves.
 app.route('/api/officer/slicer-profiles', slicerProfiles)
-// The calendar the events desk imports from.
-app.route('/api/officer/google-calendar', googleCalendar)
+// The Google Calendars the events desk imports from.
+app.route('/api/officer/google-calendars', googleCalendar)
 app.route('/api/officer', officer)
 // Before `print`, which only owns `/` and `/:id` underneath the same prefix.
 app.route('/api/print', printDrafts)

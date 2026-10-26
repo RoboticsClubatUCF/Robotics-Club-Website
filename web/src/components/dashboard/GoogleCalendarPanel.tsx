@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useState } from 'react'
 import { ConfirmDialog } from '../shared/ConfirmDialog'
 import { FormPanel, fieldClass, labelClass } from '../shared/formChrome'
 import { InfoTip } from '../shared/InfoTip'
-import { ApiError, deleteJson, getJson, postJson, putJson } from '../../lib/api/api'
+import { deleteJson, getJson, postJson, putJson } from '../../lib/api/api'
 import type { ApiGoogleCalendar, ApiGoogleCalendarReport } from '../../lib/api/api'
 import { explainApiError } from '../../lib/api/apiErrors'
 import { ago } from '../../lib/format/formats'
@@ -15,31 +15,43 @@ const smallButton =
 const dangerButton =
   'text-faint hover:text-error cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50'
 
-type Message = { tone: 'error' | 'success'; text: string } | null
-type WithReport = ApiGoogleCalendar & { report: ApiGoogleCalendarReport }
+/** Mirrors `MAX_CALENDARS` in `server/src/calendar/googleCalendar.ts`; the server refuses past it. */
+const MAX_CALENDARS = 10
 
-const summary = ({ created, updated, removed }: ApiGoogleCalendarReport) =>
-  created + updated + removed === 0
-    ? 'Up to date.'
-    : `${String(created)} added, ${String(updated)} updated, ${String(removed)} removed.`
+type Message = { tone: 'error' | 'success'; text: string } | null
+type Written = { calendars: ApiGoogleCalendar[]; report: ApiGoogleCalendarReport & { failed?: number } }
+
+const summary = ({ created, updated, removed, failed = 0 }: Written['report']) => {
+  const changed = created + updated + removed > 0
+  const counts = changed
+    ? `${String(created)} added, ${String(updated)} updated, ${String(removed)} removed.`
+    : ''
+  if (failed > 0) {
+    return `${counts} ${String(failed)} ${failed === 1 ? 'calendar' : 'calendars'} failed to import.`.trim()
+  }
+  return counts || 'Up to date.'
+}
+
+const labelFor = (calendar: ApiGoogleCalendar) =>
+  calendar.name ?? calendar.calendar ?? 'Google Calendar'
 
 /**
- * The club Google Calendar the site imports from, on the events desk for officers. The server
- * (`routes/officer/googleCalendar.ts`) never returns the secret address, only which calendar it
- * reads, so there is nothing here to reveal or copy.
+ * The club Google Calendars the site imports from, on the events desk for officers. The server
+ * (`routes/officer/googleCalendar.ts`) never returns an address, only which calendar each reads,
+ * so there is nothing here to reveal or copy.
  */
 export function GoogleCalendarPanel({ onImported }: { onImported: () => Promise<void> }) {
-  const id = useId()
-  const [status, setStatus] = useState<ApiGoogleCalendar | null>(null)
+  const [calendars, setCalendars] = useState<ApiGoogleCalendar[] | null>(null)
   const [failed, setFailed] = useState(false)
-  const [replacing, setReplacing] = useState(false)
-  const [confirming, setConfirming] = useState(false)
+  const [changing, setChanging] = useState<string | null>(null)
+  const [removing, setRemoving] = useState<ApiGoogleCalendar | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<Message>(null)
+  const [adds, setAdds] = useState(0)
 
   const load = useCallback(async (signal?: AbortSignal) => {
     try {
-      setStatus(await getJson<ApiGoogleCalendar>('/officer/google-calendar', signal, true))
+      setCalendars(await getJson<ApiGoogleCalendar[]>('/officer/google-calendars', signal, true))
       setFailed(false)
     } catch {
       if (!signal?.aborted) setFailed(true)
@@ -63,10 +75,7 @@ export function GoogleCalendarPanel({ onImported }: { onImported: () => Promise<
         await onImported()
       })
       .catch(async (error: unknown) => {
-        // A failed import (502) is kept on the settings row, and the status line already says it.
-        if (!(error instanceof ApiError && error.status === 502)) {
-          setMessage({ tone: 'error', text: explainApiError(error) })
-        }
+        setMessage({ tone: 'error', text: explainApiError(error) })
         await load()
       })
       .finally(() => {
@@ -74,42 +83,49 @@ export function GoogleCalendarPanel({ onImported }: { onImported: () => Promise<
       })
   }
 
-  const connect = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const raw = new FormData(event.currentTarget).get('url')
-    const url = typeof raw === 'string' ? raw.trim() : ''
+  const add = (url: string) => {
     run(async () => {
-      const result = await putJson<WithReport>('/officer/google-calendar', { url })
-      setStatus(result)
-      setReplacing(false)
+      const result = await postJson<Written>('/officer/google-calendars', { url })
+      setCalendars(result.calendars)
+      // A fresh, empty field for the next one.
+      setAdds((count) => count + 1)
       return `Connected. ${summary(result.report)}`
+    })
+  }
+
+  const change = (id: string, url: string) => {
+    run(async () => {
+      const result = await putJson<Written>(`/officer/google-calendars/${id}`, { url })
+      setCalendars(result.calendars)
+      setChanging(null)
+      return `Address changed. ${summary(result.report)}`
     })
   }
 
   const importNow = () => {
     run(async () => {
-      const result = await postJson<WithReport>('/officer/google-calendar/sync', {})
-      setStatus(result)
+      const result = await postJson<Written>('/officer/google-calendars/sync', {})
+      setCalendars(result.calendars)
       return summary(result.report)
     })
   }
 
-  const disconnect = () => {
+  const remove = (calendar: ApiGoogleCalendar) => {
     run(async () => {
-      const result = await deleteJson<ApiGoogleCalendar>('/officer/google-calendar')
-      setStatus(result)
-      setConfirming(false)
-      return 'Disconnected.'
+      const result = await deleteJson<{ calendars: ApiGoogleCalendar[] }>(
+        `/officer/google-calendars/${calendar.id}`,
+      )
+      setCalendars(result.calendars)
+      setRemoving(null)
+      return `${labelFor(calendar)} disconnected.`
     })
   }
 
-  const connected = status?.calendar != null
-
   return (
     <FormPanel>
-      <p className={panelLabel}>GOOGLE CALENDAR</p>
+      <p className={panelLabel}>GOOGLE CALENDARS</p>
 
-      {status === null && !failed && (
+      {calendars === null && !failed && (
         <div aria-busy="true" className="bg-base-300 h-10 w-full animate-pulse rounded-[2px]" />
       )}
 
@@ -119,95 +135,88 @@ export function GoogleCalendarPanel({ onImported }: { onImported: () => Promise<
         </p>
       )}
 
-      {status && connected && !replacing && (
-        <div className="space-y-4">
-          <div>
-            <p className="text-sm break-all">
-              Importing from <span className="font-medium">{status.calendar}</span>
-            </p>
-            {status.syncError ? (
-              <p className="text-error mt-1 text-[13px] leading-[1.5]">
-                Last import failed. {status.syncError}
-              </p>
-            ) : (
-              <p className="text-faint mt-1 font-mono text-[10px] font-medium tracking-[0.1em]">
-                {status.syncedAt
-                  ? `LAST IMPORT ${ago(status.syncedAt).toUpperCase()}`
-                  : 'NOT IMPORTED YET'}
-              </p>
-            )}
-          </div>
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-            <button type="button" className={secondaryButton} disabled={busy} onClick={importNow}>
-              {busy ? 'WORKING…' : 'IMPORT NOW'}
-            </button>
-            <button
-              type="button"
-              className={smallButton}
-              disabled={busy}
-              onClick={() => {
-                setReplacing(true)
-                setMessage(null)
-              }}
-            >
-              CHANGE ADDRESS
-            </button>
-            <button
-              type="button"
-              className={dangerButton}
-              disabled={busy}
-              onClick={() => {
-                setConfirming(true)
-              }}
-            >
-              DISCONNECT
-            </button>
-          </div>
-        </div>
+      {calendars && calendars.length > 0 && (
+        <>
+          <ul className="border-rule mb-4 divide-y divide-[var(--color-rule)] border-y">
+            {calendars.map((calendar) => (
+              <li key={calendar.id} className="py-3">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                  <div className="min-w-0 flex-1 basis-56">
+                    <p className="truncate text-sm font-medium">{labelFor(calendar)}</p>
+                    {calendar.name && calendar.calendar && (
+                      <p className="text-faint truncate text-[12px]">{calendar.calendar}</p>
+                    )}
+                    {calendar.syncError ? (
+                      <p className="text-error text-[13px] leading-[1.5]">
+                        Last import failed. {calendar.syncError}
+                      </p>
+                    ) : (
+                      <p className="text-faint font-mono text-[10px] font-medium tracking-[0.1em]">
+                        {calendar.syncedAt
+                          ? `LAST IMPORT ${ago(calendar.syncedAt).toUpperCase()}`
+                          : 'NOT IMPORTED YET'}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex gap-4">
+                    <button
+                      type="button"
+                      className={smallButton}
+                      disabled={busy}
+                      aria-label={`Change address of ${labelFor(calendar)}`}
+                      onClick={() => {
+                        setChanging(changing === calendar.id ? null : calendar.id)
+                        setMessage(null)
+                      }}
+                    >
+                      CHANGE ADDRESS
+                    </button>
+                    <button
+                      type="button"
+                      className={dangerButton}
+                      disabled={busy}
+                      aria-label={`Disconnect ${labelFor(calendar)}`}
+                      onClick={() => {
+                        setRemoving(calendar)
+                      }}
+                    >
+                      DISCONNECT
+                    </button>
+                  </div>
+                </div>
+
+                {changing === calendar.id && (
+                  <AddressForm
+                    label="NEW SECRET ADDRESS"
+                    submitLabel="SAVE"
+                    busy={busy}
+                    onSubmit={(url) => {
+                      change(calendar.id, url)
+                    }}
+                    onCancel={() => {
+                      setChanging(null)
+                    }}
+                  />
+                )}
+              </li>
+            ))}
+          </ul>
+
+          <button type="button" className={secondaryButton} disabled={busy} onClick={importNow}>
+            {busy ? 'WORKING…' : 'IMPORT NOW'}
+          </button>
+        </>
       )}
 
-      {status && (!connected || replacing) && (
-        <form onSubmit={connect} className="space-y-4">
-          <div>
-            <div className="mb-1.5 flex items-center gap-1 [&>label]:mb-0">
-              <label htmlFor={`${id}-url`} className={labelClass}>
-                SECRET ADDRESS IN ICAL FORMAT
-              </label>
-              <InfoTip label="Secret address in iCal format">
-                In Google Calendar, open the club calendar&rsquo;s settings and copy it from
-                Integrate calendar. Its events then copy here every ten minutes.
-              </InfoTip>
-            </div>
-            <input
-              id={`${id}-url`}
-              name="url"
-              required
-              autoComplete="off"
-              spellCheck={false}
-              placeholder="https://calendar.google.com/calendar/ical/…"
-              className={fieldClass}
-              disabled={busy}
-            />
-          </div>
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-            <button type="submit" className={secondaryButton} disabled={busy}>
-              {busy ? 'CONNECTING…' : 'CONNECT'}
-            </button>
-            {replacing && (
-              <button
-                type="button"
-                className={smallButton}
-                disabled={busy}
-                onClick={() => {
-                  setReplacing(false)
-                  setMessage(null)
-                }}
-              >
-                CANCEL
-              </button>
-            )}
-          </div>
-        </form>
+      {calendars && calendars.length < MAX_CALENDARS && (
+        <AddressForm
+          key={adds}
+          label={calendars.length > 0 ? 'ADD ANOTHER CALENDAR' : 'SECRET ADDRESS IN ICAL FORMAT'}
+          submitLabel="CONNECT"
+          busy={busy}
+          spaced={calendars.length > 0}
+          onSubmit={add}
+        />
       )}
 
       {message && (
@@ -218,19 +227,84 @@ export function GoogleCalendarPanel({ onImported }: { onImported: () => Promise<
         </p>
       )}
 
-      {confirming && (
+      {removing && (
         <ConfirmDialog
-          title="Stop importing from Google Calendar?"
+          title={`Stop importing from ${labelFor(removing)}?`}
           confirmLabel="DISCONNECT"
           busy={busy}
-          onConfirm={disconnect}
+          onConfirm={() => {
+            remove(removing)
+          }}
           onDismiss={() => {
-            setConfirming(false)
+            setRemoving(null)
           }}
         >
-          <p>Events already imported stay on the calendar and become editable here.</p>
+          <p>Its events stay on the calendar and become editable here.</p>
         </ConfirmDialog>
       )}
     </FormPanel>
+  )
+}
+
+/** The one field every address goes through: adding a calendar, or replacing one's address. */
+function AddressForm({
+  label,
+  submitLabel,
+  busy,
+  spaced = false,
+  onSubmit,
+  onCancel,
+}: {
+  label: string
+  submitLabel: string
+  busy: boolean
+  spaced?: boolean
+  onSubmit: (url: string) => void
+  onCancel?: () => void
+}) {
+  const id = useId()
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault()
+        const raw = new FormData(event.currentTarget).get('url')
+        onSubmit(typeof raw === 'string' ? raw.trim() : '')
+      }}
+      className={`space-y-4 ${spaced ? 'mt-6' : onCancel ? 'mt-3' : ''}`}
+    >
+      <div>
+        <div className="mb-1.5 flex items-center gap-1 [&>label]:mb-0">
+          <label htmlFor={`${id}-url`} className={labelClass}>
+            {label}
+          </label>
+          <InfoTip label="Secret address in iCal format">
+            In Google Calendar, open the calendar&rsquo;s settings and copy &ldquo;Secret address
+            in iCal format&rdquo; from Integrate calendar. Its events then copy here every ten
+            minutes.
+          </InfoTip>
+        </div>
+        <input
+          id={`${id}-url`}
+          name="url"
+          required
+          autoComplete="off"
+          spellCheck={false}
+          placeholder="https://calendar.google.com/calendar/ical/…"
+          className={fieldClass}
+          disabled={busy}
+        />
+      </div>
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+        <button type="submit" className={secondaryButton} disabled={busy}>
+          {submitLabel}
+        </button>
+        {onCancel && (
+          <button type="button" className={smallButton} disabled={busy} onClick={onCancel}>
+            CANCEL
+          </button>
+        )}
+      </div>
+    </form>
   )
 }

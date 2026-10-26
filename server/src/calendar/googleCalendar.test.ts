@@ -1,10 +1,17 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { prisma } from '../core/db.js'
-import { calendarIdOf, parseCalendar, syncGoogleCalendar } from './googleCalendar.js'
+import {
+  calendarIdOf,
+  calendarName,
+  parseCalendar,
+  removeGoogleCalendar,
+  syncCalendar,
+} from './googleCalendar.js'
 
 /**
  * Everything is dated 2035 and synced at a 2035 `now`, so the window the sync may delete from
- * holds no real rows. Fixtures are found by the `test-gcal-` prefix on their UID.
+ * holds no real rows, and every sync is scoped to a fixture calendar. Fixtures are found by the
+ * `test-gcal-` prefix on their UID and their calendar's address.
  */
 
 const PREFIX = 'test-gcal-'
@@ -159,8 +166,29 @@ describe('parseCalendar', () => {
   })
 })
 
-describe('syncGoogleCalendar', () => {
-  const clear = () => prisma.event.deleteMany({ where: { googleId: { startsWith: PREFIX } } })
+describe('calendarName', () => {
+  it("reads Google's name for the calendar", () => {
+    expect(calendarName('BEGIN:VCALENDAR\nX-WR-CALNAME:RCCF\\, general\nEND:VCALENDAR')).toBe(
+      'RCCF, general',
+    )
+    expect(calendarName('BEGIN:VCALENDAR\nEND:VCALENDAR')).toBeNull()
+  })
+})
+
+describe('syncing a calendar', () => {
+  /** A fixture calendar. Its address is never fetched: every sync here passes the feed. */
+  const calendarRow = (name: string) =>
+    prisma.googleCalendar.create({
+      data: {
+        icsUrl: `https://calendar.google.com/calendar/ical/${PREFIX}${name}/public/basic.ics`,
+      },
+    })
+
+  const clear = async () => {
+    await prisma.event.deleteMany({ where: { googleId: { startsWith: PREFIX } } })
+    await prisma.event.deleteMany({ where: { slug: { startsWith: PREFIX } } })
+    await prisma.googleCalendar.deleteMany({ where: { icsUrl: { contains: `/${PREFIX}` } } })
+  }
 
   beforeEach(clear)
   afterAll(async () => {
@@ -168,20 +196,36 @@ describe('syncGoogleCalendar', () => {
     await prisma.$disconnect()
   })
 
+  const find = (googleCalendarId: string, googleId: string) =>
+    prisma.event.findUniqueOrThrow({
+      where: { googleCalendarId_googleId: { googleCalendarId, googleId } },
+    })
+
   it('creates public rows, updates what changed, and removes what Google dropped', async () => {
-    expect(await syncGoogleCalendar({ now: NOW, ics: everything })).toEqual({
+    const calendar = await calendarRow('main')
+
+    expect(await syncCalendar(calendar, { now: NOW, ics: everything })).toEqual({
       created: 4,
       updated: 0,
       removed: 0,
     })
-    const created = await prisma.event.findUniqueOrThrow({ where: { googleId: `${PREFIX}single` } })
+    const created = await find(calendar.id, `${PREFIX}single`)
     expect(created).toMatchObject({ published: true, type: 'MEETING', projectId: null })
+    expect(await prisma.googleCalendar.findUniqueOrThrow({ where: { id: calendar.id } })).toMatchObject(
+      { syncError: null, syncedAt: expect.any(Date) as Date },
+    )
 
     // Officers' choices survive a sync.
-    await prisma.event.update({ where: { id: created.id }, data: { type: 'SOCIAL', published: false } })
+    await prisma.event.update({
+      where: { id: created.id },
+      data: { type: 'SOCIAL', published: false },
+    })
 
     expect(
-      await syncGoogleCalendar({ now: NOW, ics: feed([single('Kickoff night'), allDay, ...weekly]) }),
+      await syncCalendar(calendar, {
+        now: NOW,
+        ics: feed([single('Kickoff night'), allDay, ...weekly]),
+      }),
     ).toEqual({ created: 0, updated: 1, removed: 0 })
     expect(await prisma.event.findUniqueOrThrow({ where: { id: created.id } })).toMatchObject({
       title: 'Kickoff night',
@@ -189,25 +233,57 @@ describe('syncGoogleCalendar', () => {
       published: false,
     })
 
-    expect(await syncGoogleCalendar({ now: NOW, ics: feed([allDay, ...weekly]) })).toEqual({
+    expect(await syncCalendar(calendar, { now: NOW, ics: feed([allDay, ...weekly]) })).toEqual({
       created: 0,
       updated: 0,
       removed: 1,
     })
   })
 
+  it("keeps each calendar's events to itself", async () => {
+    const first = await calendarRow('first')
+    const second = await calendarRow('second')
+
+    // The same event in both, as happens when one is shared into the other.
+    await syncCalendar(first, { now: NOW, ics: feed([single()]) })
+    await syncCalendar(second, { now: NOW, ics: feed([single(), allDay]) })
+
+    // Emptying the second removes only its own rows.
+    expect(await syncCalendar(second, { now: NOW, ics: feed([]) })).toMatchObject({ removed: 2 })
+    expect(await find(first.id, `${PREFIX}single`)).toMatchObject({ title: 'Kickoff' })
+  })
+
   it('keeps imports older than the window', async () => {
+    const calendar = await calendarRow('old')
     await prisma.event.create({
       data: {
         slug: `${PREFIX}old`,
+        googleCalendarId: calendar.id,
         googleId: `${PREFIX}old`,
         title: 'Last year',
         startsAt: new Date('2034-06-01T12:00:00Z'),
       },
     })
 
-    await syncGoogleCalendar({ now: NOW, ics: feed([]) })
+    await syncCalendar(calendar, { now: NOW, ics: feed([]) })
 
-    expect(await prisma.event.findUnique({ where: { googleId: `${PREFIX}old` } })).not.toBeNull()
+    expect(await find(calendar.id, `${PREFIX}old`)).toMatchObject({ title: 'Last year' })
+  })
+
+  it('turns imports into ordinary events when their calendar is removed', async () => {
+    const calendar = await calendarRow('gone')
+    await syncCalendar(calendar, { now: NOW, ics: feed([single()]) })
+    const row = await find(calendar.id, `${PREFIX}single`)
+
+    expect(await removeGoogleCalendar(calendar.id)).toBe(1)
+
+    expect(await prisma.event.findUniqueOrThrow({ where: { id: row.id } })).toMatchObject({
+      googleCalendarId: null,
+      googleId: null,
+      title: 'Kickoff',
+    })
+    expect(await prisma.googleCalendar.findUnique({ where: { id: calendar.id } })).toBeNull()
+    // Released rows have no prefixed UID left to find them by.
+    await prisma.event.delete({ where: { id: row.id } })
   })
 })
