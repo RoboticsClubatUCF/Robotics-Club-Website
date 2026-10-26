@@ -33,7 +33,7 @@ const clearRows = async () => {
   // "Open house" per run had been accumulating in the club's development database, invisible
   // because an event count taken after a run reads as the new baseline.
   //
-  // The slug is generated from the title (`slugFor` in `eventManage.ts`), so naming the fixture
+  // The slug is generated from the title (`eventSlug` in `calendar/eventSlug.ts`), so naming the fixture
   // with the prefix is what makes it findable at all. That is the rule: namespace by whatever
   // column the row can actually be found by.
   await prisma.event.deleteMany({ where: { slug: { startsWith: PREFIX } } })
@@ -461,5 +461,49 @@ describe('the sign-up link', () => {
     )
 
     expect(response.status).toBe(400)
+  })
+})
+
+/** Google owns the copy and the times; the site owns type, sign-up link and visibility. */
+describe('an event imported from Google Calendar', () => {
+  const imported = () =>
+    prisma.event.create({
+      data: {
+        slug: `${PREFIX}google-${Math.random().toString(36).slice(2, 8)}`,
+        googleId: `${PREFIX}google-uid`,
+        title: 'General body meeting',
+        startsAt: new Date('2035-10-18T23:00:00.000Z'),
+        published: true,
+      },
+    })
+
+  it('refuses a change to what Google owns', async () => {
+    const event = await imported()
+    const response = await request('PATCH', `/api/events/${event.id}`, cookies.officer, {
+      title: 'Renamed',
+    })
+    expect(response.status).toBe(409)
+  })
+
+  it('takes a change to what the site owns', async () => {
+    const event = await imported()
+    const response = await request('PATCH', `/api/events/${event.id}`, cookies.officer, {
+      type: 'SOCIAL',
+      published: false,
+      registrationUrl: 'https://example.com/rsvp',
+    })
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      type: 'SOCIAL',
+      published: false,
+      googleId: `${PREFIX}google-uid`,
+    })
+  })
+
+  it('cannot be deleted, since the next sync would bring it back', async () => {
+    const event = await imported()
+    const response = await request('DELETE', `/api/events/${event.id}`, cookies.officer)
+    expect(response.status).toBe(409)
+    expect(await prisma.event.findUnique({ where: { id: event.id } })).not.toBeNull()
   })
 })

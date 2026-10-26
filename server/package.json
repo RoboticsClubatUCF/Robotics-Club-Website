@@ -32,6 +32,7 @@
     "bcryptjs": "^3.0.3",
     "fflate": "^0.8.3",
     "hono": "^4.13.13",
+    "ical.js": "^2.2.1",
     "obscenity": "^0.4.6",
     "occt-import-js": "^0.0.23",
     "postmark": "^5.1.0",

@@ -144,6 +144,7 @@ me.get(
         projectId: true,
         teamId: true,
         createdById: true,
+        googleId: true,
         project: { select: { slug: true, title: true } },
         team: { select: { name: true } },
       },

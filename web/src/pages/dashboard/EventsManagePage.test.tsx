@@ -158,6 +158,7 @@ function stubDesk(events: ApiMeEvent[] = [meEvent()]) {
     const url = urlOf(input)
 
     if (url.includes('/me/events')) return json(events)
+    if (url.includes('/officer/google-calendars')) return json([])
     if (url.includes('/officer/semesters')) {
       return json([
         {
@@ -587,5 +588,62 @@ describe('an event over several days', () => {
     fireEvent.click(within(row).getByRole('button', { name: 'EDIT' }))
     // Blank, so moving it to another day is one field rather than two.
     expect(screen.getByLabelText('END DATE')).toHaveValue('')
+  })
+})
+
+describe('an event imported from Google Calendar', () => {
+  const imported = meEvent({
+    id: 'g1',
+    title: 'General body meeting',
+    projectId: null,
+    project: null,
+    createdById: null,
+    published: true,
+    googleId: 'abc@google.com',
+  })
+
+  it('has no DELETE, and its edit sends only what the site owns', async () => {
+    const fetchStub = stubDesk([imported])
+    vi.stubGlobal('fetch', fetchStub)
+    renderPage(context('OFFICER', []))
+
+    const row = (await screen.findByText('General body meeting')).closest('li')!
+    expect(within(row).getByText(/· GOOGLE$/)).toBeInTheDocument()
+    expect(within(row).queryByRole('button', { name: 'DELETE' })).toBeNull()
+
+    fireEvent.click(within(row).getByRole('button', { name: 'EDIT' }))
+    const form = within(screen.getByText(/^EDITING/).closest('form')!)
+    expect(form.getByLabelText('TITLE')).toBeDisabled()
+    expect(form.getByLabelText('START DATE')).toBeDisabled()
+    expect(form.getByLabelText('TYPE')).toBeEnabled()
+    expect(form.queryByText(/Leave the end date empty/)).toBeNull()
+
+    fireEvent.change(form.getByLabelText('TYPE'), { target: { value: 'SOCIAL' } })
+    fireEvent.submit(form.getByRole('button', { name: 'SAVE CHANGES' }).closest('form')!)
+
+    await waitFor(() => {
+      const patch = fetchStub.mock.calls.find(([, init]) => init?.method === 'PATCH')
+      expect(patch).toBeDefined()
+      expect(bodyOf(patch![1])).toEqual({
+        type: 'SOCIAL',
+        registrationUrl: null,
+        published: true,
+      })
+    })
+  })
+})
+
+describe('the Google Calendars panel', () => {
+  it('is for officers only', async () => {
+    vi.stubGlobal('fetch', stubDesk())
+    renderPage(context('MEMBER', [membership('p1', 'Rover', 'PROJECT_LEAD')]))
+    await screen.findByText('NEW EVENT')
+    expect(screen.queryByText('GOOGLE CALENDARS')).toBeNull()
+  })
+
+  it('shows for an officer', async () => {
+    vi.stubGlobal('fetch', stubDesk())
+    renderPage(context('OFFICER', []))
+    expect(await screen.findByText('GOOGLE CALENDARS')).toBeInTheDocument()
   })
 })

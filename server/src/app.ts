@@ -18,6 +18,7 @@ import { eventManage } from './routes/projects/eventManage.js'
 import { files } from './routes/public/files.js'
 import { forms } from './routes/public/forms.js'
 import { frontPage } from './routes/officer/frontPage.js'
+import { googleCalendar } from './routes/officer/googleCalendar.js'
 import { heroSlides } from './routes/officer/heroSlides.js'
 import { lab } from './routes/public/lab.js'
 import { me } from './routes/member/me.js'
@@ -165,6 +166,8 @@ app.route('/api/officer/sponsors', sponsorsAdmin)
 app.route('/api/officer/archive', officerArchive)
 // And the printers, processes and filaments the slicer offers, which the worker resolves.
 app.route('/api/officer/slicer-profiles', slicerProfiles)
+// The Google Calendars the events desk imports from.
+app.route('/api/officer/google-calendars', googleCalendar)
 app.route('/api/officer', officer)
 // Before `print`, which only owns `/` and `/:id` underneath the same prefix.
 app.route('/api/print', printDrafts)

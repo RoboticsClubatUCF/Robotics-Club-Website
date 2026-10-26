@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
@@ -10,6 +9,7 @@ import {
   requireProjectLead,
   requireTeamLead,
 } from '../../auth/authz.js'
+import { eventSlug } from '../../calendar/eventSlug.js'
 import { prisma } from '../../core/db.js'
 import { EventType } from '../../generated/prisma/enums.js'
 import { rateLimit } from '../../core/rateLimit.js'
@@ -37,30 +37,14 @@ export const eventManage = new Hono<AuthEnv>()
 /** Sized for a lead laying out a term's worth of meetings in one sitting. */
 const writes = rateLimit('events', 30)
 
-/**
- * Slugs are generated, not chosen: they exist because the Event model demands
- * uniqueness for the public site's URLs, and asking a lead to invent one for
- * every weekly meeting is busywork with a 409 waiting at the end. Four random
- * bytes make "kickoff" and next term's "kickoff" coexist.
- */
-const slugFor = (title: string) => {
-  const base =
-    title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 48) || 'event'
-  return `${base}-${randomBytes(4).toString('hex')}`
-}
-
-const eventBody = z.object({
+const eventFields = z.object({
   title: z.string().trim().min(1).max(160),
   description: z.string().trim().max(5_000).nullable().optional(),
-  type: z.enum(EventType).default(EventType.MEETING),
+  type: z.enum(EventType),
   location: z.string().trim().max(160).nullable().optional(),
   startsAt: z.coerce.date(),
   endsAt: z.coerce.date().nullable().optional(),
-  allDay: z.boolean().default(false),
+  allDay: z.boolean(),
   /**
    * Optional, and absent means club business — an officer-curated row with no project, which is
    * what the events desk is largely for.
@@ -81,6 +65,11 @@ const eventBody = z.object({
   published: z.boolean().optional(),
 })
 
+const eventBody = eventFields.extend({
+  type: z.enum(EventType).default(EventType.MEETING),
+  allDay: z.boolean().default(false),
+})
+
 const managedEventSelect = {
   id: true,
   slug: true,
@@ -96,6 +85,7 @@ const managedEventSelect = {
   projectId: true,
   teamId: true,
   createdById: true,
+  googleId: true,
 } as const
 
 function checkOrder(startsAt: Date, endsAt: Date | null | undefined) {
@@ -157,7 +147,7 @@ eventManage.post(
     const event = await prisma.event.create({
       data: {
         ...data,
-        slug: slugFor(data.title),
+        slug: eventSlug(data.title),
         projectId: projectId ?? null,
         teamId: teamId ?? null,
         published: published ?? false,
@@ -175,7 +165,19 @@ eventManage.post(
  * event between teams is deleting and recreating it, which keeps the
  * permission question one-dimensional.
  */
-const eventPatch = eventBody.omit({ projectId: true, teamId: true }).partial()
+// From the fields without their defaults, which `.partial()` would keep: an edit that leaves
+// out `type` would otherwise reset it to MEETING.
+const eventPatch = eventFields.omit({ projectId: true, teamId: true }).partial()
+
+/** What `src/calendar/googleCalendar.ts` overwrites on an imported event. */
+const googleOwned = [
+  'title',
+  'description',
+  'location',
+  'startsAt',
+  'endsAt',
+  'allDay',
+] as const
 
 eventManage.patch(
   '/:id',
@@ -193,6 +195,15 @@ eventManage.patch(
     if (!event) throw new HTTPException(404, { message: 'No such event' })
 
     await requireEventManager(user, event)
+    if (event.googleId) {
+      // The next sync would put these back, so the change belongs in Google.
+      const owned = googleOwned.filter((field) => patch[field] !== undefined)
+      if (owned.length > 0) {
+        throw new HTTPException(409, {
+          message: 'This event comes from Google Calendar. Change its title, time, place and detail there.',
+        })
+      }
+    }
     if (patch.published !== undefined) {
       // Creating an event once does not grant lasting publishing authority.
       // A former lead may still edit their own copy; publishing or withdrawing
@@ -232,6 +243,11 @@ eventManage.delete('/:id', originGuard, requireAuth, writes, async (c) => {
   if (!event) throw new HTTPException(404, { message: 'No such event' })
 
   await requireEventManager(user, event)
+  if (event.googleId) {
+    throw new HTTPException(409, {
+      message: 'This event comes from Google Calendar. Delete it there, or take it off the site calendar here.',
+    })
+  }
   await prisma.event.delete({ where: { id: event.id } })
 
   return c.json({ deleted: true })
