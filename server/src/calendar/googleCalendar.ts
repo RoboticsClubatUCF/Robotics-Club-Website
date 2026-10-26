@@ -7,13 +7,15 @@ type Component = InstanceType<typeof ICAL.Component>
 type Time = InstanceType<typeof ICAL.Time>
 
 /**
- * One-way import from the club's Google Calendars into `events`. Officers add each calendar's
- * secret address on the events desk (`routes/officer/googleCalendar.ts`); no calendars, no import.
- * Every imported row carries its calendar, so one calendar's sync never touches another's events.
+ * One-way import from Google Calendars into `events`. Officers add the club's on the events desk
+ * (`routes/officer/googleCalendar.ts`) and project leads add their project's on its manage page
+ * (`routes/projects/projectCalendars.ts`). Every imported row carries its calendar, so one
+ * calendar's sync never touches another's events.
  *
  * Google owns title, description, location and times on the rows it creates; the site owns
- * type, sign-up link and `published`. New imports go public straight away, since only officers
- * edit the Google Calendar. `routes/projects/eventManage.ts` refuses edits to the Google half.
+ * type, sign-up link and `published`. A club calendar's imports go public straight away; a
+ * project calendar's belong to the project and go public only if its lead said so.
+ * `routes/projects/eventManage.ts` refuses edits to the Google half.
  *
  * Repeating events are expanded into one row per occurrence, because every calendar on the site
  * reads rows. Only a window around today is expanded, and only rows in that window are ever
@@ -227,10 +229,10 @@ export type GoogleCalendarReport = {
   removed: number
 }
 
-/** Each calendar is a fetch on every tick, so the list stays short. */
+/** Each calendar is a fetch on every tick, so each list (the club's, or one project's) stays short. */
 export const MAX_CALENDARS = 10
 
-/** A refusal the officer route passes on with its status. */
+/** A refusal the routes pass on with its status. */
 export class GoogleCalendarError extends Error {
   constructor(
     readonly status: 400 | 404 | 409,
@@ -241,9 +243,18 @@ export class GoogleCalendarError extends Error {
 }
 
 /**
- * The calendar an address reads, for officers to recognise it by, or null when the address isn't
+ * Whose calendars a call is about: the club's (`null`, managed by officers on the events desk) or
+ * one project's (managed by its lead). Every write checks the calendar is in the caller's scope, so
+ * a lead can never reach the club's calendars or another project's.
+ */
+export type CalendarScope = { projectId: string | null }
+
+type SyncedCalendar = { id: string; icsUrl: string; projectId: string | null; published: boolean }
+
+/**
+ * The calendar an address reads, for people to recognise it by, or null when the address isn't
  * a Google Calendar iCal feed. Only Google is accepted because the server fetches whatever is
- * saved, and an arbitrary URL would let the desk probe the box's own network.
+ * saved, and an arbitrary URL would let a desk probe the box's own network.
  */
 export function calendarIdOf(url: string): string | null {
   let parsed: URL
@@ -295,17 +306,17 @@ const failure = (error: unknown) => (error instanceof Error ? error.message : St
  * the download, for tests and for a feed already fetched to check a new address.
  */
 export async function syncCalendar(
-  calendar: { id: string; icsUrl: string },
+  calendar: SyncedCalendar,
   { now = new Date(), ics }: { now?: Date; ics?: string } = {},
 ): Promise<GoogleCalendarReport> {
-  // Conditional on the address, so a run that started before an officer changed it can't stamp
+  // Conditional on the address, so a run that started before somebody changed it can't stamp
   // the new one.
   const record = (data: { name?: string | null; syncedAt?: Date; syncError: string | null }) =>
     prisma.googleCalendar.updateMany({ where: { id: calendar.id, icsUrl: calendar.icsUrl }, data })
 
   try {
     const feed = ics ?? (await fetchFeed(calendar.icsUrl))
-    const report = await applyFeed(calendar.id, feed, now)
+    const report = await applyFeed(calendar, feed, now)
     await record({ name: calendarName(feed), syncedAt: new Date(), syncError: null })
     return report
   } catch (error) {
@@ -316,22 +327,8 @@ export async function syncCalendar(
 
 export type GoogleCalendarsReport = GoogleCalendarReport & { failed: number }
 
-let running: Promise<GoogleCalendarsReport> | null = null
-
-/**
- * Sync every calendar, one after another. A failing calendar is noted on its row and the rest
- * carry on. Overlapping calls share one run.
- */
-export function syncGoogleCalendars(): Promise<GoogleCalendarsReport> {
-  running ??= syncAll().finally(() => {
-    running = null
-  })
-  return running
-}
-
-async function syncAll(): Promise<GoogleCalendarsReport> {
+async function syncEach(calendars: SyncedCalendar[]): Promise<GoogleCalendarsReport> {
   const total = { created: 0, updated: 0, removed: 0, failed: 0 }
-  const calendars = await prisma.googleCalendar.findMany({ orderBy: { createdAt: 'asc' } })
   for (const calendar of calendars) {
     try {
       const report = await syncCalendar(calendar)
@@ -346,8 +343,35 @@ async function syncAll(): Promise<GoogleCalendarsReport> {
   return total
 }
 
-/** Wait out a sync in progress before changing what it reads. */
+let running: Promise<GoogleCalendarsReport> | null = null
+
+/**
+ * Sync every calendar, club and project, one after another. A failing calendar is noted on its row
+ * and the rest carry on. Overlapping calls share one run.
+ */
+export function syncGoogleCalendars(): Promise<GoogleCalendarsReport> {
+  running ??= prisma.googleCalendar
+    .findMany({ orderBy: { createdAt: 'asc' } })
+    .then(syncEach)
+    .finally(() => {
+      running = null
+    })
+  return running
+}
+
+/** Wait out a full sync in progress before changing what it reads. */
 const settle = () => running?.catch(() => undefined)
+
+/** Sync one scope's calendars now, for IMPORT NOW. */
+export async function syncScope(scope: CalendarScope): Promise<GoogleCalendarsReport> {
+  await settle()
+  return syncEach(
+    await prisma.googleCalendar.findMany({
+      where: { projectId: scope.projectId },
+      orderBy: { createdAt: 'asc' },
+    }),
+  )
+}
 
 async function checkedFeed(url: string): Promise<string> {
   if (!calendarIdOf(url)) {
@@ -363,29 +387,54 @@ async function checkedFeed(url: string): Promise<string> {
   }
 }
 
-/** Add a calendar and import from it. Nothing is saved when the address doesn't load. */
-export async function addGoogleCalendar(url: string): Promise<GoogleCalendarReport> {
-  if ((await prisma.googleCalendar.count()) >= MAX_CALENDARS) {
+async function inScope(id: string, scope: CalendarScope) {
+  const calendar = await prisma.googleCalendar.findFirst({
+    where: { id, projectId: scope.projectId },
+  })
+  if (!calendar) throw new GoogleCalendarError(404, 'No such calendar.')
+  return calendar
+}
+
+/**
+ * Add a calendar and import from it. Nothing is saved when the address doesn't load. A club
+ * calendar is always public; a project's says so with `published`.
+ */
+export async function addGoogleCalendar(
+  url: string,
+  scope: CalendarScope,
+  published = true,
+): Promise<GoogleCalendarReport> {
+  const count = await prisma.googleCalendar.count({ where: { projectId: scope.projectId } })
+  if (count >= MAX_CALENDARS) {
     throw new GoogleCalendarError(
       409,
-      `The site imports from ${String(MAX_CALENDARS)} calendars at most.`,
+      `${scope.projectId ? 'A project' : 'The club'} can connect ${String(MAX_CALENDARS)} calendars at most.`,
     )
   }
+  // Unique across the site, so one calendar can't feed the same events in twice.
   if (await prisma.googleCalendar.findUnique({ where: { icsUrl: url } })) {
     throw new GoogleCalendarError(409, 'That calendar is already connected.')
   }
   const feed = await checkedFeed(url)
   await settle()
   const calendar = await prisma.googleCalendar.create({
-    data: { icsUrl: url, name: calendarName(feed) },
+    data: {
+      icsUrl: url,
+      name: calendarName(feed),
+      projectId: scope.projectId,
+      published: scope.projectId ? published : true,
+    },
   })
   return syncCalendar(calendar, { ics: feed })
 }
 
 /** Replace a calendar's address, after Google resets its secret. Its imports stay linked. */
-export async function changeGoogleCalendar(id: string, url: string): Promise<GoogleCalendarReport> {
-  const calendar = await prisma.googleCalendar.findUnique({ where: { id } })
-  if (!calendar) throw new GoogleCalendarError(404, 'No such calendar.')
+export async function changeGoogleCalendar(
+  id: string,
+  url: string,
+  scope: CalendarScope,
+): Promise<GoogleCalendarReport> {
+  await inScope(id, scope)
   const taken = await prisma.googleCalendar.findUnique({ where: { icsUrl: url } })
   if (taken && taken.id !== id) {
     throw new GoogleCalendarError(409, 'That calendar is already connected.')
@@ -400,10 +449,30 @@ export async function changeGoogleCalendar(id: string, url: string): Promise<Goo
 }
 
 /**
- * Stop importing from one calendar. Its rows stay on the site as ordinary events, which officers
- * can then edit and delete like any other. Returns how many were let go.
+ * Put a project calendar's events on the public calendar or take them off it, the ones already
+ * imported included. Club calendars are always public.
  */
-export async function removeGoogleCalendar(id: string): Promise<number> {
+export async function setGoogleCalendarPublished(
+  id: string,
+  scope: CalendarScope,
+  published: boolean,
+): Promise<void> {
+  if (!scope.projectId) {
+    throw new GoogleCalendarError(400, 'Club calendars are always public.')
+  }
+  await inScope(id, scope)
+  await prisma.$transaction([
+    prisma.googleCalendar.update({ where: { id }, data: { published } }),
+    prisma.event.updateMany({ where: { googleCalendarId: id }, data: { published } }),
+  ])
+}
+
+/**
+ * Stop importing from one calendar. Its rows stay on the site as ordinary events, which can then
+ * be edited and deleted like any other. Returns how many were let go.
+ */
+export async function removeGoogleCalendar(id: string, scope: CalendarScope): Promise<number> {
+  await inScope(id, scope)
   await settle()
   const [released] = await prisma.$transaction([
     prisma.event.updateMany({
@@ -415,23 +484,28 @@ export async function removeGoogleCalendar(id: string): Promise<number> {
   return released.count
 }
 
-/** What the desk shows. Never the address itself. */
-export async function listGoogleCalendars() {
-  const calendars = await prisma.googleCalendar.findMany({ orderBy: { createdAt: 'asc' } })
+/** What a desk shows. Never the address itself. */
+export async function listGoogleCalendars(scope: CalendarScope) {
+  const calendars = await prisma.googleCalendar.findMany({
+    where: { projectId: scope.projectId },
+    orderBy: { createdAt: 'asc' },
+  })
   return calendars.map((calendar) => ({
     id: calendar.id,
     name: calendar.name,
     calendar: calendarIdOf(calendar.icsUrl),
+    published: calendar.published,
     syncedAt: calendar.syncedAt,
     syncError: calendar.syncError,
   }))
 }
 
 async function applyFeed(
-  googleCalendarId: string,
+  calendar: SyncedCalendar,
   feed: string,
   now: Date,
 ): Promise<GoogleCalendarReport> {
+  const googleCalendarId = calendar.id
   const report = { created: 0, updated: 0, removed: 0 }
   const window = {
     from: new Date(now.getTime() - PAST_DAYS * DAY_MS),
@@ -465,8 +539,11 @@ async function applyFeed(
             ...fields,
             googleCalendarId,
             googleId,
+            // A project calendar's events are the project's: its members see them on the
+            // dashboard, and `published` adds them to the public calendar.
+            projectId: calendar.projectId,
             slug: eventSlug(fields.title),
-            published: true,
+            published: calendar.published,
           },
         })
         report.created += 1

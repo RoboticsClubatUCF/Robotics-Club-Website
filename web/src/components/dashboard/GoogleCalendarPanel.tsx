@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useId, useState } from 'react'
 import { ConfirmDialog } from '../shared/ConfirmDialog'
+import { EventCalendarCheckbox } from '../shared/EventCalendarCheckbox'
 import { FormPanel, fieldClass, labelClass } from '../shared/formChrome'
 import { InfoTip } from '../shared/InfoTip'
-import { deleteJson, getJson, postJson, putJson } from '../../lib/api/api'
+import { deleteJson, getJson, patchJson, postJson, putJson } from '../../lib/api/api'
 import type { ApiGoogleCalendar, ApiGoogleCalendarReport } from '../../lib/api/api'
 import { explainApiError } from '../../lib/api/apiErrors'
 import { ago } from '../../lib/format/formats'
@@ -36,11 +37,25 @@ const labelFor = (calendar: ApiGoogleCalendar) =>
   calendar.name ?? calendar.calendar ?? 'Google Calendar'
 
 /**
- * The club Google Calendars the site imports from, on the events desk for officers. The server
- * (`routes/officer/googleCalendar.ts`) never returns an address, only which calendar each reads,
- * so there is nothing here to reveal or copy.
+ * The Google Calendars the site imports from: the club's on the events desk for officers, or one
+ * project's on its manage page for its lead. Both ends are `calendar/calendarRoutes.ts` on the
+ * server, which never returns an address, only which calendar each reads, so there is nothing here
+ * to reveal or copy.
+ *
+ * A project's calendars each say whether their events also go on the public calendar; the club's
+ * always do, so they have no switch.
  */
-export function GoogleCalendarPanel({ onImported }: { onImported: () => Promise<void> }) {
+export function GoogleCalendarPanel({
+  basePath,
+  project = false,
+  onImported = () => Promise.resolve(),
+}: {
+  /** `/officer/google-calendars` or `/projects/:id/google-calendars`. */
+  basePath: string
+  project?: boolean
+  /** Called after anything that may have changed the events, so the page can reload them. */
+  onImported?: () => Promise<void>
+}) {
   const [calendars, setCalendars] = useState<ApiGoogleCalendar[] | null>(null)
   const [failed, setFailed] = useState(false)
   const [changing, setChanging] = useState<string | null>(null)
@@ -51,12 +66,12 @@ export function GoogleCalendarPanel({ onImported }: { onImported: () => Promise<
 
   const load = useCallback(async (signal?: AbortSignal) => {
     try {
-      setCalendars(await getJson<ApiGoogleCalendar[]>('/officer/google-calendars', signal, true))
+      setCalendars(await getJson<ApiGoogleCalendar[]>(basePath, signal, true))
       setFailed(false)
     } catch {
       if (!signal?.aborted) setFailed(true)
     }
-  }, [])
+  }, [basePath])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -83,9 +98,9 @@ export function GoogleCalendarPanel({ onImported }: { onImported: () => Promise<
       })
   }
 
-  const add = (url: string) => {
+  const add = (url: string, published: boolean) => {
     run(async () => {
-      const result = await postJson<Written>('/officer/google-calendars', { url })
+      const result = await postJson<Written>(basePath, project ? { url, published } : { url })
       setCalendars(result.calendars)
       // A fresh, empty field for the next one.
       setAdds((count) => count + 1)
@@ -95,7 +110,7 @@ export function GoogleCalendarPanel({ onImported }: { onImported: () => Promise<
 
   const change = (id: string, url: string) => {
     run(async () => {
-      const result = await putJson<Written>(`/officer/google-calendars/${id}`, { url })
+      const result = await putJson<Written>(`${basePath}/${id}`, { url })
       setCalendars(result.calendars)
       setChanging(null)
       return `Address changed. ${summary(result.report)}`
@@ -104,7 +119,7 @@ export function GoogleCalendarPanel({ onImported }: { onImported: () => Promise<
 
   const importNow = () => {
     run(async () => {
-      const result = await postJson<Written>('/officer/google-calendars/sync', {})
+      const result = await postJson<Written>(`${basePath}/sync`, {})
       setCalendars(result.calendars)
       return summary(result.report)
     })
@@ -113,11 +128,24 @@ export function GoogleCalendarPanel({ onImported }: { onImported: () => Promise<
   const remove = (calendar: ApiGoogleCalendar) => {
     run(async () => {
       const result = await deleteJson<{ calendars: ApiGoogleCalendar[] }>(
-        `/officer/google-calendars/${calendar.id}`,
+        `${basePath}/${calendar.id}`,
       )
       setCalendars(result.calendars)
       setRemoving(null)
       return `${labelFor(calendar)} disconnected.`
+    })
+  }
+
+  const setPublished = (calendar: ApiGoogleCalendar, published: boolean) => {
+    run(async () => {
+      const result = await patchJson<{ calendars: ApiGoogleCalendar[] }>(
+        `${basePath}/${calendar.id}`,
+        { published },
+      )
+      setCalendars(result.calendars)
+      return published
+        ? `${labelFor(calendar)} is on the main calendar.`
+        : `${labelFor(calendar)} is on the project calendar only.`
     })
   }
 
@@ -156,6 +184,22 @@ export function GoogleCalendarPanel({ onImported }: { onImported: () => Promise<
                           ? `LAST IMPORT ${ago(calendar.syncedAt).toUpperCase()}`
                           : 'NOT IMPORTED YET'}
                       </p>
+                    )}
+                    {project && (
+                      <label className="mt-2 flex cursor-pointer items-start gap-2.5">
+                        <input
+                          type="checkbox"
+                          checked={calendar.published}
+                          disabled={busy}
+                          onChange={(event) => {
+                            setPublished(calendar, event.target.checked)
+                          }}
+                          className="checkbox checkbox-sm border-rule mt-0.5"
+                        />
+                        <span className="text-dim text-[13px] leading-[1.5]">
+                          Show on the main calendar
+                        </span>
+                      </label>
                     )}
                   </div>
                   <div className="flex gap-4">
@@ -215,6 +259,7 @@ export function GoogleCalendarPanel({ onImported }: { onImported: () => Promise<
           submitLabel="CONNECT"
           busy={busy}
           spaced={calendars.length > 0}
+          withVisibility={project}
           onSubmit={add}
         />
       )}
@@ -252,6 +297,7 @@ function AddressForm({
   submitLabel,
   busy,
   spaced = false,
+  withVisibility = false,
   onSubmit,
   onCancel,
 }: {
@@ -259,7 +305,9 @@ function AddressForm({
   submitLabel: string
   busy: boolean
   spaced?: boolean
-  onSubmit: (url: string) => void
+  /** A project calendar's first choice: its events on the main calendar, or the project's only. */
+  withVisibility?: boolean
+  onSubmit: (url: string, published: boolean) => void
   onCancel?: () => void
 }) {
   const id = useId()
@@ -268,8 +316,9 @@ function AddressForm({
     <form
       onSubmit={(event) => {
         event.preventDefault()
-        const raw = new FormData(event.currentTarget).get('url')
-        onSubmit(typeof raw === 'string' ? raw.trim() : '')
+        const data = new FormData(event.currentTarget)
+        const raw = data.get('url')
+        onSubmit(typeof raw === 'string' ? raw.trim() : '', data.get('published') === 'on')
       }}
       className={`space-y-4 ${spaced ? 'mt-6' : onCancel ? 'mt-3' : ''}`}
     >
@@ -295,6 +344,7 @@ function AddressForm({
           disabled={busy}
         />
       </div>
+      {withVisibility && <EventCalendarCheckbox disabled={busy} />}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
         <button type="submit" className={secondaryButton} disabled={busy}>
           {submitLabel}

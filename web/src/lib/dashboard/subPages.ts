@@ -65,6 +65,7 @@ export type ManagePart =
   | 'tasks'
   | 'events'
   | 'meetings'
+  | 'calendars'
   | 'settings'
 
 /**
@@ -100,6 +101,7 @@ export function projectPages(
     { label: 'PROJECT TASKS', to: `${manage}/tasks` },
     { label: 'PROJECT EVENTS', to: `${manage}/events` },
     { label: 'MEETINGS', to: `${manage}/meetings` },
+    { label: 'CALENDARS', to: `${manage}/calendars` },
     { label: 'SETTINGS', to: `${manage}/settings` },
   ]
 }

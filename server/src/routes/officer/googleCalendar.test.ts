@@ -83,7 +83,7 @@ describe('the Google Calendar list', () => {
     const list = (await response.json()) as Record<string, unknown>[]
     const mine = list.find((row) => row.name === 'Listed')
     expect(mine).toMatchObject({ calendar: `${PREFIX}listed@group.calendar.google.com` })
-    expect(Object.keys(mine!).sort()).toEqual(['calendar', 'id', 'name', 'syncError', 'syncedAt'])
+    expect(Object.keys(mine!).sort()).toEqual(['calendar', 'id', 'name', 'published', 'syncError', 'syncedAt'])
     expect(JSON.stringify(list)).not.toContain('private-')
   })
 

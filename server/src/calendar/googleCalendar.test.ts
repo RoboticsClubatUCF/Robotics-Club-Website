@@ -5,6 +5,7 @@ import {
   calendarName,
   parseCalendar,
   removeGoogleCalendar,
+  setGoogleCalendarPublished,
   syncCalendar,
 } from './googleCalendar.js'
 
@@ -185,6 +186,7 @@ describe('syncing a calendar', () => {
     })
 
   const clear = async () => {
+    await prisma.project.deleteMany({ where: { slug: { startsWith: PREFIX } } })
     await prisma.event.deleteMany({ where: { googleId: { startsWith: PREFIX } } })
     await prisma.event.deleteMany({ where: { slug: { startsWith: PREFIX } } })
     await prisma.googleCalendar.deleteMany({ where: { icsUrl: { contains: `/${PREFIX}` } } })
@@ -275,7 +277,7 @@ describe('syncing a calendar', () => {
     await syncCalendar(calendar, { now: NOW, ics: feed([single()]) })
     const row = await find(calendar.id, `${PREFIX}single`)
 
-    expect(await removeGoogleCalendar(calendar.id)).toBe(1)
+    expect(await removeGoogleCalendar(calendar.id, { projectId: null })).toBe(1)
 
     expect(await prisma.event.findUniqueOrThrow({ where: { id: row.id } })).toMatchObject({
       googleCalendarId: null,
@@ -285,5 +287,42 @@ describe('syncing a calendar', () => {
     expect(await prisma.googleCalendar.findUnique({ where: { id: calendar.id } })).toBeNull()
     // Released rows have no prefixed UID left to find them by.
     await prisma.event.delete({ where: { id: row.id } })
+  })
+
+  it("files a project calendar's events under the project, public only if it says so", async () => {
+    const project = await prisma.project.create({
+      data: { slug: `${PREFIX}rover`, title: 'Calendar Rover', termYear: 2035, termSeason: 'FALL' },
+    })
+    const calendar = await prisma.googleCalendar.create({
+      data: {
+        icsUrl: `https://calendar.google.com/calendar/ical/${PREFIX}rover/public/basic.ics`,
+        projectId: project.id,
+        published: false,
+      },
+    })
+
+    await syncCalendar(calendar, { now: NOW, ics: feed([single(), allDay]) })
+    expect(await find(calendar.id, `${PREFIX}single`)).toMatchObject({
+      projectId: project.id,
+      published: false,
+    })
+
+    // Flipping the calendar takes the events already imported with it.
+    await setGoogleCalendarPublished(calendar.id, { projectId: project.id }, true)
+    expect(
+      await prisma.event.count({ where: { googleCalendarId: calendar.id, published: true } }),
+    ).toBe(2)
+
+    // The project's calendars are out of the club's reach, and the other way round.
+    await expect(removeGoogleCalendar(calendar.id, { projectId: null })).rejects.toMatchObject({
+      status: 404,
+    })
+    await expect(
+      setGoogleCalendarPublished(calendar.id, { projectId: null }, false),
+    ).rejects.toMatchObject({ status: 400 })
+
+    // The project's deletion takes its calendar and events with it.
+    await prisma.project.delete({ where: { id: project.id } })
+    expect(await prisma.googleCalendar.findUnique({ where: { id: calendar.id } })).toBeNull()
   })
 })

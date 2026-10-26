@@ -495,6 +495,7 @@ model Project {
   members              ProjectMember[]
   teams                Team[]
   events               Event[]
+  googleCalendars      GoogleCalendar[]
   tasks                Task[]
   printRequests        PrintRequest[]
   images               ProjectImage[]
@@ -2688,10 +2689,22 @@ model RateLimit {
 
 // ----------------------------------------------------------- google calendars
 
-/// A Google Calendar the site imports from, added on the events desk. `src/calendar/googleCalendar.ts`
-/// syncs every row on the ten-minute tick.
+/// A Google Calendar the site imports from. `src/calendar/googleCalendar.ts` syncs every row on the
+/// ten-minute tick.
+///
+/// A club calendar (no project) is added by officers on the events desk and its events are public.
+/// A project calendar is added by the project's lead on its manage page; its events belong to the
+/// project, and `published` decides whether they also go on the public calendar.
 model GoogleCalendar {
   id String @id @default(uuid(7))
+
+  /// Cascades: a deleted project takes its calendars with it, as it does its events.
+  projectId String?  @map("project_id")
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  /// Whether imported events go on the public calendar. Always true for a club calendar. Changing
+  /// it re-applies to every event already imported from this calendar.
+  published Boolean @default(true)
 
   /// The calendar's "Secret address in iCal format". It reads the whole calendar, private events
   /// included, so the API never hands it back to a browser.
@@ -2709,5 +2722,6 @@ model GoogleCalendar {
 
   events Event[]
 
+  @@index([projectId])
   @@map("google_calendars")
 }
