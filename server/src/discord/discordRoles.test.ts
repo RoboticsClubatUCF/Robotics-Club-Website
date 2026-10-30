@@ -35,11 +35,14 @@ const UNMANAGED = '900000000000000099'
 
 const OFFICER_ROLE = '900000000000000006'
 const ALUMNI_ROLE = '900000000000000007'
+/** The club's Print Crew role, which follows a print-queue grant. Not a project's crew role. */
+const PRINT_CREW = '900000000000000008'
 
 const config = vi.hoisted(() => ({
   member: null as string | null,
   lead: null as string | null,
   team: null as string | null,
+  crew: null as string | null,
   officer: null as string | null,
   alumni: null as string | null,
   dry: false,
@@ -58,6 +61,9 @@ vi.mock('./discord.js', async (importOriginal) => ({
   },
   get teamLeadRoleId() {
     return config.team
+  },
+  get printCrewRoleId() {
+    return config.crew
   },
   // Neither is written by this sweep — Officers sits above the bot and Officer
   // Alumni is read-only by design — but both are roles a project must not be
@@ -139,6 +145,7 @@ const makeUser = (
     discordId?: string | null
     discordUsername?: string | null
     duesPaidThrough?: Date | null
+    printQueueGrantedAt?: Date | null
   } = {},
 ) =>
   prisma.user.create({
@@ -179,6 +186,7 @@ beforeEach(async () => {
   config.member = MEMBER_ROLE
   config.lead = LEAD_ROLE
   config.team = TEAM_ROLE
+  config.crew = PRINT_CREW
   config.officer = OFFICER_ROLE
   config.alumni = ALUMNI_ROLE
   config.dry = false
@@ -202,6 +210,7 @@ beforeEach(async () => {
         TEAM_ROLE,
         OFFICER_ROLE,
         ALUMNI_ROLE,
+        PRINT_CREW,
         CREW_ROLE,
         OTHER_CREW,
         UNMANAGED,
@@ -222,12 +231,14 @@ describe('desiredRoles', () => {
   const person = (
     duesPaidThrough: Date | null,
     projects: { rank: ProjectMemberRank; discordRoleId: string | null }[],
+    printQueueGrantedAt: Date | null = null,
   ) => ({
     id: 'x',
     fullName: 'X',
     discordId: null,
     discordUsername: null,
     duesPaidThrough,
+    printQueueGrantedAt,
     projects: projects.map(({ rank, discordRoleId }) => ({
       rank,
       project: { discordRoleId },
@@ -279,6 +290,21 @@ describe('desiredRoles', () => {
     config.member = null
 
     expect(desiredRoles(person(COVERED, []), NOW)).toEqual(new Set())
+  })
+
+  it('gives Print Crew for a print-queue grant while dues run, and not once they lapse', () => {
+    const granted = new Date('2035-09-15T00:00:00')
+
+    expect(desiredRoles(person(COVERED, [], granted), NOW)).toEqual(
+      new Set([MEMBER_ROLE, PRINT_CREW]),
+    )
+    expect(desiredRoles(person(LAPSED, [], granted), NOW)).toEqual(new Set())
+    expect(desiredRoles(person(COVERED, []), NOW)).toEqual(new Set([MEMBER_ROLE]))
+
+    config.crew = null
+    expect(desiredRoles(person(COVERED, [], granted), NOW)).toEqual(
+      new Set([MEMBER_ROLE]),
+    )
   })
 })
 
@@ -461,6 +487,7 @@ describe('sweepDiscordRoles', () => {
       config.member = null
       config.lead = null
       config.team = null
+      config.crew = null
       await makeUser('nobody', { discordId: snowflake(9) })
 
       const report = await sweepDiscordRoles(NOW)
@@ -475,6 +502,7 @@ describe('sweepDiscordRoles', () => {
       config.member = null
       config.lead = null
       config.team = null
+      config.crew = null
       const user = await makeUser('crewonly', { discordId: snowflake(10) })
       const project = await makeProject('crew', CREW_ROLE)
       await seat(project.id, user.id)
@@ -604,6 +632,28 @@ describe('syncUserRoles', () => {
       MEMBER_ROLE,
       'RCCF website: dues paid',
     )
+  })
+
+  it('adds Print Crew on a grant and takes it back when the grant goes', async () => {
+    const user = await makeUser('operator', {
+      discordId: snowflake(53),
+      duesPaidThrough: COVERED,
+      printQueueGrantedAt: new Date('2035-09-15T00:00:00'),
+    })
+    oneMember.mockResolvedValue({ status: 'ok', roles: [MEMBER_ROLE] })
+
+    await syncUserRoles(user.id, 'given the print queue', NOW)
+    expect(writes()).toEqual([`add:${PRINT_CREW}`])
+
+    added.mockClear()
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { printQueueGrantedAt: null },
+    })
+    oneMember.mockResolvedValue({ status: 'ok', roles: [MEMBER_ROLE, PRINT_CREW] })
+
+    await syncUserRoles(user.id, 'print queue taken away', NOW)
+    expect(writes()).toEqual([`remove:${PRINT_CREW}`])
   })
 
   it('does nothing for somebody with no Discord identity at all', async () => {
@@ -740,6 +790,10 @@ describe('assertUsableRole', () => {
     await refuses(TEAM_ROLE, 'Team Lead')
   })
 
+  it('refuses the Print Crew role', async () => {
+    await refuses(PRINT_CREW, 'Print Crew')
+  })
+
   /** Above the bot, so Discord refuses the write anyway — silently, for ever.
       A 422 is a better outcome than a project failing every role write. */
   it('refuses the officers role', async () => {
@@ -786,6 +840,7 @@ describe('assertUsableRole', () => {
     config.member = null
     config.lead = null
     config.team = null
+    config.crew = null
     config.officer = null
     config.alumni = null
 

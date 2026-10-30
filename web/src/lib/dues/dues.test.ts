@@ -41,6 +41,7 @@ const membership = (over: Partial<ApiMembership> = {}): ApiMembership => ({
   surveyPending: false,
   surveyPromptDismissed: false,
   slicerTrained: true,
+  printOperator: false,
   ...over,
 })
 

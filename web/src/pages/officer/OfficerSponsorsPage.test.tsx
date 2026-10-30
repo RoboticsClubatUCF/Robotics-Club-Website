@@ -74,6 +74,7 @@ const context = (
       surveyPending: false,
       surveyPromptDismissed: false,
       slicerTrained: true,
+      printOperator: false,
     },
     ...over,
   } as DashboardContext['membership'],

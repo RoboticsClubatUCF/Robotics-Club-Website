@@ -167,6 +167,7 @@ const context = (trained = true): DashboardContext => ({
       surveyPending: false,
       surveyPromptDismissed: false,
       slicerTrained: trained,
+      printOperator: false,
     },
   },
   reloadMembership: () => Promise.resolve(),

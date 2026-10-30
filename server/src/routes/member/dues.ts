@@ -111,7 +111,11 @@ const wireCoverage = (coverage: Coverage) => ({
 const wireMembership = (
   user: Pick<
     SessionUser,
-    'role' | 'surveyCompletedAt' | 'surveyPromptDismissedAt' | 'slicerTrainedAt'
+    | 'role'
+    | 'surveyCompletedAt'
+    | 'surveyPromptDismissedAt'
+    | 'slicerTrainedAt'
+    | 'printQueueGrantedAt'
   >,
   standing: MembershipStanding,
 ) => ({
@@ -152,6 +156,8 @@ const wireMembership = (
    * their own.
    */
   slicerTrained: user.slicerTrainedAt !== null,
+  /** An officer let them run the print queue. The rail offers it; dues still decide. */
+  printOperator: user.printQueueGrantedAt !== null,
 })
 
 // ------------------------------------------------------------------ status

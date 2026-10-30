@@ -3,6 +3,7 @@ import { MemoryRouter, Outlet, Route, Routes } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { OfficerPrintQueuePage } from './OfficerPrintQueuePage'
 import type {
+  ApiMyProject,
   ApiPrintAllowance,
   ApiPrintQueueItem,
   ApiTerm,
@@ -71,6 +72,7 @@ const item = (over: Partial<ApiPrintQueueItem> = {}): ApiPrintQueueItem => ({
   decidedBy: null,
   allowance: allowance(),
   sliceFile: null,
+  can: { work: true, decline: true, override: true },
   ...over,
 })
 
@@ -108,6 +110,7 @@ const context = (role: UserRole = 'OFFICER'): DashboardContext => ({
       surveyPending: false,
       surveyPromptDismissed: false,
       slicerTrained: true,
+      printOperator: false,
     },
   },
   reloadMembership: () => Promise.resolve(),
@@ -956,7 +959,7 @@ describe('who did what', () => {
 })
 
 describe('the desk’s other pages', () => {
-  it('links to the slicer profiles and the filament graph', async () => {
+  it('links to the slicer profiles, the filament graph and the operators', async () => {
     vi.stubGlobal('fetch', stubFetch({ '/officer/print-queue': [] }))
     renderPage()
 
@@ -967,6 +970,10 @@ describe('the desk’s other pages', () => {
     expect(screen.getByRole('link', { name: 'FILAMENT USAGE' })).toHaveAttribute(
       'href',
       '/dashboard/officer/print/usage',
+    )
+    expect(screen.getByRole('link', { name: 'OPERATORS' })).toHaveAttribute(
+      'href',
+      '/dashboard/officer/print/operators',
     )
   })
 })
@@ -980,6 +987,170 @@ describe('the gate', () => {
     expect(
       await screen.findByText(/this desk belongs to the officers/i),
     ).toBeInTheDocument()
+  })
+})
+
+/** A member an officer let in. The server's `can` decides each row's buttons. */
+const operator = (): DashboardContext => {
+  const base = context('MEMBER')
+  return base.membership.status === 'ready'
+    ? { ...base, membership: { ...base.membership, data: { ...base.membership.data, printOperator: true } } }
+    : base
+}
+
+/** A plain member who leads one project. Only the rank matters to the page. */
+const lead = (): DashboardContext => ({
+  ...context('MEMBER'),
+  projects: {
+    status: 'ready',
+    data: [{ rank: 'PROJECT_LEAD', current: true } as unknown as ApiMyProject],
+  },
+})
+
+const OPERATOR_ROW = { work: true, decline: false, override: false }
+
+describe('an operator', () => {
+  it('works the queue without the officers’ pages, and can’t decline', async () => {
+    vi.stubGlobal('fetch', stubFetch({ '/officer/print-queue': [item({ can: OPERATOR_ROW })] }))
+
+    renderPage(operator())
+
+    expect(await screen.findByRole('button', { name: /start printing/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /mark done/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'DECLINE' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'SLICER PROFILES' })).not.toBeInTheDocument()
+  })
+
+  it('gets no controls on their own print', async () => {
+    vi.stubGlobal(
+      'fetch',
+      stubFetch({
+        '/officer/print-queue': [item({ can: { work: false, decline: false, override: false } })],
+      }),
+    )
+
+    renderPage(operator())
+
+    expect(await screen.findByText(/someone running the printers handles this one/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /mark done/i })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/grams used for/i)).not.toBeInTheDocument()
+  })
+
+  it('is told to ask an officer instead of going past an allowance', async () => {
+    const stub = stubFetch({
+      '/officer/print-queue': [
+        item({ can: OPERATOR_ROW, allowance: allowance({ remainingGrams: 10 }) }),
+      ],
+    })
+    vi.stubGlobal('fetch', stub)
+
+    renderPage(operator())
+    await screen.findByText('bracket.stl')
+
+    typeGrams('30')
+    expect(screen.getByText(/an officer has to approve that/i)).toBeInTheDocument()
+    press(/mark done/i)
+
+    expect(await screen.findByText(/ask an officer to print it anyway/i)).toBeInTheDocument()
+    expect(stub.mock.calls.some((call) => call[1]?.method === 'PATCH')).toBe(false)
+  })
+})
+
+describe('an operator, with the allowance', () => {
+  it('cannot start a print for somebody with nothing left', async () => {
+    const stub = stubFetch({
+      '/officer/print-queue': [
+        item({ can: OPERATOR_ROW, allowance: allowance({ remainingGrams: 0 }) }),
+      ],
+    })
+    vi.stubGlobal('fetch', stub)
+
+    renderPage(operator())
+    await screen.findByText('bracket.stl')
+
+    expect(screen.getByText(/this is past what rowan chen has left/i)).toBeInTheDocument()
+    press(/start printing/i)
+
+    expect(await screen.findByText(/ask an officer to print it anyway/i)).toBeInTheDocument()
+    expect(stub.mock.calls.some((call) => call[1]?.method === 'PATCH')).toBe(false)
+  })
+
+  it('stops a running print when the server allows it', async () => {
+    const stub = stubFetch({
+      '/officer/print-queue': [
+        printing({ can: { work: true, decline: true, override: false } }),
+      ],
+    })
+    vi.stubGlobal('fetch', stub)
+
+    renderPage(operator())
+
+    fireEvent.click(await screen.findByRole('button', { name: /cancel the print/i }))
+    expect(within(dialog()).getByText(/clear the bed/i)).toBeInTheDocument()
+    agree(/stop the print/i)
+
+    await waitFor(() => {
+      expect(sent(stub)).toEqual({ status: 'REJECTED' })
+    })
+  })
+})
+
+describe('before the page knows who is looking', () => {
+  it('waits for the memberships rather than flashing a refusal at a non-officer', () => {
+    vi.stubGlobal('fetch', stubFetch({ '/officer/print-queue': [] }))
+    const { container } = renderPage({ ...lead(), projects: { status: 'loading' } })
+
+    expect(container.querySelector('[aria-busy="true"]')).toBeInTheDocument()
+    expect(screen.queryByText(/this desk belongs to the officers/i)).not.toBeInTheDocument()
+  })
+
+  it('does not ask for the queue when it is going to refuse', async () => {
+    const stub = stubFetch({ '/officer/print-queue': [] })
+    vi.stubGlobal('fetch', stub)
+
+    renderPage(context('MEMBER'))
+
+    await screen.findByText(/this desk belongs to the officers/i)
+    expect(stub).not.toHaveBeenCalled()
+  })
+})
+
+describe('a project lead', () => {
+  it('sees their projects’ prints and can only decline', async () => {
+    const stub = stubFetch({
+      '/officer/print-queue': [
+        item({
+          project: { id: 'p1', slug: 'rover', title: 'Rover' },
+          allowance: null,
+          can: { work: false, decline: true, override: false },
+        }),
+      ],
+    })
+    vi.stubGlobal('fetch', stub)
+
+    renderPage(lead())
+
+    expect(await screen.findByText('Prints for your projects.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /start printing/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /mark done/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /download/i })).not.toBeInTheDocument()
+
+    press(/^decline$/i)
+    // A project print is uncapped, so the dialog says nothing about an allowance.
+    expect(within(dialog()).queryByText(/allowance/i)).not.toBeInTheDocument()
+    agree(/^decline$/i)
+
+    await waitFor(() => {
+      expect(sent(stub)).toEqual({ status: 'REJECTED' })
+    })
+  })
+
+  it('says when nothing is waiting for their projects', async () => {
+    vi.stubGlobal('fetch', stubFetch({ '/officer/print-queue': [] }))
+
+    renderPage(lead())
+
+    expect(await screen.findByText(/nothing waiting for your projects/i)).toBeInTheDocument()
   })
 })
 

@@ -110,6 +110,7 @@ const context = (role: UserRole = 'MEMBER'): DashboardContext => ({
       surveyPending: false,
       surveyPromptDismissed: false,
       slicerTrained: true,
+      printOperator: false,
     },
   },
   reloadMembership: () => Promise.resolve(),

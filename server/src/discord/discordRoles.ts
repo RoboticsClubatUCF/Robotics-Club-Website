@@ -9,6 +9,7 @@ import {
   memberRoleId,
   officerAlumniRoleId,
   officerRoleId,
+  printCrewRoleId,
   projectLeadRoleId,
   removeGuildRole,
   roleSyncDryRun,
@@ -31,8 +32,8 @@ import { ProjectMemberRank } from '../generated/prisma/enums.js'
  *
  *   - Officers belongs to Discord. Nothing here reads or writes it — the bot couldn't
  *     anyway, since its own role sits below Officers.
- *   - Members, Project Leads, Team Leads and each project's own role belong to the
- *     site. Hand-editing one in Discord is undone on the next sweep.
+ *   - Members, Project Leads, Team Leads, Print Crew and each project's own role belong
+ *     to the site. Hand-editing one in Discord is undone on the next sweep.
  *   - Everything else in the guild — pronouns, majors, committees, Server Booster,
  *     Faculty — belongs to nobody here and is never touched.
  *
@@ -86,6 +87,7 @@ const reservedRoles = (): { id: string; name: string }[] =>
     { id: memberRoleId, name: 'Members' },
     { id: projectLeadRoleId, name: 'Project Lead' },
     { id: teamLeadRoleId, name: 'Team Lead' },
+    { id: printCrewRoleId, name: 'Print Crew' },
     { id: officerRoleId, name: 'Officers' },
     { id: officerAlumniRoleId, name: 'Officer Alumni' },
   ].filter((role): role is { id: string; name: string } => role.id !== null)
@@ -157,7 +159,7 @@ const overshoots = (removing: number, holders: number): boolean =>
 
 /** The club-wide roles that are configured, in a stable order for logging. */
 const clubRoles = (): string[] =>
-  [memberRoleId, projectLeadRoleId, teamLeadRoleId].filter(
+  [memberRoleId, projectLeadRoleId, teamLeadRoleId, printCrewRoleId].filter(
     (id): id is string => id !== null,
   )
 
@@ -167,6 +169,8 @@ interface Standing {
   discordId: string | null
   discordUsername: string | null
   duesPaidThrough: Date | null
+  /** When an officer let them run the print queue, or null. */
+  printQueueGrantedAt: Date | null
   /** Named `projects` because that's the relation on `User`, and a second spelling for
       one thing is how a select and its type drift apart. */
   projects: {
@@ -201,6 +205,17 @@ export function desiredRoles(user: Standing, now: Date): Set<string> {
     wanted.add(memberRoleId)
   }
 
+  // The grant, while dues run: the same date check as Members, because the queue refuses a
+  // lapsed operator and the channel shouldn't keep pinging them.
+  if (
+    printCrewRoleId !== null &&
+    user.printQueueGrantedAt !== null &&
+    user.duesPaidThrough !== null &&
+    user.duesPaidThrough > now
+  ) {
+    wanted.add(printCrewRoleId)
+  }
+
   for (const membership of user.projects) {
     // Public roster approval is deliberately absent: every joined member gets
     // the crew role, including unpaid accounts and those awaiting public listing.
@@ -232,6 +247,7 @@ const standingSelect = {
   discordId: true,
   discordUsername: true,
   duesPaidThrough: true,
+  printQueueGrantedAt: true,
   projects: {
     select: { rank: true, project: { select: { discordRoleId: true } } },
   },

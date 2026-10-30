@@ -53,6 +53,7 @@ const membershipWith = (
     surveyPending: false,
     surveyPromptDismissed: false,
     slicerTrained: true,
+    printOperator: false,
     ...fields,
   },
 })

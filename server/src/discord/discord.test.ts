@@ -77,6 +77,7 @@ const ROLE_KEYS = [
   'DISCORD_MEMBER_ROLE_ID',
   'DISCORD_PROJECT_LEAD_ROLE_ID',
   'DISCORD_TEAM_LEAD_ROLE_ID',
+  'DISCORD_PRINT_CREW_ROLE_ID',
   // Not a role, and cleared for the same two reasons: `env.ts` refuses it without a bot behind
   // it, and the club's own channel id in a developer's `.env` would otherwise decide what
   // `labChannelConfigured` says here. Every id under the bot belongs on this list — adding one

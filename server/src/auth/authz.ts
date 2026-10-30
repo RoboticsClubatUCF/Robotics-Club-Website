@@ -157,6 +157,39 @@ export const requireOfficer: MiddlewareHandler<AuthEnv> = async (c, next) => {
 }
 
 /**
+ * An officer let this member run the print queue. A grant on the row, not a role: the
+ * dues check still applies on every request, which is what keeps it to active members.
+ */
+export const isPrintOperator = (user: SessionUser): boolean =>
+  user.printQueueGrantedAt !== null
+
+/** Who works the whole queue: officers, and members an officer has let in. */
+export const runsPrintQueue = (user: SessionUser): boolean =>
+  isOfficer(user) || isPrintOperator(user)
+
+/**
+ * Whether the stored files behind the queue are theirs to download. Officers as before;
+ * an operator only while their dues are current, since a lapsed one is refused the queue.
+ */
+export async function mayHandlePrintFiles(user: SessionUser): Promise<boolean> {
+  if (isOfficer(user)) return true
+  if (!isPrintOperator(user)) return false
+  return (await membershipStanding(user.duesPaidThrough)).hasAccess
+}
+
+/**
+ * The projects somebody leads, by id. A project lead may decline the prints sent for their
+ * own projects, so the queue shows them those.
+ */
+export async function ledProjectIds(userId: string): Promise<string[]> {
+  const rows = await prisma.projectMember.findMany({
+    where: { userId, rank: ProjectMemberRank.PROJECT_LEAD },
+    select: { projectId: true },
+  })
+  return rows.map((row) => row.projectId)
+}
+
+/**
  * One person's standing on one project, or null for a stranger. Also null for a project
  * that doesn't exist — callers that need to tell those apart fetch the project first,
  * and mostly they already have.

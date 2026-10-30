@@ -50,6 +50,7 @@ const duesStatus = (over: Partial<ApiMembership> = {}) => ({
     surveyPending: false,
     surveyPromptDismissed: false,
     slicerTrained: true,
+    printOperator: false,
     ...over,
   },
   plans: [],
@@ -970,6 +971,7 @@ describe('the survey prompt', () => {
           surveyPending: true,
           surveyPromptDismissed: true,
           slicerTrained: true,
+          printOperator: false,
         }),
         '/me/projects': [],
       }),
@@ -1016,5 +1018,46 @@ describe('the survey prompt', () => {
 
     await screen.findByText('overview marker')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * The print queue as one row, for the members who reach it without being officers: operators an
+ * officer let in, and project leads, who decline their projects' prints there.
+ */
+describe('the print queue row', () => {
+  const rail = (dues: unknown, projects: ApiMyProject[]) =>
+    stubFetch({
+      '/auth/me': { user: user({ role: 'MEMBER' }) },
+      '/dues/status': dues,
+      '/me/projects': projects,
+    })
+
+  it('is a plain link for an operator, without the officers’ desks', async () => {
+    vi.stubGlobal('fetch', rail(duesStatus({ printOperator: true }), []))
+
+    renderDashboard()
+
+    const link = await screen.findByRole('link', { name: 'PRINT QUEUE' })
+    expect(link).toHaveAttribute('href', '/dashboard/officer/print')
+    expect(screen.queryByRole('button', { name: /roles/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'EVENTS' })).not.toBeInTheDocument()
+  })
+
+  it('is there for a project lead', async () => {
+    vi.stubGlobal('fetch', rail(duesStatus(), [myProject({ rank: 'PROJECT_LEAD' })]))
+
+    renderDashboard()
+
+    expect(await screen.findByRole('link', { name: 'PRINT QUEUE' })).toBeInTheDocument()
+  })
+
+  it('is not there for a member who neither leads a project nor was let in', async () => {
+    vi.stubGlobal('fetch', rail(duesStatus(), [myProject({ rank: 'TEAM_LEAD' })]))
+
+    renderDashboard()
+
+    await screen.findByRole('link', { name: 'EVENTS' })
+    expect(screen.queryByText('PRINT QUEUE')).not.toBeInTheDocument()
   })
 })

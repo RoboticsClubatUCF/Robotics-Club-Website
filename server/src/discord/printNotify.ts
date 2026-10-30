@@ -1,11 +1,16 @@
-import { discordConfigured, postChannelMessage, sendDirectMessage } from './discord.js'
+import {
+  discordConfigured,
+  postChannelMessage,
+  printCrewRoleId,
+  sendDirectMessage,
+} from './discord.js'
 import { recipientFor } from './discordRecipient.js'
 import { env } from '../core/env.js'
 import { PrintRequestStatus } from '../generated/prisma/enums.js'
 
 /**
- * The bot's two print messages: new prints go to the officers' print channel, and an
- * officer moving a print tells the member who sent it.
+ * The bot's two print messages: new prints go to the print channel, mentioning Print Crew
+ * when that role is configured, and moving a print tells the member who sent it.
  *
  * Both are courtesies on top of the queue page, so callers fire and forget:
  *
@@ -18,7 +23,11 @@ export async function notifyPrintChannel(content: string): Promise<void> {
     return
   }
 
-  const post = await postChannelMessage(env.DISCORD_PRINT_CHANNEL_ID, content)
+  const post = printCrewRoleId
+    ? await postChannelMessage(env.DISCORD_PRINT_CHANNEL_ID, `<@&${printCrewRoleId}> ${content}`, {
+        mentionRoles: [printCrewRoleId],
+      })
+    : await postChannelMessage(env.DISCORD_PRINT_CHANNEL_ID, content)
   if (post.status !== 'sent') {
     console.warn(`print channel ${env.DISCORD_PRINT_CHANNEL_ID}: ${post.status}`)
   }

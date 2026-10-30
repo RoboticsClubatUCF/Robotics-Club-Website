@@ -116,6 +116,7 @@ const context = (
       surveyPending: false,
       surveyPromptDismissed: false,
       slicerTrained: true,
+      printOperator: false,
     },
   },
   reloadMembership: () => Promise.resolve(),

@@ -66,6 +66,7 @@ function duesStatus(over: Partial<ApiDuesStatus> = {}): ApiDuesStatus {
       surveyPending: false,
       surveyPromptDismissed: false,
       slicerTrained: true,
+      printOperator: false,
     },
     plans: [
       {
@@ -205,6 +206,7 @@ describe('DuesPage', () => {
           surveyPending: false,
           surveyPromptDismissed: false,
           slicerTrained: true,
+          printOperator: false,
         },
       }),
     )
@@ -248,6 +250,7 @@ describe('DuesPage', () => {
           surveyPending: false,
           surveyPromptDismissed: false,
           slicerTrained: true,
+          printOperator: false,
         },
         // What the server actually returns to somebody covered through spring:
         // the plans start at the term *after* what they already hold.
@@ -314,6 +317,7 @@ describe('DuesPage', () => {
           surveyPending: false,
           surveyPromptDismissed: false,
           slicerTrained: true,
+          printOperator: false,
           ...over,
         },
       })
@@ -421,6 +425,7 @@ describe('DuesPage', () => {
           surveyPending: false,
           surveyPromptDismissed: false,
           slicerTrained: true,
+          printOperator: false,
           // Paid for last fall, lapsed, and now active on the claim instead.
           paidThrough: '2025-12-10T04:59:59.999Z',
         }),
@@ -454,6 +459,7 @@ describe('DuesPage', () => {
             surveyPending: false,
             surveyPromptDismissed: false,
             slicerTrained: true,
+            printOperator: false,
           },
         }),
       )
@@ -515,6 +521,7 @@ describe('DuesPage', () => {
           surveyPending: false,
           surveyPromptDismissed: false,
           slicerTrained: true,
+          printOperator: false,
         },
       }),
     )

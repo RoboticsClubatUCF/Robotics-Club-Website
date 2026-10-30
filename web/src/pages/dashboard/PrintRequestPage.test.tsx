@@ -626,6 +626,7 @@ const context = (
       surveyPending: false,
       surveyPromptDismissed: false,
       slicerTrained: over.slicerTrained ?? true,
+      printOperator: false,
     },
   },
   reloadMembership: () => Promise.resolve(),

@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
-import { isOfficer } from '../../auth/authz.js'
+import { mayHandlePrintFiles } from '../../auth/authz.js'
 import { prisma } from '../../core/db.js'
 import { documentContentType } from '../../files/files.js'
 import { FileKind } from '../../generated/prisma/enums.js'
@@ -14,7 +14,7 @@ import { type AuthEnv, optionalAuth } from '../../auth/session.js'
  * Access follows `kind`. An IMAGE is public — it is a project cover on a public page, and hiding it
  * there would just break the page. A DOCUMENT is public for the same reason: it hangs off a
  * project's documentation page, which anybody may read. A PRINT_MODEL is somebody's part: its
- * uploader and the officers who print it, nobody else.
+ * uploader and whoever prints it (officers, and operators while paid up), nobody else.
  *
  * Cache headers follow the same split. Images and documents are `immutable` because an id is minted
  * per upload and never reused — replacing either is a new id, so a cached copy can never go stale,
@@ -46,7 +46,7 @@ files.get('/:id', optionalAuth, async (c) => {
   if (file.kind === FileKind.PRINT_MODEL) {
     const user = c.get('user')
     if (!user) throw new HTTPException(401, { message: 'Sign in to continue.' })
-    if (file.createdById !== user.id && !isOfficer(user)) {
+    if (file.createdById !== user.id && !(await mayHandlePrintFiles(user))) {
       throw new HTTPException(403, {
         message: 'You do not have permission to do that.',
       })
