@@ -25,6 +25,7 @@ import { lab } from './routes/public/lab.js'
 import { me } from './routes/member/me.js'
 import { officer } from './routes/officer/officer.js'
 import { officerArchive } from './routes/officer/officerArchive.js'
+import { openproject } from './routes/webhooks/openproject.js'
 import { print } from './routes/member/print.js'
 import { printDrafts } from './routes/member/printDrafts.js'
 import { projectManage } from './routes/projects/projectManage.js'
@@ -191,6 +192,9 @@ app.route('/api/stripe', stripeWebhook)
 // for the same reasons as the webhook above, and the raw body matters here too —
 // Discord signs the exact bytes.
 app.route('/api/discord', discordInteractions)
+// The club's OpenProject checking a sign-up is a member and asking the bot to DM
+// somebody. A shared secret instead of a session, like the two above.
+app.route('/api/openproject', openproject)
 
 // Public club content, cacheable by anyone — the one part of the API that wants the
 // shared-cache headers. Mounted last so its `/api/*` middleware wraps nothing but its
