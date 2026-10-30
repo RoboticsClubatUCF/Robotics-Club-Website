@@ -56,6 +56,7 @@ export const PRINT_QUEUE_PAGES: readonly SubPage[] = [
   { label: 'QUEUE', to: '/dashboard/officer/print' },
   { label: 'SLICER PROFILES', to: '/dashboard/officer/print/profiles' },
   { label: 'FILAMENT USAGE', to: '/dashboard/officer/print/usage' },
+  { label: 'OPERATORS', to: '/dashboard/officer/print/operators' },
 ]
 
 /** The parts of a project's manage page, in the order the rail and the page list them. */

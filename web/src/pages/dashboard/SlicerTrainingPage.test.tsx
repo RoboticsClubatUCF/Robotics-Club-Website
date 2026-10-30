@@ -201,6 +201,7 @@ const context = (trained = false, reloadMembership = vi.fn(() => Promise.resolve
       surveyPending: false,
       surveyPromptDismissed: false,
       slicerTrained: trained,
+      printOperator: false,
     },
   },
   reloadMembership,

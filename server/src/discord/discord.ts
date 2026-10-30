@@ -79,7 +79,7 @@ export const alumniSyncConfigured =
   bot !== null && officerAlumniRoleId !== null
 
 /**
- * The three roles that go the other way — the site decides them and writes them
+ * The four roles that go the other way — the site decides them and writes them
  * into the guild. Module constants for the reason `officerRoleId` is one.
  *
  * Null each means "never read, never written". Deliberately no combined switch: a
@@ -88,6 +88,7 @@ export const alumniSyncConfigured =
 export const memberRoleId = env.DISCORD_MEMBER_ROLE_ID ?? null
 export const projectLeadRoleId = env.DISCORD_PROJECT_LEAD_ROLE_ID ?? null
 export const teamLeadRoleId = env.DISCORD_TEAM_LEAD_ROLE_ID ?? null
+export const printCrewRoleId = env.DISCORD_PRINT_CREW_ROLE_ID ?? null
 
 /**
  * The channel the lab sign lives in — a message the bot keeps up to date and a
@@ -869,9 +870,9 @@ export type MessageComponents = readonly Record<string, unknown>[]
  *
  * Always sent, never omitted. Left off, Discord parses whatever it finds — so a bot
  * posting anything containing `@everyone`, from any source, eventually pings a guild
- * of two and a half thousand. `parse: []` refuses the lot, and nothing re-admits a
- * role: there is no caller that should ping the club, and no parameter here to become
- * one. The lab sign used to be the exception and isn't any more.
+ * of two and a half thousand. `parse: []` refuses the lot. The one way back in is
+ * `mentionRoles` on a channel post, which admits the role ids it names and nothing
+ * else: the print channel names Print Crew. Never `@everyone`, never a role by parsing.
  */
 const allowedMentions = { parse: [] as string[] }
 
@@ -889,6 +890,8 @@ export async function postChannelMessage(
   options: {
     /** Buttons to hang under it. See `MessageComponents`. */
     components?: MessageComponents
+    /** Role ids this post may ping. Each still has to be written into `content`. */
+    mentionRoles?: string[]
   } = {},
 ): Promise<ChannelPost> {
   if (!bot) return { status: 'unchecked' }
@@ -897,9 +900,12 @@ export async function postChannelMessage(
     method: 'POST',
     body: JSON.stringify({
       content,
-      // Nothing a post carries is a mention. A channel post is the one thing Discord
-      // notifies people about, which is exactly why it doesn't also get to ping them.
-      allowed_mentions: allowedMentions,
+      // Nothing a post carries is a mention unless the caller names the role. A channel
+      // post is the one thing Discord notifies people about, which is exactly why it
+      // doesn't also get to ping them by accident.
+      allowed_mentions: options.mentionRoles?.length
+        ? { ...allowedMentions, roles: options.mentionRoles }
+        : allowedMentions,
       components: options.components ?? [],
     }),
   })

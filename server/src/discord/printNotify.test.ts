@@ -3,9 +3,14 @@ import { postChannelMessage, sendDirectMessage } from './discord.js'
 import { notifyPrintChannel, notifyPrintOwner } from './printNotify.js'
 import { PrintRequestStatus } from '../generated/prisma/enums.js'
 
+const crew = vi.hoisted(() => ({ role: null as string | null }))
+
 // Nothing here may reach Discord: the channel default is the club's real print channel.
 vi.mock('./discord.js', () => ({
   discordConfigured: true,
+  get printCrewRoleId() {
+    return crew.role
+  },
   postChannelMessage: vi.fn(() => Promise.resolve({ status: 'sent', messageId: '1' })),
   sendDirectMessage: vi.fn(() => Promise.resolve({ status: 'sent' })),
   checkDiscordHandle: vi.fn(),
@@ -29,6 +34,7 @@ const print = (status: PrintRequestStatus, startedAt: Date | null = null) => ({
 })
 
 beforeEach(() => {
+  crew.role = null
   post.mockClear()
   dm.mockClear()
 })
@@ -39,6 +45,18 @@ describe('notifyPrintChannel', () => {
 
     expect(post).toHaveBeenCalledWith('1204281218406027334', 'new print')
     expect(dm).not.toHaveBeenCalled()
+  })
+
+  it('mentions Print Crew when the role is set, and lets only that role ping', async () => {
+    crew.role = '900000000000000008'
+
+    await notifyPrintChannel('new print')
+
+    expect(post).toHaveBeenCalledWith(
+      '1204281218406027334',
+      '<@&900000000000000008> new print',
+      { mentionRoles: ['900000000000000008'] },
+    )
   })
 })
 

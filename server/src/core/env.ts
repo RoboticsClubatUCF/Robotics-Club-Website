@@ -154,6 +154,15 @@ const envSchema = z.object({
     .string()
     .regex(/^\d{17,20}$/, 'must be a Discord snowflake (17-20 digits)')
     .optional(),
+  /**
+   * The Print Crew role: members an officer has let run the print queue, while their dues
+   * are current. The site writes it like the three above. New prints in the print channel
+   * mention it.
+   */
+  DISCORD_PRINT_CREW_ROLE_ID: z
+    .string()
+    .regex(/^\d{17,20}$/, 'must be a Discord snowflake (17-20 digits)')
+    .optional(),
 
   /**
    * The channel the lab-open/lab-closed sign lives in.
@@ -450,6 +459,7 @@ const envSchema = z.object({
         parsed.DISCORD_MEMBER_ROLE_ID,
         parsed.DISCORD_PROJECT_LEAD_ROLE_ID,
         parsed.DISCORD_TEAM_LEAD_ROLE_ID,
+        parsed.DISCORD_PRINT_CREW_ROLE_ID,
         parsed.DISCORD_LAB_CHANNEL_ID,
         parsed.DISCORD_LAB_MESSAGE_ID,
         parsed.DISCORD_PUBLIC_KEY,

@@ -200,6 +200,13 @@ model User {
   /// cleared, and on the session for the same reason as the survey columns. Where they are in the
   /// training, and the optional chapters that unlock settings, are in `SlicerTraining`.
   slicerTrainedAt           DateTime? @map("slicer_trained_at")
+  /// When an officer let this member run the print queue, or null. A grant, not a role: it
+  /// stacks on dues (checked on every request, so a lapsed operator keeps the grant and is
+  /// refused until they pay) and on the slicer training (checked when it's granted). Cleared
+  /// when it's taken away. It also carries the Discord Print Crew role (`discordRoles.ts`).
+  printQueueGrantedAt       DateTime? @map("print_queue_granted_at")
+  printQueueGrantedById     String?   @map("print_queue_granted_by_id")
+  printQueueGrantedBy       User?     @relation("printQueueGrants", fields: [printQueueGrantedById], references: [id], onDelete: SetNull)
   createdAt                 DateTime  @default(now()) @map("created_at")
   updatedAt                 DateTime  @updatedAt @map("updated_at")
 
@@ -219,6 +226,7 @@ model User {
   storedFiles       StoredFile[]
   printRequests     PrintRequest[]
   decidedPrints     PrintRequest[]    @relation("decidedPrints")
+  printQueueGrants  User[]            @relation("printQueueGrants")
   loans             EquipmentLoan[]
   decidedLoans      EquipmentLoan[]   @relation("decidedLoans")
   officerTerms      OfficerTerm[]

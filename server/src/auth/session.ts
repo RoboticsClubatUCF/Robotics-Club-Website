@@ -36,6 +36,7 @@ export interface SessionUser {
   surveyCompletedAt: Date | null
   surveyPromptDismissedAt: Date | null
   slicerTrainedAt: Date | null
+  printQueueGrantedAt: Date | null
 }
 
 /** The Hono variables `requireAuth` and `optionalAuth` set. */
@@ -73,6 +74,8 @@ const userSelect = {
   surveyPromptDismissedAt: true,
   // The slicer's gate, read off this row like the dues date.
   slicerTrainedAt: true,
+  // Whether an officer has let them run the print queue. Same reason.
+  printQueueGrantedAt: true,
 } as const
 
 const DAY_MS = 24 * 60 * 60 * 1000

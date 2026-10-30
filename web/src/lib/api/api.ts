@@ -188,8 +188,9 @@ export function patchJson<T>(path: string, body: unknown, signal?: AbortSignal) 
 
 /**
  * For a write that sets a thing to a value rather than nudging one that exists.
- * The one caller is the term override, an upsert keyed on the term: a second
- * press with the same dates has to land in the same place as the first.
+ * The term override is an upsert keyed on the term: a second press with the same
+ * dates has to land in the same place as the first. Letting somebody run the print
+ * queue is the same: pressing twice keeps the first grant.
  */
 export function putJson<T>(path: string, body: unknown, signal?: AbortSignal) {
   return sendJson<T>('PUT', path, body, signal)
@@ -1045,6 +1046,25 @@ export type ApiPrintQueueItem = ApiPrintRequest & {
   allowance: ApiPrintAllowance | null
   /** A sliced plate's .3mf is ready to download, or null when there isn't one. */
   sliceFile: { layers: number | null; filamentMeters: number | null } | null
+  /**
+   * What the caller may do to this row, worked out by the server: `work` is start, finish and
+   * the grams; `decline` refuses or stops it; `override` prints past the allowance. Officers
+   * get all three; an operator works other people's prints; a project lead declines their
+   * project's waiting ones.
+   */
+  can: { work: boolean; decline: boolean; override: boolean }
+}
+
+/** `GET /api/officer/print-operators`: a member an officer has let run the print queue. */
+export type ApiPrintOperator = {
+  id: string
+  fullName: string
+  email: string | null
+  discordUsername: string | null
+  grantedAt: string
+  grantedBy: { fullName: string } | null
+  /** False while their dues have lapsed: the grant stays, the queue stays shut. */
+  active: boolean
 }
 
 /**
@@ -1828,6 +1848,8 @@ export type ApiMembership = {
   surveyPromptDismissed: boolean
   /** They've finished the slicer training on the profile page, which the slicer needs. */
   slicerTrained: boolean
+  /** An officer let them run the print queue. Dues still decide whether it opens. */
+  printOperator: boolean
 }
 
 /** One purchasable plan, priced and dated by the server. Never by this code. */

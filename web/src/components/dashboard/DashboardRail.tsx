@@ -3,7 +3,7 @@ import { Link, NavLink, useLocation } from 'react-router'
 import type { ApiMembership, ApiMyProject, ApiUser } from '../../lib/api/api'
 import type { ApiState } from '../../lib/api/useApi'
 import { accessLock, duesLocked, surveyPrompt } from '../../lib/dues/dues'
-import { isOfficer } from '../../lib/auth/session'
+import { isOfficer, opensPrintQueue } from '../../lib/auth/session'
 import {
   FRONT_PAGE_PAGES,
   PRINT_QUEUE_PAGES,
@@ -73,6 +73,15 @@ export function DashboardRail({
   // EVENTS is the one `/ MANAGE` row a non-officer gets. It reads the membership rows, the
   // same permission `requireEventManager` grants on the server, never a global label.
   const leadsSomething = mine.some(({ rank }) => rank !== 'MEMBER')
+  // Operators work the queue and project leads decline their projects' prints there. Officers
+  // get the whole PRINT QUEUE section instead of the one row.
+  const printQueue =
+    !officer &&
+    opensPrintQueue(
+      user.role,
+      membership.status === 'ready' && membership.data.printOperator,
+      mine,
+    )
   const locked = duesLocked(membership, user.role)
   const why = accessLock(membership, user.role)
   // Not a lock reason: an unanswered survey shuts nothing. It only decides whether the rail
@@ -223,7 +232,7 @@ export function DashboardRail({
             </div>
           )}
 
-          {(officer || leadsSomething) && (
+          {(officer || leadsSomething || printQueue) && (
             <div className="border-rule mt-5 border-t pt-5">
               <p className={groupLabelClass}>/ MANAGE</p>
               {locked ? (
@@ -239,7 +248,8 @@ export function DashboardRail({
                       <LockedRow>PROJECTS</LockedRow>
                     </>
                   )}
-                  <LockedRow>EVENTS</LockedRow>
+                  {(officer || leadsSomething) && <LockedRow>EVENTS</LockedRow>}
+                  {printQueue && <LockedRow>PRINT QUEUE</LockedRow>}
                   {officer && (
                     <>
                       <LockedRow>PRINT QUEUE</LockedRow>
@@ -267,9 +277,16 @@ export function DashboardRail({
                       <RailSection label="PROJECTS" pages={PROJECTS_DESK_PAGES} />
                     </>
                   )}
-                  <NavLink to="/dashboard/events" className={linkClass}>
-                    EVENTS
-                  </NavLink>
+                  {(officer || leadsSomething) && (
+                    <NavLink to="/dashboard/events" className={linkClass}>
+                      EVENTS
+                    </NavLink>
+                  )}
+                  {printQueue && (
+                    <NavLink to="/dashboard/officer/print" className={linkClass}>
+                      PRINT QUEUE
+                    </NavLink>
+                  )}
                   {officer && (
                     <>
                       <RailSection label="PRINT QUEUE" pages={PRINT_QUEUE_PAGES} />

@@ -43,6 +43,7 @@ function membership(over: Partial<ApiMembership> = {}): ApiMembership {
     surveyPending: false,
     surveyPromptDismissed: false,
     slicerTrained: true,
+    printOperator: false,
     ...over,
   }
 }
@@ -117,6 +118,7 @@ describe('MembershipPanel', () => {
       surveyPending: false,
       surveyPromptDismissed: false,
       slicerTrained: true,
+      printOperator: false,
       term: summer,
       billable: fall,
       freeThrough: '2026-09-14T04:00:00.000Z',
@@ -148,6 +150,7 @@ describe('MembershipPanel', () => {
       surveyPending: false,
       surveyPromptDismissed: false,
       slicerTrained: true,
+      printOperator: false,
       term: summer,
       billable: fall,
       // Twenty-one days from 24 August, and thirteen days after the pinned "now".
@@ -172,6 +175,7 @@ describe('MembershipPanel', () => {
       surveyPending: false,
       surveyPromptDismissed: false,
       slicerTrained: true,
+      printOperator: false,
       term: summer,
       billable: fall,
       freeThrough: '2026-09-14T04:00:00.000Z',

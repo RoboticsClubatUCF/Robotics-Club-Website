@@ -2,10 +2,11 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { MouseEvent } from 'react'
 import { useOutletContext } from 'react-router'
 import { SubNav } from '../../components/dashboard/SubNav'
+import { dangerButton, loudButton, quietButton } from '../../components/dashboard/queueChrome'
 import { PRINT_QUEUE_PAGES } from '../../lib/dashboard/subPages'
 import { DuesLocked } from '../../components/dashboard/DuesLocked'
 import { OfficerOnly } from '../../components/dashboard/OfficerOnly'
-import { isOfficer } from '../../lib/auth/session'
+import { isOfficer, opensPrintQueue } from '../../lib/auth/session'
 import { duesLocked } from '../../lib/dues/dues'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
 import {
@@ -49,6 +50,10 @@ import {
 
 /**
  * The 3D print queue, as the officer running the printers sees it.
+ *
+ * Operators an officer let in see the same queue, minus declining and the allowance override,
+ * and can't settle their own prints. A project lead sees only their projects' prints and may
+ * decline one that's waiting. The server sends what each row allows as `can`.
  *
  * The queue defaults to live work — waiting and printing — because that's the shift's to-do
  * list; settled jobs are a filter away. Marking one DONE or DECLINED deletes the uploaded model
@@ -112,8 +117,9 @@ function explain(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 0)
       return "We couldn't reach the server. Try again in a moment."
-    if (error.status === 403) return 'The server does not agree you are an officer.'
+    // The server's sentence even on a 403: it says why, and there are several reasons now.
     if (error.detail) return error.detail
+    if (error.status === 403) return 'You do not have permission to do that.'
   }
   return 'That change did not go through. Try again in a moment.'
 }
@@ -126,22 +132,6 @@ function refusal(request: ApiPrintQueueItem, status: PrintRequestStatus): string
     ? `Couldn't stop the print of ${request.fileName}.`
     : `Couldn't decline ${request.fileName}.`
 }
-
-/**
- * The three queue actions, drawn as buttons rather than text.
- *
- * One shape, three weights: gold for the natural next step, outline for the other move, red for
- * the one that ends the job badly. All three the same size, so the row reads as a set of choices
- * rather than a heading with links after it.
- */
-const actionBase =
-  'btn h-auto min-h-0 cursor-pointer px-4 py-2 text-[11px] font-semibold tracking-[0.04em] disabled:opacity-50'
-
-const loudButton = `${actionBase} btn-primary btn-cta`
-
-const quietButton = `${actionBase} btn-outline border-base-content/28 text-base-content hover:border-base-content hover:bg-base-content/6 hover:text-base-content`
-
-const dangerButton = `${actionBase} btn-outline border-error/40 text-error hover:border-error hover:bg-error/10 hover:text-error`
 
 /** A settlement waiting on the officer confirming it. */
 interface Pending {
@@ -187,8 +177,23 @@ const chargedOn = (request: ApiPrintQueueItem, draft: Draft): number | null =>
   typedGrams(draft) ??
   (request.estimatedGrams === null ? null : chargedGrams(request.estimatedGrams))
 
+/**
+ * A personal print already past what its owner has left, before anything is printed: nothing
+ * left at all, or a plate whose estimate is more than what is. Only an officer starts one.
+ */
+const pastAllowance = (request: ApiPrintQueueItem): boolean =>
+  request.allowance !== null &&
+  (request.allowance.remainingGrams <= 0 ||
+    (request.estimatedGrams !== null &&
+      chargedGrams(request.estimatedGrams) > request.allowance.remainingGrams))
+
 export function OfficerPrintQueuePage() {
-  const { user, membership } = useOutletContext<DashboardContext>()
+  const { user, membership, projects } = useOutletContext<DashboardContext>()
+  const officer = isOfficer(user.role)
+  const operator = membership.status === 'ready' && membership.data.printOperator
+  const mine = projects.status === 'ready' ? projects.data : []
+  // A lead who doesn't run the printers sees only their projects' prints.
+  const leadOnly = !officer && !operator
   const id = useId()
   const [filter, setFilter] = useState<string>('')
   const [query, setQuery] = useState('')
@@ -228,9 +233,18 @@ export function OfficerPrintQueuePage() {
     }
   }, [filter, widen])
 
+  // Until both reads land a non-officer could be an operator or a lead, and a refusal would flash
+  // at them on every load. A failed read proves nothing either way, so the server decides.
+  const deciding =
+    !officer && (membership.status === 'loading' || projects.status === 'loading')
+  const unsure = !officer && (membership.status === 'error' || projects.status === 'error')
+  const locked = duesLocked(membership, user.role)
+  const refused = !deciding && !unsure && !opensPrintQueue(user.role, operator, mine)
+  const shown = !deciding && !locked && !refused
+
   useEffect(() => {
-    void load()
-  }, [load])
+    if (shown) void load()
+  }, [load, shown])
 
   /**
    * Narrowed in the browser, over what the fetch above brought back.
@@ -259,12 +273,16 @@ export function OfficerPrintQueuePage() {
 
   // Dues before role, because a lapsed officer *is* an officer and the
   // sentence they need is about a payment rather than about the board.
-  if (duesLocked(membership, user.role)) {
+  if (locked) {
     return <DuesLocked eyebrow="/ MANAGE · PRINT QUEUE" />
   }
 
-  if (!isOfficer(user.role)) {
-    return <OfficerOnly eyebrow="/ MANAGE · PRINT QUEUE" why="The print queue is run by the officers with access to the printers." />
+  if (deciding) {
+    return <div aria-busy="true" className="border-rule bg-base-200 h-64 border" />
+  }
+
+  if (refused) {
+    return <OfficerOnly eyebrow="/ MANAGE · PRINT QUEUE" why="The print queue is run by the officers and the members they let in." />
   }
 
   /** Do it, having asked where asking was warranted. */
@@ -333,7 +351,7 @@ export function OfficerPrintQueuePage() {
     request: ApiPrintQueueItem,
     status: PrintRequestStatus,
     draft: Draft,
-    { pressed, grams }: Origin,
+    { pressed, grams: gramsBox }: Origin,
   ) => {
     // Left empty on a sliced plate, the server charges Orca's estimate; so does this check.
     const gramsUsed = chargedOn(request, draft)
@@ -345,7 +363,7 @@ export function OfficerPrintQueuePage() {
       setProblem({
         title: `How much did ${request.fileName} take?`,
         message: `Type the grams into USED before marking it done. It comes out of ${request.user.fullName}'s allowance.`,
-        returnTo: grams,
+        returnTo: gramsBox,
       })
       return
     }
@@ -363,6 +381,26 @@ export function OfficerPrintQueuePage() {
         ? roundGrams(gramsUsed - request.allowance.remainingGrams)
         : 0
 
+    // Going over is an officer's call, so an operator can't start one that already is, or finish
+    // one that would be. Said here rather than through the 409.
+    if (status === 'PRINTING' && !request.can.override && pastAllowance(request)) {
+      setProblem({
+        title: `${request.fileName} is over ${request.user.fullName}'s allowance.`,
+        message: `They have ${grams(request.allowance?.remainingGrams ?? 0)} left. Ask an officer to print it anyway.`,
+        returnTo: pressed,
+      })
+      return
+    }
+
+    if (over > 0 && !request.can.override) {
+      setProblem({
+        title: `${request.fileName} is over ${request.user.fullName}'s allowance.`,
+        message: `That is ${grams(over)} past what they have left. Ask an officer to print it anyway.`,
+        returnTo: pressed,
+      })
+      return
+    }
+
     const terminal = status === 'DONE' || status === 'REJECTED'
     const next = { request, status, draft, over, pressed }
 
@@ -375,8 +413,8 @@ export function OfficerPrintQueuePage() {
   return (
     <>
       <FormEyebrow>/ MANAGE · PRINT QUEUE</FormEyebrow>
-      <FormHeading>3D print queue.</FormHeading>
-      <SubNav label="Print queue pages" pages={PRINT_QUEUE_PAGES} />
+      <FormHeading>{leadOnly ? 'Prints for your projects.' : '3D print queue.'}</FormHeading>
+      {officer && <SubNav label="Print queue pages" pages={PRINT_QUEUE_PAGES} />}
 
       <div className="mb-4">
         <FilterChips
@@ -415,7 +453,10 @@ export function OfficerPrintQueuePage() {
           value={process}
           onChange={setProcess}
         />
-        <FilterChips label="BUDGET" options={KINDS} value={kind} onChange={setKind} />
+        {/* A lead only sees project prints, so the budget split would be one chip. */}
+        {!leadOnly && (
+          <FilterChips label="BUDGET" options={KINDS} value={kind} onChange={setKind} />
+        )}
       </div>
 
       <FormPanel>
@@ -437,9 +478,11 @@ export function OfficerPrintQueuePage() {
             <p className="text-dim text-sm leading-[1.7]">
               {query.trim() || process !== 'ALL' || kind !== 'ALL'
                 ? 'Nothing matches what you are looking for.'
-                : filter === ''
-                  ? 'Nothing waiting. Printers are free.'
-                  : 'Nothing here.'}
+                : filter !== ''
+                  ? 'Nothing here.'
+                  : leadOnly
+                    ? 'Nothing waiting for your projects.'
+                    : 'Nothing waiting. Printers are free.'}
             </p>
           ) : (
             /* Jobs across as well as down. A queue row is a card — a filename, five lines of
@@ -550,7 +593,7 @@ function SettleDialog({
         The record of the request stays.
       </p>
 
-      {!done && (
+      {!done && request.allowance && (
         <p>Nothing comes off their allowance for a print that was not finished.</p>
       )}
     </ConfirmDialog>
@@ -613,6 +656,7 @@ function QueueRow({
 
   const label = STATUS_LABEL[request.status]
   const settled = request.status === 'DONE' || request.status === 'REJECTED'
+  const { work, decline } = request.can
   const sliced = request.slicedWith !== null
   const typed = chargedOn(request, draft)
   const over =
@@ -714,159 +758,173 @@ function QueueRow({
             </p>
           )}
 
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            {!sliced && (
-              <>
-            <span className="text-faint font-mono text-[10px] tracking-[0.14em]">
-              PRINTED AS
-            </span>
+          {work && (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {!sliced && (
+                <>
+                  <span className="text-faint font-mono text-[10px] tracking-[0.14em]">
+                    PRINTED AS
+                  </span>
 
-            <select
-              aria-label={`Printer used for ${request.fileName}`}
-              value={draft.process}
-              disabled={busy}
-              onChange={(event) => {
-                const process = event.target.value as PrintProcess
-                // The material has to follow the machine, and resin has no
-                // infill to carry over.
-                setDraft((current) => ({
-                  ...current,
-                  process,
-                  material: materialsFor(process)[0]!.value,
-                  infillPattern: hasInfill(process)
-                    ? (current.infillPattern ?? 'GRID')
-                    : null,
-                  infillDensity: hasInfill(process)
-                    ? (current.infillDensity ?? DEFAULT_INFILL_DENSITY)
-                    : null,
-                }))
-              }}
-              className={field}
-            >
-              <option value="FDM">FDM</option>
-              <option value="SLA">SLA</option>
-            </select>
+                  <select
+                    aria-label={`Printer used for ${request.fileName}`}
+                    value={draft.process}
+                    disabled={busy}
+                    onChange={(event) => {
+                      const process = event.target.value as PrintProcess
+                      // The material has to follow the machine, and resin has no
+                      // infill to carry over.
+                      setDraft((current) => ({
+                        ...current,
+                        process,
+                        material: materialsFor(process)[0]!.value,
+                        infillPattern: hasInfill(process)
+                          ? (current.infillPattern ?? 'GRID')
+                          : null,
+                        infillDensity: hasInfill(process)
+                          ? (current.infillDensity ?? DEFAULT_INFILL_DENSITY)
+                          : null,
+                      }))
+                    }}
+                    className={field}
+                  >
+                    <option value="FDM">FDM</option>
+                    <option value="SLA">SLA</option>
+                  </select>
 
-            <select
-              aria-label={`Material used for ${request.fileName}`}
-              value={draft.material}
-              disabled={busy}
-              onChange={(event) => {
-                set('material', event.target.value as PrintMaterial)
-              }}
-              className={field}
-            >
-              {materialsFor(draft.process).map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+                  <select
+                    aria-label={`Material used for ${request.fileName}`}
+                    value={draft.material}
+                    disabled={busy}
+                    onChange={(event) => {
+                      set('material', event.target.value as PrintMaterial)
+                    }}
+                    className={field}
+                  >
+                    {materialsFor(draft.process).map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
 
-            {hasInfill(draft.process) && (
-              <>
-                <select
-                  aria-label={`Infill density used for ${request.fileName}`}
-                  value={String(draft.infillDensity ?? DEFAULT_INFILL_DENSITY)}
-                  disabled={busy}
+                  {hasInfill(draft.process) && (
+                    <>
+                      <select
+                        aria-label={`Infill density used for ${request.fileName}`}
+                        value={String(draft.infillDensity ?? DEFAULT_INFILL_DENSITY)}
+                        disabled={busy}
+                        onChange={(event) => {
+                          set('infillDensity', Number(event.target.value))
+                        }}
+                        className={field}
+                      >
+                        {INFILL_DENSITIES.map((density) => (
+                          <option key={density} value={density}>
+                            {density}%
+                          </option>
+                        ))}
+                      </select>
+
+                      <select
+                        aria-label={`Infill pattern used for ${request.fileName}`}
+                        value={draft.infillPattern ?? 'GRID'}
+                        disabled={busy}
+                        onChange={(event) => {
+                          set('infillPattern', event.target.value as InfillPattern)
+                        }}
+                        className={field}
+                      >
+                        {INFILL_PATTERNS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </>
+                  )}
+
+                </>
+              )}
+
+              <label className="flex items-center gap-1.5">
+                <span className="text-faint font-mono text-[10px] tracking-[0.14em]">
+                  USED
+                </span>
+                <input
+                  ref={gramsRef}
+                  type="number"
+                  min={0}
+                  max={100000}
+                  step={0.01}
+                  inputMode="decimal"
+                  value={draft.gramsUsed}
                   onChange={(event) => {
-                    set('infillDensity', Number(event.target.value))
+                    set('gramsUsed', event.target.value)
                   }}
-                  className={field}
-                >
-                  {INFILL_DENSITIES.map((density) => (
-                    <option key={density} value={density}>
-                      {density}%
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  aria-label={`Infill pattern used for ${request.fileName}`}
-                  value={draft.infillPattern ?? 'GRID'}
+                  placeholder="g"
+                  aria-label={`Grams used for ${request.fileName}`}
+                  className={`${fieldClass} h-8 w-24`}
                   disabled={busy}
-                  onChange={(event) => {
-                    set('infillPattern', event.target.value as InfillPattern)
-                  }}
-                  className={field}
-                >
-                  {INFILL_PATTERNS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </>
-            )}
-
-              </>
-            )}
-
-            <label className="flex items-center gap-1.5">
-              <span className="text-faint font-mono text-[10px] tracking-[0.14em]">
-                USED
-              </span>
-              <input
-                ref={gramsRef}
-                type="number"
-                min={0}
-                max={100000}
-                step={0.01}
-                inputMode="decimal"
-                value={draft.gramsUsed}
-                onChange={(event) => {
-                  set('gramsUsed', event.target.value)
-                }}
-                placeholder="g"
-                aria-label={`Grams used for ${request.fileName}`}
-                className={`${fieldClass} h-8 w-24`}
-                disabled={busy}
-              />
-            </label>
-          </div>
+                />
+              </label>
+            </div>
+          )}
 
           {/* Before the press, not after the 409. The server checks it again
               and is the one that actually refuses — this is so the officer
               knows what the button is about to do. */}
-          {over > 0 && (
-            <p className="text-error mt-2 text-[12px] leading-[1.5]">
-              That is {grams(over)} past what {request.user.fullName} has
-              left.
+          {work &&
+            (over > 0 ||
+              (!request.can.override && request.status === 'PENDING' && pastAllowance(request))) && (
+              <p className="text-error mt-2 text-[12px] leading-[1.5]">
+                {over > 0
+                  ? `That is ${grams(over)} past what ${request.user.fullName} has left.`
+                  : `This is past what ${request.user.fullName} has left.`}
+                {!request.can.override && ' An officer has to approve that.'}
+              </p>
+            )}
+
+          {!work && !decline && (
+            <p className="text-faint mt-2 text-[12px] leading-[1.5]">
+              Someone running the printers handles this one.
             </p>
           )}
 
-          <div className="mt-3 flex flex-wrap items-center gap-2.5">
-            {sliced && request.sliceFile ? (
-              // The plate as its owner sliced it, profiles and settings inside, for desktop Orca.
-              <a
-                href={`${apiBaseUrl}/api/officer/print/${request.id}/slice-file`}
-                className={`${quietButton} shrink-0`}
-              >
-                DOWNLOAD .3MF
-              </a>
-            ) : (
-              request.fileId && (
+          {(work || decline) && (
+            <div className="mt-3 flex flex-wrap items-center gap-2.5">
+              {!work ? null : sliced && request.sliceFile ? (
+                // The plate as its owner sliced it, profiles and settings inside, for desktop Orca.
                 <a
-                  href={storedFileUrl(request.fileId)}
+                  href={`${apiBaseUrl}/api/officer/print/${request.id}/slice-file`}
                   className={`${quietButton} shrink-0`}
                 >
-                  DOWNLOAD
+                  DOWNLOAD .3MF
                 </a>
-              )
-            )}
+              ) : (
+                request.fileId && (
+                  <a
+                    href={storedFileUrl(request.fileId)}
+                    className={`${quietButton} shrink-0`}
+                  >
+                    DOWNLOAD
+                  </a>
+                )
+              )}
 
-            <input
-              value={draft.officerNote}
-              onChange={(event) => {
-                set('officerNote', event.target.value)
-              }}
-              maxLength={1000}
-              placeholder="Note back to them (optional)"
-              aria-label={`Note about ${request.fileName}`}
-              className={`${fieldClass} h-9 min-w-48 flex-1`}
-              disabled={busy}
-            />
-          </div>
+              <input
+                value={draft.officerNote}
+                onChange={(event) => {
+                  set('officerNote', event.target.value)
+                }}
+                maxLength={1000}
+                placeholder="Note back to them (optional)"
+                aria-label={`Note about ${request.fileName}`}
+                className={`${fieldClass} h-9 min-w-48 flex-1`}
+                disabled={busy}
+              />
+            </div>
+          )}
 
           {/*
             The three decisions, on their own band with a rule above them.
@@ -880,43 +938,57 @@ function QueueRow({
             coloured for what it is, because the failure worth designing against is hitting it
             while reaching for the button beside it.
           */}
-          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-base-content/8 pt-3">
-            {request.status === 'PENDING' && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={press('PRINTING')}
-                className={loudButton}
-              >
-                START PRINTING
-              </button>
-            )}
+          {(work || decline) && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-base-content/8 pt-3">
+              {work && request.status === 'PENDING' && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={press('PRINTING')}
+                  className={loudButton}
+                >
+                  START PRINTING
+                </button>
+              )}
 
-            <button
-              type="button"
-              disabled={busy}
-              onClick={press('DONE')}
-              className={request.status === 'PENDING' ? quietButton : loudButton}
-            >
-              MARK DONE
-            </button>
+              {work && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={press('DONE')}
+                  className={request.status === 'PENDING' ? quietButton : loudButton}
+                >
+                  MARK DONE
+                </button>
+              )}
 
-            {/* Declining is refusing something nobody started; cancelling is
-                stopping something already running. One status underneath, two
-                different acts, and the officer pressing this is looking at a
-                printer in one case and not in the other. */}
-            <button
-              type="button"
-              disabled={busy}
-              onClick={press('REJECTED')}
-              // `ml-auto` rather than a spacer: at narrow widths the row wraps
-              // and this simply lands on its own line, which is still the far
-              // side of everything else.
-              className={`${dangerButton} ml-auto`}
-            >
-              {isCancel(request.status) ? 'CANCEL THE PRINT' : 'DECLINE'}
-            </button>
-          </div>
+              {/* Declining is refusing something nobody started; cancelling is
+                  stopping something already running. One status underneath, two
+                  different acts, and the officer pressing this is looking at a
+                  printer in one case and not in the other. */}
+              {decline && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={press('REJECTED')}
+                  // `ml-auto` rather than a spacer: at narrow widths the row wraps
+                  // and this simply lands on its own line, which is still the far
+                  // side of everything else.
+                  className={`${dangerButton} ml-auto`}
+                >
+                  {isCancel(request.status) ? 'CANCEL THE PRINT' : 'DECLINE'}
+                </button>
+              )}
+
+              {/* An operator who can't stop a running print is told who can, rather than left
+                  with MARK DONE, which would charge the member for a failure. */}
+              {work && !decline && isCancel(request.status) && (
+                <p className="text-faint ml-auto text-[12px] leading-[1.5]">
+                  Only an officer can stop it.
+                </p>
+              )}
+            </div>
+          )}
         </>
       )}
     </li>

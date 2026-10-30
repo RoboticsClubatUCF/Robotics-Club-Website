@@ -25,6 +25,7 @@ import { lab } from './routes/public/lab.js'
 import { me } from './routes/member/me.js'
 import { officer } from './routes/officer/officer.js'
 import { officerArchive } from './routes/officer/officerArchive.js'
+import { printQueue } from './routes/officer/printQueue.js'
 import { openproject } from './routes/webhooks/openproject.js'
 import { print } from './routes/member/print.js'
 import { printDrafts } from './routes/member/printDrafts.js'
@@ -172,6 +173,8 @@ app.route('/api/officer/archive', officerArchive)
 app.route('/api/officer/slicer-profiles', slicerProfiles)
 // The Google Calendars the events desk imports from.
 app.route('/api/officer/google-calendars', googleCalendar)
+// The print queue, which operators and project leads reach as well as officers.
+app.route('/api/officer', printQueue)
 app.route('/api/officer', officer)
 // Before `print`, which only owns `/` and `/:id` underneath the same prefix.
 app.route('/api/print', printDrafts)

@@ -27,6 +27,7 @@ vi.mock('../../discord/discord.js', async (importOriginal) => ({
   memberRoleId: null,
   projectLeadRoleId: null,
   teamLeadRoleId: null,
+  printCrewRoleId: null,
   addGuildRole: vi.fn(() => Promise.resolve({ status: 'done' as const })),
   removeGuildRole: vi.fn(() => Promise.resolve({ status: 'done' as const })),
   guildRoster: vi.fn(() => Promise.resolve({ status: 'unchecked' as const })),

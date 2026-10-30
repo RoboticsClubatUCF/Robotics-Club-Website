@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react'
-import type { ApiUser } from '../api/api'
+import type { ApiMyProject, ApiUser } from '../api/api'
 
 /**
  * The session context and the hook that reads it.
@@ -48,6 +48,20 @@ export const SessionContext = createContext<SessionContextValue | null>(null)
  */
 export const isOfficer = (role: ApiUser['role']): boolean =>
   role === 'ADMIN' || role === 'OFFICER'
+
+/**
+ * Whether the print queue is somewhere this person can go: officers, members an officer let
+ * run it, and project leads, who see their own projects' prints. The server decides what each
+ * of them may do there.
+ */
+export const opensPrintQueue = (
+  role: ApiUser['role'],
+  printOperator: boolean,
+  projects: readonly { rank: ApiMyProject['rank'] }[],
+): boolean =>
+  isOfficer(role) ||
+  printOperator ||
+  projects.some(({ rank }) => rank === 'PROJECT_LEAD')
 
 export function useSession(): SessionContextValue {
   const value = useContext(SessionContext)
