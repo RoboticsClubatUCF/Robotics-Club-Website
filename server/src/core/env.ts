@@ -417,6 +417,18 @@ const envSchema = z.object({
     .refine((ids) => ids.every((id) => /^\d{17,20}$/.test(id)), {
       message: 'each entry must be a Discord snowflake (17-20 digits)',
     }),
+
+  /**
+   * Shared with the club's OpenProject, which sends it as a bearer token to
+   * `/api/openproject/*`: checking a sign-up is a member, and having the bot DM
+   * a notification. The same value goes in OpenProject under Administration >
+   * Emails and notifications > Website and Discord. Unset, those routes refuse
+   * everything.
+   */
+  OPENPROJECT_SECRET: z
+    .string()
+    .min(32, 'must be at least 32 characters — generate one, e.g. openssl rand -hex 32')
+    .optional(),
 })
   .refine(
     (parsed) =>

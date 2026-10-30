@@ -381,6 +381,8 @@ All officer-only (`requireOfficer`, which includes the dues check).
 | --- | --- |
 | `POST /api/stripe/webhook` | Stripe's deliveries. Signature-verified, never authenticated |
 | `POST /api/discord/interactions` | Button presses when an Interactions Endpoint URL is registered; otherwise presses arrive over the gateway (`src/discord/discordGateway.ts`). Ed25519 over the raw body with `DISCORD_PUBLIC_KEY`; 401 on a bad signature, which Discord requires. Officers only, by Discord role or site role; dues aren't checked. Replies are ephemeral and deferred when work is needed |
+| `POST /api/openproject/member` | The club's OpenProject checking a sign-up. Bearer `OPENPROJECT_SECRET`; `{ member: true }` for an active account with that email, ignoring case |
+| `POST /api/openproject/notify` | The club's OpenProject handing over a notification. Bearer `OPENPROJECT_SECRET`; finds the member by email and has the bot DM `content`. 200 with `sent`, `no_member` or `refused`; 502 when Discord didn't answer; 503 with no bot or no secret |
 
 ### Stored files
 
@@ -626,7 +628,7 @@ src/
 | `routes/member/` | signed-in members, behind the dues gate (`survey.ts` excepted) | `me.ts`, `dues.ts`, `survey.ts`, `print.ts`, `printDrafts.ts`, `equipment.ts` |
 | `routes/projects/` | project members and leads | `projectManage.ts`, `tasks.ts`, `eventManage.ts` |
 | `routes/officer/` | officers | `officer.ts`, `surveyAdmin.ts`, `heroSlides.ts`, `frontPage.ts`, `sponsorsAdmin.ts`, `aboutPage.ts`, `officerArchive.ts` |
-| `routes/webhooks/` | Stripe and Discord, by signature | `stripeWebhook.ts`, `discordInteractions.ts` |
+| `routes/webhooks/` | Stripe and Discord by signature, OpenProject by shared secret | `stripeWebhook.ts`, `discordInteractions.ts`, `openproject.ts` |
 
 The folders follow reachability. `lab.ts` is a public read with an officer-only
 `PATCH` and is mounted ahead of the cached block. `aboutPage.ts` is in
