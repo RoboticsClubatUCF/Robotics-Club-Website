@@ -1049,8 +1049,8 @@ export type ApiPrintQueueItem = ApiPrintRequest & {
   /**
    * What the caller may do to this row, worked out by the server: `work` is start, finish and
    * the grams; `decline` refuses or stops it; `override` prints past the allowance. Officers
-   * get all three; an operator works other people's prints; a project lead declines their
-   * project's waiting ones.
+   * get all three; an operator works and stops other people's prints; a project lead declines
+   * their project's waiting ones.
    */
   can: { work: boolean; decline: boolean; override: boolean }
 }

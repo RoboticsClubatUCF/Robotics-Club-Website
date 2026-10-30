@@ -132,8 +132,9 @@ function OperatorsDesk() {
         <div className="mb-4 flex items-center gap-1">
           <p className={panelLabel}>LET SOMEONE IN</p>
           <InfoTip label="Let someone in">
-            They need current dues and the slicer training. Operators start and finish other
-            members' prints. Declining and going past someone's allowance stay with officers.
+            They need current dues and the slicer training. Operators start, finish and stop other
+            members' prints. Declining a request and going past someone's allowance stay with
+            officers.
           </InfoTip>
         </div>
 

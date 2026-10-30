@@ -1075,13 +1075,23 @@ describe('an operator, with the allowance', () => {
     expect(stub.mock.calls.some((call) => call[1]?.method === 'PATCH')).toBe(false)
   })
 
-  it('is told who can stop a print that is running', async () => {
-    vi.stubGlobal('fetch', stubFetch({ '/officer/print-queue': [printing({ can: OPERATOR_ROW })] }))
+  it('stops a running print when the server allows it', async () => {
+    const stub = stubFetch({
+      '/officer/print-queue': [
+        printing({ can: { work: true, decline: true, override: false } }),
+      ],
+    })
+    vi.stubGlobal('fetch', stub)
 
     renderPage(operator())
 
-    expect(await screen.findByText(/only an officer can stop it/i)).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /cancel the print/i })).not.toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('button', { name: /cancel the print/i }))
+    expect(within(dialog()).getByText(/clear the bed/i)).toBeInTheDocument()
+    agree(/stop the print/i)
+
+    await waitFor(() => {
+      expect(sent(stub)).toEqual({ status: 'REJECTED' })
+    })
   })
 })
 

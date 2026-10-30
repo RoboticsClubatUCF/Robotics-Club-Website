@@ -264,13 +264,23 @@ describe('an operator', () => {
     })
   })
 
-  it('cannot decline or cancel a print', async () => {
+  it('cannot decline a waiting print', async () => {
     const waiting = await print('member')
-    const running = await print('member', { status: PrintRequestStatus.PRINTING })
 
     expect((await move(waiting, { status: 'REJECTED' }, 'operator')).status).toBe(403)
-    expect((await move(running, { status: 'REJECTED' }, 'operator')).status).toBe(403)
     expect(await statusOf(waiting)).toBe(PrintRequestStatus.PENDING)
+  })
+
+  it('stops somebody else’s running print, but not their own', async () => {
+    const running = await print('member', { status: PrintRequestStatus.PRINTING })
+    const own = await print('operator', { status: PrintRequestStatus.PRINTING })
+
+    expect((await move(running, { status: 'REJECTED' }, 'operator')).status).toBe(200)
+    expect(await statusOf(running)).toBe(PrintRequestStatus.REJECTED)
+    expect((await move(own, { status: 'REJECTED' }, 'operator')).status).toBe(403)
+
+    const { rows } = await queue('operator', '?all=1')
+    expect(rows.find((row) => row.id === own)?.can.decline).toBe(false)
   })
 
   it('cannot print past somebody’s allowance, and is told to ask an officer', async () => {

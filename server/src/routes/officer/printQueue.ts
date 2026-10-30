@@ -44,8 +44,9 @@ import { printSelect, withGrams } from '../member/print.js'
  * Three kinds of caller, all needing current dues:
  *
  *   - Officers work every print.
- *   - Operators, members an officer let in, work every print but their own. Declining and
- *     printing past somebody's allowance stay with officers: both judge the request.
+ *   - Operators, members an officer let in, work every print but their own, and can stop one
+ *     that's on the printer. Declining a waiting request and printing past somebody's
+ *     allowance stay with officers: both judge the request.
  *   - Project leads see the prints sent for projects they lead, and may decline one that's
  *     still waiting. Nothing else: they aren't at the printer.
  *
@@ -93,13 +94,18 @@ function allowed(
 ) {
   if (access.officer) return { work: true, decline: true, override: true }
 
+  // Somebody else settles an operator's own print, so nobody charges their own grams.
+  const work = access.operator && print.userId !== user.id
+
   return {
-    // Somebody else settles an operator's own print, so nobody charges their own grams.
-    work: access.operator && print.userId !== user.id,
+    work,
+    // `REJECTED` is two acts. Stopping a running print is the printer's business, so an
+    // operator may; refusing a waiting request is a lead's, for their own project.
     decline:
-      print.status === PrintRequestStatus.PENDING &&
-      print.projectId !== null &&
-      access.leads.has(print.projectId),
+      (print.status === PrintRequestStatus.PRINTING && work) ||
+      (print.status === PrintRequestStatus.PENDING &&
+        print.projectId !== null &&
+        access.leads.has(print.projectId)),
     override: false,
   }
 }

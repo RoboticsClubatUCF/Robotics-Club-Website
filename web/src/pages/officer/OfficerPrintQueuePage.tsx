@@ -51,8 +51,8 @@ import {
 /**
  * The 3D print queue, as the officer running the printers sees it.
  *
- * Operators an officer let in see the same queue, minus declining and the allowance override,
- * and can't settle their own prints. A project lead sees only their projects' prints and may
+ * Operators an officer let in see the same queue and can stop a running print, but can't decline
+ * a waiting one, go past an allowance, or settle their own. A project lead sees only their projects' prints and may
  * decline one that's waiting. The server sends what each row allows as `can`.
  *
  * The queue defaults to live work — waiting and printing — because that's the shift's to-do
@@ -980,13 +980,6 @@ function QueueRow({
                 </button>
               )}
 
-              {/* An operator who can't stop a running print is told who can, rather than left
-                  with MARK DONE, which would charge the member for a failure. */}
-              {work && !decline && isCancel(request.status) && (
-                <p className="text-faint ml-auto text-[12px] leading-[1.5]">
-                  Only an officer can stop it.
-                </p>
-              )}
             </div>
           )}
         </>
