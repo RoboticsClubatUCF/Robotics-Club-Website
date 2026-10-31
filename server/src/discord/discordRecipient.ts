@@ -11,9 +11,8 @@ import { checkDiscordHandle } from './discord.js'
  *
  * Call it before claiming anything. Resolving is a read with no side effect, so a Discord that is
  * briefly unreachable costs nothing: nothing is claimed, and the next sweep tries again. Claiming
- * first would burn somebody's one message on a timeout. Both senders — the equipment return
- * reminder and the overdue-task reminder — depend on that order, which is why this lives here
- * rather than inside either of them.
+ * first would burn somebody's one message on a timeout. The equipment return reminder depends on
+ * that order.
  */
 export async function recipientFor(user: {
   id: string

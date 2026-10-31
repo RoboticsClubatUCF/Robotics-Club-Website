@@ -220,9 +220,6 @@ model User {
   duesPayments      DuesPayment[]
   grantedDues       DuesPayment[]     @relation("grantedDues")
   createdEvents     Event[]           @relation("createdEvents")
-  createdTasks      Task[]            @relation("createdTasks")
-  completedTasks    Task[]            @relation("completedTasks")
-  taskAssignments   TaskAssignee[]
   storedFiles       StoredFile[]
   printRequests     PrintRequest[]
   decidedPrints     PrintRequest[]    @relation("decidedPrints")
@@ -504,7 +501,6 @@ model Project {
   teams                Team[]
   events               Event[]
   googleCalendars      GoogleCalendar[]
-  tasks                Task[]
   printRequests        PrintRequest[]
   images               ProjectImage[]
   links                ProjectLink[]
@@ -623,7 +619,6 @@ model Team {
 
   members ProjectMember[]
   events  Event[]
-  tasks   Task[]
 
   // Two teams named "Software" in one project is a data-entry accident, and
   // names are how leads refer to them.
@@ -816,113 +811,6 @@ model ProjectDocumentAuthor {
   @@index([documentId, position])
   @@index([userId])
   @@map("project_document_authors")
-}
-
-// --------------------------------------------------------------------- tasks
-
-/// What a task is doing, and the declaration order is the sort order — the board orders by
-/// `status: 'asc'` and Postgres sorts an enum by declaration order, so unsettled work sits above
-/// work nobody has to think about again. Reordering these is a hand-written `CREATE TYPE` swap; see
-/// [database.md](../../.claude/docs/database.md).
-///
-/// It was `OPEN`/`DONE`, and the comment here argued for keeping it that way: kanban columns and
-/// blocked flags are process the club does not run. Most of that still holds — there is no priority
-/// column and no board to drag anything across. What changed is that the bot now asks. A member
-/// with a deadline behind them needs a way to say which kind of not-done they are, or the only
-/// honest answer to a chase is silence; `IN_PROGRESS` and `DELAYED` are that answer. `CANCELED` is
-/// the other end of it: a task withdrawn is not a task completed, and deleting the row would take
-/// with it the record that anybody ever wanted it done.
-enum TaskStatus {
-  OPEN
-  IN_PROGRESS
-  DELAYED
-  DONE
-  CANCELED
-}
-
-/// Something a lead wants done, assigned to the members who will do it.
-model Task {
-  id String @id @default(uuid(7))
-
-  /// Null for a task that belongs to a person rather than to a build — "order the shirts", which is
-  /// the club's work and no project's.
-  ///
-  /// Officers write those and nobody else does, the same rule `routes/projects/eventManage.ts`
-  /// applies to a club-wide event, and they must name an assignee. A task with neither a project
-  /// nor a person belongs to nothing and would appear on no page at all — which Postgres cannot
-  /// check, because it is a count on another table, so `routes/projects/tasks.ts` refuses it on the
-  /// way in.
-  projectId String?  @map("project_id")
-  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
-  /// The team whose task it is, or null for a project-wide one. Which teams a task can belong to is
-  /// scoped the same way events are: a team lead writes tasks against their own team, the project
-  /// lead against any or none.
-  teamId String? @map("team_id")
-  team   Team?   @relation(fields: [teamId], references: [id], onDelete: Cascade)
-
-  title   String
-  details String?
-  dueAt   DateTime?  @map("due_at")
-  status  TaskStatus @default(OPEN)
-
-  createdById String? @map("created_by_id")
-  createdBy   User?   @relation("createdTasks", fields: [createdById], references: [id], onDelete: SetNull)
-
-  /// Who ticked it, and when. Records rather than gates — reopening clears
-  /// both, because a reopened task's history is the git log of the work, not
-  /// this row.
-  completedById String?   @map("completed_by_id")
-  completedBy   User?     @relation("completedTasks", fields: [completedById], references: [id], onDelete: SetNull)
-  completedAt   DateTime? @map("completed_at")
-
-  /// The `dueAt` the overdue DM has already gone out about.
-  ///
-  /// Not a flag and not a send time: it holds the deadline the message named, which is the same
-  /// choice `EquipmentLoan.remindedFor` makes and does the same three jobs. It stops the ten-minute
-  /// sweep sending twice; it survives a restart, being a row rather than something a process
-  /// remembers; and it re-arms itself for free when a lead moves the due date, because the stored
-  /// value stops matching. Claimed by a conditional `updateMany` before the DM is sent —
-  /// at-most-once, because being told nothing is a far smaller failure than being told four times.
-  /// See `src/discord/taskReminder.ts`.
-  remindedFor DateTime? @map("reminded_for")
-
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  assignees TaskAssignee[]
-
-  @@index([projectId, status])
-  @@index([teamId, status])
-  // The reminder sweep's window: unsettled work with a deadline behind it.
-  // Neither index above serves it — both lead with a column the sweep does not
-  // filter on. The analogue of `EquipmentLoan`'s `[status, dueAt]`.
-  @@index([status, dueAt])
-  @@map("tasks")
-}
-
-/// A join table rather than a single column, because "CAD the chassis"
-/// routinely belongs to two people and duplicating the task per person means
-/// two check-offs for one piece of work.
-model TaskAssignee {
-  taskId String @map("task_id")
-  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
-
-  userId String @map("user_id")
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  /// Whether this person asked for the task on their own calendar.
-  ///
-  /// Per assignee rather than per task, which is the whole reason it lives here: two people share
-  /// "CAD the chassis" and only one of them wants it in their week. Off by default, because a lead
-  /// assigning work is not the same act as somebody putting it in their calendar — the opt-in is
-  /// the member's. Nothing reads it except that member's own `/api/me/events`: a task is never on
-  /// anybody else's calendar and never on the public one.
-  onCalendar Boolean @default(false) @map("on_calendar")
-
-  @@id([taskId, userId])
-  @@index([userId])
-  @@map("task_assignees")
 }
 
 // -------------------------------------------------------------------- events

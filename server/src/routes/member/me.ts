@@ -15,19 +15,13 @@ import { type AuthEnv, requireAuth } from '../../auth/session.js'
 import { loanSelect } from './equipment.js'
 import { managedProjectSelect } from '../officer/officer.js'
 import { printSelect, withGrams } from './print.js'
-import {
-  manageableTaskFilter,
-  taskSelect,
-  wire as wireTask,
-} from '../projects/tasks.js'
-import { PrintRequestStatus, TaskStatus } from '../../generated/prisma/enums.js'
+import { PrintRequestStatus } from '../../generated/prisma/enums.js'
 
 /**
  * The signed-in member's own view of the club — everything here is "mine".
  *
  *   GET /api/me/projects        -> my memberships: project, rank, team, term
  *   GET /api/me/events?from&to  -> the calendar as I see it
- *   GET /api/me/tasks?scope&status -> my tasks, and the ones I run
  *   GET /api/me/print-requests  -> my 3D print requests, newest first
  *   GET /api/me/print-allowance -> grams left for my own prints this term
  *   GET /api/me/loans           -> what I have borrowed, and asked for
@@ -177,71 +171,8 @@ me.get(
       await expandMeetings(projects, new Date(from), new Date(to))
     ).map(asMemberEvent)
 
-    /**
-     * The third source: deadlines this person asked to see.
-     *
-     * Opted in, one at a time, and never anybody else's. The filter is on `onCalendar`
-     * inside the assignee match, so it's this caller's own row of the join table that
-     * decides. Nothing here reaches the public `/api/events`.
-     *
-     * Settled work is left out for the reason a done task drops off the overview: a
-     * calendar is what's ahead of you.
-     */
-    const dueTasks = await prisma.task.findMany({
-      where: {
-        // The same half-open window the stored rows and the meetings use, so a deadline
-        // at midnight on the 1st belongs to the month that's starting rather than both.
-        dueAt: { gte: new Date(from), lt: new Date(to) },
-        status: { notIn: [TaskStatus.DONE, TaskStatus.CANCELED] },
-        assignees: { some: { userId: user.id, onCalendar: true } },
-      },
-      select: {
-        id: true,
-        title: true,
-        details: true,
-        dueAt: true,
-        status: true,
-        projectId: true,
-        teamId: true,
-        project: { select: { slug: true, title: true } },
-        team: { select: { name: true } },
-      },
-    })
-
-    const taskEntries = dueTasks.map((task) => ({
-      // The `meeting:` prefix convention. There's no row a calendar could `PATCH` behind
-      // one of these — the task is the row — so the id says so, and
-      // `web/src/lib/events/events.ts` reads it to keep the edit controls off them.
-      id: `task:${task.id}`,
-      slug: `task:${task.id}`,
-      // Named as a deadline rather than an event, because that's what it is: "Due: cut
-      // the brackets" reads correctly in a week view, and the bare title reads as a
-      // meeting somebody scheduled.
-      title: `Due: ${task.title}`,
-      description: task.details,
-      type: 'TASK' as const,
-      location: null,
-      startsAt: task.dueAt!.toISOString(),
-      endsAt: null,
-      allDay: false,
-      registrationUrl: null,
-      // Never public, and there is no switch that would make one public.
-      published: false,
-      projectId: task.projectId,
-      teamId: task.teamId,
-      // Nobody created this. It's a projection of a task, the way a meeting is a
-      // projection of a schedule — and a name here would be one the calendar then
-      // offers to edit.
-      createdById: null,
-      project: task.project,
-      team: task.team,
-      // What the row needs to link back to the tasks page and print its label, carried
-      // on the entry the way `meeting` carries its series.
-      task: { id: task.id, status: task.status },
-    }))
-
     return c.json(
-      [...events, ...meetings, ...taskEntries].sort(
+      [...events, ...meetings].sort(
         (a, b) =>
           new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
       ),
@@ -249,11 +180,6 @@ me.get(
   },
 )
 
-/**
- * My open assignments across every project, nearest deadline first. Done work stays off
- * this list — the overview card is "what do I owe people", and the full board with its
- * history lives on the project's own tasks view.
- */
 /**
  * My print requests, settled ones included — `fileName`/`fileSize` survive the file's
  * deletion, so the history stays readable after the bytes go. `fileId` is null once a
@@ -296,65 +222,3 @@ me.get('/loans', requireAuth, async (c) => {
 
   return c.json(loans)
 })
-
-/**
- * Tasks, from either end: the ones with my name on them and the ones I run.
- *
- * One endpoint rather than two, because they're the same rows read through two filters
- * and a lead's page wants them merged. The scoping half is `manageableTaskFilter` in
- * `routes/projects/tasks.ts`, imported rather than restated.
- *
- * `status=open` is the default and means not DONE and not CANCELED, which is what
- * "open" has meant since the labels grew past two.
- */
-me.get(
-  '/tasks',
-  requireAuth,
-  validate(
-    'query',
-    z.object({
-      scope: z.enum(['mine', 'managed', 'all']).default('mine'),
-      status: z.enum(['open', 'all']).default('open'),
-      limit: z.coerce.number().int().min(1).max(200).default(50),
-    }),
-  ),
-  async (c) => {
-    const user = c.get('user')
-    const { scope, status, limit } = c.req.valid('query')
-
-    const mine = { assignees: { some: { userId: user.id } } }
-    const managed = scope === 'mine' ? null : await manageableTaskFilter(user)
-
-    const whose =
-      managed === null
-        ? mine
-        : scope === 'managed'
-          ? managed
-          : { OR: [mine, managed] }
-
-    const rows = await prisma.task.findMany({
-      where: {
-        ...whose,
-        ...(status === 'open'
-          ? { status: { notIn: [TaskStatus.DONE, TaskStatus.CANCELED] } }
-          : {}),
-      },
-      // Two orders, because the two lists answer different questions. With nothing
-      // settled the question is "what is due", so the deadline leads; with everything in
-      // it the question is "where does this all stand", and grouping by label is what
-      // makes that readable. The enum's declaration order puts open work on top.
-      orderBy:
-        status === 'open'
-          ? [{ dueAt: { sort: 'asc', nulls: 'last' } }, { createdAt: 'asc' }]
-          : [
-              { status: 'asc' },
-              { dueAt: { sort: 'asc', nulls: 'last' } },
-              { createdAt: 'desc' },
-            ],
-      take: limit,
-      select: taskSelect,
-    })
-
-    return c.json(rows.map(wireTask))
-  },
-)

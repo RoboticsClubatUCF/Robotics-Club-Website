@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ApiEvent } from '../../lib/api/api'
 import { AddToCalendar } from './AddToCalendar'
-import { isGeneratedMeeting, isTaskEntry } from '../../lib/events/events'
+import { isGeneratedMeeting } from '../../lib/events/events'
 import { addMonths, startOfMonth } from '../../lib/events/months'
 import type { ApiState } from '../../lib/api/useApi'
 
@@ -21,7 +21,7 @@ import type { ApiState } from '../../lib/api/useApi'
  * to that day, which on a phone is the only way to read an event at all.
  *
  * So there are two fetches. What a window generates rather than stores (project
- * meetings, task deadlines) can only come from the month one, because a recurrence
+ * meetings) can only come from the month one, because a recurrence
  * has no answer for "the next fifty" — see `publicMeetings` in
  * `server/src/routes/public/content.ts`. The list merges the month's generated
  * entries into the forward stored ones.
@@ -75,12 +75,10 @@ function monthGrid(month: Date): (Date | null)[][] {
 }
 
 /**
- * A generated entry — a project meeting or a task deadline — rather than a stored
- * row. These exist only inside the window they were expanded for, which is why the
+ * A generated entry — a project meeting — rather than a stored row. These exist only inside the window they were expanded for, which is why the
  * schedule takes them off the month rather than off the endless upcoming list.
  */
-const isGenerated = (event: ApiEvent) =>
-  isGeneratedMeeting(event) || isTaskEntry(event)
+const isGenerated = (event: ApiEvent) => isGeneratedMeeting(event)
 
 /**
  * Hasn't finished yet — `unfinishedBy` in `routes/public/content.ts` to the letter,
@@ -611,14 +609,9 @@ function EventChip({
         onMouseDown={(mouse) => {
           mouse.preventDefault()
         }}
-        /* A deadline is marked rather than coloured: the same left bar the dashboard
-           rail uses for "you are here". A chip in a different colour reads as a
-           different kind of event, and this is a task only its owner can see. */
-        className={`bg-base-300 group-hover/chip:bg-primary group-hover/chip:text-primary-content block w-full cursor-pointer truncate py-0.5 text-left text-[10px] leading-tight transition-colors duration-200 ${
-          isTaskEntry(event)
-            ? 'border-warning border-l-2 pr-1 pl-1.5'
-            : 'px-1'
-        } ${event.cancelled ? 'text-faint line-through' : ''}`}
+        className={`bg-base-300 group-hover/chip:bg-primary group-hover/chip:text-primary-content block w-full cursor-pointer truncate px-1 py-0.5 text-left text-[10px] leading-tight transition-colors duration-200 ${
+          event.cancelled ? 'text-faint line-through' : ''
+        }`}
       >
         {event.cancelled && <span className="sr-only">Cancelled: </span>}
         {event.title}

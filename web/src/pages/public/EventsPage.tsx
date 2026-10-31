@@ -49,13 +49,7 @@ export function EventsPage() {
   const id = useId()
 
   const [when, setWhen] = useState<When>('upcoming')
-  /**
-   * Typed off the wire rather than off the `EventType` enum, because the chips are built from the
-   * types the fetched rows actually carry. The union is wider than this page can ever see —
-   * `'TASK'` is a task deadline on one member's own calendar and never reaches `/api/events` — but
-   * restating the enum here would be a second list to keep in step for the sake of excluding a
-   * value that can't arrive.
-   */
+  /** The chips are built from the types the fetched rows actually carry. */
   const [type, setType] = useState<ApiEvent['type'] | typeof ANY>(ANY)
   const [query, setQuery] = useState('')
 

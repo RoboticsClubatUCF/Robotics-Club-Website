@@ -19,7 +19,6 @@ import { syncDiscordOfficers } from './discord/discordOfficers.js'
 import { sweepDiscordRoles } from './discord/discordRoles.js'
 import { env } from './core/env.js'
 import { sweepReturnReminders } from './equipment/equipmentReminder.js'
-import { sweepTaskReminders } from './discord/taskReminder.js'
 import { sweepLabStatus } from './lab/labStatus.js'
 import { mailConfigured } from './email/mail.js'
 import { sweepLapsedMembers } from './membership/membershipSweep.js'
@@ -154,12 +153,10 @@ const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
       ? `Dues → Stripe (${(env.DUES_SEMESTER_CENTS / 100).toFixed(2)}/semester, ${(env.DUES_YEAR_CENTS / 100).toFixed(2)}/year)${webhooksConfigured ? '' : ', webhooks OFF'}`
       : 'Dues payments OFF (no STRIPE_SECRET_KEY) — the dues page says so and points at an officer',
   )
-  // Both sweeps below send a message to a real person, and they are the only
-  // things that do.
+  // The sweep below sends a message to a real person, and it's the only thing
+  // that does.
   if (!discordConfigured) {
-    console.log(
-      'Equipment return reminders and overdue-task reminders OFF (no DISCORD_BOT_TOKEN)',
-    )
+    console.log('Equipment return reminders OFF (no DISCORD_BOT_TOKEN)')
   }
 
   importGoogleCalendar()
@@ -348,23 +345,6 @@ const sweep = setInterval(
         console.error('return reminder sweep failed', error)
       })
 
-    // The other sender, claimed the same way and for the same reason. Deliberately not
-    // chained onto the membership sequence above: that ordering is about Postgres
-    // settling before Discord is told who is a member, and nothing here writes a role.
-    //
-    // `sent` counts messages and `claimed` counts tasks, which is why the line says
-    // both: somebody with three late tasks gets one DM.
-    void sweepTaskReminders()
-      .then((report) => {
-        if (report.claimed > 0) {
-          console.log(
-            `task reminders: ${report.sent} sent, ${report.failed} failed, about ${report.claimed} overdue tasks`,
-          )
-        }
-      })
-      .catch((error: unknown) => {
-        console.error('task reminder sweep failed', error)
-      })
   },
   10 * 60 * 1000,
 )

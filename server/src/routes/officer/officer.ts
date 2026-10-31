@@ -255,7 +255,7 @@ officer.post(
  *
  * The writing comes across; the people don't. Summary, write-up, competition,
  * repository, the meeting slot, the links and the gallery are copied. Members,
- * teams, tasks and events aren't: a new term is when people decide again, and a
+ * teams and events aren't: a new term is when people decide again, and a
  * copy that re-enrolled last spring's roster would put a project on the dashboard
  * of somebody who graduated.
  *

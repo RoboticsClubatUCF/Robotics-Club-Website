@@ -181,9 +181,9 @@ Project authority is `ProjectMember.rank`, per project:
 
 | Rank | May |
 | --- | --- |
-| `PROJECT_LEAD` | Everything in that project: teams, ranks, events, tasks, the project |
-| `TEAM_LEAD` | Their own team's roster, events and tasks |
-| `MEMBER` | Read the project; move tasks assigned to them |
+| `PROJECT_LEAD` | Everything in that project: teams, ranks, events, the project |
+| `TEAM_LEAD` | Their own team's roster and events |
+| `MEMBER` | Read the project |
 
 - Officers and admins pass every project check.
 - At most one `PROJECT_LEAD` per project (zero is normal). The appointment route
@@ -200,8 +200,6 @@ Project authority is `ProjectMember.rank`, per project:
   can do so for ordinary members of their own team. Existing memberships stay
   listed after migration, while future joins start unlisted. Appointing a lead
   also grants public listing. Hiding a name does not remove membership or roles.
-- A task with no `projectId` is the club's own work: officers only, with at least
-  one assignee.
 
 `src/auth/authz.ts` makes every decision and `src/auth/authz.test.ts` is the
 matrix.
@@ -285,8 +283,7 @@ public block in `src/app.ts`, so no shared-cache headers reach them.
 | `POST /api/dues/sync` | `{ paymentIntentId }` → asks Stripe how it went |
 | `POST /api/dues/activate` | Claims the free window; promotes a `GUEST` like paying |
 | `GET /api/me/projects` | Memberships with rank, team and a `current` term flag |
-| `GET /api/me/events` | `?from= &to=`. Published events, this member's projects' unpublished ones, visible meetings, and task deadlines they opted into (`task:` ids) |
-| `GET /api/me/tasks` | `?scope=mine\|managed\|all &status=open\|all &limit=`. `open` means not `DONE` or `CANCELED` |
+| `GET /api/me/events` | `?from= &to=`. Published events, this member's projects' unpublished ones, and visible meetings |
 | `GET /api/me/print-requests` | Newest first, drafts left out; `fileId` null once settled |
 | `GET /api/me/print-allowance` | Grams left this term, computed |
 | `GET /api/me/loans` | Borrowed and requested items |
@@ -302,7 +299,7 @@ public block in `src/app.ts`, so no shared-cache headers reach them.
 | `GET /api/equipment` | Current dues. The catalogue with live `available` counts and `maxLoanDays` |
 | `POST /api/equipment/:id/loans` · `POST /api/equipment/loans/:id/cancel` | One open loan per person per item. `requestedDueAt` required; a future `startAt` makes a booking; capped at `maxLoanDays` |
 
-### Projects, events and tasks
+### Projects and events
 
 | Route | Notes |
 | --- | --- |
@@ -324,10 +321,6 @@ public block in `src/app.ts`, so no shared-cache headers reach them.
 | `PATCH` / `DELETE /api/projects/:id/members/:userId` | Project lead (officers too). Rank up to `TEAM_LEAD`; `title` is free text under the same rules as the profile's, with a lead title needing a lead rank on this project. A lead may change their own row's title, nothing else on it |
 | `POST` / `DELETE /api/teams/:id/members/:userId` | Team lead, own team, plain members only |
 | `POST /api/events` · `PATCH`/`DELETE /api/events/:id` | The team's lead, the project's lead, or an officer for club-wide events (no `projectId`). Private by default; `published` opts into the main calendar. Publishing or withdrawing requires current officer/project/team authority, even for the original creator. Can't move between projects |
-| `GET`/`POST /api/projects/:id/tasks` · `PATCH`/`DELETE /api/tasks/:id` | Leads, scoped to their team. `POST` refuses a project not running this term (409, checked before permissions). Edits and deletes aren't restricted |
-| `POST /api/tasks` | Officers only. A task with no project; at least one assignee, also enforced on edit |
-| `POST /api/tasks/:id/status` | Assignees and leads. Any of `OPEN`, `IN_PROGRESS`, `DELAYED`, `DONE`, `CANCELED`. Only `DONE` sets `completedBy`/`completedAt` |
-| `POST /api/tasks/:id/calendar` | `{ onCalendar }`. Assignees only, per person. 403 for others |
 
 ### Officer desks
 
@@ -336,7 +329,7 @@ All officer-only (`requireOfficer`, which includes the dues check).
 | Route | Notes |
 | --- | --- |
 | `POST /api/officer/projects` | Create. `summary` and the meeting schedule are required. `discordRoleId` goes through `assertUsableRole`, which refuses the club's own roles and ids that aren't roles in the guild (skipped if Discord is down) |
-| `POST /api/officer/projects/:id/duplicate` | Copies writing, schedule, links, gallery bytes and Discord role to a new term; not people, teams, tasks or events. Resets status and `featured` |
+| `POST /api/officer/projects/:id/duplicate` | Copies writing, schedule, links, gallery bytes and Discord role to a new term; not people, teams or events. Resets status and `featured` |
 | `PATCH /api/officer/projects/:id/members/:userId/rank` | `PROJECT_LEAD` or `MEMBER`. 409 naming the incumbent |
 | `GET /api/officer/members` | `?query=` (2+ characters), matching name, email or Discord handle; ten results |
 | `POST /api/officer/members/:id/membership` | Grant a term with no money: a zero-amount `DuesPayment` recording who granted it |
@@ -442,21 +435,8 @@ project-less requests for the term.
 
 ### Tasks
 
-`src/routes/projects/tasks.ts` decides permissions; `src/discord/taskReminder.ts`
-is the reminder.
-
-- Five statuses, sorted by declaration order: `OPEN`, `IN_PROGRESS`, `DELAYED`,
-  `DONE`, `CANCELED`.
-- A new task may only go on a project running this term (`requireCurrentProject`,
-  exact match with `currentTerm()`). Editing, ticking and deleting aren't
-  affected, nor are project-less tasks. Officers are refused too.
-- `task_assignees.on_calendar` is per person. Opted-in deadlines appear only on
-  that member's `/api/me/events` as `task:` entries.
-- The reminder DMs assignees of an unsettled task once `dueAt` is more than
-  `TASK_OVERDUE_GRACE_MINUTES` (default 30) past. `TASK_OVERDUE_LOOKBACK_DAYS`
-  stops the first run after a deploy chasing old tasks. `tasks.reminded_for`
-  holds the deadline named. Recipients are resolved before claiming, so a Discord
-  outage just retries. One message per person, not per task.
+Project tasks are tracked on the club's OpenProject (openproject.rccf.club), not
+here.
 
 ### Officers and seats
 
@@ -606,7 +586,7 @@ src/
 ├── auth/             session.ts, password.ts, authz.ts
 ├── discord/          discord.ts (REST), discordGateway.ts, discordRoles.ts,
 │                     discordOfficers.ts, discordAlumni.ts, discordRecipient.ts,
-│                     officerNotify.ts, taskReminder.ts
+│                     officerNotify.ts
 ├── email/            mail.ts (Postmark), emails.ts (HTML)
 ├── lab/              labStatus.ts (sign, curfew, sweep), labInteraction.ts
 ├── membership/       semester.ts, membershipSweep.ts
@@ -627,7 +607,7 @@ src/
 | `routes/public/` | anyone | `content.ts`, `forms.ts`, `files.ts`, `lab.ts` |
 | `routes/account/` | someone managing their own account | `auth.ts`, `signup.ts`, `account.ts` |
 | `routes/member/` | signed-in members, behind the dues gate (`survey.ts` excepted) | `me.ts`, `dues.ts`, `survey.ts`, `print.ts`, `printDrafts.ts`, `equipment.ts` |
-| `routes/projects/` | project members and leads | `projectManage.ts`, `tasks.ts`, `eventManage.ts` |
+| `routes/projects/` | project members and leads | `projectManage.ts`, `eventManage.ts` |
 | `routes/officer/` | officers | `officer.ts`, `surveyAdmin.ts`, `heroSlides.ts`, `frontPage.ts`, `sponsorsAdmin.ts`, `aboutPage.ts`, `officerArchive.ts` |
 | `routes/webhooks/` | Stripe and Discord by signature, OpenProject by shared secret | `stripeWebhook.ts`, `discordInteractions.ts`, `openproject.ts` |
 

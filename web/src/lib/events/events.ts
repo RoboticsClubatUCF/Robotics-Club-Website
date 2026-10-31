@@ -131,16 +131,3 @@ export function listedWhen(event: ApiEvent): string {
  */
 export const isGeneratedMeeting = (event: ApiEvent | ApiMeEvent) =>
   event.id.startsWith('meeting:')
-
-/**
- * Whether this row is a task deadline rather than an event at all.
- *
- * The calendar's second generated entry, same reasoning as the meeting above: there is no `Event`
- * row behind one, so nothing may offer to edit or delete it — the task is edited on the tasks page.
- * `task:` is the server's marker, written in `routes/member/me.ts` beside the `meeting:` one.
- *
- * These reach exactly one calendar: the assignee's own, and only once they have asked for it.
- * Nothing on the public site can be one.
- */
-export const isTaskEntry = (event: ApiEvent | ApiMeEvent) =>
-  event.id.startsWith('task:')

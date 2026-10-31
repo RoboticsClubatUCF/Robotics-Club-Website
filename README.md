@@ -1,7 +1,7 @@
 # Robotics Club of Central Florida website
 
 The club's public site and its members' dashboard: signup, dues by card, 3D
-print requests, equipment borrowing, project pages and tasks, and the officer
+print requests, equipment borrowing, project pages, and the officer
 desks that run it.
 
 ```
@@ -51,7 +51,7 @@ to see the dashboard.
   start as `GUEST`.
 - Signing in: `/login`, with a server-side session in an httpOnly cookie, and
   password reset at `/reset-password`.
-- The dashboard: dues, 3D printing, equipment borrowing, tasks, project pages,
+- The dashboard: dues, 3D printing, equipment borrowing, project pages,
   and officer desks for roles, the officer archive, semester dates, the member
   survey, the front page, sponsors, projects, events and the print and equipment
   queues. `/about` and each project page are edited in place.

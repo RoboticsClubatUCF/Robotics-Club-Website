@@ -110,9 +110,6 @@ const ProjectDashboardPage = lazy(async () => ({
 const ProjectManagePage = lazy(async () => ({
   default: (await import('./pages/dashboard/ProjectManagePage')).ProjectManagePage,
 }))
-const TasksPage = lazy(async () => ({
-  default: (await import('./pages/dashboard/TasksPage')).TasksPage,
-}))
 
 /**
  * The router.
@@ -164,10 +161,6 @@ function App() {
                   nothing can lock. */}
               <Route path="survey" element={<MemberSurveyPage />} />
               <Route path="dues" element={<DuesPage />} />
-              {/* Under `/dashboard` rather than `/dashboard/officer`, the same call the
-                  events desk makes: leads and officers write tasks here, but so does
-                  every member reading their own. */}
-              <Route path="tasks" element={<TasksPage />} />
               <Route path="print" element={<PrintRequestPage />} />
               {/* A new plate, and one being worked on. The layout drops its rail for both. */}
               <Route path="print/slicer" element={<PrintSlicerPage />} />
@@ -185,7 +178,6 @@ function App() {
               <Route path="projects/:slug" element={<ProjectDashboardPage />} />
               <Route path="projects/:slug/manage" element={<ProjectManagePage part="members" />} />
               <Route path="projects/:slug/manage/teams" element={<ProjectManagePage part="teams" />} />
-              <Route path="projects/:slug/manage/tasks" element={<ProjectManagePage part="tasks" />} />
               <Route path="projects/:slug/manage/events" element={<ProjectManagePage part="events" />} />
               <Route path="projects/:slug/manage/meetings" element={<ProjectManagePage part="meetings" />} />
               <Route path="projects/:slug/manage/calendars" element={<ProjectManagePage part="calendars" />} />

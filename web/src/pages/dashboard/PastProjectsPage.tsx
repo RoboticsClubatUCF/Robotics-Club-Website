@@ -132,7 +132,7 @@ function Terms({ mine }: { mine: ApiMyProject[] }) {
                 return (
                   <li key={project.id}>
                     {/* Still a link. Nothing about a past project is closed —
-                        the roster, the tasks and the write-up are all still
+                        the roster and the write-up are all still
                         there, and a lead of one still leads it. */}
                     <Link
                       to={`/dashboard/projects/${project.slug}`}

@@ -8,8 +8,8 @@ import type { ProjectMemberRank } from '../api/api'
  * The first entry is the section's own address. It has to stay first: the rail's parent row
  * links there, and `/dashboard/profile` is also where the email-change link lands.
  *
- * A label never repeats one already in the rail. TASKS and EVENTS under a project say PROJECT,
- * because the rail has its own TASKS and EVENTS rows going somewhere else.
+ * A label never repeats one already in the rail. EVENTS under a project says PROJECT, because
+ * the rail has its own EVENTS row going somewhere else.
  */
 export interface SubPage {
   label: string
@@ -63,7 +63,6 @@ export const PRINT_QUEUE_PAGES: readonly SubPage[] = [
 export type ManagePart =
   | 'members'
   | 'teams'
-  | 'tasks'
   | 'events'
   | 'meetings'
   | 'calendars'
@@ -72,7 +71,7 @@ export type ManagePart =
 /**
  * A project's pages: its own page, then the manage sub-pages this rank can use.
  *
- * A team lead gets their team, tasks and events, the same three panels the manage page has
+ * A team lead gets their team and events, the same panels the manage page has
  * always drawn for them. Their roster lives at the `members` address under the label TEAM,
  * so the rank decides the label and not the route. Somebody with no lead rank has no
  * manage pages, so the rail draws the project as a plain row.
@@ -90,7 +89,6 @@ export function projectPages(
     return [
       { label: 'PROJECT PAGE', to: page },
       { label: 'MY TEAM', to: manage },
-      { label: 'PROJECT TASKS', to: `${manage}/tasks` },
       { label: 'PROJECT EVENTS', to: `${manage}/events` },
     ]
   }
@@ -99,7 +97,6 @@ export function projectPages(
     { label: 'PROJECT PAGE', to: page },
     { label: 'MEMBERS', to: manage },
     { label: 'TEAMS', to: `${manage}/teams` },
-    { label: 'PROJECT TASKS', to: `${manage}/tasks` },
     { label: 'PROJECT EVENTS', to: `${manage}/events` },
     { label: 'MEETINGS', to: `${manage}/meetings` },
     { label: 'CALENDARS', to: `${manage}/calendars` },

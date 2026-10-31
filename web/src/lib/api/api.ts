@@ -1163,49 +1163,6 @@ export type ApiOfficerLoan = ApiLoan & {
 }
 
 /**
- * Mirrors `TaskStatus` in `schema.prisma`, and the order here is the order rows
- * come back in — Postgres sorts an enum by declaration order and the server orders
- * on it. Not alphabetised, and must not be.
- */
-export type TaskStatus = 'OPEN' | 'IN_PROGRESS' | 'DELAYED' | 'DONE' | 'CANCELED'
-
-/** The two labels that mean a task is settled: off the calendar, off the
-    overview card, and never chased by the bot. */
-export const SETTLED_TASK: readonly TaskStatus[] = ['DONE', 'CANCELED']
-
-/**
- * A task, mirroring `taskSelect` + `wire()` in
- * `server/src/routes/projects/tasks.ts`.
- *
- * One type for both readers — the project board and `GET /api/me/tasks` — because
- * the server sends one shape. `project` is null for a task that belongs to a
- * person rather than a build; only officers can write one of those.
- */
-export type ApiTask = {
-  id: string
-  projectId: string | null
-  teamId: string | null
-  title: string
-  details: string | null
-  dueAt: string | null
-  status: TaskStatus
-  completedAt: string | null
-  completedByName: string | null
-  createdById: string | null
-  createdAt: string
-  project: { slug: string; title: string } | null
-  team: { name: string } | null
-  /** `onCalendar` is that person's own opt-in, not a property of the task. */
-  assignees: { userId: string; fullName: string; onCalendar: boolean }[]
-}
-
-/**
- * `GET /api/me/tasks` answers the same shape the board does. Kept as a name
- * because the overview card and the tasks page both read it.
- */
-export type ApiMyTask = ApiTask
-
-/**
  * An event as `GET /api/me/events` returns it: the public shape plus which project
  * and team it belongs to and whether the public site shows it. `published: false`
  * here is normal, not a draft — it's what every lead-created event looks like.
@@ -1310,13 +1267,7 @@ export type ApiEvent = {
   slug: string
   title: string
   description: string | null
-  /**
-   * `'TASK'` is not a value of the `EventType` enum in Postgres and must not become
-   * one. It's only ever set on a task deadline projected onto a member's own
-   * calendar by `/api/me/events`; the public route validates `?type=` against the
-   * real enum, so asking for it there is a 400 rather than an empty list.
-   */
-  type: EventType | 'TASK'
+  type: EventType
   location: string | null
   /** ISO. Parse with `new Date(...)` and read it in the visitor's local zone. */
   startsAt: string
@@ -1334,11 +1285,6 @@ export type ApiEvent = {
    * marked, with the lead's reason if they gave one.
    */
   cancelled?: { reason: string | null } | null
-  /**
-   * Set only on a task deadline, the calendar's other generated entry — its `id` is
-   * `task:…`, there's no row behind it, and it reaches only the assignee who asked.
-   */
-  task?: { id: string; status: TaskStatus } | null
 }
 
 /**

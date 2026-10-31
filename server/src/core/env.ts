@@ -297,26 +297,6 @@ const envSchema = z.object({
   RETURN_REMINDER_LEAD_HOURS: z.coerce.number().int().min(1).max(168).default(36),
 
   /**
-   * How long after a task's deadline the bot asks about it, in minutes.
-   *
-   * A grace period rather than a lead time — the opposite direction from the loan
-   * reminder. A task marked done five minutes late should never have been chased.
-   *
-   * The tick is ten minutes, so what lands is 30 to 40 minutes after the deadline.
-   * That slack isn't worth engineering away.
-   */
-  TASK_OVERDUE_GRACE_MINUTES: z.coerce.number().int().min(1).max(1440).default(30),
-
-  /**
-   * How far back the overdue-task sweep will look, in days.
-   *
-   * A floor, for the day the feature is deployed: without one, the first sweep walks
-   * every task the club has ever left open and DMs people about last semester. Three
-   * days is "you have just missed this"; anything older wants a lead having a word.
-   */
-  TASK_OVERDUE_LOOKBACK_DAYS: z.coerce.number().int().min(1).max(90).default(3),
-
-  /**
    * UCF's academic calendar feed. Terms are read from `<base>/<year>/<season>` — see
    * `src/membership/semester.ts`, which falls back to fixed dates when this can't be
    * reached, because the club's dues year can't depend on somebody else's uptime.

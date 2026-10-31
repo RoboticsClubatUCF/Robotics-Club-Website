@@ -136,7 +136,6 @@ describe('ProjectDashboardPage', () => {
       if (url.includes('/members/me')) return json({ left: true })
       if (url.includes('/team'))
         return json({ project: membership().project, teams: [], members: [] })
-      if (url.includes('/tasks')) return json([])
       if (url.includes('/projects/project-storm')) return json({})
 
       return Promise.reject(new Error(`no stub for ${url}`))
@@ -175,7 +174,6 @@ describe('ProjectDashboardPage', () => {
       if (url.includes('/members/me')) return json({ left: true })
       if (url.includes('/team'))
         return json({ project: membership().project, teams: [], members: [] })
-      if (url.includes('/tasks')) return json([])
 
       return Promise.reject(new Error('offline'))
     })

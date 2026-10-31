@@ -186,7 +186,7 @@ async function clearSeedData(tx: typeof prisma): Promise<Record<string, number>>
   counts.officerTerms = (await tx.officerTerm.deleteMany({})).count
   counts.posts = (await tx.post.deleteMany({})).count
   counts.sponsors = (await tx.sponsor.deleteMany({})).count
-  // Cascades images, links, teams, tasks, task assignees, project members and
+  // Cascades images, links, teams, project members and
   // any project-scoped event.
   counts.projects = (await tx.project.deleteMany({})).count
   // The test rows only. The twelve seeded club events are dated onto the
