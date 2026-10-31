@@ -18,7 +18,7 @@ import { urlOf } from '../../test/stubFetch'
 /**
  * The manage page, narrowed to the one section on it that reaches outside this website.
  *
- * Everything else here — members, teams, events, tasks — changes rows the site owns, and a mistake
+ * Everything else here — members, teams, events — changes rows the site owns, and a mistake
  * shows up on a page somebody can go and fix. The Discord role hands out and takes away access to
  * a channel for everybody on the project at once, from a text box with a number in it. So what's
  * worth asserting is narrow: that the box shows what's actually stored, that saving sends the
@@ -484,51 +484,6 @@ describe('the project Discord role', () => {
   })
 })
 
-describe('a finished build takes no new tasks', () => {
-  /** The same desk, for a project stamped to a term that has been and gone. */
-  const stubOldDesk = () =>
-    vi.fn((input: string | URL | Request) => {
-      const url = urlOf(input)
-
-      if (url.includes('/team')) {
-        return json({
-          project: { ...project, termYear: 2020, termSeason: 'SPRING' },
-          teams: [],
-          members: [],
-        })
-      }
-
-      return json([])
-    })
-
-  it('replaces the form with a sentence, and keeps the board', async () => {
-    renderPage(stubOldDesk() as unknown as ReturnType<typeof stubDesk>, 'tasks')
-
-    // The server answers 409 for a new task here, so the page says so instead
-    // of drawing a form whose button could only be refused.
-    expect(
-      await screen.findByText(/not running this semester, so it takes no new tasks/i),
-    ).toBeInTheDocument()
-    expect(screen.queryByLabelText('Task title')).not.toBeInTheDocument()
-
-    // TASKS is still a panel — what is on the board stays readable and
-    // tickable, which is how a semester actually ends.
-    expect(screen.getByText('TASKS', { selector: 'p' })).toBeInTheDocument()
-  })
-
-  it('draws the form for this semester’s build', async () => {
-    renderPage(stubDesk(), 'tasks')
-
-    // The fixture project and the fixture term are both FALL 2035, so this is
-    // the ordinary case and the form is there.
-    expect(await screen.findByLabelText('Task title')).toBeInTheDocument()
-    expect(
-      screen.queryByText(/not running this semester/i),
-    ).not.toBeInTheDocument()
-  })
-})
-
-
 /**
  * The desk with two teams on it.
  *
@@ -690,7 +645,7 @@ describe('a project lead editing teams', () => {
  * The one control on this page that destroys something no copy exists of.
  *
  * It was the word DANGER in grey over a text-link button that turned red only on hover — the same
- * weight the page gives REMOVE on a single task. It's drawn as the destructive panel it is now.
+ * weight the page gives REMOVE on a single member. It's drawn as the destructive panel it is now.
  */
 describe('deleting a project', () => {
   const openPage = async () => {

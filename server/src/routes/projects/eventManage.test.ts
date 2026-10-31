@@ -29,7 +29,7 @@ const clearRows = async () => {
   // Before the users, and not redundant with the line above. A club event has no project, so no
   // project cascade reaches it, and `Event.createdById` is `SetNull` by design, so deleting the
   // officer who made it leaves the row behind detached rather than removing it. Caught by neither
-  // cascade, exactly like the project-less task in `tasks.test.ts` — and this one did leak: one
+  // cascade — and this one did leak: one
   // "Open house" per run had been accumulating in the club's development database, invisible
   // because an event count taken after a run reads as the new baseline.
   //

@@ -237,7 +237,7 @@ const sandbox = {
   slug: 'seed-sandbox',
   title: 'Seed Sandbox',
   summary:
-    'Development scaffolding, not a real project. Seeded so the dashboard has teams, tasks and a meeting to render. Safe to delete.',
+    'Development scaffolding, not a real project. Seeded so the dashboard has teams and a meeting to render. Safe to delete.',
   status: 'CONCEPT' as const,
   featured: false,
   // Two nights a week, so both calendars have recurring chips to draw without anybody
@@ -265,26 +265,6 @@ const sandbox = {
     { slug: 'priya-raman', rank: 'TEAM_LEAD' as const, title: 'Software Lead', team: 'Autonomy' },
     { slug: 'jordan-lee', rank: 'MEMBER' as const, title: null, team: 'Autonomy' },
     { slug: 'sam-okafor', rank: 'MEMBER' as const, title: null, team: 'Chassis' },
-  ],
-  /**
-   * Fixed literal ids because a task has no natural key: upserting on the id is what makes
-   * a second `npm run seed` move these rather than mint two more.
-   */
-  tasks: [
-    {
-      id: '01936000-0000-7000-8000-000000000a01',
-      team: 'Autonomy',
-      title: 'Calibrate the depth camera',
-      details: 'The mounts moved when the arm was refitted. Redo the intrinsics.',
-      assignees: ['jordan-lee'],
-    },
-    {
-      id: '01936000-0000-7000-8000-000000000a02',
-      team: 'Chassis',
-      title: 'Order replacement drive belts',
-      details: null,
-      assignees: ['sam-okafor'],
-    },
   ],
 }
 
@@ -954,10 +934,10 @@ async function main() {
     }
   }
 
-  // The sandbox project, its teams, its ranked members, and its tasks. Upsert
+  // The sandbox project, its teams, and its ranked members. Upsert
   // throughout, so re-seeding adjusts rather than duplicates.
   {
-    const { teams, members, tasks: sandboxTasks, ...project } = sandbox
+    const { teams, members, ...project } = sandbox
 
     const created = await prisma.project.upsert({
       where: { slug: project.slug },
@@ -991,35 +971,6 @@ async function main() {
       })
     }
 
-    for (const { id, team, assignees, ...task } of sandboxTasks) {
-      const users = await prisma.user.findMany({
-        where: { slug: { in: assignees } },
-        select: { id: true },
-      })
-
-      const data = {
-        ...task,
-        projectId: created.id,
-        teamId: team ? (teamIds.get(team) ?? null) : null,
-      }
-      await prisma.task.upsert({
-        where: { id },
-        // Assignees are replaced rather than added to, so re-seeding after somebody was
-        // reassigned in Studio puts the fixture back as written.
-        update: {
-          ...data,
-          assignees: {
-            deleteMany: {},
-            create: users.map((user) => ({ userId: user.id })),
-          },
-        },
-        create: {
-          ...data,
-          id,
-          assignees: { create: users.map((user) => ({ userId: user.id })) },
-        },
-      })
-    }
   }
 
   for (const item of equipment) {
@@ -1086,7 +1037,6 @@ async function main() {
     projects: await prisma.project.count(),
     events: await prisma.event.count(),
     teams: await prisma.team.count(),
-    tasks: await prisma.task.count(),
     equipment: await prisma.equipment.count(),
     sponsors: await prisma.sponsor.count(),
     sponsorTiers: await prisma.sponsorTierOffer.count(),

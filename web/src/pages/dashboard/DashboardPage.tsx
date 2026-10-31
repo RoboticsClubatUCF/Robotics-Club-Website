@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useState } from 'react'
+import { useId, useState } from 'react'
 import { Link, useOutletContext } from 'react-router'
 import { DashboardCalendar } from '../../components/dashboard/DashboardCalendar'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
@@ -9,12 +9,11 @@ import {
   FormHeading,
   FormPanel,
 } from '../../components/shared/formChrome'
-import { getJson, postJson } from '../../lib/api/api'
 import { LOCK_COPY, coverGap, surveyPrompt } from '../../lib/dues/dues'
-import type { ApiMyTask, ApiProject } from '../../lib/api/api'
+import type { ApiProject } from '../../lib/api/api'
 import { duesLocked } from '../../lib/dues/dues'
 import { meetingLine, meetingNote } from '../../lib/events/meetings'
-import { whereLabel } from '../../lib/tasks'
+import { OPENPROJECT_URL } from '../../content/home'
 import { useApi } from '../../lib/api/useApi'
 
 /**
@@ -73,7 +72,7 @@ export function DashboardPage() {
           {/* Near the top, because it's the only panel here that's different this evening
               from this morning, and for an officer it's a press rather than a link. */}
           <LabPanel user={user} membership={membership} />
-          <MyTasks />
+          <ProjectTasks />
         </div>
 
         <div className="grid gap-5">
@@ -251,106 +250,22 @@ function MyProjects({ projects }: { projects: DashboardContext['projects'] }) {
   )
 }
 
-/**
- * My open assignments, tickable in place. Hand-rolled fetch rather than `useApi` because
- * ticking has to refresh the list — the same reason the dues page rolls its own.
- */
-function MyTasks() {
-  const [tasks, setTasks] = useState<ApiMyTask[] | null | 'loading'>('loading')
-  const [busy, setBusy] = useState(false)
-
-  const load = useCallback(async () => {
-    try {
-      setTasks(await getJson<ApiMyTask[]>('/me/tasks'))
-    } catch (error) {
-      console.error(error)
-      setTasks(null)
-    }
-  }, [])
-
-  useEffect(() => {
-    void load()
-  }, [load])
-
-  const tick = (task: ApiMyTask) => {
-    setBusy(true)
-    postJson(`/tasks/${task.id}/status`, { status: 'DONE' })
-      .then(load)
-      .catch((error: unknown) => {
-        console.error(error)
-      })
-      .finally(() => {
-        setBusy(false)
-      })
-  }
-
+/** Tasks live on the club's OpenProject, not on this site. */
+function ProjectTasks() {
   return (
     <FormPanel>
-      <div className="mb-4 flex items-baseline justify-between gap-3">
-        <p className="text-faint font-mono text-[10px] font-medium tracking-[0.16em]">
-          MY TASKS
-        </p>
-        {/* The card is the five nearest deadlines; the page is the rest of it, plus the
-            labels, the search and — for a lead — the form. */}
-        <Link
-          to="/dashboard/tasks"
-          className="text-faint hover:text-primary font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200"
-        >
-          ALL TASKS
-        </Link>
-      </div>
-
-      {tasks === 'loading' && (
-        <div aria-busy="true" className="space-y-2.5">
-          <div className="bg-base-300 h-4 w-2/3 animate-pulse rounded-[2px]" />
-          <div className="bg-base-300 h-3 w-1/2 animate-pulse rounded-[2px]" />
-        </div>
-      )}
-
-      {tasks === null && (
-        <p className="text-dim text-sm leading-[1.7]">
-          We couldn't load your tasks just now.
-        </p>
-      )}
-
-      {Array.isArray(tasks) &&
-        (tasks.length === 0 ? (
-          <p className="text-dim text-sm leading-[1.7] text-pretty">
-            Nothing on your list.
-          </p>
-        ) : (
-          <ul className="space-y-3">
-            {tasks.map((task) => (
-              <li key={task.id} className="flex items-start gap-3">
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => {
-                    tick(task)
-                  }}
-                  aria-label={`Mark "${task.title}" done`}
-                  className="border-rule hover:border-primary hover:text-primary mt-0.5 flex size-4 shrink-0 cursor-pointer items-center justify-center border text-[10px] leading-none text-transparent transition-colors duration-200 disabled:opacity-50"
-                >
-                  ✓
-                </button>
-                <div className="min-w-0">
-                  <p className="text-sm leading-snug font-medium">{task.title}</p>
-                  <p className="text-faint mt-0.5 font-mono text-[10px] font-medium tracking-[0.12em] uppercase">
-                    {[
-                      whereLabel(task),
-                      task.team?.name,
-                      task.dueAt
-                        ? `Due ${new Date(task.dueAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
-                        : null,
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ul>
-        ))}
+      <p className="text-faint mb-3 font-mono text-[10px] font-medium tracking-[0.16em]">
+        TASKS
+      </p>
+      <p className="text-dim text-sm leading-[1.7] text-pretty">
+        Project tasks are tracked on OpenProject.
+      </p>
+      <a
+        href={OPENPROJECT_URL}
+        className="btn btn-outline mt-4 h-auto px-5 py-2.5 text-[12px] font-semibold"
+      >
+        OPEN OPENPROJECT →
+      </a>
     </FormPanel>
   )
 }

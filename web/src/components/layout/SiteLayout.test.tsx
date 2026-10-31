@@ -17,7 +17,7 @@ function renderLayout(path = '/members') {
             element={
               <>
                 <aside>
-                  <a href="/dashboard/tasks">TASKS</a>
+                  <a href="/dashboard/dues">DUES</a>
                 </aside>
                 <div data-skip-target tabIndex={-1} data-testid="content">
                   <button type="button">first control</button>

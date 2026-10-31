@@ -61,7 +61,6 @@ describe('OPEN PROJECTS', () => {
       'fetch',
       stubFetch({
         'status=IN_PROGRESS': [1, 2, 3, 4, 5, 6, 7].map(project),
-        '/me/tasks': [],
         '/me/events': [],
       }),
     )
@@ -88,7 +87,6 @@ describe('OPEN PROJECTS', () => {
       'fetch',
       stubFetch({
         'status=IN_PROGRESS': [1, 2, 3].map(project),
-        '/me/tasks': [],
         '/me/events': [],
       }),
     )

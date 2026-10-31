@@ -41,7 +41,7 @@ const email = (name: string) => `${PREFIX}${name}@ucf.edu`
  * Every fixture term carries the prefix in its `fullName`, and the cleanup deletes on that column.
  * A term with no `userId` is reachable by no cascade — that's the whole point of the route — so
  * deleting the suite's people would leave its archive rows in the club's database, which is
- * exactly how `tasks.test.ts` leaked seventeen rows. Namespace by whatever column the row can
+ * exactly how the old task suite leaked seventeen rows. Namespace by whatever column the row can
  * actually be found by.
  */
 const held = (name: string) => `${PREFIX}${name}`

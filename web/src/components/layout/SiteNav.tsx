@@ -244,7 +244,8 @@ function MenuList({
  * Anything carrying a hash stays a plain `<a>`. Those go to a section of the front page,
  * and the browser's own handling is the thing that works: from the front page it's an
  * in-page scroll, from anywhere else a load that lands on the right section. React Router
- * would take over the navigation and then not scroll anywhere.
+ * would take over the navigation and then not scroll anywhere. An absolute URL leaves the
+ * site, so it's a plain `<a>` too.
  */
 function NavAnchor({
   link,
@@ -255,7 +256,7 @@ function NavAnchor({
   className: string
   onNavigate?: () => void
 }) {
-  if (link.href.includes('#')) {
+  if (link.href.includes('#') || /^https?:/.test(link.href)) {
     return (
       <a href={link.href} onClick={onNavigate} className={className}>
         {link.label}

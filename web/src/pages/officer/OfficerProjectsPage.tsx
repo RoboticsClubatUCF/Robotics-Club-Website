@@ -641,7 +641,7 @@ function SetUpProject({
  * next row gets made without retyping a write-up somebody spent an afternoon on.
  *
  * The writing comes across; the people don't. Everything descriptive is copied, gallery and
- * resource links included. Members, teams, tasks and events aren't: a new term is when people
+ * resource links included. Members, teams and events aren't: a new term is when people
  * decide again, and a copy that re-enrolled last spring's roster would put a project back on
  * the dashboard of somebody who has graduated.
  *

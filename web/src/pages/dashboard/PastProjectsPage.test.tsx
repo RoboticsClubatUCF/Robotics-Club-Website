@@ -170,8 +170,8 @@ describe('PastProjectsPage', () => {
   })
 
   /**
-   * Still a link. Nothing about a past project is closed — the roster, the
-   * tasks and the write-up are all still there, and its lead still leads it.
+   * Still a link. Nothing about a past project is closed — the roster
+   * and the write-up are all still there, and its lead still leads it.
    */
   it('links each row to the project, and prints the standing', () => {
     renderPage({

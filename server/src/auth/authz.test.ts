@@ -798,7 +798,6 @@ describe('when dues lapse', () => {
       '/api/dues/status',
       '/api/me/projects',
       '/api/me/events',
-      '/api/me/tasks',
     ]) {
       expect((await request('GET', path, 'memberA')).status).toBe(200)
     }

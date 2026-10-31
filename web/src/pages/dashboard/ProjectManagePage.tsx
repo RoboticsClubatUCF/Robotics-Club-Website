@@ -29,7 +29,6 @@ import type {
   ApiProjectDetail,
   ApiProjectTeamMember,
   ApiProjectTeamView,
-  ApiTask,
   ApiTeam,
   EventType,
   ProjectMemberRank,
@@ -53,7 +52,6 @@ import {
 import { draftBody, draftOf, draftProblem } from '../../lib/events/meetingDraft'
 import { campusDateOf } from '../../lib/events/calendarLinks'
 import { MeetingScheduleFields } from '../../components/projects/MeetingScheduleFields'
-import { TASK_LABEL, isSettled } from '../../lib/tasks'
 import type { ApiState } from '../../lib/api/useApi'
 import { useApi } from '../../lib/api/useApi'
 import { isOfficer } from '../../lib/auth/session'
@@ -97,7 +95,6 @@ function explain(error: unknown): string {
 const PART_LABEL: Record<ManagePart, string> = {
   members: 'MEMBERS',
   teams: 'TEAMS',
-  tasks: 'PROJECT TASKS',
   events: 'PROJECT EVENTS',
   meetings: 'MEETINGS',
   calendars: 'CALENDARS',
@@ -231,7 +228,7 @@ function Manage({
       lists them at every width. */
   inRail: boolean
 }) {
-  const { reloadProjects, membership } = useOutletContext<DashboardContext>()
+  const { reloadProjects } = useOutletContext<DashboardContext>()
   const [view, setView] = useState<ApiState<ApiProjectTeamView>>({
     status: 'loading',
   })
@@ -273,31 +270,14 @@ function Manage({
 
   const { project, teams, members } = view.data
 
-  /**
-   * Whether a new task may go on this project.
-   *
-   * The server refuses one on anything but this semester's build, so the form says so instead of
-   * offering a button that 409s. The term comes off the membership context — the layout has
-   * already read it for the rail — rather than `/me/projects`, because an officer managing a
-   * project they're not on has no membership row to read `current` from.
-   *
-   * Defaults to allowed while the standing is still in flight, the same rule the dues padlocks
-   * follow.
-   */
-  const term = membership.status === 'ready' ? membership.data.term : null
-  const canCreateTasks =
-    term === null ||
-    (project.termYear === term.year && project.termSeason === term.season)
-
   const pages = projectPages(project.slug, rank)
   const label =
     rank === 'TEAM_LEAD' && part === 'members' ? 'MY TEAM' : PART_LABEL[part]
-  // A team lead has three of these. The rest are the project lead's, and a typed address
+  // A team lead has two of these. The rest are the project lead's, and a typed address
   // gets a sentence rather than panels the server would refuse.
   const leadOnly =
     rank === 'TEAM_LEAD' &&
     part !== 'members' &&
-    part !== 'tasks' &&
     part !== 'events'
 
   return (
@@ -322,7 +302,7 @@ function Manage({
         </div>
       )}
 
-      {/* Every sub-page this rank has stays mounted, so a half-written task or an unsaved
+      {/* Every sub-page this rank has stays mounted, so a half-written event or an unsaved
           schedule survives a look at a sibling. */}
       <SubPage shown={part === 'members'}>
         <div className="max-w-[56rem]">
@@ -338,11 +318,6 @@ function Manage({
               reload={load}
             />
           )}
-        </div>
-      </SubPage>
-      <SubPage shown={part === 'tasks'}>
-        <div className="max-w-[56rem]">
-          <TasksSection projectId={projectId} teams={teams} members={members} rank={rank} myTeamId={myTeamId} canCreate={canCreateTasks} />
         </div>
       </SubPage>
       <SubPage shown={part === 'events'}>
@@ -1223,311 +1198,6 @@ function EventsSection({
   )
 }
 
-// ------------------------------------------------------------------- tasks
-
-/**
- * The project's checklist, and the form that grows it. Same scoping story as events: a team
- * lead's tasks land on their own team. Assignment is checkboxes over the roster — a task
- * routinely belongs to two people, and the server holds everyone assigned to actually being on
- * the project.
- */
-function TasksSection({
-  projectId,
-  teams,
-  members,
-  rank,
-  myTeamId,
-  canCreate,
-}: {
-  projectId: string
-  teams: ApiProjectTeamView['teams']
-  members: ApiProjectTeamMember[]
-  rank: 'PROJECT_LEAD' | 'TEAM_LEAD'
-  myTeamId: string | null
-  /** False on a build that is not this semester's — the server refuses a new
-      task there, so the form says so rather than offering a 409. Editing and
-      ticking what is already on the board are unaffected. */
-  canCreate: boolean
-}) {
-  const { message, busy, run } = useSectionStatus()
-  const [tasks, setTasks] = useState<ApiTask[] | null>(null)
-  const [editing, setEditing] = useState<ApiTask | null>(null)
-  const formId = useId()
-
-  const load = useCallback(async () => {
-    setTasks(await getJson<ApiTask[]>(`/projects/${projectId}/tasks`))
-  }, [projectId])
-
-  useEffect(() => {
-    load().catch((error: unknown) => {
-      console.error(error)
-      setTasks(null)
-    })
-  }, [load])
-
-  const canTouch = (task: ApiTask) =>
-    rank === 'PROJECT_LEAD' || (task.teamId !== null && task.teamId === myTeamId)
-
-  const submit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const form = event.currentTarget
-    const data = new FormData(form)
-
-    const title = data.get('title')
-    if (typeof title !== 'string' || !title.trim()) return
-
-    const details = data.get('details')
-    const due = data.get('due')
-    const teamValue = data.get('team')
-
-    const body = {
-      title: title.trim(),
-      details:
-        typeof details === 'string' && details.trim() ? details.trim() : null,
-      dueAt:
-        typeof due === 'string' && due
-          ? new Date(`${due}T23:59`).toISOString()
-          : null,
-      assigneeIds: data.getAll('assignee').filter(
-        (value): value is string => typeof value === 'string',
-      ),
-    }
-
-    void run(async () => {
-      if (editing) {
-        await patchJson(`/tasks/${editing.id}`, body)
-        setEditing(null)
-      } else {
-        await postJson(`/projects/${projectId}/tasks`, {
-          ...body,
-          teamId:
-            rank === 'TEAM_LEAD'
-              ? myTeamId
-              : typeof teamValue === 'string' && teamValue
-                ? teamValue
-                : null,
-        })
-      }
-      form.reset()
-      await load()
-    })
-  }
-
-  const remove = (task: ApiTask) =>
-    run(async () => {
-      if (!window.confirm(`Delete "${task.title}"?`)) return
-      await deleteJson(`/tasks/${task.id}`)
-      if (editing?.id === task.id) setEditing(null)
-      await load()
-    })
-
-  const flip = (task: ApiTask) =>
-    run(async () => {
-      await postJson(`/tasks/${task.id}/status`, {
-        // Reads "is it settled" rather than "is it OPEN", so ticking something
-        // already IN_PROGRESS finishes it instead of demoting it back to
-        // untouched. The other three labels are set on `/dashboard/tasks`.
-        status: isSettled(task.status) ? 'OPEN' : 'DONE',
-      })
-      await load()
-    })
-
-  return (
-    <FormPanel>
-      <p className="text-faint mb-4 font-mono text-[10px] font-medium tracking-[0.16em]">
-        TASKS
-      </p>
-
-      {tasks === null ? (
-        <p className="text-dim mb-4 text-sm leading-[1.7]">
-          We couldn't load the tasks just now.
-        </p>
-      ) : tasks.length === 0 ? (
-        <p className="text-dim mb-4 text-sm leading-[1.7]">
-          Nothing on the board yet.
-        </p>
-      ) : (
-        <ul className="divide-rule mb-5 divide-y">
-          {tasks.map((task) => (
-            <li
-              key={task.id}
-              className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2.5"
-            >
-              <div className={`min-w-0 flex-1 basis-48 ${isSettled(task.status) ? 'opacity-50' : ''}`}>
-                <p className={`truncate text-sm font-medium ${isSettled(task.status) ? 'line-through' : ''}`}>
-                  {task.title}
-                </p>
-                <p className="text-faint font-mono text-[10px] font-medium tracking-[0.1em] uppercase">
-                  {[
-                    // OPEN is the default and says nothing; the other four are
-                    // why this is here.
-                    task.status === 'OPEN' ? null : TASK_LABEL[task.status].text,
-                    task.teamId
-                      ? (teams.find((t) => t.id === task.teamId)?.name ?? 'Team')
-                      : 'Whole project',
-                    task.assignees.map((a) => a.fullName).join(', ') || 'Unassigned',
-                    task.dueAt
-                      ? `Due ${new Date(task.dueAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
-                      : null,
-                    task.status === 'DONE' && task.completedByName
-                      ? `Done — ${task.completedByName}`
-                      : null,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </p>
-              </div>
-              {canTouch(task) && (
-                <>
-                  <button type="button" disabled={busy} className={smallButton} onClick={() => void flip(task)}>
-                    {isSettled(task.status) ? 'REOPEN' : 'MARK DONE'}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    className={smallButton}
-                    onClick={() => {
-                      setEditing(task)
-                    }}
-                  >
-                    EDIT
-                  </button>
-                  <button type="button" disabled={busy} className={dangerButton} onClick={() => void remove(task)}>
-                    DELETE
-                  </button>
-                </>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {/* Closing out last term's board is normal; adding to it is not. The
-          note replaces the form rather than disabling it, because a greyed-out
-          form invites somebody to work out what they did wrong. */}
-      {!canCreate && editing === null ? (
-        <p className="text-dim text-sm leading-[1.7] text-pretty">
-          This build is not running this semester, so it takes no new tasks.
-          What is already on the board is still yours to tick off, edit and
-          tidy up.
-        </p>
-      ) : (
-      <form key={editing?.id ?? 'new'} onSubmit={submit} className="space-y-3">
-        <p className={labelClass}>
-          {editing ? `EDITING — ${editing.title.toUpperCase()}` : 'NEW TASK'}
-        </p>
-
-        <div className="grid gap-3 wide:grid-cols-2">
-          <input
-            aria-label="Task title"
-            name="title"
-            required
-            maxLength={200}
-            placeholder="CAD the chassis"
-            defaultValue={editing?.title ?? ''}
-            className={fieldClass}
-            disabled={busy}
-          />
-          <div className="flex gap-3">
-            <div>
-              <label htmlFor={`${formId}-due`} className="sr-only">
-                Due date
-              </label>
-              <input
-                id={`${formId}-due`}
-                name="due"
-                type="date"
-                aria-label="Due date"
-                defaultValue={editing?.dueAt ? toDateInput(editing.dueAt) : ''}
-                className={`${fieldClass} h-8 w-40`}
-                disabled={busy}
-              />
-            </div>
-            {!editing && rank === 'PROJECT_LEAD' && (
-              <select
-                aria-label="Task team"
-                name="team"
-                className={selectClass}
-                defaultValue=""
-                disabled={busy}
-              >
-                <option value="">Whole project</option>
-                {teams.map((team) => (
-                  <option key={team.id} value={team.id}>
-                    {team.name}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-        </div>
-
-        <textarea
-          aria-label="Task details"
-          name="details"
-          maxLength={5000}
-          rows={2}
-          placeholder="Details, links, where to start (optional)"
-          defaultValue={editing?.details ?? ''}
-          className="textarea border-rule bg-base-200 w-full text-sm"
-          disabled={busy}
-        />
-
-        <fieldset>
-          <legend className={labelClass}>ASSIGN TO</legend>
-          <div className="flex flex-wrap gap-x-5 gap-y-1.5">
-            {members.map((member) => (
-              <label
-                key={member.userId}
-                className="flex cursor-pointer items-center gap-2 text-[13px]"
-              >
-                <input
-                  type="checkbox"
-                  name="assignee"
-                  value={member.userId}
-                  defaultChecked={
-                    editing?.assignees.some((a) => a.userId === member.userId) ?? false
-                  }
-                  disabled={busy}
-                  className="checkbox checkbox-xs rounded-[2px]"
-                />
-                {member.fullName}
-              </label>
-            ))}
-          </div>
-        </fieldset>
-
-        <div className="flex items-center gap-3">
-          <button
-            type="submit"
-            disabled={busy}
-            className="btn btn-primary btn-cta px-5 py-2.5 text-[12px] font-semibold disabled:opacity-60"
-          >
-            {editing ? 'SAVE' : 'CREATE TASK'}
-          </button>
-          {editing && (
-            <button
-              type="button"
-              disabled={busy}
-              className={smallButton}
-              onClick={() => {
-                setEditing(null)
-              }}
-            >
-              CANCEL
-            </button>
-          )}
-        </div>
-      </form>
-      )}
-
-      <p role="status" className="text-error mt-2 min-h-4 text-[12px]">
-        {message}
-      </p>
-    </FormPanel>
-  )
-}
-
 // ----------------------------------------------------------------- meeting
 
 function MeetingSection({
@@ -2135,7 +1805,7 @@ function DangerSection({
           something the delete route actually destroys — the two file sweeps in particular, which
           are bytes no other copy exists of. */}
       <ul className="text-faint mb-3 list-disc space-y-1 pl-5 text-[12px] leading-[1.6]">
-        <li>its roster and its teams, and every task on them</li>
+        <li>its roster and its teams</li>
         <li>every event it has scheduled, on every calendar they appear on</li>
         <li>
           its gallery, its cover and every published document — the club keeps no

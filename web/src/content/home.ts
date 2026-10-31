@@ -14,6 +14,9 @@ import type { ApiStats } from '../lib/api/api'
  * request comes back.
  */
 
+/** The club's OpenProject, where project tasks are tracked. */
+export const OPENPROJECT_URL = 'https://openproject.rccf.club'
+
 export type NavLink = {
   href: string
   label: string
@@ -56,7 +59,10 @@ export const sectionLinks: NavLink[] = [
  * the gold join button is the last of them — not in this list because it's a button and it
  * changes into an avatar, neither of which a list of words can say.
  */
-export const pageLinks: NavLink[] = [{ href: '/projects', label: 'Projects' }]
+export const pageLinks: NavLink[] = [
+  { href: '/projects', label: 'Projects' },
+  { href: OPENPROJECT_URL, label: 'OpenProject' },
+]
 
 export type Stat = {
   /** Set uppercase here, not with `text-transform` — these are written as

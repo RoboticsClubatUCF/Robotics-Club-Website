@@ -147,11 +147,6 @@ export function DashboardRail({
             <NavLink to="/dashboard" end className={linkClass}>
               OVERVIEW
             </NavLink>
-            {/* Never locked: the server doesn't gate reading tasks, and a row a lapsed
-                member could open anyway is not a row to draw a padlock on. */}
-            <NavLink to="/dashboard/tasks" className={linkClass}>
-              TASKS
-            </NavLink>
             {/* Only while the survey is still being asked for, on the same predicate as
                 the prompt, so one checkbox turns both off. */}
             {asking && (

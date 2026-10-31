@@ -36,7 +36,6 @@ import { sponsorsAdmin } from './routes/officer/sponsorsAdmin.js'
 import { stripeWebhook } from './routes/webhooks/stripeWebhook.js'
 import { survey } from './routes/member/survey.js'
 import { surveyAdmin } from './routes/officer/surveyAdmin.js'
-import { tasks } from './routes/projects/tasks.js'
 
 export const app = new Hono()
 
@@ -146,7 +145,6 @@ app.route('/api/me', me)
 // Before `projectManage`, which also answers under `/api/projects/:id`.
 app.route('/api/projects/:projectId/google-calendars', projectCalendars)
 app.route('/api', projectManage)
-app.route('/api', tasks)
 app.route('/api/events', eventManage)
 // Before `/api/officer`, because it owns a path underneath it and Hono answers with the
 // first route that matches. The survey desk moved out of `officer.ts` when half of it
