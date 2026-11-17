@@ -6,6 +6,7 @@ import {
 } from './discord.js'
 import { env } from '../core/env.js'
 import { type Interaction, handleLabInteraction } from '../lab/labInteraction.js'
+import { LAB_BUTTON } from '../lab/labStatus.js'
 
 /**
  * The bot's connection to Discord, held open, so a button press reaches us.
@@ -296,6 +297,12 @@ function onDispatch(payload: Payload): void {
   if (payload.t !== 'INTERACTION_CREATE') return
 
   const interaction = payload.d as Interaction
+
+  // The MegaMan bot runs its own gateway session on this token and owns the slash
+  // commands. Every session gets every interaction and the first answer wins, so
+  // answering anything but the lab sign here steals the bot's commands.
+  const wanted = interaction.data?.custom_id
+  if (wanted !== LAB_BUTTON.open && wanted !== LAB_BUTTON.close) return
 
   // Deliberately not awaited, for the same three-second deadline the HTTP route has:
   // `handleLabInteraction` answers without touching Discord and fires the flip off
