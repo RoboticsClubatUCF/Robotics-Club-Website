@@ -391,17 +391,10 @@ describe('GET /api/projects', () => {
 type Board = { seats: string[]; officers: OfficerTerm[] }
 
 describe('GET /api/officers', () => {
-  /**
-   * The size of the board comes from the enum. It was a constant in
-   * `web/src/content/home.ts`, so the club couldn't change the shape of its own board
-   * without a frontend edit.
-   */
-  it('sends the seats there are, in the order the enum declares them', async () => {
+  it('sends the seats there are, with the built-in board order', async () => {
     const board = await get<Board>('/api/officers')
 
     expect(board.seats.length).toBeGreaterThan(0)
-    // President first: the enum is declared in board order and this route reads it straight,
-    // so a reordering of the schema reorders the page.
     expect(board.seats[0]).toBe('PRESIDENT')
     expect(new Set(board.seats).size).toBe(board.seats.length)
   })
@@ -432,20 +425,9 @@ describe('GET /api/officers', () => {
     }
   })
 
-  /**
-   * An officer holding no named seat is on the board. The Discord sync promotes somebody the
-   * moment they carry the role and gives them no chair — an officer does that later — so a
-   * route that dropped them would make a real officer invisible on the front page.
-   */
-  it('keeps an officer who holds no seat', async () => {
-    const seatless = await prisma.officerTerm.findFirst({
-      where: { endedAt: null, position: null },
-      select: { id: true },
-    })
-    if (!seatless) return
-
-    const { officers } = await get<Board>('/api/officers')
-    expect(officers.some((term) => term.id === seatless.id)).toBe(true)
+  it('includes a named seat on every open term', async () => {
+    const { officers, seats } = await get<Board>('/api/officers')
+    expect(officers.every((term) => term.position !== null && seats.includes(term.position))).toBe(true)
   })
 
   /**

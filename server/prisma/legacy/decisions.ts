@@ -1,4 +1,4 @@
-import { OfficerPosition } from '../../src/generated/prisma/enums.js'
+import { OfficerPosition } from '../../src/membership/officerSeats.js'
 import { type Decisions, NO_TERM } from './plan.js'
 
 /**
@@ -119,7 +119,7 @@ export const DECISIONS: Decisions = {
    * The nine people with a `position` on the old site.
    *
    * Seven map straight onto a seat. Two don't, and both are why `OfficerPosition` and `UserRole`
-   * are separate enums:
+   * are separate:
    *
    * - Crystal Maraj is the faculty advisor, who sits on the board without officer permissions.
    *   `MEMBER` plus a `FACULTY_ADVISOR` term.

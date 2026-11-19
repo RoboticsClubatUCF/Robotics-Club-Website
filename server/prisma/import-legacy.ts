@@ -2,7 +2,9 @@ import { prisma } from '../src/core/db.js'
 import {
   ProjectMemberRank,
   Season,
+  UserRole,
 } from '../src/generated/prisma/enums.js'
+import { grantsDesks } from '../src/membership/board.js'
 import { DECISIONS } from './legacy/decisions.js'
 import { parseDump } from './legacy/dump.js'
 import {
@@ -57,7 +59,7 @@ const NOW = new Date()
 
 /** The people who genuinely sit on the board — `NO_TERM` entries excluded. */
 const seatedIds = (): string[] =>
-  Object.keys(DECISIONS.seats).filter((id) => DECISIONS.seats[id] !== NO_TERM)
+  Object.keys(DECISIONS.seats).filter((id) => typeof DECISIONS.seats[id] === 'string' && DECISIONS.seats[id] !== NO_TERM)
 
 // ---------------------------------------------------------------- the report
 
@@ -328,6 +330,16 @@ async function main(): Promise<void> {
 
   const users = [...mapped.values()]
 
+  for (const user of users) {
+    if (user.role === UserRole.ADMIN) continue
+    const seat = DECISIONS.seats[user.legacyId]
+    if (typeof seat === 'string' && seat !== NO_TERM && grantsDesks(seat)) {
+      user.role = UserRole.OFFICER
+    } else if (user.role === UserRole.OFFICER) {
+      user.role = user.duesPaidThrough === null ? UserRole.GUEST : UserRole.MEMBER
+    }
+  }
+
   // Only people who actually sit on the board are published regardless of
   // dues. Dwight Howard's entry is `NO_TERM` — reviewed, and not an officer —
   // so he is on the roster only if his dues put him there, like anybody else.
@@ -458,7 +470,7 @@ async function writeEverything(
         const user = users.find((u) => u.legacyId === legacyId)
         const id = idOf.get(legacyId)
 
-        if (user === undefined || id === undefined || position === NO_TERM) continue
+        if (user === undefined || id === undefined || typeof position !== 'string' || position === NO_TERM) continue
 
         await tx.officerTerm.create({
           data: {
@@ -466,7 +478,7 @@ async function writeEverything(
             // The record, not a cache of the user's name — a term is who held a
             // seat, and it must not change when somebody edits their profile.
             fullName: user.fullName,
-            position: position ?? null,
+            position,
             startedAt: user.joinedAt ?? NOW,
             photoUrl: user.photoUrl,
           },

@@ -1,5 +1,6 @@
 import { prisma } from '../src/core/db.js'
 import { hashPassword } from '../src/auth/password.js'
+import { changeBoard, readBoard } from '../src/membership/board.js'
 import { currentTerm } from '../src/membership/semester.js'
 
 /**
@@ -19,7 +20,7 @@ const members = [
   {
     slug: 'alex-chen',
     fullName: 'Alex Chen',
-    role: 'OFFICER' as const,
+    role: 'MEMBER' as const,
     title: 'Team Captain',
     gradYear: 2027,
     active: true,
@@ -113,7 +114,6 @@ const officers = [
     fullName: 'Jordan Ellis',
     position: 'PRESIDENT' as const,
     title: 'President',
-    role: 'OFFICER' as const,
     bio: 'Placeholder officer. Replace before this is public.',
     gradYear: 2027,
   },
@@ -122,7 +122,6 @@ const officers = [
     fullName: 'Nia Barrett',
     position: 'VICE_PRESIDENT' as const,
     title: 'Vice President',
-    role: 'OFFICER' as const,
     bio: 'Placeholder officer. Replace before this is public.',
     gradYear: 2027,
   },
@@ -131,7 +130,6 @@ const officers = [
     fullName: 'Owen Castellanos',
     position: 'TREASURER' as const,
     title: 'Treasurer',
-    role: 'OFFICER' as const,
     bio: 'Placeholder officer. Replace before this is public.',
     gradYear: 2026,
   },
@@ -140,7 +138,6 @@ const officers = [
     fullName: 'Harper Nakamura',
     position: 'SECRETARY' as const,
     title: 'Secretary',
-    role: 'OFFICER' as const,
     bio: 'Placeholder officer. Replace before this is public.',
     gradYear: 2028,
   },
@@ -149,7 +146,6 @@ const officers = [
     fullName: 'Devin Osei',
     position: 'MARKETING' as const,
     title: 'Marketing',
-    role: 'OFFICER' as const,
     bio: 'Placeholder officer. Replace before this is public.',
     gradYear: 2027,
   },
@@ -158,7 +154,6 @@ const officers = [
     fullName: 'Simone Alvarez',
     position: 'OUTREACH' as const,
     title: 'Outreach',
-    role: 'OFFICER' as const,
     bio: 'Placeholder officer. Replace before this is public.',
     gradYear: 2026,
   },
@@ -167,7 +162,6 @@ const officers = [
     fullName: 'Reid Ferguson',
     position: 'LAB_MANAGER' as const,
     title: 'Lab Manager',
-    role: 'OFFICER' as const,
     bio: 'Placeholder officer. Replace before this is public.',
     gradYear: 2026,
   },
@@ -176,7 +170,6 @@ const officers = [
     fullName: 'Dr. Alina Petrov',
     position: 'FACULTY_ADVISOR' as const,
     title: 'Faculty Advisor',
-    role: 'MEMBER' as const,
     bio: 'Placeholder advisor. Replace before this is public.',
     gradYear: null,
   },
@@ -803,11 +796,11 @@ async function main() {
     }
   }
 
-  for (const member of members) {
+  for (const { role, ...member } of members) {
     await prisma.user.upsert({
       where: { slug: member.slug },
       update: member,
-      create: member,
+      create: { ...member, role },
     })
   }
 
@@ -815,45 +808,21 @@ async function main() {
     const seeded = await prisma.user.upsert({
       where: { slug: officer.slug },
       update: officer,
-      create: officer,
+      create: { ...officer, role: 'MEMBER' },
       select: { id: true },
     })
 
-    // The seat is an open term now, not a column on the user. Same courtesy as before: a
-    // placeholder only takes a chair nobody is sitting in, so once a real officer has been
-    // entered the seed leaves them there.
-    const incumbent = await prisma.officerTerm.findFirst({
-      where: { position, endedAt: null, userId: { not: seeded.id } },
-      select: { fullName: true },
-    })
-
+    const snapshot = await readBoard()
+    const incumbent = snapshot.find((term) => term.position === position && term.userId !== seeded.id)
     if (incumbent) {
-      console.log(
-        `Leaving ${position} with ${incumbent.fullName}; ` +
-          `seeding ${officer.fullName} without a seat.`,
-      )
+      console.log('Leaving ' + position + ' with ' + incumbent.fullName + '.')
       continue
     }
 
-    // Find-then-create rather than upsert: there's no unique key to upsert against,
-    // deliberately — see `schema.prisma`.
-    const held = await prisma.officerTerm.findFirst({
-      where: { userId: seeded.id, endedAt: null },
-      select: { id: true },
-    })
-
-    if (held) {
-      await prisma.officerTerm.update({ where: { id: held.id }, data: { position } })
-      continue
-    }
-
-    await prisma.officerTerm.create({
-      data: {
-        position,
-        startedAt: new Date(),
-        fullName: officer.fullName,
-        userId: seeded.id,
-      },
+    await changeBoard({
+      snapshot,
+      moves: [{ userId: seeded.id, to: position }],
+      leaveReason: 'Development seed',
     })
   }
 

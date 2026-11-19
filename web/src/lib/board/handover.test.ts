@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import type { ApiOfficerDesk, OfficerPosition } from '../api/api'
 import {
   changesOf,
-  dropSeatless,
   emptySeat,
   hasChanges,
   holderOfMember,
@@ -13,7 +12,7 @@ import {
   requestOf,
 } from './handover'
 
-const SEATS: OfficerPosition[] = ['PRESIDENT', 'TREASURER', 'FACULTY_ADVISOR']
+const SEATS: OfficerPosition[] = ['PRESIDENT', 'TREASURER', 'FACULTY_ADVISOR', 'custom:Safety Lead']
 
 const person = (id: string, fullName: string) => ({
   id,
@@ -23,10 +22,9 @@ const person = (id: string, fullName: string) => ({
   role: 'OFFICER' as const,
 })
 
-/** A president, a seatless officer, an advisor, and a treasurer with no account here. */
+/** A president, a safety lead, an advisor, and a treasurer with no account here. */
 const DESK: ApiOfficerDesk = {
   seats: SEATS,
-  offBoard: [],
   board: [
     {
       id: 't1',
@@ -37,7 +35,7 @@ const DESK: ApiOfficerDesk = {
     },
     {
       id: 't2',
-      position: null,
+      position: 'custom:Safety Lead',
       startedAt: '2035-08-01T00:00:00.000Z',
       fullName: 'Sam Patel',
       user: person('u2', 'Sam Patel'),
@@ -72,7 +70,7 @@ describe('the handover plan', () => {
 
     expect(plan.seats.PRESIDENT?.fullName).toBe('Rowan Chen')
     expect(plan.seats.TREASURER?.termId).toBe('t4')
-    expect(plan.seatless.map((holder) => holder.fullName)).toEqual(['Sam Patel'])
+    expect(plan.seats['custom:Safety Lead']?.fullName).toBe('Sam Patel')
     expect(hasChanges(changesOf(DESK, plan))).toBe(false)
   })
 
@@ -130,21 +128,21 @@ describe('the handover plan', () => {
 
     expect(carried.seats.PRESIDENT?.key).toBe('u:u9')
     expect(carried.seats.TREASURER?.fullName).toBe('Kai Moreno')
-    expect(carried.seatless).toEqual([])
+    expect(carried.seats['custom:Safety Lead']).toBeNull()
   })
 
-  it('counts a seatless officer given a seat as a move', () => {
+  it('counts a safety lead given a seat as a move', () => {
     const start = planFrom(DESK)
-    const plan = place(emptySeat(start, 'PRESIDENT'), start.seatless[0]!, 'PRESIDENT')
+    const safetyLead = start.seats['custom:Safety Lead']!
+    const plan = place(emptySeat(start, 'PRESIDENT'), safetyLead, 'PRESIDENT')
 
     expect(changesOf(DESK, plan).moving).toEqual([
-      { holder: start.seatless[0], from: null, to: 'PRESIDENT' },
+      { holder: safetyLead, from: 'custom:Safety Lead', to: 'PRESIDENT' },
     ])
   })
 
   it('refuses a board where nobody would have the officer desks', () => {
-    let plan = emptySeat(planFrom(DESK), 'PRESIDENT')
-    plan = dropSeatless(plan, 'u:u2')
+    const plan = emptySeat(emptySeat(planFrom(DESK), 'PRESIDENT'), 'custom:Safety Lead')
 
     // Left: the advisor (no desks) and a treasurer with no account.
     expect(problemOf(plan)).toMatch(/Nobody on the new board/)
@@ -157,7 +155,7 @@ describe('the handover plan', () => {
 
     expect(body.expected).toEqual([
       { id: 't1', position: 'PRESIDENT' },
-      { id: 't2', position: null },
+      { id: 't2', position: 'custom:Safety Lead' },
       { id: 't3', position: 'FACULTY_ADVISOR' },
       { id: 't4', position: 'TREASURER' },
     ])
@@ -166,7 +164,7 @@ describe('the handover plan', () => {
         { userId: 'u9', position: 'PRESIDENT' },
         { termId: 't4', position: 'TREASURER' },
         { userId: 'u3', position: 'FACULTY_ADVISOR' },
-        { userId: 'u2', position: null },
+        { userId: 'u2', position: 'custom:Safety Lead' },
       ]),
     )
     expect(body.board).toHaveLength(4)

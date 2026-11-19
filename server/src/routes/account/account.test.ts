@@ -342,7 +342,7 @@ describe('what a member may call themselves', () => {
       data: {
         userId: myId,
         fullName: 'Test Account',
-        position: null,
+        position: 'FACULTY_ADVISOR',
         startedAt: new Date('2035-01-01T00:00:00.000Z'),
       },
     })
@@ -894,6 +894,7 @@ describe('DELETE /api/account', () => {
       data: {
         userId: myId,
         fullName: 'Test Account',
+        position: 'FACULTY_ADVISOR',
         startedAt: new Date(),
       },
     })

@@ -5,7 +5,6 @@ import { validate } from '../../core/validate.js'
 import { prisma } from '../../core/db.js'
 import {
   EventType,
-  OfficerPosition,
   ProjectStatus,
   Season,
   SponsorTier,
@@ -24,6 +23,7 @@ import {
   expandMeetings,
   meetingProjectSelect,
 } from '../../projects/meetings.js'
+import { readSeats, seatOrder } from '../../membership/officerSeats.js'
 import { currentTerm, getTerm, type Term } from '../../membership/semester.js'
 // The desk that writes the front page's slideshow owns the shape of a slide;
 // this read borrows it rather than restating six columns that could disagree.
@@ -390,43 +390,18 @@ const asOfficer = <T extends SelectedTerm>({ user, photoUrl, ...term }: T) => ({
   profileUrl: user?.profileUrl ?? null,
 })
 
-/**
- * The seats there are, in board order, straight out of the enum.
- *
- * `OfficerPosition` is declared in board order and Prisma generates the object in
- * that order, so this needs no list beside it and no sort. Sent to the browser
- * because how many seats the club has is the database's answer: a ninth in the
- * enum has to put a ninth on the page with nothing edited in `web/`.
- */
-const SEATS = Object.values(OfficerPosition)
-
-/** The distinct seats among some terms, in board order. */
-const seatsAmong = (terms: { position: OfficerPosition | null }[]) => {
-  const held = new Set(terms.flatMap((term) => (term.position ? [term.position] : [])))
-  return SEATS.filter((seat) => held.has(seat))
-}
-
-/**
- * Today's board: one entry per sitting officer, not one per seat.
- *
- * It used to be one per seat with the frontend holding the list of eight. Two
- * things were wrong: the count was a constant, so a seat added to the enum didn't
- * appear until somebody edited `web/`; and an officer holding no named seat —
- * exactly what the Discord sync creates — couldn't be drawn at all.
- *
- * `seats` rides along so the page can still draw the empty chairs.
- */
+/** The current board and its vacant seats. */
 content.get('/officers', async (c) => {
-  const terms = await prisma.officerTerm.findMany({
-    where: { endedAt: null },
-    // Postgres sorts an enum by declaration order and OfficerPosition is declared
-    // in board order, so this is president-first without a lookup. Nulls sort
-    // last, which puts the seatless officers after the seated ones.
-    orderBy: [{ position: 'asc' }, { startedAt: 'asc' }],
-    select: termSelect,
-  })
+  const [seats, terms] = await Promise.all([
+    readSeats(),
+    prisma.officerTerm.findMany({
+      where: { endedAt: null },
+      orderBy: [...seatOrder, { startedAt: 'asc' }],
+      select: termSelect,
+    }),
+  ])
 
-  return c.json({ seats: SEATS, officers: terms.map(asOfficer) })
+  return c.json({ seats, officers: terms.map(asOfficer) })
 })
 
 /**
@@ -489,12 +464,12 @@ content.get(
       ...(from ? { startedAt: { gte: from } } : {}),
     }
 
-    const [terms, older] = await Promise.all([
+    const [terms, older, seats] = await Promise.all([
       prisma.officerTerm.findMany({
         where,
         // Newest first, board order inside a start date. `endedAt` breaks the tie
         // between a term that ran one year and one that ran eight from the same day.
-        orderBy: [{ startedAt: 'desc' }, { endedAt: 'desc' }, { position: 'asc' }],
+        orderBy: [{ startedAt: 'desc' }, { endedAt: 'desc' }, ...seatOrder],
         select: termSelect,
       }),
       // Whether the page should offer to go further back. A count rather than
@@ -504,11 +479,13 @@ content.get(
             where: { endedAt: { not: null }, startedAt: { lt: from } },
           })
         : Promise.resolve(0),
+      readSeats(),
     ])
 
     // The seats this window actually used, in board order, so the page's chip
     // row needs no list of its own — the same rule as its year chips.
-    return c.json({ terms: terms.map(asOfficer), older, seats: seatsAmong(terms) })
+    const held = new Set(terms.map((term) => term.position))
+    return c.json({ terms: terms.map(asOfficer), older, seats: seats.filter((seat) => held.has(seat)) })
   },
 )
 

@@ -1,12 +1,13 @@
 import { HTTPException } from 'hono/http-exception'
 import { prisma } from '../core/db.js'
-import { OfficerPosition, UserRole } from '../generated/prisma/enums.js'
+import { UserRole } from '../generated/prisma/enums.js'
+import { OfficerPosition, requireSeats, seatName } from './officerSeats.js'
 import { membershipStanding } from './semester.js'
 
 /**
  * The officer board, and the rule that ties it to the officer desks.
  *
- * The board is kept by hand on the roles desk. Nothing reads Discord to decide who is on it,
+ * The board is kept by hand under Officer. Nothing reads Discord to decide who is on it,
  * and nothing about a board change touches or mentions Discord: the club's Officers role is
  * the club's business there.
  *
@@ -26,18 +27,8 @@ import { membershipStanding } from './semester.js'
  * The faculty advisor is on the board as a plain member, which is why seat and role are
  * separate columns at all. An advisor who should have the desks is an admin's call.
  */
-export const grantsDesks = (position: OfficerPosition | null): boolean =>
+export const grantsDesks = (position: string): boolean =>
   position !== OfficerPosition.FACULTY_ADVISOR
-
-/** A seat's name for the archive's sentences. Mirrors `seatLabel` in `web/src/lib/officerTerms.ts`. */
-export function seatName(position: OfficerPosition | null): string {
-  if (position === null) return 'Officer'
-
-  return position
-    .split('_')
-    .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
-    .join(' ')
-}
 
 /**
  * What somebody is once they stop being an officer.
@@ -68,38 +59,38 @@ export async function standingRole(
 export type OpenTerm = {
   id: string
   userId: string | null
-  position: OfficerPosition | null
+  position: string
   startedAt: Date
   fullName: string
 }
 
 /** Today's board. Plans are made against this and `changeBoard` checks it hasn't moved. */
-export function readBoard(): Promise<OpenTerm[]> {
-  return prisma.officerTerm.findMany({
+export async function readBoard(): Promise<OpenTerm[]> {
+  const terms = await prisma.officerTerm.findMany({
     where: { endedAt: null },
     select: { id: true, userId: true, position: true, startedAt: true, fullName: true },
   })
+  return terms.flatMap((term) => term.position === null ? [] : [{ ...term, position: term.position }])
 }
 
-const fingerprint = (terms: { id: string; position: OfficerPosition | null }[]) =>
+const fingerprint = (terms: { id: string; position: string | null }[]) =>
   terms
-    .map((term) => `${term.id}:${term.position ?? '-'}`)
+    .map((term) => JSON.stringify([term.id, term.position]))
     .sort()
     .join(',')
 
 /** Whether a plan was made against the board as it stands. Compares seats as well as terms,
     because a seat moved in place keeps its term id. */
 export const sameBoard = (
-  a: { id: string; position: OfficerPosition | null }[],
-  b: { id: string; position: OfficerPosition | null }[],
+  a: { id: string; position: string | null }[],
+  b: { id: string; position: string | null }[],
 ) => fingerprint(a) === fingerprint(b)
 
-export const OFF = 'OFF' as const
+export const OFF = Symbol('off the board')
 
 export type Move = {
   userId: string
-  /** A seat, null for the board without a named seat, or `OFF` the board altogether. */
-  to: OfficerPosition | null | typeof OFF
+  to: string | typeof OFF
 }
 
 export type BoardPerson = {
@@ -156,6 +147,8 @@ export async function changeBoard({
     throw new HTTPException(400, { message: 'Somebody is listed twice.' })
   }
 
+  await requireSeats(moves.flatMap(({ to }) => to === OFF ? [] : [to]))
+
   const people = await prisma.user.findMany({
     where: { id: { in: ids } },
     select: {
@@ -180,21 +173,21 @@ export async function changeBoard({
     }
   }
 
-  const target = new Map(moves.map((move) => [move.userId, move.to]))
+  const target = new Map<string, Move['to']>(moves.map((move) => [move.userId, move.to]))
   const ending = new Set(endTerms)
 
   // Who sits where once this lands: everyone untouched, plus everyone moved into a seat.
-  const seated = new Map<OfficerPosition, string>()
+  const seated = new Map<string, string>()
 
   for (const term of snapshot) {
     if (term.userId !== null && target.has(term.userId)) continue
     if (ending.has(term.id)) continue
-    if (term.position !== null) seated.set(term.position, term.fullName)
+    seated.set(term.position, term.fullName)
   }
 
   for (const person of people) {
     const to = target.get(person.id)
-    if (to === undefined || to === OFF || to === null) continue
+    if (to === undefined || to === OFF) continue
 
     const holder = seated.get(to)
     if (holder !== undefined) {
@@ -214,8 +207,8 @@ export async function changeBoard({
     revoked: [],
   }
 
-  const why = (position: OfficerPosition | null, holder: string) => {
-    const successor = position === null ? undefined : seated.get(position)
+  const why = (position: string, holder: string) => {
+    const successor = seated.get(position)
 
     if (successor === undefined) return leaveReason
 
@@ -288,10 +281,7 @@ export async function changeBoard({
               where: { id: term.id },
               data: {
                 endedAt: now,
-                endedReason:
-                  to === null
-                    ? 'Stayed on the board without a seat'
-                    : `Moved to ${seatName(to)}`,
+                endedReason: `Moved to ${seatName(to)}`,
               },
             })
             await tx.officerTerm.create({

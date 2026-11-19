@@ -1,3 +1,4 @@
+import { OfficerPosition, readSeats, seatName } from './officerSeats.js'
 import {
   RegExpMatcher,
   englishDataset,
@@ -6,7 +7,6 @@ import {
 import { prisma } from '../core/db.js'
 import { stripInvisible } from '../core/validate.js'
 import {
-  OfficerPosition,
   ProjectMemberRank,
   UserRole,
 } from '../generated/prisma/enums.js'
@@ -154,21 +154,21 @@ const PLAIN_SEATS = new Set(
  * Seat names distinctive enough to find anywhere in the squashed title, so "Co-President"
  * counts. In this order: Vice President is taken out before President is looked for.
  */
-const SEAT_FRAGMENTS: [string, OfficerPosition][] = [
+const SEAT_FRAGMENTS: [string, string][] = [
   ['vicepresident', OfficerPosition.VICE_PRESIDENT],
   ['president', OfficerPosition.PRESIDENT],
   ['treasurer', OfficerPosition.TREASURER],
   ['secretary', OfficerPosition.SECRETARY],
 ]
 
-const FRAGMENT_SEATS = new Set(SEAT_FRAGMENTS.map(([, seat]) => seat))
+const FRAGMENT_SEATS = new Set<string>(SEAT_FRAGMENTS.map(([, seat]) => seat))
 
 /**
  * Short names for seats. These, and every seat's own name, are matched against whole words
  * and two neighbouring words run together, so "Lab Manager", "LabManager" and "Vice-Pres"
  * count but "Collab manager" doesn't.
  */
-const SEAT_ALIASES: Record<string, OfficerPosition> = {
+const SEAT_ALIASES: Record<string, string> = {
   vp: OfficerPosition.VICE_PRESIDENT,
   veep: OfficerPosition.VICE_PRESIDENT,
   vicepres: OfficerPosition.VICE_PRESIDENT,
@@ -248,14 +248,14 @@ const RANK_WORDS = new Set([
 
 type Offices = {
   /** Every seat the title names. */
-  seats: Set<OfficerPosition>
+  seats: Set<string>
   /** Office words that name no seat: "chair", "director", "admin". */
   unnamed: boolean
-  /** "Officer" itself, which is what the board calls somebody with no seat. */
+  /** "Officer" itself, including historical terms with no recorded seat. */
   officer: boolean
 }
 
-function officesIn(words: string[]): Offices {
+function officesIn(words: string[], positions: string[]): Offices {
   const pairs = words.slice(1).map((word, at) => words[at] + word)
   const tokens = new Set([
     ...words.filter((_word, at) => !excused(words, at)),
@@ -263,7 +263,7 @@ function officesIn(words: string[]): Offices {
   ])
   const squashed = words.join('')
   let unclaimed = squashed
-  const seats = new Set<OfficerPosition>()
+  const seats = new Set<string>()
 
   for (const [fragment, seat] of SEAT_FRAGMENTS) {
     if (!unclaimed.includes(fragment)) continue
@@ -276,16 +276,18 @@ function officesIn(words: string[]): Offices {
     if (seat) seats.add(seat)
   }
 
-  // Every other seat by its own name, read from the enum, so a new seat is reserved the
-  // day it's added. Not the fragment seats again: "Vice President" has the word
-  // "president" in it and names one seat.
-  for (const seat of Object.values(OfficerPosition)) {
+  // Fragment seats already handle names like "Vice President" as a whole.
+  for (const seat of positions) {
     if (FRAGMENT_SEATS.has(seat)) continue
-    const name = seat.toLowerCase().replace(/_/g, '')
+    const nameWords = readingsOf(seatName(seat))[1]
+    const name = nameWords.join('')
+    if (!name) continue
     const named = PLAIN_SEATS.has(name)
       ? squashed === name ||
         (words.includes(name) && words.some((word) => RANK_WORDS.has(word)))
-      : tokens.has(name)
+      : nameWords.length <= 2
+        ? tokens.has(name)
+        : words.some((_, i) => words.slice(i, i + nameWords.length).join('') === name)
     if (named) seats.add(seat)
   }
 
@@ -316,15 +318,15 @@ export type TitleClaims = {
   /** Any office at all: a seat, an unnamed office word, or "officer". */
   office: boolean
   lead: boolean
-  seats: OfficerPosition[]
+  seats: string[]
   unnamedOffice: boolean
   officerWord: boolean
 }
 
 /** What a title says about its holder, before anybody's standing is looked up. */
-export function claimsOf(title: string): TitleClaims {
+export function claimsOf(title: string, positions: string[] = Object.values(OfficerPosition)): TitleClaims {
   const readings = readingsOf(title)
-  const offices = readings.map(officesIn)
+  const offices = readings.map((words) => officesIn(words, positions))
   const seats = [...new Set(offices.flatMap((read) => [...read.seats]))]
   const unnamedOffice = offices.some((read) => read.unnamed)
   const officerWord = offices.some((read) => read.officer)
@@ -447,7 +449,7 @@ export const isLeadRank = (rank: ProjectMemberRank) => LEAD_RANKS.includes(rank)
 
 /**
  * Why `userId` can't carry `title` as their club title, or null when they can. Standing is
- * only read when the title claims something, so an ordinary title costs no query.
+ * only read when the title claims something.
  */
 export async function clubTitleProblem(
   userId: string,
@@ -455,7 +457,7 @@ export async function clubTitleProblem(
 ): Promise<string | null> {
   if (title === null) return null
 
-  const claims = claimsOf(title)
+  const claims = claimsOf(title, await readSeats())
   if (claims.obscene) return TITLE_REFUSALS.obscene
   if (!claims.office && !claims.lead) return null
 
@@ -481,7 +483,7 @@ export async function projectTitleProblem(
 ): Promise<string | null> {
   if (title === null) return null
 
-  const claims = claimsOf(title)
+  const claims = claimsOf(title, await readSeats())
   if (claims.obscene) return TITLE_REFUSALS.obscene
   if (!claims.office && !claims.lead) return null
   if (claims.lead && !claims.office && isLeadRank(rank)) return null

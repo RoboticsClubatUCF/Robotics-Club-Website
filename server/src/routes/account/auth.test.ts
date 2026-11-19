@@ -203,7 +203,7 @@ beforeEach(async () => {
     data: {
       userId: sitting!.id,
       fullName: sitting!.fullName,
-      position: null,
+      position: 'LAB_MANAGER',
       startedAt: new Date('2035-01-01'),
     },
   })

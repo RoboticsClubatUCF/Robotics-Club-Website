@@ -2,6 +2,8 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { Link, useOutletContext } from 'react-router'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
 import { DuesLocked } from '../../components/dashboard/DuesLocked'
+import { SubNav } from '../../components/dashboard/SubNav'
+import { OFFICER_PAGES } from '../../lib/dashboard/subPages'
 import { OfficerOnly } from '../../components/dashboard/OfficerOnly'
 import { isOfficer } from '../../lib/auth/session'
 import { ConfirmDialog } from '../../components/shared/ConfirmDialog'
@@ -42,20 +44,20 @@ import {
  * The desk behind `/officers`, and the only way the club's history can be written at
  * all. Everything else that touches `officer_terms` describes today: the Discord sync
  * opens a term when somebody gains the officer role and closes it when they lose it, and
- * the roles desk moves people between chairs. Neither can say Marisol Vega was president
+ * Officer Board moves people between chairs. Neither can say Marisol Vega was president
  * in 2011, so the archive only ever grew forwards and a term entered against the wrong
  * person stayed there.
  *
  * The same person, as many terms as they served. Nothing here is keyed on a person, and
  * the list groups by year rather than by name. The one uniqueness rule is the seat one
  * and it applies only to open terms: the club has one sitting treasurer and forty former
- * ones. A second open holder is refused and handed to the roles desk.
+ * ones. A second open holder is refused and handed to Officer Board.
  *
  * This is also what makes somebody an officer alumnus: `/members` files a person under
  * ALUMNI when they carry the Discord Officer Alumni role or hold a term here that has
  * ended. So typing in a past board is the whole job.
  *
- * Today's board for somebody with an account is the roles desk's: a seat there moves the
+ * Today's board for somebody with an account is Officer Board's: a seat there moves the
  * officer desks with it. The server refuses seating, unseating or removing one here, and
  * this page leaves REMOVE off those rows.
  */
@@ -66,13 +68,13 @@ export function OfficerArchivePage() {
   // Dues before role, the same order every other desk uses: a lapsed officer is an
   // officer, and the sentence they need is about a payment.
   if (duesLocked(membership, user.role)) {
-    return <DuesLocked eyebrow="/ MANAGE · OFFICERS" />
+    return <DuesLocked eyebrow="/ MANAGE · OFFICER · ARCHIVE" />
   }
 
   if (!isOfficer(user.role)) {
     return (
       <OfficerOnly
-        eyebrow="/ MANAGE · OFFICERS"
+        eyebrow="/ MANAGE · OFFICER · ARCHIVE"
         why="Who has run this club is the club's own record, so it is board business."
       />
     )
@@ -234,9 +236,10 @@ function Archive() {
   }
 
   return (
-    <section className="px-page py-10 wide:py-14">
-      <FormEyebrow>/ MANAGE · OFFICERS</FormEyebrow>
+    <>
+      <FormEyebrow>/ MANAGE · OFFICER · ARCHIVE</FormEyebrow>
       <FormHeading>Who has run this club</FormHeading>
+      <SubNav label="Officer pages" pages={OFFICER_PAGES} />
 
       {/* `grid-cols-1` so a phone gets a column that can shrink. Without a template the column
           is as wide as the longest truncated row, and the page scrolled sideways. */}
@@ -402,7 +405,7 @@ function Archive() {
           </p>
         </ConfirmDialog>
       )}
-    </section>
+    </>
   )
 }
 
@@ -489,7 +492,7 @@ function TermRow({
               </span>
             )}
           </p>
-          <p className="text-faint font-mono text-[10px] tracking-[0.14em] uppercase">
+          <p className="text-faint wrap-anywhere font-mono text-[10px] tracking-[0.14em] uppercase">
             {seatLabel(term.position)} · {servedRange(term.startedAt, term.endedAt)}
             {term.user === null && ' · no account'}
           </p>
@@ -510,7 +513,7 @@ function TermRow({
           >
             {open ? 'CLOSE' : 'EDIT'}
           </button>
-          {/* Somebody on today's board is stood down on the roles desk, which takes
+          {/* Somebody on today's board is stood down on Officer Board, which takes
               the officer desks with the seat. */}
           {!(term.endedAt === null && term.user) && (
             <button
@@ -547,7 +550,12 @@ function TermRow({
             <button
               type="button"
               className={primaryButton}
-              disabled={busy || draft.fullName.trim().length < 2 || draft.startedAt === ''}
+              disabled={
+                busy ||
+                draft.fullName.trim().length < 2 ||
+                draft.startedAt === '' ||
+                (draft.endedAt === '' && draft.position === '')
+              }
               onClick={save}
             >
               {busy ? 'SAVING…' : 'SAVE THE TERM'}
@@ -586,7 +594,7 @@ function TermFields({
   setDraft: (draft: Draft) => void
   seats: OfficerPosition[]
   busy: boolean
-  /** An account on today's board: the seat and the end are the roles desk's, because
+  /** An account on today's board: the seat and the end are Officer Board's, because
       they move the officer desks with them. */
   seated?: boolean
 }) {
@@ -624,13 +632,12 @@ function TermFields({
           className={`${fieldClass} select`}
           value={draft.position}
           disabled={busy || seated}
+          required={!draft.endedAt}
           onChange={(event) => {
             set({ position: event.target.value as OfficerPosition | '' })
           }}
         >
-          {/* Empty is a real answer, not a prompt: somebody can serve without a named
-              chair. */}
-          <option value="">No named seat</option>
+          <option value="">{draft.endedAt ? 'No named seat' : 'Choose a seat'}</option>
           {seats.map((seat) => (
             <option key={seat} value={seat}>
               {seatLabel(seat)}
@@ -685,7 +692,7 @@ function TermFields({
         <p className="text-faint text-[12px] leading-[1.5]">
           Their seat and end date are set on{' '}
           <Link
-            to="/dashboard/officer/roles"
+            to="/dashboard/officer/board"
             className="text-primary underline underline-offset-2"
           >
             OFFICER BOARD
@@ -883,7 +890,7 @@ function AddTerm({
   const [message, setMessage] = useState<Message>(null)
 
   // An account with no end date would be seating somebody on today's board, which the
-  // server leaves to the roles desk.
+  // server leaves to Officer Board.
   const seatsToday = linked !== null && draft.endedAt === ''
 
   const pick = (member: ApiOfficerMember | null) => {
@@ -947,7 +954,7 @@ function AddTerm({
           <p className="text-dim text-[13px] leading-[1.6]">
             Give it an end date, or seat them on{' '}
             <Link
-              to="/dashboard/officer/roles"
+              to="/dashboard/officer/board"
               className="text-primary underline underline-offset-2"
             >
               OFFICER BOARD
@@ -963,7 +970,8 @@ function AddTerm({
             busy ||
             seatsToday ||
             draft.fullName.trim().length < 2 ||
-            draft.startedAt === ''
+            draft.startedAt === '' ||
+            (draft.endedAt === '' && draft.position === '')
           }
           onClick={submit}
         >

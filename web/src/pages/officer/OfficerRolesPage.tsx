@@ -45,18 +45,18 @@ import { duesLocked, formatDate } from '../../lib/dues/dues'
 import { useApi } from '../../lib/api/useApi'
 import { SubNav } from '../../components/dashboard/SubNav'
 import { SubPage } from '../../components/dashboard/SubPage'
-import { ROLES_PAGES } from '../../lib/dashboard/subPages'
+import { OFFICER_PAGES } from '../../lib/dashboard/subPages'
 import { useBoardDesk } from '../../lib/board/useBoardDesk'
 import { BoardHandover } from '../../components/board/BoardHandover'
 
 type Part = 'board' | 'handover' | 'leads' | 'grant' | 'titles'
 
 const EYEBROW: Record<Part, string> = {
-  board: '/ MANAGE · ROLES',
-  handover: '/ MANAGE · ROLES · HANDOVER',
-  leads: '/ MANAGE · ROLES · LEADS',
-  grant: '/ MANAGE · ROLES · GRANT MEMBERSHIP',
-  titles: '/ MANAGE · ROLES · TITLES',
+  board: '/ MANAGE · OFFICER',
+  handover: '/ MANAGE · OFFICER · HANDOVER',
+  leads: '/ MANAGE · OFFICER · LEADS',
+  grant: '/ MANAGE · OFFICER · GRANT MEMBERSHIP',
+  titles: '/ MANAGE · OFFICER · TITLES',
 }
 
 /**
@@ -86,14 +86,14 @@ export function OfficerRolesPage({ part }: { part: Part }) {
   }
 
   if (!isOfficer(user.role)) {
-    return <OfficerOnly eyebrow={EYEBROW[part]} why="Granting membership and appointing leads is board business." />
+    return <OfficerOnly eyebrow={EYEBROW[part]} why="The board manages appointments, membership and club titles." />
   }
 
   return (
     <>
       <FormEyebrow>{EYEBROW[part]}</FormEyebrow>
-      <FormHeading>Who runs what.</FormHeading>
-      <SubNav label="Roles pages" pages={ROLES_PAGES} />
+      <FormHeading>Officer</FormHeading>
+      <SubNav label="Officer pages" pages={OFFICER_PAGES} />
 
       {/* Every sub-page stays mounted, so a half-picked appointment survives a look at a
           sibling. The two lead forms sit side by side where there's room; the rest are one
@@ -379,7 +379,6 @@ function SearchPicker({
 type Leaving = {
   id: string
   fullName: string
-  onBoard: boolean
   /** False for the faculty advisor's seat and for an admin, who keep what they had. */
   losesDesks: boolean
 }
@@ -1050,22 +1049,10 @@ function OfficerSeats({
   /** Whether a write took the desks from whoever is signed in. An admin keeps theirs. */
   const lostMine = (revoked: string[] | undefined) => revoked?.includes(me.id) ?? false
 
-  const seatOf = (seat: ApiBoardSeat) =>
-    seat.position ? seatLabel(seat.position) : 'No seat yet'
-
-  /**
-   * What's left to do, at the top of the panel: officers with no chair, chairs with
-   * nobody, and officers by role with no place on the board. Otherwise the front page
-   * just reads "Seat open" until somebody notices.
-   */
   const rows = desk?.board ?? []
-  const offBoard = desk?.offBoard ?? []
-  const seatless = rows.filter((seat) => seat.position === null)
   const taken = new Set(rows.map((seat) => seat.position))
-  // Every seat there is, from the enum by way of the route — the desk is where an empty
-  // chair gets filled, so it needs the whole list, and how many there are is the
-  // database's answer.
   const empty = (desk?.seats ?? []).filter((seat) => !taken.has(seat))
+  const selected = position !== '' && desk?.seats.includes(position)
 
   /** Who is in the chair being handed out, if anybody. Read from the list the panel
       already has, so the confirmation can name them before anything is sent — the server
@@ -1078,7 +1065,7 @@ function OfficerSeats({
         ) ?? null)
 
   const save = (takeOver = false) => {
-    if (!member) return
+    if (!member || position === '' || !selected) return
 
     setDisplacing(null)
     setBusy(true)
@@ -1086,18 +1073,15 @@ function OfficerSeats({
 
     patchJson<ApiBoardSeat>('/officer/terms/seat', {
       userId: member.id,
-      position: position === '' ? null : position,
+      position,
       takeOver,
     })
       .then((saved) => {
         setMessage({
           tone: 'success',
-          text:
-            position === ''
-              ? `${member.fullName} is on the board without a named seat.`
-              : saved.succeeded
-                ? `${member.fullName} is now ${seatLabel(position)}, succeeding ${saved.succeeded}.`
-                : `${member.fullName} is now ${seatLabel(position)}.`,
+          text: saved.succeeded
+            ? `${member.fullName} is now ${seatLabel(position)}, succeeding ${saved.succeeded}.`
+            : `${member.fullName} is now ${seatLabel(position)}.`,
         })
         if (lostMine(saved.revoked)) onLostDesks()
         setMember(null)
@@ -1128,9 +1112,7 @@ function OfficerSeats({
       .then((answer) => {
         setMessage({
           tone: 'success',
-          text: leaving.onBoard
-            ? `${leaving.fullName} has been stood down. They are on the officers page now.`
-            : `${leaving.fullName} no longer has the officer desks.`,
+          text: `${leaving.fullName} has been stood down. They are on the officers page now.`,
         })
         if (lostMine(answer.revoked)) onLostDesks()
         reload()
@@ -1148,61 +1130,28 @@ function OfficerSeats({
       <p className={panelLabel}>THE OFFICER BOARD</p>
 
       {failed && (
-        <p className="text-dim mb-4 text-[13px] leading-[1.6]">
-          We couldn&rsquo;t load the board just now. The form below still works.
-        </p>
-      )}
-
-      {/* Only when there's something to do. A line reading "0 officers with no seat"
-          every other day of the year is a line nobody reads on the one day it matters. */}
-      {desk && (seatless.length > 0 || empty.length > 0 || offBoard.length > 0) && (
-        <div className="border-primary/35 bg-primary/5 mb-5 border p-4">
-          <p className="text-primary mb-1.5 font-mono text-[10px] font-medium tracking-[0.16em]">
-            STILL TO DO
-          </p>
-          <p className="text-dim text-[13px] leading-[1.6] text-pretty">
-            {seatless.length > 0 && (
-              <>
-                <strong className="font-semibold text-base-content">
-                  {seatless.length}
-                </strong>{' '}
-                {seatless.length === 1 ? 'officer has' : 'officers have'} no seat
-                {seatless.length <= 4 && (
-                  <> &mdash; {seatless.map((seat) => seat.fullName).join(', ')}</>
-                )}
-                .{' '}
-              </>
-            )}
-            {empty.length > 0 && (
-              <>
-                <strong className="font-semibold text-base-content">
-                  {empty.length}
-                </strong>{' '}
-                {empty.length === 1 ? 'seat is' : 'seats are'} empty
-                {empty.length <= 4 && (
-                  <> &mdash; {empty.map((seat) => seatLabel(seat)).join(', ')}</>
-                )}
-                .{' '}
-              </>
-            )}
-            {offBoard.length > 0 && (
-              <>
-                <strong className="font-semibold text-base-content">
-                  {offBoard.length}
-                </strong>{' '}
-                {offBoard.length === 1 ? 'person has' : 'people have'} the officer
-                desks but no place on the board
-                {offBoard.length <= 4 && (
-                  <> &mdash; {offBoard.map((person) => person.fullName).join(', ')}</>
-                )}
-                .
-              </>
-            )}
-          </p>
+        <div className="mb-4 space-y-3">
+          <p role="status" className="text-dim text-[13px]">Couldn&rsquo;t load the board.</p>
+          <button type="button" className={secondaryButton} onClick={reload}>
+            TRY AGAIN
+          </button>
         </div>
       )}
 
-      {(rows.length > 0 || offBoard.length > 0) && (
+      {!desk && !failed && (
+        <div role="status" className="mb-4">
+          <div className="skeleton h-16 w-full" aria-hidden="true" />
+          <span className="sr-only">Loading the board</span>
+        </div>
+      )}
+
+      {empty.length > 0 && (
+        <p className="text-dim mb-4 text-[13px] wrap-anywhere">
+          Vacant seats: {empty.map(seatLabel).join(', ')}
+        </p>
+      )}
+
+      {rows.length > 0 && (
         <ul className="border-rule mb-5 divide-y divide-[var(--color-rule)] border-y">
           {rows.map((seat) => (
             <li
@@ -1213,8 +1162,8 @@ function OfficerSeats({
                 <p className="truncate text-[13px] font-semibold">
                   {seat.fullName}
                 </p>
-                <p className="text-faint font-mono text-[10px] tracking-[0.14em] uppercase">
-                  {seatOf(seat)}
+                <p className="text-faint font-mono text-[10px] tracking-[0.14em] uppercase wrap-anywhere">
+                  {seatLabel(seat.position)}
                 </p>
               </div>
 
@@ -1228,7 +1177,6 @@ function OfficerSeats({
                     setStandingDown({
                       id: seat.user.id,
                       fullName: seat.fullName,
-                      onBoard: true,
                       losesDesks:
                         grantsDesks(seat.position) && seat.user.role !== 'ADMIN',
                     })
@@ -1239,45 +1187,24 @@ function OfficerSeats({
               </button>
             </li>
           ))}
-          {offBoard.map((person) => (
-            <li
-              key={person.id}
-              className="flex items-center justify-between gap-3 py-2.5"
-            >
-              <div className="min-w-0">
-                <p className="truncate text-[13px] font-semibold">
-                  {person.fullName}
-                </p>
-                <p className="text-faint font-mono text-[10px] tracking-[0.14em] uppercase">
-                  Officer, not on the board
-                </p>
-              </div>
-
-              <button
-                type="button"
-                className={secondaryButton}
-                disabled={busy}
-                aria-label={`Stand ${person.fullName} down`}
-                onClick={() => {
-                  setStandingDown({
-                    id: person.id,
-                    fullName: person.fullName,
-                    onBoard: false,
-                    losesDesks: true,
-                  })
-                }}
-              >
-                STAND DOWN
-              </button>
-            </li>
-          ))}
         </ul>
       )}
 
-      {desk && rows.length === 0 && offBoard.length === 0 && (
+      {desk && rows.length === 0 && (
         <p className="text-faint mb-5 text-[13px]">
           Nobody is on the board yet.
         </p>
+      )}
+
+      {desk && (
+        <AddBoardSeat
+          onAdd={(seat) => {
+            setPosition(seat)
+            setMessage(null)
+            reload()
+          }}
+          disabled={busy}
+        />
       )}
 
       <div className="space-y-4">
@@ -1296,14 +1223,14 @@ function OfficerSeats({
             id={`${id}-seat`}
             className={selectClass}
             value={position}
-            disabled={busy}
+            disabled={busy || !desk}
+            required
             onChange={(event) => {
-              setPosition(event.target.value as OfficerPosition | '')
+              setMessage(null)
+              setPosition(event.target.value as typeof position)
             }}
           >
-            {/* Empty is a real choice, not a prompt: somebody can be on the board without
-                a named chair. */}
-            <option value="">No named seat</option>
+            <option value="">Choose a seat</option>
             {(desk?.seats ?? []).map((seat) => (
               <option key={seat} value={seat}>
                 {seatLabel(seat)}
@@ -1315,7 +1242,7 @@ function OfficerSeats({
         <button
           type="button"
           className={primaryButton}
-          disabled={busy || !member}
+          disabled={busy || !member || !selected}
           onClick={submit}
         >
           {busy ? 'SAVING…' : incumbent ? 'TAKE THE SEAT' : 'SET THE SEAT'}
@@ -1326,7 +1253,7 @@ function OfficerSeats({
 
       {displacing && member && (
         <ConfirmDialog
-          title={`Hand ${seatLabel(displacing.position!)} to ${member.fullName}?`}
+          title={`Hand ${seatLabel(displacing.position)} to ${member.fullName}?`}
           confirmLabel="HAND IT OVER"
           tone="primary"
           busy={busy}
@@ -1360,19 +1287,82 @@ function OfficerSeats({
           }}
         >
           <p>
-            {standingDown.onBoard
-              ? `They come off the board and onto the officers page as a past officer${
-                  standingDown.losesDesks ? ', and lose the officer desks.' : '.'
-                }`
-              : 'They lose the officer desks.'}
+            {standingDown.losesDesks
+              ? 'Their term ends and they lose officer access.'
+              : 'Their term ends and moves to the archive.'}
           </p>
           {standingDown.id === me.id && standingDown.losesDesks && me.role !== 'ADMIN' && (
             <p className="mt-3">
-              That&rsquo;s you. Your desks close when you leave the roles desk.
+              That&rsquo;s you. You’ll lose access to the officer tools.
             </p>
           )}
         </ConfirmDialog>
       )}
     </FormPanel>
+  )
+}
+
+function AddBoardSeat({
+  onAdd,
+  disabled,
+}: {
+  onAdd: (seat: OfficerPosition) => void
+  disabled: boolean
+}) {
+  const id = useId()
+  const [name, setName] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<Message>(null)
+
+  const save = async () => {
+    setBusy(true)
+    setMessage(null)
+    try {
+      const { position } = await postJson<{ position: OfficerPosition }>('/officer/terms/seats', {
+        name: name.trim(),
+      })
+      setMessage({ tone: 'success', text: `${seatLabel(position)} added.` })
+      setName('')
+      onAdd(position)
+    } catch (error: unknown) {
+      setMessage({ tone: 'error', text: explain(error) })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <details className="border-rule mb-5 border-b pb-4">
+      <summary className="text-base-content focus-visible:outline-primary flex min-h-11 cursor-pointer items-center gap-2 text-sm font-semibold focus-visible:outline-2 wide:min-h-8">
+        <span aria-hidden="true">+</span> Add a seat
+      </summary>
+      <form
+        className="mt-3 space-y-3"
+        onSubmit={(event) => {
+          event.preventDefault()
+          void save()
+        }}
+      >
+        <div>
+          <label htmlFor={id} className={labelClass}>SEAT NAME</label>
+          <input
+            id={id}
+            className={fieldClass}
+            maxLength={80}
+            required
+            value={name}
+            disabled={busy || disabled}
+            onChange={(event) => {
+              setName(event.target.value)
+              setMessage(null)
+            }}
+          />
+        </div>
+        <button type="submit" className={secondaryButton} disabled={busy || disabled || !name.trim()}>
+          {busy ? 'ADDING…' : 'ADD SEAT'}
+        </button>
+        <Status message={message} />
+      </form>
+    </details>
   )
 }

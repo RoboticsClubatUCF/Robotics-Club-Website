@@ -15,13 +15,11 @@ import {
   DuesPlan,
   LoanStatus,
   MeetingRepeat,
-  OfficerPosition,
   PrintProcess,
   PrintRequestStatus,
   ProjectMemberRank,
   ProjectStatus,
   Season,
-  UserRole,
 } from '../../generated/prisma/enums.js'
 import type { Prisma } from '../../generated/prisma/client.js'
 import { capFrom, loanDate, startsAt } from '../../equipment/loanWindow.js'
@@ -63,8 +61,15 @@ import {
   grantsDesks,
   readBoard,
   sameBoard,
-  seatName,
 } from '../../membership/board.js'
+import {
+  customSeat,
+  readSeats,
+  seatName,
+  seatNameField,
+  seatOrder,
+  seatPosition,
+} from '../../membership/officerSeats.js'
 import { grantMembership } from '../member/dues.js'
 import { HOLDING } from '../member/equipment.js'
 import { queueOrder, scope } from './printQueue.js'
@@ -1130,45 +1135,46 @@ const boardSelect = {
 } as const
 
 const readDesk = async () => {
-  const [board, offBoard] = await Promise.all([
-    prisma.officerTerm.findMany({
-      where: { endedAt: null },
-      // Seated first in board order, then everyone without a chair. Postgres sorts
-      // nulls last on an ascending enum, which is the order this wants.
-      orderBy: [{ position: 'asc' }, { startedAt: 'asc' }],
-      select: boardSelect,
-    }),
-    /**
-     * Officers by role with no place on the board: set in Prisma Studio, or left
-     * over from the Discord sync. Listed so the desk can seat them or stand them
-     * down, rather than leave them with desks nobody can see.
-     */
-    prisma.user.findMany({
-      where: { role: UserRole.OFFICER, officerTerms: { none: { endedAt: null } } },
-      orderBy: { fullName: 'asc' },
-      select: { id: true, fullName: true, email: true, discordUsername: true },
-    }),
-  ])
+  const terms = await prisma.officerTerm.findMany({
+    where: { endedAt: null },
+    orderBy: [...seatOrder, { startedAt: 'asc' }],
+    select: boardSelect,
+  })
+  // Seats are only added. Read them after terms so a concurrent appointment
+  // cannot leave a holder's seat out of a handover plan.
+  const seats = await readSeats()
 
-  return { seats: Object.values(OfficerPosition), board, offBoard }
+  const board = terms.flatMap((term) =>
+    term.position === null ? [] : [{ ...term, position: term.position }],
+  )
+  return { seats, board }
 }
 
-/**
- * Today's board, seatless officers included, plus officers with no place on it.
- *
- * `seats` is every seat there is, in board order, from the enum, so adding one to the
- * enum adds it to the desk with no frontend edit.
- */
 officer.get('/terms', requireAuth, requireOfficer, async (c) =>
   c.json(await readDesk()),
 )
 
+officer.post(
+  '/terms/seats',
+  originGuard,
+  requireAuth,
+  requireOfficer,
+  writes,
+  validate('json', z.object({ name: seatNameField })),
+  async (c) => {
+    const seat = customSeat(c.req.valid('json').name)
+    const { count } = await prisma.officerSeat.createMany({ data: [seat], skipDuplicates: true })
+    if (count === 0) {
+      throw new HTTPException(409, { message: 'A seat with that name already exists.' })
+    }
+
+    return c.json({ position: seat.position }, 201)
+  },
+)
+
 const seatBody = z.object({
   userId: z.string().min(1),
-  /** Null clears the seat and leaves them on the board — still an officer, just not
-      in a named chair. Standing somebody down is the DELETE below, which is a
-      different decision and should read like one. */
-  position: z.enum(OfficerPosition).nullable(),
+  position: seatPosition,
   /**
    * Take the seat from whoever is in it, closing their term as succeeded.
    *
@@ -1195,12 +1201,9 @@ officer.patch(
      * unique index is something Prisma can't express, and the next generated
      * migration would drop it. Same trade as the project-lead route.
      */
-    const incumbent =
-      position === null
-        ? null
-        : (snapshot.find(
-            (term) => term.position === position && term.userId !== userId,
-          ) ?? null)
+    const incumbent = snapshot.find(
+      (term) => term.position === position && term.userId !== userId,
+    )
 
     if (incumbent && !takeOver) {
       throw new HTTPException(409, {
@@ -1241,8 +1244,6 @@ officer.patch(
  * Stand somebody down: close their term, which puts them on `/officers` as a past
  * officer, and take the officer desks with it.
  *
- * Also takes the desks from an officer by role with no place on the board, which is
- * the only way to undo a role set in Prisma Studio without going back there.
  */
 officer.delete(
   '/terms/:userId',
@@ -1257,16 +1258,9 @@ officer.delete(
     const seated = snapshot.filter((term) => term.userId === userId).length
 
     if (seated === 0) {
-      const person = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { role: true },
+      throw new HTTPException(404, {
+        message: 'That person is not currently on the board.',
       })
-
-      if (person?.role !== UserRole.OFFICER) {
-        throw new HTTPException(404, {
-          message: 'That person is not currently on the board.',
-        })
-      }
     }
 
     const change = await changeBoard({
@@ -1282,8 +1276,7 @@ officer.delete(
 /**
  * The whole board at once: rotation day.
  *
- * The body is the board as it should be, seat by seat, plus whoever stays on without a
- * seat. Anybody on today's board who isn't in it leaves; anybody new joins; anybody
+ * The body is the board as it should be, seat by seat. Anybody on today's board who isn't in it leaves; anybody new joins; anybody
  * moving seats keeps their old term in the archive. All of it, roles included, is one
  * transaction, so there is never a moment with half a board.
  *
@@ -1295,7 +1288,7 @@ officer.delete(
  */
 const boardEntry = z
   .object({
-    position: z.enum(OfficerPosition).nullable(),
+    position: seatPosition,
     userId: z.string().min(1).optional(),
     termId: z.string().min(1).optional(),
   })
@@ -1308,11 +1301,10 @@ const handoverBody = z.object({
     .array(
       z.object({
         id: z.string().min(1),
-        position: z.enum(OfficerPosition).nullable(),
+        position: seatPosition,
       }),
-    )
-    .max(100),
-  board: z.array(boardEntry).max(60),
+    ),
+  board: z.array(boardEntry),
 })
 
 officer.post(
@@ -1334,19 +1326,17 @@ officer.post(
       })
     }
 
-    const taken = new Set<OfficerPosition>()
-    const placed = new Map<string, OfficerPosition | null>()
+    const taken = new Set<string>()
+    const placed = new Map<string, string>()
     const kept = new Set<string>()
 
     for (const entry of board) {
-      if (entry.position !== null) {
-        if (taken.has(entry.position)) {
-          throw new HTTPException(400, {
-            message: `${seatName(entry.position)} is given to two people.`,
-          })
-        }
-        taken.add(entry.position)
+      if (taken.has(entry.position)) {
+        throw new HTTPException(400, {
+          message: `${seatName(entry.position)} is given to two people.`,
+        })
       }
+      taken.add(entry.position)
 
       if (entry.termId !== undefined) {
         const term = snapshot.find((open) => open.id === entry.termId)

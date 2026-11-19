@@ -1,6 +1,5 @@
 import { normaliseHandle } from '../../src/discord/discord.js'
 import {
-  OfficerPosition,
   ProjectStatus,
   Season,
   SponsorTier,
@@ -56,7 +55,7 @@ export interface Decisions {
    * Which seat somebody holds: one of the eight, `null` for a term with no named chair, or
    * `NO_TERM` for somebody whose old title wasn't an office at all.
    */
-  readonly seats: Readonly<Record<string, OfficerPosition | null | typeof NO_TERM>>
+  readonly seats: Readonly<Record<string, string | null | typeof NO_TERM>>
   /** Straight field corrections, applied last. */
   readonly overrides: Readonly<Record<string, Partial<MappedUser>>>
   /**

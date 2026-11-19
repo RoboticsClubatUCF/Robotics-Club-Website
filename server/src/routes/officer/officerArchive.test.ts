@@ -58,12 +58,17 @@ const clearWindows = () =>
     where: { key: { in: ['officer', 'officer-photo'] } },
   })
 
+const ARCHIVE_SEAT = 'custom:test-archive-seat'
+const addTestSeat = () =>
+  prisma.officerSeat.create({ data: { position: ARCHIVE_SEAT, nameKey: 'test-archive-seat' } })
+
 const clearRows = async () => {
   // Terms first and by name, not by the people: half of them have no `userId`
   // by design, so no cascade from `users` reaches them.
   await prisma.officerTerm.deleteMany({
     where: { fullName: { startsWith: PREFIX } },
   })
+  await prisma.officerSeat.deleteMany({ where: { position: ARCHIVE_SEAT } })
   await prisma.user.deleteMany({ where: { email: { startsWith: PREFIX } } })
 }
 
@@ -174,16 +179,23 @@ describe('adding a term', () => {
     })
 
     expect(response.status).toBe(409)
-    expect(await response.text()).toContain('roles desk')
+    expect(await response.text()).toContain('board')
     expect(
       await prisma.officerTerm.count({ where: { userId: officerId, endedAt: null } }),
     ).toBe(0)
   })
 
+  it('requires a seat for an open term without an account', async () => {
+    const response = await add({ fullName: held('Current'), position: null, endedAt: null })
+    expect(response.status).toBe(400)
+  })
+
   it('refuses ending or deleting an account’s open term, and allows fixing its start', async () => {
+    await addTestSeat()
     const term = await prisma.officerTerm.create({
       data: {
         fullName: held('Sitting'),
+        position: ARCHIVE_SEAT,
         userId: officerId,
         startedAt: FROM,
       },
@@ -442,9 +454,9 @@ describe('a closed term makes somebody an officer alumnus', () => {
 
   /** An *open* term is somebody still on the board, not an alumnus. */
   it('does not count a term that has not ended', async () => {
-    // Straight in: an account's open term is the roles desk's to write.
+    await addTestSeat()
     await prisma.officerTerm.create({
-      data: { fullName: held('Sitting'), userId: officerId, startedAt: FROM },
+      data: { fullName: held('Sitting'), userId: officerId, position: ARCHIVE_SEAT, startedAt: FROM },
     })
 
     expect(mine(await roster('alumni'))).toBeUndefined()

@@ -182,15 +182,17 @@ function App() {
               <Route path="projects/:slug/manage/meetings" element={<ProjectManagePage part="meetings" />} />
               <Route path="projects/:slug/manage/calendars" element={<ProjectManagePage part="calendars" />} />
               <Route path="projects/:slug/manage/settings" element={<ProjectManagePage part="settings" />} />
-              <Route path="officer/roles" element={<OfficerRolesPage part="board" />} />
-              <Route path="officer/roles/handover" element={<OfficerRolesPage part="handover" />} />
-              <Route path="officer/roles/leads" element={<OfficerRolesPage part="leads" />} />
-              <Route path="officer/roles/grant" element={<OfficerRolesPage part="grant" />} />
-              <Route path="officer/roles/titles" element={<OfficerRolesPage part="titles" />} />
-              {/* Beside ROLES because it's the other half of the same subject — that desk
-                  decides who sits where today, this one is the record of who ever did.
-                  `officers` rather than `archive` in the address: it's what the page it
-                  writes is called. */}
+              <Route path="officer" element={<Navigate to="/dashboard/officer/board" replace />} />
+              <Route path="officer/board" element={<OfficerRolesPage part="board" />} />
+              <Route path="officer/board/handover" element={<OfficerRolesPage part="handover" />} />
+              <Route path="officer/leads" element={<OfficerRolesPage part="leads" />} />
+              <Route path="officer/grant" element={<OfficerRolesPage part="grant" />} />
+              <Route path="officer/titles" element={<OfficerRolesPage part="titles" />} />
+              <Route path="officer/roles" element={<Navigate to="/dashboard/officer/board" replace />} />
+              <Route path="officer/roles/handover" element={<Navigate to="/dashboard/officer/board/handover" replace />} />
+              <Route path="officer/roles/leads" element={<Navigate to="/dashboard/officer/leads" replace />} />
+              <Route path="officer/roles/grant" element={<Navigate to="/dashboard/officer/grant" replace />} />
+              <Route path="officer/roles/titles" element={<Navigate to="/dashboard/officer/titles" replace />} />
               <Route path="officer/officers" element={<OfficerArchivePage />} />
               <Route
                 path="officer/semesters"

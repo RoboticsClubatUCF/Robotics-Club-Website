@@ -56,6 +56,7 @@ const clearRows = async () => {
   await prisma.officerTerm.deleteMany({
     where: { user: { email: { startsWith: PREFIX } } },
   })
+  await prisma.officerSeat.deleteMany({ where: { nameKey: { startsWith: PREFIX } } })
   await prisma.termOverride.deleteMany({ where: { year: YEAR } })
   await prisma.user.deleteMany({ where: { email: { startsWith: PREFIX } } })
 }
@@ -88,46 +89,37 @@ let adminId = ''
 let outgoingId = ''
 let incomingId = ''
 
-/**
- * The seats this suite borrows, and the people it borrows them from.
- *
- * The development database has a full board in it, so every one of these cases would otherwise
- * 409 against somebody genuinely sitting there. That conflict is the feature working.
- *
- * So the suite parks whoever holds a seat it needs: their term is left open and only its
- * `position` is cleared, so nobody is stood down and nothing lands on the public archive. It's
- * handed back in `afterEach`.
- */
-let parked: { id: string; position: string }[] = []
+/** Park existing terms in temporary named seats while the fixtures use the built-ins. */
+let parked: { id: string; position: string; temporary: string }[] = []
 
 const parkSeats = async () => {
-  // Every seated open term, with no attempt to exclude this suite's own: they've already been
-  // deleted by `clearRows`. An earlier version tried `email: { not: { startsWith: PREFIX } }` and
-  // silently parked nothing, because the seeded officers have no email at all and `NOT LIKE`
-  // against NULL is NULL rather than true.
   const held = await prisma.officerTerm.findMany({
-    where: { endedAt: null, position: { not: null } },
+    where: { endedAt: null },
     select: { id: true, position: true },
   })
 
   parked = held.flatMap((term) =>
-    term.position ? [{ id: term.id, position: term.position }] : [],
+    term.position ? [{ id: term.id, position: term.position, temporary: PREFIX + term.id }] : [],
   )
-
-  await prisma.officerTerm.updateMany({
-    where: { id: { in: parked.map((term) => term.id) } },
-    data: { position: null },
+  await prisma.$transaction(async (tx) => {
+    await tx.officerSeat.createMany({
+      data: parked.map(({ temporary }) => ({ position: temporary, nameKey: temporary })),
+    })
+    for (const { id, temporary } of parked) {
+      await tx.officerTerm.update({ where: { id }, data: { position: temporary } })
+    }
   })
 }
 
 const unparkSeats = async () => {
-  for (const term of parked) {
-    await prisma.officerTerm.update({
-      where: { id: term.id },
-      // Cast: `position` came out of this column a moment ago.
-      data: { position: term.position as never },
+  await prisma.$transaction(async (tx) => {
+    for (const { id, position } of parked) {
+      await tx.officerTerm.update({ where: { id }, data: { position } })
+    }
+    await tx.officerSeat.deleteMany({
+      where: { position: { in: parked.map(({ temporary }) => temporary) } },
     })
-  }
+  })
   parked = []
 }
 
@@ -297,16 +289,27 @@ describe('the seat desk', () => {
     ).toBe(1)
   })
 
-  /** Clearing the seat leaves them on the board. They are still an officer,
-      just not in a named chair — standing down is a different button. */
-  it('clears a seat without ending the term', async () => {
+  it('requires a named seat and leaves an existing appointment intact', async () => {
     await seat(officerCookie, officerId, 'VICE_PRESIDENT')
-    await seat(officerCookie, officerId, null)
 
-    expect(await openTermOf(officerId)).toMatchObject({
-      position: null,
-      endedAt: null,
-    })
+    expect((await seat(officerCookie, officerId, null)).status).toBe(400)
+    expect((await seat(officerCookie, officerId, 'UNKNOWN')).status).toBe(400)
+    expect(await openTermOf(officerId)).toMatchObject({ position: 'VICE_PRESIDENT', endedAt: null })
+  })
+
+  it('adds a custom seat, rejects duplicate names, and appoints its holder', async () => {
+    const name = PREFIX + 'Safety Lead'
+    const created = await send('POST', '/api/officer/terms/seats', officerCookie, { name })
+    const { position } = (await created.json()) as { position: string }
+    expect(created.status).toBe(201)
+
+    const duplicate = await send('POST', '/api/officer/terms/seats', officerCookie, { name: name.toUpperCase() })
+    expect(duplicate.status).toBe(409)
+    expect((await seat(officerCookie, incomingId, position)).status).toBe(200)
+    expect(await roleOf(incomingId)).toBe(UserRole.OFFICER)
+    const current = (await (await send('GET', '/api/officer/terms', officerCookie)).json()) as Desk
+    expect(current.seats).toContain(position)
+    expect(current.board).toEqual(expect.arrayContaining([expect.objectContaining({ position })]))
   })
 
   /** Standing down closes the term, which is exactly what puts somebody on the
@@ -603,7 +606,7 @@ type Desk = {
     position: string | null
     user: { id: string } | null
   }[]
-  offBoard: Person[]
+  seats: string[]
 }
 type Revoked = { revoked: string[] }
 
@@ -672,20 +675,6 @@ describe('the officer desks follow the board', () => {
     expect(await roleOf(adminId)).toBe(UserRole.ADMIN)
   })
 
-  /** Officers set in Prisma Studio, or left by the old Discord sync, with no place on the board. */
-  it('lists officers who are not on the board, and can stand them down', async () => {
-    const desk = (await (
-      await send('GET', '/api/officer/terms', officerCookie)
-    ).json()) as Desk
-
-    expect(desk.offBoard.map((person) => person.id)).toContain(officerId)
-
-    const response = await send('DELETE', `/api/officer/terms/${officerId}`, officerCookie)
-
-    expect(response.status).toBe(200)
-    expect(await roleOf(officerId)).toBe(UserRole.MEMBER)
-  })
-
   /**
    * A seat held since an earlier day is history. Moving it closes the old term rather than
    * rewriting it, so the archive keeps the seat somebody held before.
@@ -722,7 +711,7 @@ describe('the officer desks follow the board', () => {
 /**
  * Rotation day: the whole board in one press.
  *
- * Every plan here keeps the real board exactly as it stands (parked, so seatless) and changes
+ * Every plan here keeps the real board exactly as it stands (in temporary seats) and changes
  * only this suite's people, so the route never touches a real term.
  */
 describe('the handover', () => {
@@ -747,6 +736,16 @@ describe('the handover', () => {
 
   const handover = (body: unknown, cookie = officerCookie) =>
     send('POST', '/api/officer/terms/handover', cookie, body)
+
+  it('refuses a seatless appointment during handover', async () => {
+    const current = await desk()
+    const response = await handover({
+      expected: expectedOf(current),
+      board: [...keepOthers(current), { userId: incomingId, position: null }],
+    })
+    expect(response.status).toBe(400)
+    expect(await openTermOf(incomingId)).toBeNull()
+  })
 
   type Answer = {
     change: Revoked & { joined: Person[]; left: Person[]; moved: Person[] }

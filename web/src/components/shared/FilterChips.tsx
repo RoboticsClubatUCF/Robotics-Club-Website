@@ -45,7 +45,7 @@ export function FilterChips<T extends string>({
           onClick={() => {
             onChange(option.value)
           }}
-          className={`border-rule cursor-pointer border px-3 py-1.5 font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50 ${
+          className={`border-rule max-w-full cursor-pointer wrap-anywhere border px-3 py-1.5 font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50 ${
             value === option.value
               ? 'border-primary text-primary bg-primary/5'
               : 'text-faint hover:text-primary'

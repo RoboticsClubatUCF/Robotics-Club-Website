@@ -106,13 +106,13 @@ Several columns are rewritten by the ten-minute sweeps.
 | --- | --- |
 | `role` → `ADMIN` | Sticks. Nothing writes or clears it |
 | `role` → `MEMBER` / `GUEST` | Reverted by the membership sweep; `dues_paid_through` decides |
-| `role` → `OFFICER` | Sticks, but the roles desk lists them as an officer not on the board. Seat them there instead |
+| `role` → `OFFICER` | Assign a named seat through Officer Board so the term and role are saved together |
 | `officer_alumnus` | Overwritten from the Discord Officer Alumni role |
 | `active` | Set back to `true` by the next payment |
 | `survey_completed_at` cleared | Puts the survey prompt back up; locks nothing |
 | `survey_prompt_dismissed_at` cleared | Starts asking someone who said stop |
 
-To comp a term, use the roles desk, not `dues_paid_through`. `grantMembership`
+To comp a term, use Grant Membership under Officer, not `dues_paid_through`. `grantMembership`
 also records the zero-amount payment, promotes a `GUEST`, stamps `joinedAt` and
 notes who granted it.
 
@@ -156,7 +156,7 @@ How roles move:
   resolution; `sweepLapsedMembers` on the ten-minute timer catches the rest. Both
   touch only `MEMBER` accounts with a payment on record, and the sweep skips runs
   when UCF's calendar couldn't be read.
-- Officers follow the board, which is kept by hand on the roles desk. Every
+- Officers follow the board, which is managed under Officer. Every
   board write goes through `changeBoard` in `src/membership/board.ts`: a seat
   (any but faculty advisor) makes its holder an `OFFICER`, and losing the last
   one hands them back to their dues. Nothing reads the Discord Officers role to
@@ -223,7 +223,7 @@ List routes take `?limit=` (max 100) and `?offset=`.
 | `GET /api/stats` | Landing page counts. Each equals its listing's default length; `members` is `activeMembers` (`active`, not `GUEST`) |
 | `GET /api/members` | Active members by default. `?status=alumni` is the Officer Alumni role or a closed officer term; `?status=all` is every account. Also `?role=`. `limit` up to 1000 so the page can search the whole club. Includes `profileUrl` |
 | `GET /api/members/:slug` | Adds only projects where the member is approved for public listing |
-| `GET /api/officers` | `{ seats, officers }`: every seat in enum order and who holds one. `photoUrl` prefers the linked account's photo |
+| `GET /api/officers` | `{ seats, officers }`: every seat in board order and who holds one. `photoUrl` prefers the linked account's photo |
 | `GET /api/officers/past` | The archive, `{ terms, older }`. `?years=` (default 2), `&all=1` |
 | `GET /api/projects` | `?status= &season= &featured=true &term=current\|other &cover=true &images=true &description=true`. `term` is resolved from the academic calendar; `other` is everything not current, newest first. `cover=true` adds the first gallery image, `images=true` the whole gallery, `description=true` the write-up. Cover columns and section headings are always included |
 | `GET /api/projects/:slug` | Adds description and members approved for public listing |
@@ -361,10 +361,11 @@ All officer-only (`requireOfficer`, which includes the dues check).
 | `GET`/`POST /api/officer/equipment` · `PATCH /api/officer/equipment/:id` | `maxLoanDays` defaults to 7 on create; PATCH has no defaults. Names unique case-insensitively |
 | `DELETE /api/officer/equipment/:id` | Deletes the item and its loans. Refused while a unit is out. Retiring is the reversible option |
 | `GET /api/officer/loans?status=&all=` · `PATCH /api/officer/loans/:id` | Availability re-checked in the transaction. No `REQUESTED` → `CHECKED_OUT`. `dueAt` defaults to the member's date or the item's cap |
-| `GET /api/officer/terms` · `PATCH /api/officer/terms/seat` | Today's board, plus `offBoard` (officers by role with no open term). Taking a held seat is a 409 naming the incumbent unless `takeOver: true`, which closes their term as "Succeeded by …" in the same transaction. `position: null` clears a seat. The role follows the seat, and the answer carries `revoked` (ids whose desks went) |
-| `DELETE /api/officer/terms/:userId` | Closes the open term, publishing it to `/officers`, and hands them back to their dues. Also takes the desks from an officer with no open term |
+| `GET /api/officer/terms` · `PATCH /api/officer/terms/seat` | Named seats and today's occupants. Appointment requires an existing seat. An occupied seat returns 409 unless `takeOver: true` confirms succession. The response carries `revoked` user IDs |
+| `POST /api/officer/terms/seats` | Create a vacant named seat from `{ name }`. Duplicate names return 409 |
+| `DELETE /api/officer/terms/:userId` | Closes the open term, publishing it to `/officers`, and hands them back to their dues. |
 | `POST /api/officer/terms/handover` | The whole board at once: `board` is every place as it should be (`userId`, or `termId` for an accountless term that stays), `expected` the board it was planned against (409 if it moved). One transaction; seat moves keep the old term in the archive |
-| `GET /api/officer/archive` · `POST` · `PATCH`/`DELETE /archive/:id` | Every officer term. `userId` optional; `fullName` stored on the term. The one-per-seat 409 applies to open terms. PATCH treats absent fields as unchanged and checks dates on the resulting row. `source` isn't writable |
+| `GET /api/officer/archive` · `POST` · `PATCH`/`DELETE /archive/:id` | Every officer term. `userId` optional; `fullName` stored on the term. Open terms require a named seat and one holder per seat. PATCH treats absent fields as unchanged and checks dates on the resulting row. |
 | `POST` / `DELETE /api/officer/archive/:id/photo` | A term headshot, shown only when no account is linked |
 | `GET /api/officer/semesters/:year` | The three terms and their source (`override`, `calendar`, `fallback`), plus finals dates and source (null when unset) |
 | `PUT` / `DELETE /api/officer/semesters/:year/:season` | Club dates that override UCF's feed. Finals dates both or neither, inside the term. Flushes the semester cache. Affects future payments only |
@@ -445,8 +446,8 @@ here.
   permission: the faculty advisor holds a seat as a `MEMBER`.
 - `/officers` and `/officers/past` are `officer_terms` split on `ended_at`.
   Terms store the holder's name because most past officers have no account.
-- The seats come from the `OfficerPosition` enum, so a new seat needs no
-  frontend change. Officers with no seat are included.
+- The seat catalogue lives in `officer_seats`. Every open term references a seat.
+  Closed terms can preserve missing seat names in older records.
 - Seats are set on `/api/officer/terms/seat` (one at a time) and
   `/api/officer/terms/handover` (the whole board), the archive on
   `/api/officer/archive`. The archive refuses to seat, unseat or delete an

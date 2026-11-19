@@ -9,7 +9,7 @@ import {
   PRINT_QUEUE_PAGES,
   PROFILE_PAGES,
   PROJECTS_DESK_PAGES,
-  ROLES_PAGES,
+  OFFICER_PAGES,
   SPONSORS_PAGES,
   SURVEY_PAGES,
   projectPages,
@@ -234,8 +234,7 @@ export function DashboardRail({
                 <>
                   {officer && (
                     <>
-                      <LockedRow>ROLES</LockedRow>
-                      <LockedRow>OFFICERS</LockedRow>
+                      <LockedRow>OFFICER</LockedRow>
                       <LockedRow>SEMESTERS</LockedRow>
                       <LockedRow>SURVEY</LockedRow>
                       <LockedRow>FRONT PAGE</LockedRow>
@@ -259,10 +258,7 @@ export function DashboardRail({
                       lead sees, and it shouldn't be stranded at the bottom. */}
                   {officer && (
                     <>
-                      <RailSection label="ROLES" pages={ROLES_PAGES} />
-                      <NavLink to="/dashboard/officer/officers" className={linkClass}>
-                        OFFICERS
-                      </NavLink>
+                      <RailSection label="OFFICER" pages={OFFICER_PAGES} />
                       <NavLink to="/dashboard/officer/semesters" className={linkClass}>
                         SEMESTERS
                       </NavLink>
@@ -352,8 +348,7 @@ function useDropdown(pages: readonly SubPage[], openInside = true) {
  * shows the rest without leaving the page you're on.
  *
  * The label stays a link rather than becoming the toggle, so a section is still one press
- * away. The parent's `NavLink` has no `end`, so it stays lit on every sub-page, and it says
- * `aria-current="true"` (this section) rather than "page", which belongs to the sub-page.
+ * away. The parent stays lit on every sub-page.
  */
 function RailSection({
   label,
@@ -363,18 +358,20 @@ function RailSection({
   pages: readonly SubPage[]
 }) {
   const id = useId()
+  const { pathname } = useLocation()
+  const active = within(pathname, pages)
   const { open, toggle } = useDropdown(pages)
 
   return (
     <div>
       <div className="relative">
-        <NavLink
+        <Link
           to={pages[0].to}
-          aria-current="true"
-          className={(state) => `${linkClass(state)} pr-12`}
+          aria-current={active ? true : undefined}
+          className={`${linkClass({ isActive: active })} pr-12`}
         >
           {label}
-        </NavLink>
+        </Link>
         <DropdownToggle label={label} controls={id} open={open} onToggle={toggle} />
       </div>
       <SubList id={id} open={open} pages={pages} />

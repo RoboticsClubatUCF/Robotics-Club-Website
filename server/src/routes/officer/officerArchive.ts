@@ -7,7 +7,8 @@ import { requireOfficer } from '../../auth/authz.js'
 import { prisma } from '../../core/db.js'
 import { env } from '../../core/env.js'
 import { deleteIfStored, looksLikeImage, storeFile } from '../../files/files.js'
-import { FileKind, OfficerPosition } from '../../generated/prisma/enums.js'
+import { FileKind } from '../../generated/prisma/enums.js'
+import { readSeats, requireSeats, seatOrder, seatPosition } from '../../membership/officerSeats.js'
 import { rateLimit } from '../../core/rateLimit.js'
 import { type AuthEnv, originGuard, requireAuth } from '../../auth/session.js'
 
@@ -26,7 +27,7 @@ import { type AuthEnv, originGuard, requireAuth } from '../../auth/session.js'
  * precisely so a president from 2009 with no account here can be entered. The seat
  * routes only ever describe today.
  *
- * Not a second answer to "who is on the board". The roles desk is where a chair is
+ * Not a second answer to "who is on the board". The board is where a chair is
  * handed over, because a handover moves the officer desks with it (`membership/board.ts`).
  * This desk is the record itself: it adds history and fixes rows that are wrong, and
  * never writes `User.role`. Where the two overlap, this one refuses.
@@ -74,15 +75,18 @@ const archiveSelect = {
  * those become the same problem this wants `?q=` and `?year=`, not a bigger `take`.
  *
  * `seats` rides along because how many seats the club has is the database's answer: a
- * ninth added to `OfficerPosition` appears in the picker with no frontend edit.
+ * seat added to the board appears in the picker with no frontend edit.
  */
 officerArchive.get('/', requireAuth, requireOfficer, async (c) => {
-  const terms = await prisma.officerTerm.findMany({
-    orderBy: [{ startedAt: 'desc' }, { endedAt: 'desc' }, { position: 'asc' }],
-    select: archiveSelect,
-  })
+  const [seats, terms] = await Promise.all([
+    readSeats(),
+    prisma.officerTerm.findMany({
+      orderBy: [{ startedAt: 'desc' }, { endedAt: 'desc' }, ...seatOrder],
+      select: archiveSelect,
+    }),
+  ])
 
-  return c.json({ seats: Object.values(OfficerPosition), terms })
+  return c.json({ seats, terms })
 })
 
 /**
@@ -101,7 +105,7 @@ officerArchive.get('/', requireAuth, requireOfficer, async (c) => {
 const termFields = {
   fullName: z.string().trim().min(2).max(120),
   userId: z.string().min(1).nullable(),
-  position: z.enum(OfficerPosition).nullable(),
+  position: seatPosition.nullable(),
   startedAt: z.coerce.date(),
   /** Null is "still on the board". It is the only thing that means it. */
   endedAt: z.coerce.date().nullable(),
@@ -195,11 +199,19 @@ async function assertSound(term: {
  * have a second, quieter way to stand somebody down.
  */
 async function assertSeatFree(
-  position: OfficerPosition | null,
+  position: string | null,
   endedAt: Date | null,
   exceptId: string | null,
 ) {
-  if (position === null || endedAt !== null) return
+  if (position === null) {
+    if (endedAt === null) {
+      throw new HTTPException(400, { message: 'Choose a seat for a current term.' })
+    }
+    return
+  }
+
+  await requireSeats([position])
+  if (endedAt !== null) return
 
   const incumbent = await prisma.officerTerm.findFirst({
     where: {
@@ -212,7 +224,7 @@ async function assertSeatFree(
 
   if (incumbent) {
     throw new HTTPException(409, {
-      message: `${incumbent.fullName} still holds that seat. End their term first, or hand the chair over from the roles desk.`,
+      message: `${incumbent.fullName} still holds that seat. End their term first, or hand the chair over from the board.`,
     })
   }
 }
@@ -220,13 +232,13 @@ async function assertSeatFree(
 type Placement = {
   userId: string | null
   endedAt: Date | null
-  position: OfficerPosition | null
+  position: string | null
 }
 
 /**
  * Refuse a write that seats, unseats or moves somebody with an account on today's board.
  *
- * That's the roles desk's job, because a seat there moves the officer desks with it
+ * That's the board's job, because a seat there moves the officer desks with it
  * (`membership/board.ts`), and a records desk that could do it too would leave the seat
  * and the desks disagreeing. History, and today's board for people with no account,
  * stay writable here.
@@ -248,7 +260,7 @@ function assertNotBoardChange(before: Placement | null, after: Placement | null)
 
   throw new HTTPException(409, {
     message:
-      'Today’s board is set on the roles desk, so the officer desks move with the seat.',
+      'Today’s board is set on the board, so the officer desks move with the seat.',
   })
 }
 
@@ -277,7 +289,7 @@ officerArchive.post(
 )
 
 /**
- * Correct a term — any field, on any term, however it got here. The roles desk records
+ * Correct a term — any field, on any term, however it got here. The board records
  * the day a seat was set, which isn't always the day the club decided it.
  */
 officerArchive.patch(
@@ -323,7 +335,7 @@ officerArchive.patch(
  * Delete a term outright, which is what makes this different from standing somebody
  * down.
  *
- * `DELETE /api/officer/terms/:userId` on the roles desk closes an open term: the person
+ * `DELETE /api/officer/terms/:userId` on the board closes an open term: the person
  * leaves the board and appears in the archive, which is history worth keeping. This is
  * for the row that should never have existed — a term entered against the wrong person,
  * a duplicate. There's no soft version of that.

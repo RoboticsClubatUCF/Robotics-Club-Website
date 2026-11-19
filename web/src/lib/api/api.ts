@@ -694,22 +694,17 @@ export type ApiProjectTeamView = {
  * the search matches on the name and on both, so a member with a Discord handle
  * and no email is still findable.
  */
-/**
- * The roles desk's view: every seat there is, who is in one, and anybody with the
- * officer role but no place on the board (set in Prisma Studio, or left by the old
- * Discord sync).
- */
+/** The board and its named seats. */
 export type ApiOfficerDesk = {
   seats: OfficerPosition[]
   board: ApiBoardSeat[]
-  offBoard: ApiBoardPerson[]
 }
 
 /** A seat on the board as the officer desk sees it. `user` is null for a term
     entered on the officers desk for somebody with no account. */
 export type ApiBoardSeat = {
   id: string
-  position: OfficerPosition | null
+  position: OfficerPosition
   startedAt: string
   fullName: string
   user: {
@@ -1384,10 +1379,7 @@ export type ApiSponsorDesk = {
   footnotes: string | null
 }
 
-/**
- * The eight seats on the officer board. Mirrors the `OfficerPosition` enum in
- * `schema.prisma`, where the declaration order is the display order.
- */
+/** Built-in position keys and custom seats. */
 export type OfficerPosition =
   | 'PRESIDENT'
   | 'VICE_PRESIDENT'
@@ -1397,6 +1389,7 @@ export type OfficerPosition =
   | 'OUTREACH'
   | 'LAB_MANAGER'
   | 'FACULTY_ADVISOR'
+  | `custom:${string}`
 
 /**
  * A roster entry, as `rosterSelect` in `server/src/routes/public/content.ts`
@@ -1473,7 +1466,7 @@ export type ApiOfficerTerm = {
  *
  * `officers` is one entry per sitting officer, not one per seat, so the page draws
  * as many cards as the club has officers. `seats` is every seat there is, in board
- * order, from the `OfficerPosition` enum — sent so the page can also show the
+ * order, from the seat catalogue — sent so the page can also show the
  * chairs nobody is in without keeping a list of its own.
  */
 export type ApiOfficerBoard = {

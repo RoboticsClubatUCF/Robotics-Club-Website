@@ -25,12 +25,7 @@ datasource db {
 ///   - Dues move people between `MEMBER` and `GUEST`. `membershipUpdateFor` in
 ///     `src/routes/member/dues.ts` promotes a `GUEST` who pays, claims a free window or is granted
 ///     a term by an officer; `src/membership/membershipSweep.ts` puts a lapsed `MEMBER` back down.
-///   - The club's Discord officer role moves people between `OFFICER` and whichever of
-///     `MEMBER`/`GUEST` their dues say — `src/discord/discordOfficers.ts`, and only when
-///     `DISCORD_OFFICER_ROLE_ID` is configured. The board is appointed in Discord and the site
-///     follows. Granting is immediate — at signup, and at sign-in through
-///     `refreshOfficerStanding` — while taking the role away waits for the ten-minute sweep, which
-///     is the only thing that can see enough of the guild to be sure. That file has the why.
+///   - The officer board moves people between OFFICER and their dues role.
 ///   - A human, for `ADMIN`, in Prisma Studio. Nothing in this codebase writes or clears `ADMIN` in
 ///     either direction, and the sync excludes it structurally rather than by a check it could get
 ///     wrong.
@@ -46,26 +41,6 @@ enum UserRole {
   OFFICER
   MEMBER
   GUEST
-}
-
-/// The eight seats on the officer board, in the order the site shows them.
-///
-/// Separate from `UserRole` on purpose: that is the permission ladder and says what someone may
-/// do, this says which seat they hold. Every seat but the faculty advisor's makes its holder an
-/// `OFFICER` (`src/membership/board.ts`); the advisor holds a seat without the permission level, so
-/// one enum could not carry both.
-///
-/// Declaration order is the display order, as for `UserRole`, so reordering needs the hand-written
-/// `CREATE TYPE` swap described in the note on that enum rather than a generated migration.
-enum OfficerPosition {
-  PRESIDENT
-  VICE_PRESIDENT
-  TREASURER
-  SECRETARY
-  MARKETING
-  OUTREACH
-  LAB_MANAGER
-  FACULTY_ADVISOR
 }
 
 /// Everyone the site knows about: the roster, the people who can sign in, and anyone who has only
@@ -237,47 +212,22 @@ model User {
   @@map("users")
 }
 
-/// A seat somebody held in a year that has finished — the club's officer archive, and everything
-/// behind `/officers/past`.
-///
-/// It exists because `User.officerPosition` is `@unique` and therefore strictly current: it can
-/// only ever name the eight people sitting on the board today, and a president who hands over goes
-/// null there. Until this table the club's own history lived in the free-text `title` ("President,
-/// 2024-2025"), which is a sentence rather than something a query can group by a year.
-///
-/// It is also the answer to "is this person on the board", and the only one. `User.role` says what
-/// somebody may do — and `ADMIN` outranks `OFFICER` there, so the ladder cannot say "an admin who
-/// is also an officer" at all. This can: an admin holds a term like anybody else while their `role`
-/// stays `ADMIN`. The board is kept by hand on the roles desk, and `src/membership/board.ts` writes
-/// every change to it along with the `OFFICER` role that follows. Three questions, three answers,
-/// and `.claude/docs/membership.md` is the rule.
-///
-/// The name is written here rather than read through `user`. Most past officers predate this site
-/// by years and have no row in `users` at all, so a required relation would make half the archive
-/// impossible to enter — and a term is the record of who held a seat in a particular year, which
-/// must not change when somebody edits their profile or comes off the roster. `userId` is the link
-/// where there is one, and it earns its place by carrying the headshot: rolling the board over at
-/// the end of a year is eight rows pointing at eight accounts, not eight photographs uploaded a
-/// second time. It is `SetNull`, because losing the link must never lose the term.
-///
-/// One person per seat at a time is enforced by the route, not by an index. Postgres cannot express
-/// "unique on `position` among rows where `ended_at` is null" through Prisma — a partial unique
-/// index would live in the database and not in this file, and the next generated migration would
-/// emit a `DROP INDEX` for it into something unrelated. So the seat route checks and answers 409
-/// naming the incumbent, exactly as the project-lead route does. Two open terms on one seat is
-/// therefore possible: both draw a card, both are visible, either is closable.
-///
-/// Deliberately not unique on `(position, startedAt)` either. Officers resign and somebody finishes
-/// the year for them, and a constraint that makes the true thing unrecordable is worse than the
-/// duplicate it prevents.
+/// The board's named seats, including vacant seats.
+model OfficerSeat {
+  position     String        @id
+  nameKey      String        @unique @map("name_key")
+  displayOrder Int           @default(8) @map("display_order")
+  terms        OfficerTerm[]
+
+  @@map("officer_seats")
+}
+
+/// An open term seats its holder on the board. Closed terms record the club's history.
 model OfficerTerm {
   id          String           @id @default(uuid(7))
-  /// Which seat, or null for an officer holding no named one. The board can carry officers who
-  /// don't sit in one of the eight chairs, and a term that couldn't say so would have to invent one.
-  position    OfficerPosition?
-  /// When this tenure began, and when it ended. Open — `endedAt` null — is what "currently on the
-  /// board" means, and it is the only thing that means it: there is no boolean beside this and
-  /// there must never be one.
+  /// Only historical terms may lack a named seat.
+  position    String?
+  seat        OfficerSeat?     @relation(fields: [position], references: [position], onDelete: Restrict)
   startedAt   DateTime         @map("started_at")
   endedAt     DateTime?        @map("ended_at")
   /// Why it ended, in words, for the officer reading the archive later: who succeeded them, which

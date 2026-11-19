@@ -6,7 +6,6 @@ import { MemberSearch } from '../shared/MemberSearch'
 import { Status } from '../shared/Status'
 import { ApiError, postJson } from '../../lib/api/api'
 import type {
-  ApiBoardPerson,
   ApiHandover,
   ApiOfficerDesk,
   OfficerPosition,
@@ -18,7 +17,6 @@ import {
   type Plan,
   type PlanChanges,
   changesOf,
-  dropSeatless,
   emptySeat,
   grantsDesks,
   hasChanges,
@@ -35,12 +33,9 @@ import {
 import { seatLabel } from '../../lib/officerTerms'
 import { panelLabel, primaryButton, secondaryButton, textButton } from './boardChrome'
 
-const placeName = (seat: OfficerPosition | null) =>
-  seat === null ? 'no seat' : seatLabel(seat)
-
 /** Which control takes focus after an edit, so a keyboard user isn't dropped on `<body>`
     when the row they pressed in is redrawn. `n` makes a repeat of the same target count. */
-type Focus = { target: OfficerPosition | 'seatless' | 'add' | 'panel' | 'send'; n: number }
+type Focus = { target: OfficerPosition | 'panel' | 'send'; n: number }
 
 /**
  * Rotation day: the board as it should be, seat by seat, sent in one press.
@@ -71,14 +66,12 @@ export function BoardHandover({
 }) {
   const [draft, setDraft] = useState<{ base: ApiOfficerDesk; plan: Plan } | null>(null)
   const [focus, setFocus] = useState<Focus | null>(null)
-  const [adding, setAdding] = useState(0)
   const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState<ApiHandover['change'] | null>(null)
 
   const doneBox = useRef<HTMLDivElement>(null)
-  const seatlessHeading = useRef<HTMLParagraphElement>(null)
   const panelHeading = useRef<HTMLParagraphElement>(null)
   const sendButton = useRef<HTMLButtonElement>(null)
 
@@ -90,7 +83,6 @@ export function BoardHandover({
   }, [done])
 
   useEffect(() => {
-    if (focus?.target === 'seatless') seatlessHeading.current?.focus()
     if (focus?.target === 'panel') panelHeading.current?.focus()
     if (focus?.target === 'send') sendButton.current?.focus()
   }, [focus])
@@ -151,12 +143,6 @@ export function BoardHandover({
     now.has(`u:${me.id}`) &&
     (mine === undefined || !grantsDesks(mine))
 
-  const seatlessLeaving = changes.leaving.filter((holder) => now.get(holder.key) === null)
-
-  // Officers by role with no place on the board. The handover leaves them alone unless the
-  // plan places them, so they're listed where they can be added.
-  const offBoard = desk.offBoard.filter((person) => !next.has(`u:${person.id}`))
-
   const send = async () => {
     setBusy(true)
     setError('')
@@ -212,7 +198,7 @@ export function BoardHandover({
           return (
             <li key={seat} className="py-3.5">
               <div className="mb-2 flex items-baseline justify-between gap-3">
-                <p className="text-[13px] font-semibold">{seatLabel(seat)}</p>
+                <p className="min-w-0 wrap-anywhere text-[13px] font-semibold">{seatLabel(seat)}</p>
                 {!same && (
                   <span className="font-mono text-[10px] font-medium tracking-[0.14em] text-primary">
                     {holder ? 'CHANGING' : 'LEFT EMPTY'}
@@ -273,80 +259,6 @@ export function BoardHandover({
           )
         })}
       </ol>
-
-      <div className="mt-6">
-        <p
-          ref={seatlessHeading}
-          tabIndex={-1}
-          className={`${panelLabel} mb-2 outline-none`}
-        >
-          WITHOUT A SEAT
-        </p>
-
-        {(plan.seatless.length > 0 || seatlessLeaving.length > 0 || offBoard.length > 0) && (
-          <ul className="mb-4 divide-y divide-[var(--color-rule)] border-y border-rule">
-            {plan.seatless.map((holder) => (
-              <SeatlessRow
-                key={holder.key}
-                name={holder.fullName}
-                note={
-                  now.get(holder.key) === null
-                    ? null
-                    : now.has(holder.key)
-                      ? `WAS ${placeName(now.get(holder.key) ?? null).toUpperCase()}`
-                      : 'JOINING'
-                }
-                action="REMOVE"
-                actionLabel={`Take ${holder.fullName} off the board`}
-                disabled={busy}
-                onAction={() => {
-                  edit(dropSeatless(plan, holder.key), 'seatless')
-                }}
-              />
-            ))}
-            {seatlessLeaving.map((holder) => (
-              <SeatlessRow
-                key={holder.key}
-                name={holder.fullName}
-                note="LEAVING"
-                action="KEEP"
-                actionLabel={`Keep ${holder.fullName} on the board`}
-                disabled={busy}
-                onAction={() => {
-                  edit(place(plan, holder, null), 'seatless')
-                }}
-              />
-            ))}
-            {offBoard.map((person) => (
-              <SeatlessRow
-                key={person.id}
-                name={person.fullName}
-                note="HAS THE DESKS, NOT ON THE BOARD"
-                action="ADD"
-                actionLabel={`Add ${person.fullName} to the board`}
-                disabled={busy}
-                onAction={() => {
-                  edit(place(plan, holderOfMember(person), null), 'seatless')
-                }}
-              />
-            ))}
-          </ul>
-        )}
-
-        <MemberSearch
-          key={adding}
-          picked={null}
-          onPick={(member) => {
-            if (!member) return
-            edit(place(plan, holderOfMember(member), null), 'add')
-            setAdding((count) => count + 1)
-          }}
-          disabled={busy}
-          label="Add somebody without a seat"
-          hideLabel
-          autoFocus={focus?.target === 'add'}
-        />
-      </div>
 
       {changed && (
         <div className="mt-6 border border-rule bg-base-100 p-4">
@@ -418,15 +330,9 @@ export function BoardHandover({
               get the desks.
             </p>
           )}
-          {offBoard.length > 0 && (
-            <p className="mt-3">
-              {names(offBoard)} {offBoard.length === 1 ? 'keeps' : 'keep'} the officer desks
-              with no place on the board.
-            </p>
-          )}
           {iLoseDesks && (
             <p className="mt-3">
-              That includes you. Your desks close when you leave the roles desk.
+              You’ll lose access to the officer tools.
             </p>
           )}
         </ConfirmDialog>
@@ -434,8 +340,6 @@ export function BoardHandover({
     </FormPanel>
   )
 }
-
-const names = (people: ApiBoardPerson[]) => people.map((person) => person.fullName).join(', ')
 
 /** A seat held on a term with no account behind it: it can be kept or vacated, not moved. */
 function AccountlessHolder({
@@ -477,40 +381,6 @@ function AccountlessHolder({
   )
 }
 
-function SeatlessRow({
-  name,
-  note,
-  action,
-  actionLabel,
-  disabled,
-  onAction,
-}: {
-  name: string
-  note: string | null
-  action: string
-  actionLabel: string
-  disabled: boolean
-  onAction: () => void
-}) {
-  return (
-    <li className="flex items-center justify-between gap-3 py-2">
-      <div className="min-w-0">
-        <p className="truncate text-[13px] font-semibold">{name}</p>
-        {note && <p className="font-mono text-[10px] tracking-[0.14em] text-faint">{note}</p>}
-      </div>
-      <button
-        type="button"
-        className={textButton}
-        disabled={disabled}
-        aria-label={actionLabel}
-        onClick={onAction}
-      >
-        {action}
-      </button>
-    </li>
-  )
-}
-
 /** Who joins, moves and leaves, and which seats empty. Under the form and in the confirmation. */
 function ChangeList({ changes }: { changes: PlanChanges }) {
   return (
@@ -520,7 +390,7 @@ function ChangeList({ changes }: { changes: PlanChanges }) {
           <dt className={panelLabel}>JOINING</dt>
           <dd>
             {changes.joining
-              .map(({ holder, to }) => `${holder.fullName} (${placeName(to)})`)
+              .map(({ holder, to }) => `${holder.fullName} (${seatLabel(to)})`)
               .join(', ')}
           </dd>
         </div>
@@ -532,7 +402,7 @@ function ChangeList({ changes }: { changes: PlanChanges }) {
             {changes.moving
               .map(
                 ({ holder, from, to }) =>
-                  `${holder.fullName} (${placeName(from)} → ${placeName(to)})`,
+                  `${holder.fullName} (${seatLabel(from)} → ${seatLabel(to)})`,
               )
               .join(', ')}
           </dd>
@@ -565,7 +435,7 @@ function HandoverDone({
     <p className="text-[13px] leading-[1.6] text-success">
       The board has been handed over.
       {change.revoked.includes(me.id) &&
-        ' Your officer desks close when you leave the roles desk.'}
+        ' Your officer access has ended.'}
     </p>
   )
 }

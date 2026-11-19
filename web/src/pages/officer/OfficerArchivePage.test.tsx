@@ -213,9 +213,8 @@ describe('OfficerArchivePage', () => {
     })
   })
 
-  /** A term with no seat is a real state — the sync opens one before anybody
-      has been given a chair — so the picker's empty option has to survive. */
-  it('sends a null seat rather than an empty string', async () => {
+  /** A past term may have no recorded seat. */
+  it('allows an unnamed seat only for a past term', async () => {
     const fetchMock = stubDesk([])
     vi.stubGlobal('fetch', fetchMock)
     renderPage()
@@ -228,11 +227,15 @@ describe('OfficerArchivePage', () => {
     fireEvent.change(screen.getByLabelText(/started/i), {
       target: { value: '2009-09-01' },
     })
+    expect(screen.getByRole('button', { name: /add the term/i })).toBeDisabled()
+    fireEvent.change(screen.getByLabelText(/^ended$/i), {
+      target: { value: '2010-05-01' },
+    })
     fireEvent.click(screen.getByRole('button', { name: /add the term/i }))
 
     await waitFor(() => {
       const posted = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')
-      expect(bodyOf(posted?.[1])).toMatchObject({ position: null, endedAt: null })
+      expect(bodyOf(posted?.[1])).toMatchObject({ position: null, endedAt: '2010-05-01T12:00:00Z' })
     })
   })
 
@@ -251,6 +254,10 @@ describe('OfficerArchivePage', () => {
 
     fireEvent.change(screen.getByLabelText(/started/i), {
       target: { value: '2009-09-01' },
+    })
+    expect(add).toBeDisabled()
+    fireEvent.change(screen.getByLabelText(/which seat/i), {
+      target: { value: 'TREASURER' },
     })
     expect(add).toBeEnabled()
   })
@@ -371,6 +378,9 @@ describe('OfficerArchivePage', () => {
     })
     fireEvent.change(screen.getByLabelText(/started/i), {
       target: { value: '2009-09-01' },
+    })
+    fireEvent.change(screen.getByLabelText(/which seat/i), {
+      target: { value: 'TREASURER' },
     })
     fireEvent.click(screen.getByRole('button', { name: /add the term/i }))
 

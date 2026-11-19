@@ -116,7 +116,7 @@ export function OfficerCard({
             aria-hidden
           />
         ) : (
-          <div className="text-primary font-mono text-[10px] font-medium tracking-[0.16em] uppercase">
+          <div className="text-primary wrap-anywhere font-mono text-[10px] font-medium tracking-[0.16em] uppercase">
             {seat}
           </div>
         )}

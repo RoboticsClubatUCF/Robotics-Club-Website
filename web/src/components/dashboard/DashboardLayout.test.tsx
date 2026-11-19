@@ -318,9 +318,9 @@ describe('DashboardLayout', () => {
       }),
     )
 
-    renderDashboard('/dashboard/officer/roles/leads')
+    renderDashboard('/dashboard/officer/leads')
 
-    const roles = await screen.findByRole('button', { name: 'ROLES pages' })
+    const roles = await screen.findByRole('button', { name: 'OFFICER pages' })
     expect(roles).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('link', { name: 'LEADS' })).toHaveAttribute(
       'aria-current',
@@ -371,9 +371,9 @@ describe('DashboardLayout', () => {
       }),
     )
 
-    renderDashboard('/dashboard/officer/roles')
+    renderDashboard('/dashboard/officer/board')
 
-    const roles = await screen.findByRole('button', { name: 'ROLES pages' })
+    const roles = await screen.findByRole('button', { name: 'OFFICER pages' })
     const sponsors = screen.getByRole('button', { name: 'SPONSORS pages' })
     expect(roles).toHaveAttribute('aria-expanded', 'true')
 
@@ -1040,7 +1040,7 @@ describe('the print queue row', () => {
 
     const link = await screen.findByRole('link', { name: 'PRINT QUEUE' })
     expect(link).toHaveAttribute('href', '/dashboard/officer/print')
-    expect(screen.queryByRole('button', { name: /roles/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /officer pages/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'EVENTS' })).not.toBeInTheDocument()
   })
 

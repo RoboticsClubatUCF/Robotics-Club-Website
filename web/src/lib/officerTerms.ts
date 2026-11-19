@@ -128,24 +128,10 @@ export function yearsIn(terms: TermLike[]): string[] {
 export const matchesTerm = (term: TermLike, query: string): boolean =>
   hits([term.fullName], query)
 
-/**
- * A seat's printed name, worked out from the value itself.
- *
- * There used to be a hand-written list of the eight in `content/home.ts`, and it was the
- * last thing about the officer board the frontend decided rather than the database: a
- * ninth seat added to `OfficerPosition` wouldn't have appeared until somebody edited
- * that file.
- *
- * Deriving it means the wording follows the enum for free, at the cost of not being able
- * to spell a seat differently from its value. If the club ever wants "Lab Manager" to
- * read "Shop Manager", the fix is an override map here — not a list that also decides
- * how many seats there are.
- *
- * Null is a real answer, not missing data: Discord decides that somebody is an officer
- * and the roles desk decides which chair, so anybody between the two holds no named seat.
- */
+/** A seat name, or the label for a historical term with no recorded seat. */
 export function seatLabel(position: OfficerPosition | null): string {
   if (position === null) return 'Officer'
+  if (position.startsWith('custom:')) return position.slice('custom:'.length)
 
   return position
     .split('_')

@@ -6,7 +6,7 @@ import type {
 } from '../api/api'
 
 /**
- * The handover page's plan: who holds each seat next, and who stays on without one.
+ * The handover page's plan: who holds each seat next.
  *
  * Built from today's board, so everybody keeps their place unless an officer changes it.
  * The server works out the difference itself (`POST /api/officer/terms/handover` in
@@ -26,7 +26,6 @@ export type Holder = {
 
 export type Plan = {
   seats: Partial<Record<OfficerPosition, Holder | null>>
-  seatless: Holder[]
 }
 
 export const holderOfMember = (member: ApiBoardPerson): Holder => ({
@@ -59,15 +58,12 @@ export function planFrom(desk: ApiOfficerDesk): Plan {
     seats[seat] = held ? holderOfSeat(held) : null
   }
 
-  return {
-    seats,
-    seatless: desk.board.filter((term) => term.position === null).map(holderOfSeat),
-  }
+  return { seats }
 }
 
-/** Where everybody on today's board sits: a seat, or null for no named seat. */
-export function placesNow(desk: ApiOfficerDesk): Map<string, OfficerPosition | null> {
-  const places = new Map<string, OfficerPosition | null>()
+/** Where everybody on today's board sits. */
+export function placesNow(desk: ApiOfficerDesk): Map<string, OfficerPosition> {
+  const places = new Map<string, OfficerPosition>()
 
   for (const term of desk.board) {
     const { key } = holderOfSeat(term)
@@ -78,44 +74,26 @@ export function placesNow(desk: ApiOfficerDesk): Map<string, OfficerPosition | n
 }
 
 /** Where everybody in the plan sits. */
-export function placesNext(plan: Plan): Map<string, OfficerPosition | null> {
-  const places = new Map<string, OfficerPosition | null>()
+export function placesNext(plan: Plan): Map<string, OfficerPosition> {
+  const places = new Map<string, OfficerPosition>()
 
   for (const [seat, holder] of Object.entries(plan.seats)) {
     if (holder) places.set(holder.key, seat as OfficerPosition)
   }
-  for (const holder of plan.seatless) places.set(holder.key, null)
 
   return places
 }
 
-/** Take somebody out of wherever the plan has them. */
-function without(plan: Plan, key: string): Plan {
-  const seats: Plan['seats'] = {}
+/** Move a holder to a seat, clearing their previous seat in the plan. */
+export function place(plan: Plan, holder: Holder, seat: OfficerPosition): Plan {
+  const seats = { ...plan.seats }
 
-  for (const [seat, holder] of Object.entries(plan.seats)) {
-    seats[seat as OfficerPosition] = holder?.key === key ? null : holder
+  for (const [position, current] of Object.entries(seats)) {
+    if (current?.key === holder.key) seats[position as OfficerPosition] = null
   }
+  seats[seat] = holder
 
-  return {
-    seats,
-    seatless: plan.seatless.filter((holder) => holder.key !== key),
-  }
-}
-
-/**
- * Put somebody in a seat, or on the board without one. Anywhere else the plan had them
- * is emptied, so picking the vice president for president is a move rather than one
- * person in two places.
- */
-export function place(plan: Plan, holder: Holder, seat: OfficerPosition | null): Plan {
-  const rest = without(plan, holder.key)
-
-  if (seat === null) {
-    return { ...rest, seatless: [...rest.seatless, holder] }
-  }
-
-  return { ...rest, seats: { ...rest.seats, [seat]: holder } }
+  return { seats }
 }
 
 export const emptySeat = (plan: Plan, seat: OfficerPosition): Plan => ({
@@ -123,16 +101,11 @@ export const emptySeat = (plan: Plan, seat: OfficerPosition): Plan => ({
   seats: { ...plan.seats, [seat]: null },
 })
 
-export const dropSeatless = (plan: Plan, key: string): Plan => ({
-  ...plan,
-  seatless: plan.seatless.filter((holder) => holder.key !== key),
-})
-
 export type PlanChanges = {
   /** Seats somebody holds today that nobody will. */
   emptied: OfficerPosition[]
-  joining: { holder: Holder; to: OfficerPosition | null }[]
-  moving: { holder: Holder; from: OfficerPosition | null; to: OfficerPosition | null }[]
+  joining: { holder: Holder; to: OfficerPosition }[]
+  moving: { holder: Holder; from: OfficerPosition; to: OfficerPosition }[]
   leaving: Holder[]
 }
 
@@ -149,7 +122,6 @@ export function changesOf(desk: ApiOfficerDesk, plan: Plan): PlanChanges {
   for (const holder of Object.values(plan.seats)) {
     if (holder) holders.set(holder.key, holder)
   }
-  for (const holder of plan.seatless) holders.set(holder.key, holder)
 
   const changes: PlanChanges = {
     emptied: desk.seats.filter(
@@ -180,7 +152,7 @@ export const hasChanges = (changes: PlanChanges) =>
 
 /** Every seat but the faculty advisor's brings the officer desks. Mirrors `grantsDesks`
     in `server/src/membership/board.ts`. */
-export const grantsDesks = (seat: OfficerPosition | null) => seat !== 'FACULTY_ADVISOR'
+export const grantsDesks = (seat: OfficerPosition) => seat !== 'FACULTY_ADVISOR'
 
 /** Why the plan can't be sent, or null. The server checks the same thing. */
 export function problemOf(plan: Plan): string | null {
@@ -217,7 +189,6 @@ export function rebase(
   desk: ApiOfficerDesk,
 ): Plan {
   const was = planFrom(oldBase)
-  const placed = placesNext(plan)
   let next = planFrom(desk)
 
   for (const seat of desk.seats) {
@@ -226,14 +197,6 @@ export function rebase(
 
     if ((mine?.key ?? null) === (before?.key ?? null)) continue
     next = mine ? place(next, mine, seat) : emptySeat(next, seat)
-  }
-
-  const wasSeatless = new Set(was.seatless.map((holder) => holder.key))
-  for (const holder of plan.seatless) {
-    if (!wasSeatless.has(holder.key)) next = place(next, holder, null)
-  }
-  for (const holder of was.seatless) {
-    if (!placed.has(holder.key)) next = dropSeatless(next, holder.key)
   }
 
   return next
