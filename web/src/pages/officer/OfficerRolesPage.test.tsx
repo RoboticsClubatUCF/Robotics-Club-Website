@@ -172,7 +172,7 @@ function stubDesk(over: Record<string, unknown> = {}) {
             left: [],
             moved: [],
             succeeded: [],
-            discord: { give: [], take: [] },
+            revoked: [],
           },
         })
       )
@@ -180,7 +180,7 @@ function stubDesk(over: Record<string, unknown> = {}) {
     if (url.includes('/officer/terms/') && init?.method === 'DELETE') {
       return (
         (over.standDown as Promise<Response> | undefined) ??
-        json({ closed: 1, discord: { give: [], take: [] } })
+        json({ closed: 1, revoked: [] })
       )
     }
     if (url.endsWith('/officer/terms')) {
@@ -1246,21 +1246,9 @@ describe('OfficerRolesPage — the officer board', () => {
     ).toBe(true)
   })
 
-  it('says whose Discord role to change after a seat is set', async () => {
+  it('says nothing about Discord after a seat is set', async () => {
     vi.useFakeTimers()
-    vi.stubGlobal(
-      'fetch',
-      stubDesk({
-        seat: json({
-          id: 'ot9',
-          succeeded: null,
-          discord: {
-            give: [{ id: 'u2', fullName: 'Rowan Chen', discordUsername: 'rowan' }],
-            take: [],
-          },
-        }),
-      }),
-    )
+    vi.stubGlobal('fetch', stubDesk({ seat: json({ id: 'ot9', succeeded: null, revoked: [] }) }))
     renderPage(context(), 'board')
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0)
@@ -1278,10 +1266,8 @@ describe('OfficerRolesPage — the officer board', () => {
       await vi.advanceTimersByTimeAsync(0)
     })
 
-    expect(screen.getByText('IN DISCORD, BY HAND')).toBeInTheDocument()
-    expect(screen.getByText(/Give the Officers role to/)).toHaveTextContent(
-      'Give the Officers role to Rowan Chen (@rowan).',
-    )
+    expect(screen.getByText(/Rowan Chen is on the board/)).toBeInTheDocument()
+    expect(screen.queryByText(/Discord/)).not.toBeInTheDocument()
   })
 })
 
@@ -1585,7 +1571,7 @@ describe('OfficerRolesPage — the handover', () => {
     )
   })
 
-  it('says whose Discord role to change once it lands', async () => {
+  it('says the board was handed over, and nothing about Discord', async () => {
     vi.useFakeTimers()
     vi.stubGlobal(
       'fetch',
@@ -1596,14 +1582,11 @@ describe('OfficerRolesPage — the handover', () => {
           board: BOARD,
           offBoard: [],
           change: {
-            joined: [{ id: 'u9', fullName: 'Jordan Ellis', discordUsername: 'jordan' }],
-            left: [{ id: 'u2', fullName: 'Rowan Chen', discordUsername: 'rowan' }],
+            joined: [{ id: 'u9', fullName: 'Jordan Ellis' }],
+            left: [{ id: 'u2', fullName: 'Rowan Chen' }],
             moved: [],
             succeeded: ['Rowan Chen'],
-            discord: {
-              give: [{ id: 'u9', fullName: 'Jordan Ellis', discordUsername: 'jordan' }],
-              take: [{ id: 'u2', fullName: 'Rowan Chen', discordUsername: 'rowan' }],
-            },
+            revoked: ['u2'],
           },
         }),
       }),
@@ -1617,14 +1600,8 @@ describe('OfficerRolesPage — the handover', () => {
     fireEvent.click(buttons[buttons.length - 1]!)
     await flush()
 
-    expect(panel().getByText('HANDED OVER')).toBeInTheDocument()
-    expect(panel().getByText('1 joined, 1 left.')).toBeInTheDocument()
-    expect(panel().getByText(/Give the Officers role to/)).toHaveTextContent(
-      'Give the Officers role to Jordan Ellis (@jordan).',
-    )
-    expect(panel().getByText(/Take the Officers role from/)).toHaveTextContent(
-      'Take the Officers role from Rowan Chen (@rowan).',
-    )
+    expect(panel().getByText('The board has been handed over.')).toBeInTheDocument()
+    expect(panel().queryByText(/Discord/)).not.toBeInTheDocument()
   })
 
   /** Picking somebody who sits elsewhere moves them, rather than seating them twice. */
@@ -1771,7 +1748,7 @@ describe('OfficerRolesPage — the handover', () => {
     fireEvent.click(buttons[buttons.length - 1]!)
     await flush()
 
-    const result = panel().getByText('HANDED OVER').closest('[role="status"]')
+    const result = panel().getByText('The board has been handed over.').closest('[role="status"]')
     expect(document.activeElement).toBe(result)
   })
 

@@ -160,8 +160,7 @@ How roles move:
   board write goes through `changeBoard` in `src/membership/board.ts`: a seat
   (any but faculty advisor) makes its holder an `OFFICER`, and losing the last
   one hands them back to their dues. Nothing reads the Discord Officers role to
-  decide this, and nothing writes it; each board write answers with whose role
-  to change by hand.
+  decide this, and nothing writes it; a board change never mentions Discord.
 - `src/discord/discordAlumni.ts` mirrors the Officer Alumni role into
   `User.officerAlumnus`. Never add that role to the site-written roles below; it
   sits under the bot, so a sweep would remove it from everyone.
@@ -362,7 +361,7 @@ All officer-only (`requireOfficer`, which includes the dues check).
 | `GET`/`POST /api/officer/equipment` · `PATCH /api/officer/equipment/:id` | `maxLoanDays` defaults to 7 on create; PATCH has no defaults. Names unique case-insensitively |
 | `DELETE /api/officer/equipment/:id` | Deletes the item and its loans. Refused while a unit is out. Retiring is the reversible option |
 | `GET /api/officer/loans?status=&all=` · `PATCH /api/officer/loans/:id` | Availability re-checked in the transaction. No `REQUESTED` → `CHECKED_OUT`. `dueAt` defaults to the member's date or the item's cap |
-| `GET /api/officer/terms` · `PATCH /api/officer/terms/seat` | Today's board, plus `offBoard` (officers by role with no open term). Taking a held seat is a 409 naming the incumbent unless `takeOver: true`, which closes their term as "Succeeded by …" in the same transaction. `position: null` clears a seat. The role follows the seat, and the answer carries `discord: { give, take }` |
+| `GET /api/officer/terms` · `PATCH /api/officer/terms/seat` | Today's board, plus `offBoard` (officers by role with no open term). Taking a held seat is a 409 naming the incumbent unless `takeOver: true`, which closes their term as "Succeeded by …" in the same transaction. `position: null` clears a seat. The role follows the seat, and the answer carries `revoked` (ids whose desks went) |
 | `DELETE /api/officer/terms/:userId` | Closes the open term, publishing it to `/officers`, and hands them back to their dues. Also takes the desks from an officer with no open term |
 | `POST /api/officer/terms/handover` | The whole board at once: `board` is every place as it should be (`userId`, or `termId` for an accountless term that stays), `expected` the board it was planned against (409 if it moved). One transaction; seat moves keep the old term in the archive |
 | `GET /api/officer/archive` · `POST` · `PATCH`/`DELETE /archive/:id` | Every officer term. `userId` optional; `fullName` stored on the term. The one-per-seat 409 applies to open terms. PATCH treats absent fields as unchanged and checks dates on the resulting row. `source` isn't writable |

@@ -605,7 +605,7 @@ type Desk = {
   }[]
   offBoard: Person[]
 }
-type ToDo = { discord: { give: Person[]; take: Person[] } }
+type Revoked = { revoked: string[] }
 
 const roleOf = async (userId: string) =>
   (await prisma.user.findUnique({ where: { id: userId }, select: { role: true } }))
@@ -618,16 +618,15 @@ const names = (people: Person[]) => people.map((person) => person.fullName)
  * the board hands them back to their dues; the advisor seat and `ADMIN` are the exceptions.
  */
 describe('the officer desks follow the board', () => {
-  it('makes whoever takes a seat an officer, and says to give them the Discord role', async () => {
+  it('makes whoever takes a seat an officer', async () => {
     const response = await seat(officerCookie, incomingId, 'OUTREACH')
-    const body = (await response.json()) as ToDo
+    const body = (await response.json()) as Revoked & Record<string, unknown>
 
     expect(response.status).toBe(200)
     expect(await roleOf(incomingId)).toBe(UserRole.OFFICER)
-    expect(body.discord.give).toEqual([
-      { id: incomingId, fullName: 'Board Incoming', discordUsername: 'test_board_incoming' },
-    ])
-    expect(body.discord.take).toEqual([])
+    expect(body.revoked).toEqual([])
+    // A board change says nothing about Discord.
+    expect(body).not.toHaveProperty('discord')
 
     // An officer prints their year on their profile, so becoming one stamps it.
     const user = await prisma.user.findUnique({
@@ -641,12 +640,12 @@ describe('the officer desks follow the board', () => {
     await seat(officerCookie, incomingId, 'OUTREACH')
 
     const response = await send('DELETE', `/api/officer/terms/${incomingId}`, officerCookie)
-    const body = (await response.json()) as ToDo
+    const body = (await response.json()) as Revoked
 
     expect(response.status).toBe(200)
     // Paid through 2099, so a member rather than a guest.
     expect(await roleOf(incomingId)).toBe(UserRole.MEMBER)
-    expect(names(body.discord.take)).toEqual(['Board Incoming'])
+    expect(body.revoked).toEqual([incomingId])
   })
 
   it('takes the desks from whoever loses a seat to a take-over', async () => {
@@ -658,12 +657,11 @@ describe('the officer desks follow the board', () => {
       position: 'SECRETARY',
       takeOver: true,
     })
-    const body = (await response.json()) as ToDo
+    const body = (await response.json()) as Revoked
 
     expect(await roleOf(outgoingId)).toBe(UserRole.MEMBER)
     expect(await roleOf(incomingId)).toBe(UserRole.OFFICER)
-    expect(names(body.discord.give)).toEqual(['Board Incoming'])
-    expect(names(body.discord.take)).toEqual(['Board Outgoing'])
+    expect(body.revoked).toEqual([outgoingId])
   })
 
   it('never writes an admin’s role, on or off the board', async () => {
@@ -751,7 +749,7 @@ describe('the handover', () => {
     send('POST', '/api/officer/terms/handover', cookie, body)
 
   type Answer = {
-    change: ToDo & { joined: Person[]; left: Person[]; moved: Person[] }
+    change: Revoked & { joined: Person[]; left: Person[]; moved: Person[] }
   }
 
   it('swaps the board in one press, roles and history together', async () => {
@@ -775,8 +773,8 @@ describe('the handover', () => {
 
     expect(names(change.joined).sort()).toEqual(['Board Advisor', 'Board Incoming'])
     expect(names(change.left)).toEqual(['Board Outgoing'])
-    expect(names(change.discord.give)).toEqual(['Board Incoming'])
-    expect(names(change.discord.take)).toEqual(['Board Outgoing'])
+    expect(change.revoked).toEqual([outgoingId])
+    expect(change).not.toHaveProperty('discord')
 
     expect(await roleOf(incomingId)).toBe(UserRole.OFFICER)
     expect(await roleOf(outgoingId)).toBe(UserRole.MEMBER)

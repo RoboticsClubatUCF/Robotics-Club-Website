@@ -722,24 +722,15 @@ export type ApiBoardSeat = {
   /** Only on the answer to a seat write, and only when `takeOver` displaced
       somebody: who was succeeded, so the page can say so. */
   succeeded?: string | null
-  /** Only on the answer to a seat write. */
-  discord?: ApiDiscordToDo
+  /** Only on the answer to a seat write: who lost the officer desks. */
+  revoked?: string[]
 }
 
 export type ApiBoardPerson = {
   id: string
   fullName: string
   email?: string | null
-  discordUsername: string | null
-}
-
-/**
- * Whose Discord Officers role needs changing after a board change. The site never
- * changes it; an officer does, by hand, in Discord.
- */
-export type ApiDiscordToDo = {
-  give: ApiBoardPerson[]
-  take: ApiBoardPerson[]
+  discordUsername?: string | null
 }
 
 /** The answer to `POST /api/officer/terms/handover`: the new desk, and what changed. */
@@ -749,7 +740,8 @@ export type ApiHandover = ApiOfficerDesk & {
     left: ApiBoardPerson[]
     moved: ApiBoardPerson[]
     succeeded: string[]
-    discord: ApiDiscordToDo
+    /** Who lost the officer desks, by user id. */
+    revoked: string[]
   }
 }
 

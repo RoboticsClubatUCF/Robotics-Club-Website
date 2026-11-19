@@ -6,10 +6,9 @@ import { membershipStanding } from './semester.js'
 /**
  * The officer board, and the rule that ties it to the officer desks.
  *
- * The board is kept by hand on the roles desk. Nothing reads Discord to decide who is on it:
- * the club's Officers role is given and taken in Discord by people, and the site neither
- * follows it nor writes it. What the site does is say, after each change, whose Discord role
- * needs changing (`DiscordToDo`).
+ * The board is kept by hand on the roles desk. Nothing reads Discord to decide who is on it,
+ * and nothing about a board change touches or mentions Discord: the club's Officers role is
+ * the club's business there.
  *
  * Holding an open term in any seat but faculty advisor makes somebody an `OFFICER`. Losing
  * the last such term hands them back to whatever their dues say. Every board write goes
@@ -106,11 +105,7 @@ export type Move = {
 export type BoardPerson = {
   id: string
   fullName: string
-  discordUsername: string | null
 }
-
-/** The Discord Officers role changes a board change implies. The site makes none of them. */
-export type DiscordToDo = { give: BoardPerson[]; take: BoardPerson[] }
 
 export type BoardChangeResult = {
   joined: BoardPerson[]
@@ -118,7 +113,9 @@ export type BoardChangeResult = {
   moved: BoardPerson[]
   /** Whoever lost a seat to somebody else, by name. */
   succeeded: string[]
-  discord: DiscordToDo
+  /** Who lost the officer desks, by user id. The page uses it to notice its own officer
+      handing themselves off. */
+  revoked: string[]
 }
 
 /**
@@ -164,7 +161,6 @@ export async function changeBoard({
     select: {
       id: true,
       fullName: true,
-      discordUsername: true,
       role: true,
       duesPaidThrough: true,
       joinedAt: true,
@@ -215,7 +211,7 @@ export async function changeBoard({
     left: [],
     moved: [],
     succeeded: [],
-    discord: { give: [], take: [] },
+    revoked: [],
   }
 
   const why = (position: OfficerPosition | null, holder: string) => {
@@ -257,7 +253,6 @@ export async function changeBoard({
       if (to === undefined) continue
 
       const mine = snapshot.filter((term) => term.userId === person.id)
-      const before = mine.some((term) => grantsDesks(term.position))
       const after = to !== OFF && grantsDesks(to)
 
       if (to === OFF) {
@@ -324,17 +319,12 @@ export async function changeBoard({
           },
         })
       } else if (person.role === UserRole.OFFICER) {
-        await tx.user.updateMany({
+        const { count } = await tx.user.updateMany({
           where: { id: person.id, role: UserRole.OFFICER },
           data: { role: fallback.get(person.id) ?? UserRole.GUEST },
         })
+        if (count > 0) result.revoked.push(person.id)
       }
-
-      // Somebody given the role in Studio and never seated counts as an officer already.
-      const wasOfficer = before || person.role === UserRole.OFFICER
-
-      if (after && !wasOfficer) result.discord.give.push(asPerson(person))
-      if (!after && wasOfficer) result.discord.take.push(asPerson(person))
     }
   })
 
@@ -344,5 +334,4 @@ export async function changeBoard({
 const asPerson = (person: BoardPerson): BoardPerson => ({
   id: person.id,
   fullName: person.fullName,
-  discordUsername: person.discordUsername,
 })

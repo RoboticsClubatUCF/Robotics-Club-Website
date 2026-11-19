@@ -33,7 +33,6 @@ import {
   requestOf,
 } from '../../lib/board/handover'
 import { seatLabel } from '../../lib/officerTerms'
-import { DiscordToDo } from './DiscordToDo'
 import { panelLabel, primaryButton, secondaryButton, textButton } from './boardChrome'
 
 const placeName = (seat: OfficerPosition | null) =>
@@ -48,8 +47,7 @@ type Focus = { target: OfficerPosition | 'seatless' | 'add' | 'panel' | 'send'; 
  *
  * It opens on today's board, so only what changes needs touching. Picking somebody who sits
  * elsewhere moves them; CHANGE and leaving the box empty vacates a seat. The server swaps the
- * whole board and the officer desks in one transaction and answers with whose Discord role to
- * change by hand.
+ * whole board and the officer desks in one transaction.
  *
  * The plan remembers the board it was made from. If the desk reloads underneath it (a seat set
  * on OFFICER BOARD, or a 409 from somebody else's change), HAND OVER waits until the plan is
@@ -84,8 +82,7 @@ export function BoardHandover({
   const panelHeading = useRef<HTMLParagraphElement>(null)
   const sendButton = useRef<HTMLButtonElement>(null)
 
-  // The result lands where the button was, and the reader is taken to it: it carries the
-  // Discord to-do, which is the part somebody has to act on.
+  // The result lands where the button was, and the reader is taken to it.
   useEffect(() => {
     if (!done) return
     doneBox.current?.focus()
@@ -174,9 +171,7 @@ export function BoardHandover({
       setFocus(null)
       setDone(change)
 
-      if (me.role !== 'ADMIN' && change.discord.take.some((person) => person.id === me.id)) {
-        onLostDesks()
-      }
+      if (change.revoked.includes(me.id)) onLostDesks()
     } catch (caught: unknown) {
       // The board moved under the plan. Reading it again marks the plan stale, which is
       // where carrying it over is offered.
@@ -364,7 +359,7 @@ export function BoardHandover({
           ref={doneBox}
           tabIndex={-1}
           role="status"
-          className="mt-6 border border-primary/35 bg-primary/5 p-4 outline-none"
+          className="mt-6 outline-none"
         >
           <HandoverDone change={done} me={me} />
         </div>
@@ -564,34 +559,14 @@ function HandoverDone({
   me,
 }: {
   change: ApiHandover['change']
-  me: { id: string; role: UserRole }
+  me: { id: string }
 }) {
-  const counts = [
-    [change.joined.length, 'joined'],
-    [change.moved.length, 'moved seat'],
-    [change.left.length, 'left'],
-  ] as const
-
-  const line = counts
-    .filter(([count]) => count > 0)
-    .map(([count, what]) => `${String(count)} ${what}`)
-    .join(', ')
-
-  const iLeft = me.role !== 'ADMIN' && change.discord.take.some((person) => person.id === me.id)
-
   return (
-    <>
-      <p className="mb-1.5 font-mono text-[10px] font-medium tracking-[0.16em] text-primary">
-        HANDED OVER
-      </p>
-      <p className="text-[13px] leading-[1.6] text-dim">{line}.</p>
-      <DiscordToDo todo={change.discord} />
-      {iLeft && (
-        <p className="mt-3 text-[13px] leading-[1.6]">
-          You&rsquo;re off the board. Your officer desks close when you leave the roles desk.
-        </p>
-      )}
-    </>
+    <p className="text-[13px] leading-[1.6] text-success">
+      The board has been handed over.
+      {change.revoked.includes(me.id) &&
+        ' Your officer desks close when you leave the roles desk.'}
+    </p>
   )
 }
 

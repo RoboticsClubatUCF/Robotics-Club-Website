@@ -1111,8 +1111,7 @@ officer.patch(
  * `changeBoard` in `membership/board.ts`, which moves `User.role` with the term, so
  * putting somebody on the board makes them an `OFFICER` and taking them off hands
  * them back to their dues. The faculty advisor's seat is the exception and grants
- * nothing. The club's Discord Officers role is changed by hand; each write answers
- * with whose role needs changing.
+ * nothing.
  */
 const boardSelect = {
   id: true,
@@ -1233,7 +1232,7 @@ officer.patch(
     return c.json({
       ...term,
       succeeded: change.succeeded[0] ?? null,
-      discord: change.discord,
+      revoked: change.revoked,
     })
   },
 )
@@ -1276,7 +1275,7 @@ officer.delete(
       leaveReason: `Stood down by ${c.get('user').fullName}`,
     })
 
-    return c.json({ closed: seated, discord: change.discord })
+    return c.json({ closed: seated, revoked: change.revoked })
   },
 )
 

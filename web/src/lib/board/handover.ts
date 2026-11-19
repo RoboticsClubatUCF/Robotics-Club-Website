@@ -35,7 +35,7 @@ export const holderOfMember = (member: ApiBoardPerson): Holder => ({
   userId: member.id,
   termId: null,
   email: member.email ?? null,
-  discordUsername: member.discordUsername,
+  discordUsername: member.discordUsername ?? null,
 })
 
 export const holderOfSeat = (seat: ApiBoardSeat): Holder =>

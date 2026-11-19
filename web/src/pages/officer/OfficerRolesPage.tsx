@@ -29,7 +29,6 @@ import {
 } from '../../lib/api/api'
 import type {
   ApiBoardSeat,
-  ApiDiscordToDo,
   ApiOfficerDesk,
   ApiOfficerMember,
   ApiProject,
@@ -49,7 +48,6 @@ import { SubPage } from '../../components/dashboard/SubPage'
 import { ROLES_PAGES } from '../../lib/dashboard/subPages'
 import { useBoardDesk } from '../../lib/board/useBoardDesk'
 import { BoardHandover } from '../../components/board/BoardHandover'
-import { DiscordToDo } from '../../components/board/DiscordToDo'
 
 type Part = 'board' | 'handover' | 'leads' | 'grant' | 'titles'
 
@@ -142,7 +140,7 @@ function BoardPages({
 
   /**
    * An officer who hands themselves off the board keeps the page until they leave the roles
-   * desk, so the Discord to-do stays on screen. Leaving re-reads the session, which is when
+   * desk, so the result stays on screen. Leaving re-reads the session, which is when
    * the desks go. Read without `useSession` so the page's tests needn't mount a provider.
    */
   const session = useContext(SessionContext)
@@ -1048,11 +1046,9 @@ function OfficerSeats({
   const [displacing, setDisplacing] = useState<ApiBoardSeat | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<Message>(null)
-  const [todo, setTodo] = useState<ApiDiscordToDo | null>(null)
 
   /** Whether a write took the desks from whoever is signed in. An admin keeps theirs. */
-  const lostMine = (todo: ApiDiscordToDo | undefined) =>
-    me.role !== 'ADMIN' && (todo?.take.some((person) => person.id === me.id) ?? false)
+  const lostMine = (revoked: string[] | undefined) => revoked?.includes(me.id) ?? false
 
   const seatOf = (seat: ApiBoardSeat) =>
     seat.position ? seatLabel(seat.position) : 'No seat yet'
@@ -1087,7 +1083,6 @@ function OfficerSeats({
     setDisplacing(null)
     setBusy(true)
     setMessage(null)
-    setTodo(null)
 
     patchJson<ApiBoardSeat>('/officer/terms/seat', {
       userId: member.id,
@@ -1104,8 +1099,7 @@ function OfficerSeats({
                 ? `${member.fullName} is now ${seatLabel(position)}, succeeding ${saved.succeeded}.`
                 : `${member.fullName} is now ${seatLabel(position)}.`,
         })
-        setTodo(saved.discord ?? null)
-        if (lostMine(saved.discord)) onLostDesks()
+        if (lostMine(saved.revoked)) onLostDesks()
         setMember(null)
         setPosition('')
         reload()
@@ -1129,9 +1123,8 @@ function OfficerSeats({
     setStandingDown(null)
     setBusy(true)
     setMessage(null)
-    setTodo(null)
 
-    deleteJson<{ discord: ApiDiscordToDo }>(`/officer/terms/${leaving.id}`)
+    deleteJson<{ revoked: string[] }>(`/officer/terms/${leaving.id}`)
       .then((answer) => {
         setMessage({
           tone: 'success',
@@ -1139,8 +1132,7 @@ function OfficerSeats({
             ? `${leaving.fullName} has been stood down. They are on the officers page now.`
             : `${leaving.fullName} no longer has the officer desks.`,
         })
-        setTodo(answer.discord)
-        if (lostMine(answer.discord)) onLostDesks()
+        if (lostMine(answer.revoked)) onLostDesks()
         reload()
       })
       .catch((error: unknown) => {
@@ -1330,7 +1322,6 @@ function OfficerSeats({
         </button>
 
         <Status message={message} />
-        {todo && <DiscordToDo todo={todo} />}
       </div>
 
       {displacing && member && (
