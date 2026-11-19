@@ -60,6 +60,7 @@ export const sectionLinks: NavLink[] = [
  * changes into an avatar, neither of which a list of words can say.
  */
 export const pageLinks: NavLink[] = [
+  { href: '/about', label: 'About Us' },
   { href: '/projects', label: 'Projects' },
   { href: OPENPROJECT_URL, label: 'OpenProject' },
 ]

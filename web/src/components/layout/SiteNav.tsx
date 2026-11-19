@@ -24,15 +24,11 @@ import { useSession } from '../../lib/auth/session'
  * "Sign in" to "Dashboard", and the gold button becomes the avatar.
  */
 
-/**
- * The row was `gap-7` while it held five links and no rule. The split costs a divider and
- * two gaps on top of the sixth link, and 900px is a real width somebody browses at — this
- * is what keeps the whole bar on one line there.
- */
-const rowGap = 'gap-5'
+// Give the masthead room at the desktop breakpoint.
+const rowGap = 'gap-[clamp(0.4375rem,calc(4vw_-_1.875rem),1.25rem)]'
 
 const rowLinkClass =
-  'text-dim text-[13px] font-medium transition-colors duration-200 hover:text-base-content'
+  'text-dim text-[13px] font-medium whitespace-nowrap transition-colors duration-200 hover:text-base-content'
 
 export function SiteNav() {
   const [open, setOpen] = useState(false)
@@ -76,7 +72,7 @@ export function SiteNav() {
 
   return (
     <header className="border-rule bg-base-100/90 sticky top-0 z-30 border-b backdrop-blur-sm">
-      <nav className="navbar px-page gap-3 py-4 wide:gap-6 wide:py-5">
+      <nav className="navbar px-page gap-3 py-4 wide:gap-[clamp(0.5rem,calc(5vw_-_2.5rem),1.5rem)] wide:px-[clamp(1.25rem,calc(8vw_-_3.25rem),var(--spacing-page))] wide:py-5">
         {/* The site root, not `#top`. A masthead is the way back to the home page from
             wherever you are, and `#top` would only scroll you to the top of the page you
             were already on.

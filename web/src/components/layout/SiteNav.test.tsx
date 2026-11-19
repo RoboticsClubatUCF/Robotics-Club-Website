@@ -99,6 +99,14 @@ describe('SiteNav', () => {
     expect(panel()).toHaveClass('hidden')
   })
 
+  it('links to About Us in the top bar and phone menu', () => {
+    render()
+
+    const links = screen.getAllByRole('link', { name: 'About Us' })
+    expect(links).toHaveLength(2)
+    for (const link of links) expect(link).toHaveAttribute('href', '/about')
+  })
+
   it('opens and shuts on the toggle', () => {
     render()
 
