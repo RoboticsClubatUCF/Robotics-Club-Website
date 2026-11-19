@@ -14,9 +14,6 @@ import type { ApiStats } from '../lib/api/api'
  * request comes back.
  */
 
-/** The club's OpenProject, where project tasks are tracked. */
-export const OPENPROJECT_URL = 'https://openproject.rccf.club'
-
 export type NavLink = {
   href: string
   label: string
@@ -62,7 +59,6 @@ export const sectionLinks: NavLink[] = [
 export const pageLinks: NavLink[] = [
   { href: '/about', label: 'About Us' },
   { href: '/projects', label: 'Projects' },
-  { href: OPENPROJECT_URL, label: 'OpenProject' },
 ]
 
 export type Stat = {

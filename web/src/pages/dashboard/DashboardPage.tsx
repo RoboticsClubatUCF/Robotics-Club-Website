@@ -13,7 +13,6 @@ import { LOCK_COPY, coverGap, surveyPrompt } from '../../lib/dues/dues'
 import type { ApiProject } from '../../lib/api/api'
 import { duesLocked } from '../../lib/dues/dues'
 import { meetingLine, meetingNote } from '../../lib/events/meetings'
-import { OPENPROJECT_URL } from '../../content/home'
 import { useApi } from '../../lib/api/useApi'
 
 /**
@@ -261,7 +260,7 @@ function ProjectTasks() {
         Project tasks are tracked on OpenProject.
       </p>
       <a
-        href={OPENPROJECT_URL}
+        href="https://openproject.rccf.club"
         className="btn btn-outline mt-4 h-auto px-5 py-2.5 text-[12px] font-semibold"
       >
         OPEN OPENPROJECT →

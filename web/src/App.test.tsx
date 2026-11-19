@@ -1,4 +1,4 @@
-import { configure, render, screen } from '@testing-library/react'
+import { configure, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import type { ApiTerm, ApiUser } from './lib/api/api'
@@ -150,6 +150,16 @@ describe('the dashboard shell', () => {
     // First word and last word — not the middle name.
     expect(screen.getAllByText('RT')).toHaveLength(2)
     expect(screen.queryByText(/my dashboard/i)).not.toBeInTheDocument()
+  })
+
+  it('offers OpenProject only in the dashboard overview', async () => {
+    renderAt('/dashboard')
+
+    const link = await within(screen.getByRole('main')).findByRole('link', {
+      name: /openproject/i,
+    })
+    expect(link).toHaveAttribute('href', 'https://openproject.rccf.club')
+    expect(screen.getAllByRole('link', { name: /openproject/i })).toHaveLength(1)
   })
 })
 
