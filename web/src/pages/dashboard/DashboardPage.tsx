@@ -257,7 +257,7 @@ function Resources() {
         RESOURCES
       </p>
       <p className="text-dim text-sm leading-[1.7] text-pretty">
-        Project tasks are tracked on OpenProject.
+        Track project tasks in OpenProject and browse the Secret Library for club resources.
       </p>
       <div className="mt-4 flex flex-wrap gap-2">
         <a href="https://openproject.rccf.club" className={secondaryClass}>
