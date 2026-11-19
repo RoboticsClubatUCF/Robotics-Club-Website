@@ -1006,8 +1006,7 @@ const ABOUT_COPY = {
   labStreet: null,
   labCity: null,
   labMapUrl: null,
-  onlineBlurb:
-    'Discord is where the club actually talks — meeting times, build threads and the lab sign all land there first.',
+  onlineBlurb: 'Find us on Instagram, Discord, GitHub, and YouTube.',
   // No row, so nothing for an editor to be behind.
   updatedAt: null,
 } as const

@@ -1,8 +1,8 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SponsorsPage } from './SponsorsPage'
 import type { ApiSponsor, ApiSponsorship, ApiTierOffer } from '../../lib/api/api'
-import { stubFetch, stubFetchNetworkError } from '../../test/stubFetch'
+import { stubFetch, stubFetchNetworkError, urlOf } from '../../test/stubFetch'
 
 const sponsor = (over: Partial<ApiSponsor> = {}): ApiSponsor => ({
   id: 's1',
@@ -39,10 +39,6 @@ const pitch = (over: Partial<ApiSponsorship> = {}): ApiSponsorship => ({
 })
 
 /**
- * The page's two reads, plus the one `ContactForm` makes at the foot of it: it asks whether this
- * visitor has any messages left today before drawing its fields, and every case here renders it.
- * Answered permissively, because none of these tests are about the limit.
- *
  * `/sponsorship` is listed before `/sponsors` and has to be. `stubFetch` matches on `includes`
  * and takes the first key that hits, and every `/sponsorship` URL contains `/sponsors` — the
  * other way round, the pitch is answered with a list of companies and the page renders
@@ -50,7 +46,6 @@ const pitch = (over: Partial<ApiSponsorship> = {}): ApiSponsorship => ({
  */
 const page = (routes: Record<string, unknown>) =>
   stubFetch({
-    '/contact': { allowed: true, remaining: 2, retryAfter: 0, message: null },
     '/sponsorship': pitch(),
     ...routes,
   })
@@ -200,6 +195,7 @@ describe('SponsorsPage', () => {
 
     expect(await screen.findByText(/aren’t published here yet/i)).toBeInTheDocument()
     expect(screen.getByText('/ SPONSORSHIP TIERS')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Contact us' })).toHaveAttribute('href', '/#contact')
   })
 
   /** The pitch has to stand up even before anybody has signed. */
@@ -303,14 +299,21 @@ describe('SponsorsPage', () => {
     expect(screen.queryByText(/NOTE:/)).not.toBeInTheDocument()
   })
 
-  it('carries the contact form, because it is the only way to say yes', async () => {
-    vi.stubGlobal('fetch', page({ '/sponsors': [sponsor()] }))
+  it('links to the homepage contact form without loading a copy on this page', async () => {
+    const fetch = page({
+      '/sponsors': [sponsor()],
+      '/sponsorship': pitch({ tiers: [offer()] }),
+    })
+    vi.stubGlobal('fetch', fetch)
 
     render(<SponsorsPage />)
-    await screen.findByText('Northgate Manufacturing')
+    await screen.findByText('Underwrites a competition season.')
 
-    const form = screen.getByRole('button', { name: /send message/i }).closest('form')!
-    expect(within(form).getByLabelText(/^email$/i)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Contact us' })).toHaveAttribute('href', '/#contact')
+    expect(screen.queryByRole('heading', { name: /contact us/i })).not.toBeInTheDocument()
+    expect(fetch.mock.calls.map(([input]) => new URL(urlOf(input)).pathname)).not.toContain(
+      '/api/contact',
+    )
   })
 
   /**

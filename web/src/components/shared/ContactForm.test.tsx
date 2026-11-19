@@ -82,6 +82,20 @@ afterEach(() => {
 })
 
 describe('ContactForm', () => {
+  it('focuses the form when the page opens at the contact anchor', async () => {
+    const originalUrl = window.location.href
+    window.history.replaceState(null, '', '/#contact')
+    try {
+      vi.stubGlobal('fetch', withCheck(received()))
+      render(<ContactForm />)
+      await screen.findByRole('button', { name: /send message/i })
+
+      expect(screen.getByRole('region', { name: /contact us/i })).toHaveFocus()
+    } finally {
+      window.history.replaceState(null, '', originalUrl)
+    }
+  })
+
   it('sends what the server asks for, and nothing it does not', async () => {
     const post = received()
     vi.stubGlobal('fetch', withCheck(post))

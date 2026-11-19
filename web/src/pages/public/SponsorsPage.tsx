@@ -1,4 +1,3 @@
-import { ContactForm } from '../../components/shared/ContactForm'
 import { FormEyebrow, FormHeading } from '../../components/shared/formChrome'
 import type { ApiSponsor, ApiSponsorship, SponsorTier } from '../../lib/api/api'
 import { tierLabel } from '../../lib/sponsorship'
@@ -99,11 +98,7 @@ export function SponsorsPage() {
         {sponsors.status === 'ready' &&
           (listed.length === 0 ? (
             <p className="border-rule text-faint border-t py-6.5 text-sm">
-              {/* Not "the tiers below are open", which it used to say: with nothing
-                  published there's nothing below to be open, and a page that promises a
-                  price list it isn't showing is worse than one naming the way to ask. */}
-              No sponsors are listed yet — which is an opening rather than a
-              problem. The form at the bottom of this page reaches an officer.
+              No sponsors are listed yet.
             </p>
           ) : (
             <div className="space-y-9">
@@ -141,10 +136,16 @@ export function SponsorsPage() {
       </section>
 
       <section className="border-rule px-page border-t py-12 wide:py-18">
-        <div className="mb-9">
-          <h2 className="text-faint mb-5 font-mono text-[13px] font-bold tracking-[0.2em]">
+        <div className="mb-9 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+          <h2 className="text-faint font-mono text-[13px] font-bold tracking-[0.2em]">
             / SPONSORSHIP TIERS
           </h2>
+          <a
+            href="/#contact"
+            className="text-primary decoration-primary/40 hover:decoration-primary focus-visible:outline-primary -my-3.5 py-3.5 text-xs font-medium underline underline-offset-4 transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 wide:my-0 wide:py-0"
+          >
+            Contact us
+          </a>
         </div>
 
         {tiers.length === 0 ? (
@@ -153,8 +154,7 @@ export function SponsorsPage() {
              visitor deciding whether to sponsor a robotics club isn't owed the
              difference between them. */
           <p className="border-primary/35 bg-primary/5 text-dim max-w-[38rem] border p-4 text-[13px] leading-[1.6] text-pretty">
-            The tiers aren&rsquo;t published here yet. Use the form at the bottom
-            of this page and an officer will send you the current sheet.
+            The tiers aren&rsquo;t published here yet.
           </p>
         ) : (
           <ul className="bg-rule border-rule grid gap-px border wide:grid-cols-2">
@@ -218,16 +218,6 @@ export function SponsorsPage() {
             {footnotes}
           </p>
         )}
-      </section>
-
-      {/* The site's one contact route, and its own copy already offers to talk about
-          sponsoring. Reused rather than reimplemented: `POST /api/contact` is rate
-          limited, and a second form would be a second set of field lengths to keep in
-          step with `contactSchema`. */}
-      <section className="border-rule px-page border-t py-12 wide:py-18">
-        <div className="max-w-[34rem]">
-          <ContactForm />
-        </div>
       </section>
     </>
   )

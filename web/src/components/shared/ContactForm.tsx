@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import {
   ApiError,
   postJson,
@@ -77,6 +77,14 @@ export function ContactForm() {
    */
   const [remaining, setRemaining] = useState<number | null>(null)
   const id = useId()
+  const panel = useRef<HTMLElement>(null)
+
+  useEffect(() => {
+    // A direct fragment can arrive before React has mounted the form.
+    if (window.location.hash !== '#contact') return
+    panel.current?.focus({ preventScroll: true })
+    panel.current?.scrollIntoView?.({ behavior: 'instant' })
+  }, [])
 
   /**
    * Ask before drawing the box.
@@ -146,8 +154,17 @@ export function ContactForm() {
   }
 
   return (
-    <div id="contact" className="scroll-mt-20">
-      <h2 className="text-faint mb-9 font-mono text-[13px] font-bold tracking-[0.2em]">
+    <section
+      ref={panel}
+      id="contact"
+      aria-labelledby={`${id}-heading`}
+      tabIndex={-1}
+      className="scroll-mt-20 wide:scroll-mt-nav"
+    >
+      <h2
+        id={`${id}-heading`}
+        className="text-faint mb-9 font-mono text-[13px] font-bold tracking-[0.2em]"
+      >
         / CONTACT US
       </h2>
 
@@ -272,6 +289,6 @@ export function ContactForm() {
           'Thanks — that reached us. An officer will reply by email.'}
         {state.status === 'failed' && state.message}
       </p>
-    </div>
+    </section>
   )
 }

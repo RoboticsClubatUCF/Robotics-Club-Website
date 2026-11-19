@@ -8,6 +8,7 @@ import {
   FormEyebrow,
   FormHeading,
   FormPanel,
+  secondaryClass,
 } from '../../components/shared/formChrome'
 import { LOCK_COPY, coverGap, surveyPrompt } from '../../lib/dues/dues'
 import type { ApiProject } from '../../lib/api/api'
@@ -71,7 +72,7 @@ export function DashboardPage() {
           {/* Near the top, because it's the only panel here that's different this evening
               from this morning, and for an officer it's a press rather than a link. */}
           <LabPanel user={user} membership={membership} />
-          <ProjectTasks />
+          <Resources />
         </div>
 
         <div className="grid gap-5">
@@ -249,22 +250,23 @@ function MyProjects({ projects }: { projects: DashboardContext['projects'] }) {
   )
 }
 
-/** Tasks live on the club's OpenProject, not on this site. */
-function ProjectTasks() {
+function Resources() {
   return (
     <FormPanel>
       <p className="text-faint mb-3 font-mono text-[10px] font-medium tracking-[0.16em]">
-        TASKS
+        RESOURCES
       </p>
       <p className="text-dim text-sm leading-[1.7] text-pretty">
         Project tasks are tracked on OpenProject.
       </p>
-      <a
-        href="https://openproject.rccf.club"
-        className="btn btn-outline mt-4 h-auto px-5 py-2.5 text-[12px] font-semibold"
-      >
-        OPEN OPENPROJECT →
-      </a>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <a href="https://openproject.rccf.club" className={secondaryClass}>
+          Open OpenProject
+        </a>
+        <a href="https://secretlibrary.rccf.club/" className={secondaryClass}>
+          Secret Library
+        </a>
+      </div>
     </FormPanel>
   )
 }

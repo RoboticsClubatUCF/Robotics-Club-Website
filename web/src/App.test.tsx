@@ -152,14 +152,17 @@ describe('the dashboard shell', () => {
     expect(screen.queryByText(/my dashboard/i)).not.toBeInTheDocument()
   })
 
-  it('offers OpenProject only in the dashboard overview', async () => {
+  it('offers member resource links only in the dashboard overview', async () => {
     renderAt('/dashboard')
 
-    const link = await within(screen.getByRole('main')).findByRole('link', {
-      name: /openproject/i,
-    })
-    expect(link).toHaveAttribute('href', 'https://openproject.rccf.club')
-    expect(screen.getAllByRole('link', { name: /openproject/i })).toHaveLength(1)
+    const main = within(screen.getByRole('main'))
+    for (const [name, href] of [
+      [/openproject/i, 'https://openproject.rccf.club'],
+      [/secret library/i, 'https://secretlibrary.rccf.club/'],
+    ] as const) {
+      expect(await main.findByRole('link', { name })).toHaveAttribute('href', href)
+      expect(screen.getAllByRole('link', { name })).toHaveLength(1)
+    }
   })
 })
 
