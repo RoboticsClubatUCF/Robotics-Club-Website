@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { SiteFooter } from './SiteFooter'
-import { socialMarks } from './socialMarks'
+import { socialMarks } from '../shared/socialMarks'
 import { socialLinks } from '../../content/home'
 
 /**
@@ -42,7 +42,7 @@ describe('SiteFooter', () => {
   })
 
   /**
-   * `SiteFooter` falls back to the word for a label `socialMarks` does not know, so a fifth account
+   * `SocialLinks` falls back to the word for a label `socialMarks` does not know, so a fifth account
    * added to `content/home.ts` without a glyph ships as one plain word in a row of logos rather
    * than as a broken footer. That is the right failure, but it is a quiet one — this is what says
    * so out loud.

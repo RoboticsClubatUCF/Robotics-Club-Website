@@ -1,7 +1,6 @@
 import { BrandMark } from './BrandMark'
-import { socialMarks } from './socialMarks'
 import { ThemeToggle } from './ThemeToggle'
-import { socialLinks } from '../../content/home'
+import { SocialLinks } from '../shared/SocialLinks'
 
 /**
  * The footer, and the site's one theme switch.
@@ -35,64 +34,7 @@ export function SiteFooter() {
           Full-width below the breakpoint, where the footer is a column: that's what puts the links
           at the left margin and the switch at the right on the same line. */}
       <div className="flex w-full items-center justify-between gap-5 wide:w-auto wide:justify-end wide:gap-6">
-        {/* The four accounts as their own marks rather than four words. `socialMarks` is keyed by
-            the same label the list already carries, and a label it doesn't know falls back to that
-            word — an account added without a glyph is then merely plain in a row of logos, rather
-            than an invisible link in a footer that's on every route. */}
-        <ul className="flex items-center gap-x-1">
-          {socialLinks.map((link) => {
-            const mark = socialMarks[link.label]
-
-            return (
-              <li key={link.label}>
-                <a
-                  href={link.href}
-                  /* These leave the site, so they leave the tab too — someone part
-                     way down the page keeps their place. `noopener` is the one that
-                     matters: without it the opened page gets a handle on this one
-                     through `window.opener` and can navigate it. */
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  /* The name in words, because the link no longer has any. Set
-                     in ordinary case rather than as the list's `INSTAGRAM`:
-                     nothing on screen is uppercase any more, and a screen
-                     reader handed all-caps may spell it out. The `title` is the
-                     same string — what a pointer gets for a glyph it doesn't
-                     recognise. */
-                  aria-label={mark?.name ?? link.label}
-                  title={mark?.name ?? link.label}
-                  className={
-                    mark
-                      ? /* 44px on a phone, 36 above the breakpoint — the
-                           toggle's rule, which these could not follow while they
-                           were words of four different widths. A fixed box is
-                           what makes them able to now, and it is why the row and
-                           the switch line up exactly. */
-                        'text-faint hover:text-primary flex size-11 items-center justify-center transition-colors duration-200 wide:size-9'
-                      : 'text-faint hover:text-primary -my-2 flex min-h-9 items-center px-1 py-2 font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200'
-                  }
-                >
-                  {mark ? (
-                    /* `currentColor`, so the mark takes the anchor's `text-faint`
-                       and its hover with it — `socialMarks` deliberately holds no
-                       colour of its own. `aria-hidden` because the anchor above
-                       is what carries the name. */
-                    <svg
-                      aria-hidden
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                      className="size-4.5"
-                    >
-                      <path d={mark.path} />
-                    </svg>
-                  ) : (
-                    link.label
-                  )}
-                </a>
-              </li>
-            )
-          })}
-        </ul>
+        <SocialLinks />
 
         {/* 44px on a phone and back to 36 above the breakpoint, the same rule the calendar's month
             arrows follow — and, now that the social links are fixed boxes rather than words, the

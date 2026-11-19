@@ -166,6 +166,18 @@ describe('AboutPage', () => {
     expect(screen.queryByRole('link', { name: /open in maps/i })).not.toBeInTheDocument()
   })
 
+  it('shows the online links as named icons', async () => {
+    render()
+
+    const heading = await screen.findByRole('heading', { name: /where to find us/i })
+    const section = within(heading.closest('section')!)
+    for (const name of ['Instagram', 'Discord', 'GitHub', 'YouTube']) {
+      const link = section.getByRole('link', { name })
+      expect(link.textContent).toBe('')
+      expect(link.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+    }
+  })
+
   it('says so when the page could not be loaded', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
 

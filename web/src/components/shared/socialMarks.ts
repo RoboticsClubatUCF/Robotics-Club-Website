@@ -7,10 +7,7 @@
  * key, and the content file stays a list of addresses rather than gaining four screenfuls of path
  * data in the middle of the club's prose.
  *
- * A label with no mark here falls back to its word. That is the point of a lookup that can miss:
- * the alternative is a link that draws nothing, in a footer that is on every route, and nobody
- * notices an invisible link. `SiteFooter` has the branch, and its test fails when a fifth account
- * is added without a glyph.
+ * SocialLinks uses the label as the link text while an account is waiting for its icon.
  *
  * Drawn rather than imported, the same call `ThemeToggle` and `MenuIcon` make: an icon package for
  * four glyphs is a dependency for four glyphs. The paths are the official marks (Simple Icons, CC0)
@@ -21,7 +18,7 @@
  * info disc are stroke-drawn at 1.4–1.6 because they are UI drawn to match the type; these are
  * logos, and every one of them is a solid shape in the artwork its owner publishes. What they do
  * share is `currentColor`, which is why they are path data here rather than four `<svg>`s: the
- * footer's anchor supplies the colour, so the row takes `text-faint`, lights up on hover and
+ * anchor supplies the colour, so the row takes `text-faint`, lights up on hover and
  * follows both themes without a value being written down in here.
  *
  * All four are drawn on the same 24 box and each fills it the way its own artwork does — YouTube's

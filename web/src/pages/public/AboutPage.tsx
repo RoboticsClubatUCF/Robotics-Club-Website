@@ -3,12 +3,12 @@ import { Link } from 'react-router'
 import { AboutEditor } from '../../components/about/AboutEditor'
 import { ImpactSection } from '../../components/about/ImpactSection'
 import { Timeline } from '../../components/about/Timeline'
+import { SocialLinks } from '../../components/shared/SocialLinks'
 import {
   FormEyebrow,
   FormHeading,
   secondaryClass,
 } from '../../components/shared/formChrome'
-import { socialLinks } from '../../content/home'
 import { ApiError, getJson } from '../../lib/api/api'
 import type { ApiAboutPage, ApiAboutStat } from '../../lib/api/api'
 import { isOfficer, useSession } from '../../lib/auth/session'
@@ -263,22 +263,7 @@ export function AboutPage() {
             <p className="text-dim mt-3 text-sm leading-[1.7] text-pretty">
               {page.onlineBlurb}
             </p>
-            <ul className="mt-4 flex flex-wrap gap-x-5.5 gap-y-1">
-              {socialLinks.map((link) => (
-                <li key={link.label}>
-                  <a
-                    href={link.href}
-                    /* These leave the site, so they leave the tab too — the
-                       footer's rule, and the same `noopener` reason. */
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="text-faint hover:text-primary -my-2 flex min-h-9 items-center py-2 font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200"
-                  >
-                    {link.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
+            <SocialLinks className="mt-2 -ml-3 flex-wrap wide:-ml-2" />
           </div>
         </div>
 
