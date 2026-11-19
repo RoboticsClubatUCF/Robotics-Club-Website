@@ -32,7 +32,6 @@ vi.mock('../../discord/discord.js', async (importOriginal) => ({
   // Signing in follows the club's officer role now, so an unmocked `signIn()` would reach
   // Discord on the dev token. Switched off rather than stubbed: this suite is about dues, and
   // the refresh returns before any call when the sync isn't configured.
-  officerSyncConfigured: false,
   officerRoleId: null,
   memberRoleId: null,
   projectLeadRoleId: null,

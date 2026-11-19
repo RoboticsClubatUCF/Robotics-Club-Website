@@ -106,7 +106,7 @@ Several columns are rewritten by the ten-minute sweeps.
 | --- | --- |
 | `role` → `ADMIN` | Sticks. Nothing writes or clears it |
 | `role` → `MEMBER` / `GUEST` | Reverted by the membership sweep; `dues_paid_through` decides |
-| `role` → `OFFICER` | Reverted from the Discord officer role |
+| `role` → `OFFICER` | Sticks, but the roles desk lists them as an officer not on the board. Seat them there instead |
 | `officer_alumnus` | Overwritten from the Discord Officer Alumni role |
 | `active` | Set back to `true` by the next payment |
 | `survey_completed_at` cleared | Puts the survey prompt back up; locks nothing |
@@ -156,11 +156,12 @@ How roles move:
   resolution; `sweepLapsedMembers` on the ten-minute timer catches the rest. Both
   touch only `MEMBER` accounts with a payment on record, and the sweep skips runs
   when UCF's calendar couldn't be read.
-- Officers follow a Discord role. `refreshOfficerStanding` in
-  `src/discord/discordOfficers.ts` checks the one person signing in or calling
-  `/api/auth/me` (throttled to once per five minutes) and can promote or demote;
-  demotion requires confirming the configured role exists. `syncDiscordOfficers`
-  checks the whole guild every ten minutes.
+- Officers follow the board, which is kept by hand on the roles desk. Every
+  board write goes through `changeBoard` in `src/membership/board.ts`: a seat
+  (any but faculty advisor) makes its holder an `OFFICER`, and losing the last
+  one hands them back to their dues. Nothing reads the Discord Officers role to
+  decide this, and nothing writes it; each board write answers with whose role
+  to change by hand.
 - `src/discord/discordAlumni.ts` mirrors the Officer Alumni role into
   `User.officerAlumnus`. Never add that role to the site-written roles below; it
   sits under the bot, so a sweep would remove it from everyone.
@@ -361,8 +362,9 @@ All officer-only (`requireOfficer`, which includes the dues check).
 | `GET`/`POST /api/officer/equipment` · `PATCH /api/officer/equipment/:id` | `maxLoanDays` defaults to 7 on create; PATCH has no defaults. Names unique case-insensitively |
 | `DELETE /api/officer/equipment/:id` | Deletes the item and its loans. Refused while a unit is out. Retiring is the reversible option |
 | `GET /api/officer/loans?status=&all=` · `PATCH /api/officer/loans/:id` | Availability re-checked in the transaction. No `REQUESTED` → `CHECKED_OUT`. `dueAt` defaults to the member's date or the item's cap |
-| `GET /api/officer/terms` · `PATCH /api/officer/terms/seat` | Today's board. Taking a held seat is a 409 naming the incumbent unless `takeOver: true`, which closes their term as "Succeeded by …" in the same transaction. Terms created here are `MANUAL` and the sync won't close them. `position: null` clears a seat |
-| `DELETE /api/officer/terms/:userId` | Closes the open term, publishing it to `/officers`. The sync reopens one if they still hold the Discord role |
+| `GET /api/officer/terms` · `PATCH /api/officer/terms/seat` | Today's board, plus `offBoard` (officers by role with no open term). Taking a held seat is a 409 naming the incumbent unless `takeOver: true`, which closes their term as "Succeeded by …" in the same transaction. `position: null` clears a seat. The role follows the seat, and the answer carries `discord: { give, take }` |
+| `DELETE /api/officer/terms/:userId` | Closes the open term, publishing it to `/officers`, and hands them back to their dues. Also takes the desks from an officer with no open term |
+| `POST /api/officer/terms/handover` | The whole board at once: `board` is every place as it should be (`userId`, or `termId` for an accountless term that stays), `expected` the board it was planned against (409 if it moved). One transaction; seat moves keep the old term in the archive |
 | `GET /api/officer/archive` · `POST` · `PATCH`/`DELETE /archive/:id` | Every officer term. `userId` optional; `fullName` stored on the term. The one-per-seat 409 applies to open terms. PATCH treats absent fields as unchanged and checks dates on the resulting row. `source` isn't writable |
 | `POST` / `DELETE /api/officer/archive/:id/photo` | A term headshot, shown only when no account is linked |
 | `GET /api/officer/semesters/:year` | The three terms and their source (`override`, `calendar`, `fallback`), plus finals dates and source (null when unset) |
@@ -446,9 +448,10 @@ here.
   Terms store the holder's name because most past officers have no account.
 - The seats come from the `OfficerPosition` enum, so a new seat needs no
   frontend change. Officers with no seat are included.
-- Seats are set on `/api/officer/terms/seat`, the archive on
-  `/api/officer/archive`, and officer roles come from Discord. `source` records
-  which wrote a term, and the sync only closes terms it opened.
+- Seats are set on `/api/officer/terms/seat` (one at a time) and
+  `/api/officer/terms/handover` (the whole board), the archive on
+  `/api/officer/archive`. The archive refuses to seat, unseat or delete an
+  account's open term, since that would move a seat without the officer desks.
 
 ### General
 
@@ -585,11 +588,10 @@ src/
 ├── core/             env.ts, db.ts (the one Prisma client), rateLimit.ts, validate.ts
 ├── auth/             session.ts, password.ts, authz.ts
 ├── discord/          discord.ts (REST), discordGateway.ts, discordRoles.ts,
-│                     discordOfficers.ts, discordAlumni.ts, discordRecipient.ts,
-│                     officerNotify.ts
+│                     discordAlumni.ts, discordRecipient.ts, officerNotify.ts
 ├── email/            mail.ts (Postmark), emails.ts (HTML)
 ├── lab/              labStatus.ts (sign, curfew, sweep), labInteraction.ts
-├── membership/       semester.ts, membershipSweep.ts
+├── membership/       semester.ts, membershipSweep.ts, board.ts (the board and the OFFICER role)
 ├── printing/         printAllowance.ts, printSettings.ts, printLifecycle.ts, and the
 │                     slicer: processSettings.ts, plateTransform.ts, sliceJobs.ts,
 │                     orcaRunner.ts, orcaProject.ts, sliceArchive.ts, gcodePreview.ts,

@@ -695,33 +695,62 @@ export type ApiProjectTeamView = {
  * and no email is still findable.
  */
 /**
- * A seat on the board as the officer desk sees it: who the term belongs to, and
- * who opened it.
- *
- * `source` tells a seat the Discord sync handed out from one an officer gave by
- * hand, and only the second survives losing the Discord role.
+ * The roles desk's view: every seat there is, who is in one, and anybody with the
+ * officer role but no place on the board (set in Prisma Studio, or left by the old
+ * Discord sync).
  */
-/** The roles desk's view: every seat there is, and who is in one. */
 export type ApiOfficerDesk = {
   seats: OfficerPosition[]
   board: ApiBoardSeat[]
+  offBoard: ApiBoardPerson[]
 }
 
+/** A seat on the board as the officer desk sees it. `user` is null for a term
+    entered on the officers desk for somebody with no account. */
 export type ApiBoardSeat = {
   id: string
   position: OfficerPosition | null
   startedAt: string
-  source: 'DISCORD' | 'MANUAL'
   fullName: string
   user: {
     id: string
     fullName: string
     email: string | null
+    discordUsername: string | null
     role: UserRole
   } | null
   /** Only on the answer to a seat write, and only when `takeOver` displaced
       somebody: who was succeeded, so the page can say so. */
   succeeded?: string | null
+  /** Only on the answer to a seat write. */
+  discord?: ApiDiscordToDo
+}
+
+export type ApiBoardPerson = {
+  id: string
+  fullName: string
+  email?: string | null
+  discordUsername: string | null
+}
+
+/**
+ * Whose Discord Officers role needs changing after a board change. The site never
+ * changes it; an officer does, by hand, in Discord.
+ */
+export type ApiDiscordToDo = {
+  give: ApiBoardPerson[]
+  take: ApiBoardPerson[]
+}
+
+/** The answer to `POST /api/officer/terms/handover`: the new desk, and what changed. */
+export type ApiHandover = ApiOfficerDesk & {
+  change: {
+    joined: ApiBoardPerson[]
+    left: ApiBoardPerson[]
+    moved: ApiBoardPerson[]
+    succeeded: string[]
+    discord: ApiDiscordToDo
+  }
 }
 
 /**
@@ -1478,13 +1507,8 @@ export type ApiOfficerArchive = {
 
 /**
  * One term as the officers desk sees it, from `GET /api/officer/archive`:
- * `ApiOfficerTerm` plus the three things a public page has no use for.
- *
- * A term whose `source` is `DISCORD` was opened by the role sync and will be
- * reopened by it if it's closed or deleted while the person still carries the
- * role, so the desk warns rather than letting an officer press the same button
- * twice and conclude the site is broken. `endedReason` is the archive's own memory
- * of why a tenure finished.
+ * `ApiOfficerTerm` plus what a public page has no use for. `endedReason` is the
+ * archive's own memory of why a tenure finished.
  *
  * `photoUrl` here is the term's own and is not coalesced against the account,
  * unlike on `ApiOfficerTerm`: this is the page that sets and clears that column, so
@@ -1496,7 +1520,6 @@ export type ApiArchivedTerm = {
   startedAt: string
   endedAt: string | null
   endedReason: string | null
-  source: 'DISCORD' | 'MANUAL'
   fullName: string
   photoUrl: string | null
   user: { id: string; fullName: string; photoUrl: string | null } | null

@@ -51,9 +51,9 @@ enum UserRole {
 /// The eight seats on the officer board, in the order the site shows them.
 ///
 /// Separate from `UserRole` on purpose: that is the permission ladder and says what someone may
-/// do, this says which seat they hold. Most officers sit at `OFFICER`, but the faculty advisor
-/// holds a seat without the permission level that goes with it — the two axes come apart, so one
-/// enum could not carry both.
+/// do, this says which seat they hold. Every seat but the faculty advisor's makes its holder an
+/// `OFFICER` (`src/membership/board.ts`); the advisor holds a seat without the permission level, so
+/// one enum could not carry both.
 ///
 /// Declaration order is the display order, as for `UserRole`, so reordering needs the hand-written
 /// `CREATE TYPE` swap described in the note on that enum rather than a generated migration.
@@ -66,15 +66,6 @@ enum OfficerPosition {
   OUTREACH
   LAB_MANAGER
   FACULTY_ADVISOR
-}
-
-/// Who opened an `OfficerTerm`, and so who is allowed to close it.
-///
-/// `DISCORD` is the sync following the club's officer role. `MANUAL` is a person on the roles desk
-/// — which is how the faculty advisor, who carries no Discord role at all, stays on the board.
-enum OfficerTermSource {
-  DISCORD
-  MANUAL
 }
 
 /// Everyone the site knows about: the roster, the people who can sign in, and anyone who has only
@@ -257,8 +248,9 @@ model User {
 /// It is also the answer to "is this person on the board", and the only one. `User.role` says what
 /// somebody may do — and `ADMIN` outranks `OFFICER` there, so the ladder cannot say "an admin who
 /// is also an officer" at all. This can: an admin holds a term like anybody else while their `role`
-/// stays `ADMIN` and is never written by the sync. Three questions, three answers, and
-/// `.claude/docs/membership.md` is the rule.
+/// stays `ADMIN`. The board is kept by hand on the roles desk, and `src/membership/board.ts` writes
+/// every change to it along with the `OFFICER` role that follows. Three questions, three answers,
+/// and `.claude/docs/membership.md` is the rule.
 ///
 /// The name is written here rather than read through `user`. Most past officers predate this site
 /// by years and have no row in `users` at all, so a required relation would make half the archive
@@ -279,37 +271,24 @@ model User {
 /// the year for them, and a constraint that makes the true thing unrecordable is worse than the
 /// duplicate it prevents.
 model OfficerTerm {
-  id          String            @id @default(uuid(7))
-  /// Which seat, or null for an officer holding no named one.
-  ///
-  /// Nullable because the two facts arrive separately: Discord decides that somebody is on the
-  /// board, and an officer decides which chair they sit in, on the roles desk. Somebody promoted by
-  /// the sync five minutes ago genuinely holds no seat yet, and a term that could not say so would
-  /// have to invent one.
+  id          String           @id @default(uuid(7))
+  /// Which seat, or null for an officer holding no named one. The board can carry officers who
+  /// don't sit in one of the eight chairs, and a term that couldn't say so would have to invent one.
   position    OfficerPosition?
   /// When this tenure began, and when it ended. Open — `endedAt` null — is what "currently on the
   /// board" means, and it is the only thing that means it: there is no boolean beside this and
   /// there must never be one.
-  startedAt   DateTime          @map("started_at")
-  endedAt     DateTime?         @map("ended_at")
-  /// Why it ended, in words, for the officer reading the archive later. The
-  /// sync writes "lost the Discord officer role"; the roles desk writes who
-  /// stood them down.
-  endedReason String?           @map("ended_reason")
-  /// Who opened this term, and therefore who may close it.
-  ///
-  /// The sync only ever closes what the sync opened. The faculty advisor sits on the board as a
-  /// plain `MEMBER` and carries no Discord role, so a loop that closed every term whose holder
-  /// lacks the role would stand them down on its first pass. Same rule as the dues sweep only
-  /// touching rows with a `duesPaidThrough` on them: an appointment made outside a loop is not that
-  /// loop's to undo.
-  source      OfficerTermSource @default(MANUAL)
+  startedAt   DateTime         @map("started_at")
+  endedAt     DateTime?        @map("ended_at")
+  /// Why it ended, in words, for the officer reading the archive later: who succeeded them, which
+  /// seat they moved to, or who stood them down.
+  endedReason String?          @map("ended_reason")
   /// Who held it. The record, not a cache of `user.fullName` — see above.
-  fullName    String            @map("full_name")
+  fullName    String           @map("full_name")
   /// A headshot from that year, if the club kept one. The route falls back to the linked roster
   /// entry's photo, so an officer is shown as they were then when there is a picture of it and as
   /// they are now when there is not.
-  photoUrl    String?           @map("photo_url")
+  photoUrl    String?          @map("photo_url")
 
   userId String? @map("user_id")
   user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)

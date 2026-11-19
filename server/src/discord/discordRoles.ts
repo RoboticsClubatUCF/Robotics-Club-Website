@@ -22,7 +22,7 @@ import { ProjectMemberRank } from '../generated/prisma/enums.js'
 /**
  * Giving people the Discord roles the site says they should have.
  *
- * The mirror image of `discordOfficers.ts`, and deliberately a separate file because
+ * The mirror image of `discordAlumni.ts`, and deliberately a separate file because
  * they point in opposite directions: that one reads the guild and writes Postgres,
  * this one reads Postgres and writes the guild.
  *
@@ -30,8 +30,9 @@ import { ProjectMemberRank } from '../generated/prisma/enums.js'
  * pointed at one role would fight every ten minutes, each undoing the other, and the
  * symptom would be a role that flickers rather than an error anybody could find.
  *
- *   - Officers belongs to Discord. Nothing here reads or writes it — the bot couldn't
- *     anyway, since its own role sits below Officers.
+ *   - Officers belongs to Discord, given and taken by hand. Nothing here writes it — the
+ *     bot couldn't anyway, since its own role sits below Officers — and nothing makes
+ *     anybody an officer on the site from it.
  *   - Members, Project Leads, Team Leads, Print Crew and each project's own role belong
  *     to the site. Hand-editing one in Discord is undone on the next sweep.
  *   - Everything else in the guild — pronouns, majors, committees, Server Booster,

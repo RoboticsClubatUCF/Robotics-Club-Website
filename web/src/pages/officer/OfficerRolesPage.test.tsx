@@ -160,14 +160,38 @@ function stubDesk(over: Record<string, unknown> = {}) {
     if (url.endsWith('/terms/seat')) {
       return (over.seat as Promise<Response> | undefined) ?? json({})
     }
+    if (url.endsWith('/terms/handover')) {
+      return (
+        (over.handover as Promise<Response> | undefined) ??
+        json({
+          seats: SEATS,
+          board: BOARD,
+          offBoard: [],
+          change: {
+            joined: [],
+            left: [],
+            moved: [],
+            succeeded: [],
+            discord: { give: [], take: [] },
+          },
+        })
+      )
+    }
     if (url.includes('/officer/terms/') && init?.method === 'DELETE') {
-      return (over.standDown as Promise<Response> | undefined) ?? json({ closed: 1 })
+      return (
+        (over.standDown as Promise<Response> | undefined) ??
+        json({ closed: 1, discord: { give: [], take: [] } })
+      )
     }
     if (url.endsWith('/officer/terms')) {
-      return json({
-        seats: (over.seats as unknown) ?? SEATS,
-        board: (over.board as unknown) ?? BOARD,
-      })
+      return (
+        (over.desk as Promise<Response> | undefined) ??
+        json({
+          seats: (over.seats as unknown) ?? SEATS,
+          board: (over.board as unknown) ?? BOARD,
+          offBoard: (over.offBoard as unknown) ?? [],
+        })
+      )
     }
     if (url.endsWith('/team')) return json(TEAM_VIEW)
     if (url.includes('/projects?')) return json(PROJECTS)
@@ -232,34 +256,42 @@ const SEATS = [
 ] as const
 
 /**
- * Today's board as the seat panel lists it. One seated officer, one on the board with no chair
- * yet — what the Discord sync creates before anybody has been given one — and the advisor, who
- * holds a seat as a plain member.
+ * Today's board as the seat panel lists it. One seated officer, one on the board with no named
+ * chair, and the advisor, who holds a seat as a plain member.
  */
 const BOARD = [
   {
     id: 'ot1',
     position: 'PRESIDENT',
     startedAt: '2035-08-01T00:00:00.000Z',
-    source: 'DISCORD',
     fullName: 'Rowan Chen',
-    user: { id: 'u2', fullName: 'Rowan Chen', email: 'rowan@ucf.edu', role: 'OFFICER' },
+    user: {
+      id: 'u2',
+      fullName: 'Rowan Chen',
+      email: 'rowan@ucf.edu',
+      discordUsername: 'rowan',
+      role: 'OFFICER',
+    },
   },
   {
     id: 'ot2',
     position: null,
     startedAt: '2035-09-01T00:00:00.000Z',
-    source: 'DISCORD',
     fullName: 'Sam Patel',
-    user: { id: 'u3', fullName: 'Sam Patel', email: null, role: 'OFFICER' },
+    user: { id: 'u3', fullName: 'Sam Patel', email: null, discordUsername: null, role: 'OFFICER' },
   },
   {
     id: 'ot3',
     position: 'FACULTY_ADVISOR',
     startedAt: '2030-01-01T00:00:00.000Z',
-    source: 'MANUAL',
     fullName: 'Dr Alina Petrov',
-    user: { id: 'u4', fullName: 'Dr Alina Petrov', email: null, role: 'MEMBER' },
+    user: {
+      id: 'u4',
+      fullName: 'Dr Alina Petrov',
+      email: null,
+      discordUsername: null,
+      role: 'MEMBER',
+    },
   },
 ]
 
@@ -325,7 +357,7 @@ describe('granting a membership', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(400)
     })
-    fireEvent.click(grantPanel().getByRole('button', { name: /Rowan Chen/ }))
+    fireEvent.click(grantPanel().getByRole('button', { name: /^Rowan Chen/ }))
   }
 
   it('says where somebody stands before granting them anything', async () => {
@@ -423,7 +455,7 @@ describe('setting a title', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(400)
     })
-    fireEvent.click(titlePanel().getByRole('button', { name: /Rowan Chen/ }))
+    fireEvent.click(titlePanel().getByRole('button', { name: /^Rowan Chen/ }))
   }
 
   const titleCalls = (fetchMock: ReturnType<typeof stubDesk>) =>
@@ -575,7 +607,7 @@ describe('appointing a project lead', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(400)
     })
-    fireEvent.click(leadPanel().getByRole('button', { name: /Rowan Chen/ }))
+    fireEvent.click(leadPanel().getByRole('button', { name: /^Rowan Chen/ }))
   }
 
   it('appoints, and says so', async () => {
@@ -944,7 +976,7 @@ describe('the member picker', () => {
     expect(fetchMock.mock.calls.map(([input]) => urlOf(input))).toContainEqual(
       expect.stringContaining('/officer/members?query=rowan'),
     )
-    fireEvent.click(grantPanel().getByRole('button', { name: /Rowan Chen/ }))
+    fireEvent.click(grantPanel().getByRole('button', { name: /^Rowan Chen/ }))
     expect(grantPanel().getByText('Rowan Chen')).toBeInTheDocument()
   })
 
@@ -1040,7 +1072,7 @@ describe('OfficerRolesPage — the officer board', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(400)
     })
-    fireEvent.click(seatPanel().getByRole('button', { name: /Rowan Chen/ }))
+    fireEvent.click(seatPanel().getByRole('button', { name: /^Rowan Chen/ }))
 
     fireEvent.change(seatPanel().getByLabelText(/which seat/i), {
       target: { value: 'TREASURER' },
@@ -1082,7 +1114,7 @@ describe('OfficerRolesPage — the officer board', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(400)
     })
-    fireEvent.click(seatPanel().getByRole('button', { name: /Rowan Chen/ }))
+    fireEvent.click(seatPanel().getByRole('button', { name: /^Rowan Chen/ }))
     fireEvent.click(seatPanel().getByRole('button', { name: /set the seat/i }))
 
     const seat = fetchMock.mock.calls.find(([input]) =>
@@ -1125,7 +1157,7 @@ describe('OfficerRolesPage — the officer board', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(400)
     })
-    fireEvent.click(seatPanel().getByRole('button', { name: /Rowan Chen/ }))
+    fireEvent.click(seatPanel().getByRole('button', { name: /^Rowan Chen/ }))
     fireEvent.click(seatPanel().getByRole('button', { name: /set the seat/i }))
 
     await act(async () => {
@@ -1142,7 +1174,7 @@ describe('OfficerRolesPage — the officer board', () => {
     renderPage(context(), 'board')
     await screen.findByText('Rowan Chen')
 
-    fireEvent.click(seatPanel().getAllByRole('button', { name: /stand down/i })[0]!)
+    fireEvent.click(seatPanel().getByRole('button', { name: 'Stand Rowan Chen down' }))
 
     expect(screen.getByText(/Stand Rowan Chen down\?/)).toBeInTheDocument()
     expect(
@@ -1150,45 +1182,114 @@ describe('OfficerRolesPage — the officer board', () => {
     ).toBe(false)
   })
 
-  /**
-   * The one thing that would make the button look broken if left unsaid: the
-   * Discord role is the club's answer about who is an officer, and this does
-   * not overrule it.
-   */
-  it('warns that a synced officer will come straight back', async () => {
+  /** Standing down takes the officer desks with the seat, and says so. */
+  it('says standing down takes the officer desks', async () => {
     vi.stubGlobal('fetch', stubDesk())
     renderPage(context(), 'board')
     await screen.findByText('Rowan Chen')
 
-    fireEvent.click(seatPanel().getAllByRole('button', { name: /stand down/i })[0]!)
+    fireEvent.click(seatPanel().getByRole('button', { name: 'Stand Rowan Chen down' }))
 
-    expect(screen.getByText(/still carry the officer role in Discord/i)).toBeInTheDocument()
+    expect(screen.getByText(/lose the officer desks/i)).toBeInTheDocument()
+    expect(screen.queryByText(/That’s you/)).not.toBeInTheDocument()
   })
 
-  /** And not for one given by hand, which nothing will put back. */
-  it('does not warn about a hand-appointed seat', async () => {
+  it('does not say the advisor loses desks they never had', async () => {
     vi.stubGlobal('fetch', stubDesk())
     renderPage(context(), 'board')
     await screen.findByText('Dr Alina Petrov')
 
-    const rows = seatPanel().getAllByRole('button', { name: /stand down/i })
-    fireEvent.click(rows[rows.length - 1]!)
+    fireEvent.click(seatPanel().getByRole('button', { name: 'Stand Dr Alina Petrov down' }))
 
     expect(screen.getByText(/Stand Dr Alina Petrov down\?/)).toBeInTheDocument()
+    expect(screen.queryByText(/lose the officer desks/)).not.toBeInTheDocument()
+  })
+
+  it('warns an officer standing themselves down', async () => {
+    const me = {
+      ...BOARD[0]!,
+      id: 'ot0',
+      position: 'SECRETARY',
+      fullName: 'Officer Test',
+      user: { ...BOARD[0]!.user, id: 'u1', fullName: 'Officer Test' },
+    }
+    vi.stubGlobal('fetch', stubDesk({ board: [...BOARD, me] }))
+    renderPage(context(), 'board')
+    await screen.findByText('Officer Test')
+
+    fireEvent.click(seatPanel().getByRole('button', { name: 'Stand Officer Test down' }))
+
+    expect(screen.getByText(/That’s you/)).toBeInTheDocument()
+  })
+
+  /** Officers by role with no place on the board: set in Studio, or left by the old sync. */
+  it('lists officers who are not on the board, and stands them down by id', async () => {
+    const fetchMock = stubDesk({
+      offBoard: [{ id: 'u7', fullName: 'Lee Studio', email: null, discordUsername: 'lee' }],
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderPage(context(), 'board')
+    await screen.findByText('Lee Studio')
+
+    const todo = screen.getByText('STILL TO DO').closest('div')!
+    expect(within(todo).getByText(/no place on the board/)).toBeInTheDocument()
+
+    fireEvent.click(seatPanel().getByRole('button', { name: 'Stand Lee Studio down' }))
+    expect(screen.getByText(/They lose the officer desks\./)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'STAND DOWN' }))
+
     expect(
-      screen.queryByText(/still carry the officer role in Discord/i),
-    ).not.toBeInTheDocument()
+      fetchMock.mock.calls.some(
+        ([input, init]) =>
+          init?.method === 'DELETE' && urlOf(input).endsWith('/officer/terms/u7'),
+      ),
+    ).toBe(true)
+  })
+
+  it('says whose Discord role to change after a seat is set', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal(
+      'fetch',
+      stubDesk({
+        seat: json({
+          id: 'ot9',
+          succeeded: null,
+          discord: {
+            give: [{ id: 'u2', fullName: 'Rowan Chen', discordUsername: 'rowan' }],
+            take: [],
+          },
+        }),
+      }),
+    )
+    renderPage(context(), 'board')
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    fireEvent.change(seatPanel().getByLabelText(/who is taking a seat/i), {
+      target: { value: 'rowan' },
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400)
+    })
+    fireEvent.click(seatPanel().getByRole('button', { name: /^Rowan Chen/ }))
+    fireEvent.click(seatPanel().getByRole('button', { name: /set the seat/i }))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    expect(screen.getByText('IN DISCORD, BY HAND')).toBeInTheDocument()
+    expect(screen.getByText(/Give the Officers role to/)).toHaveTextContent(
+      'Give the Officers role to Rowan Chen (@rowan).',
+    )
   })
 })
 
 /**
- * Rotation day.
- *
- * Flipping the Discord roles leaves the club with officers who have no chairs and a front page
- * reading "Seat open" eight times, and nothing says so. These two — the work list and the
- * one-press hand-over — are what make the handover a task rather than archaeology.
+ * One seat at a time: the work list and the take-over. The whole board at once is HANDOVER,
+ * below.
  */
-describe('OfficerRolesPage — handing the board over', () => {
+describe('OfficerRolesPage — handing a seat over', () => {
   it('counts what is left to do, and names it while the list is short', async () => {
     vi.stubGlobal('fetch', stubDesk())
     renderPage(context(), 'board')
@@ -1210,12 +1311,12 @@ describe('OfficerRolesPage — handing the board over', () => {
       id: `ot${String(index)}`,
       position: seat,
       startedAt: '2035-08-01T00:00:00.000Z',
-      source: 'DISCORD',
       fullName: `Officer ${String(index)}`,
       user: {
         id: `u${String(index)}`,
         fullName: `Officer ${String(index)}`,
         email: null,
+        discordUsername: null,
         role: 'OFFICER',
       },
     }))
@@ -1246,7 +1347,7 @@ describe('OfficerRolesPage — handing the board over', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(400)
     })
-    fireEvent.click(seatPanel().getByRole('button', { name: /Rowan Chen/ }))
+    fireEvent.click(seatPanel().getByRole('button', { name: /^Rowan Chen/ }))
 
     // FACULTY_ADVISOR is held by Dr Alina Petrov in the fixture board.
     fireEvent.change(seatPanel().getByLabelText(/which seat/i), {
@@ -1275,7 +1376,7 @@ describe('OfficerRolesPage — handing the board over', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(400)
     })
-    fireEvent.click(seatPanel().getByRole('button', { name: /Rowan Chen/ }))
+    fireEvent.click(seatPanel().getByRole('button', { name: /^Rowan Chen/ }))
     fireEvent.change(seatPanel().getByLabelText(/which seat/i), {
       target: { value: 'FACULTY_ADVISOR' },
     })
@@ -1308,7 +1409,7 @@ describe('OfficerRolesPage — handing the board over', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(400)
     })
-    fireEvent.click(seatPanel().getByRole('button', { name: /Rowan Chen/ }))
+    fireEvent.click(seatPanel().getByRole('button', { name: /^Rowan Chen/ }))
     fireEvent.change(seatPanel().getByLabelText(/which seat/i), {
       target: { value: 'FACULTY_ADVISOR' },
     })
@@ -1344,7 +1445,7 @@ describe('OfficerRolesPage — handing the board over', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(400)
     })
-    fireEvent.click(seatPanel().getByRole('button', { name: /Rowan Chen/ }))
+    fireEvent.click(seatPanel().getByRole('button', { name: /^Rowan Chen/ }))
     fireEvent.change(seatPanel().getByLabelText(/which seat/i), {
       target: { value: 'FACULTY_ADVISOR' },
     })
@@ -1374,7 +1475,7 @@ describe('OfficerRolesPage — handing the board over', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(400)
     })
-    fireEvent.click(seatPanel().getByRole('button', { name: /Rowan Chen/ }))
+    fireEvent.click(seatPanel().getByRole('button', { name: /^Rowan Chen/ }))
 
     // Rowan already holds PRESIDENT in the fixture board.
     fireEvent.change(seatPanel().getByLabelText(/which seat/i), {
@@ -1384,5 +1485,312 @@ describe('OfficerRolesPage — handing the board over', () => {
     expect(
       seatPanel().getByRole('button', { name: 'SET THE SEAT' }),
     ).toBeInTheDocument()
+  })
+})
+
+/**
+ * HANDOVER: the whole board at once. It opens on today's board, sends the board as it should
+ * be, and says whose Discord role to change by hand once it lands.
+ */
+describe('OfficerRolesPage — the handover', () => {
+  const JORDAN = {
+    ...ROWAN,
+    id: 'u9',
+    fullName: 'Jordan Ellis',
+    email: 'jordan@ucf.edu',
+    discordUsername: 'jordan',
+  }
+
+  const panel = () => within(screen.getByRole('region', { name: 'Hand over the board' }))
+
+  const flush = async (ms = 0) => {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ms)
+    })
+  }
+
+  /** Put Jordan in the president's chair, by the controls a person would use. */
+  const jordanForPresident = async () => {
+    fireEvent.click(panel().getByRole('button', { name: 'Change President' }))
+    fireEvent.change(panel().getByLabelText('Who holds President next'), {
+      target: { value: 'jordan' },
+    })
+    await flush(400)
+    fireEvent.click(panel().getByRole('button', { name: /Jordan Ellis/ }))
+  }
+
+  it('opens on today’s board, with nothing to send', async () => {
+    vi.stubGlobal('fetch', stubDesk())
+    renderPage(context(), 'handover')
+
+    expect(await panel().findByText('Rowan Chen')).toBeInTheDocument()
+    expect(panel().getByText('Sam Patel')).toBeInTheDocument()
+    expect(panel().getByRole('button', { name: 'HAND OVER' })).toBeDisabled()
+    expect(panel().queryByText('JOINING')).not.toBeInTheDocument()
+  })
+
+  it('says when the board could not be loaded', async () => {
+    vi.stubGlobal('fetch', stubDesk({ desk: json({ error: 'down' }, 500) }))
+    renderPage(context(), 'handover')
+
+    expect(await panel().findByText(/couldn’t load the board/)).toBeInTheDocument()
+    expect(panel().getByRole('button', { name: 'TRY AGAIN' })).toBeInTheDocument()
+  })
+
+  it('sends the board as it should be, once confirmed', async () => {
+    vi.useFakeTimers()
+    const fetchMock = stubDesk({ member: JORDAN })
+    vi.stubGlobal('fetch', fetchMock)
+    renderPage(context(), 'handover')
+    await flush()
+
+    await jordanForPresident()
+
+    expect(panel().getByText('JOINING').nextSibling).toHaveTextContent(
+      'Jordan Ellis (President)',
+    )
+    expect(panel().getByText('LEAVING').nextSibling).toHaveTextContent('Rowan Chen')
+    expect(panel().getByText('Now Rowan Chen.')).toBeInTheDocument()
+
+    fireEvent.click(panel().getByRole('button', { name: 'HAND OVER' }))
+    expect(screen.getByText('Hand over the board?')).toBeInTheDocument()
+    expect(
+      fetchMock.mock.calls.some(([input]) => urlOf(input).endsWith('/terms/handover')),
+    ).toBe(false)
+
+    const buttons = screen.getAllByRole('button', { name: 'HAND OVER' })
+    fireEvent.click(buttons[buttons.length - 1]!)
+    await flush()
+
+    const sent = fetchMock.mock.calls.find(([input]) =>
+      urlOf(input).endsWith('/terms/handover'),
+    )
+    const body = bodyOf(sent![1]) as {
+      expected: unknown[]
+      board: unknown[]
+    }
+
+    expect(body.expected).toEqual([
+      { id: 'ot1', position: 'PRESIDENT' },
+      { id: 'ot2', position: null },
+      { id: 'ot3', position: 'FACULTY_ADVISOR' },
+    ])
+    expect(body.board).toHaveLength(3)
+    expect(body.board).toEqual(
+      expect.arrayContaining([
+        { userId: 'u9', position: 'PRESIDENT' },
+        { userId: 'u3', position: null },
+        { userId: 'u4', position: 'FACULTY_ADVISOR' },
+      ]),
+    )
+  })
+
+  it('says whose Discord role to change once it lands', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal(
+      'fetch',
+      stubDesk({
+        member: JORDAN,
+        handover: json({
+          seats: SEATS,
+          board: BOARD,
+          offBoard: [],
+          change: {
+            joined: [{ id: 'u9', fullName: 'Jordan Ellis', discordUsername: 'jordan' }],
+            left: [{ id: 'u2', fullName: 'Rowan Chen', discordUsername: 'rowan' }],
+            moved: [],
+            succeeded: ['Rowan Chen'],
+            discord: {
+              give: [{ id: 'u9', fullName: 'Jordan Ellis', discordUsername: 'jordan' }],
+              take: [{ id: 'u2', fullName: 'Rowan Chen', discordUsername: 'rowan' }],
+            },
+          },
+        }),
+      }),
+    )
+    renderPage(context(), 'handover')
+    await flush()
+
+    await jordanForPresident()
+    fireEvent.click(panel().getByRole('button', { name: 'HAND OVER' }))
+    const buttons = screen.getAllByRole('button', { name: 'HAND OVER' })
+    fireEvent.click(buttons[buttons.length - 1]!)
+    await flush()
+
+    expect(panel().getByText('HANDED OVER')).toBeInTheDocument()
+    expect(panel().getByText('1 joined, 1 left.')).toBeInTheDocument()
+    expect(panel().getByText(/Give the Officers role to/)).toHaveTextContent(
+      'Give the Officers role to Jordan Ellis (@jordan).',
+    )
+    expect(panel().getByText(/Take the Officers role from/)).toHaveTextContent(
+      'Take the Officers role from Rowan Chen (@rowan).',
+    )
+  })
+
+  /** Picking somebody who sits elsewhere moves them, rather than seating them twice. */
+  it('moves an officer picked for another seat', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', stubDesk())
+    renderPage(context(), 'handover')
+    await flush()
+
+    fireEvent.change(panel().getByLabelText('Who holds Treasurer next'), {
+      target: { value: 'rowan' },
+    })
+    await flush(400)
+    fireEvent.click(panel().getByRole('button', { name: /^Rowan Chen/ }))
+
+    // The seat's own chip, and the summary's list of emptied seats.
+    expect(panel().getAllByText('LEFT EMPTY')).toHaveLength(2)
+    expect(panel().getByText('LEFT EMPTY', { selector: 'dt' }).nextSibling).toHaveTextContent(
+      'President',
+    )
+    expect(panel().getByText('MOVING').nextSibling).toHaveTextContent(
+      'Rowan Chen (President → Treasurer)',
+    )
+    // Focus stays on the seat that was just picked, rather than dropping to the page.
+    expect(document.activeElement).toBe(
+      panel().getByRole('button', { name: 'Change Treasurer' }),
+    )
+    expect(panel().queryByText('LEAVING')).not.toBeInTheDocument()
+
+    // And KEEP puts them back.
+    fireEvent.click(panel().getByRole('button', { name: 'Keep Rowan Chen as President' }))
+    expect(panel().queryByText('MOVING')).not.toBeInTheDocument()
+  })
+
+  it('refuses a board with nobody holding the officer desks', async () => {
+    vi.stubGlobal('fetch', stubDesk())
+    renderPage(context(), 'handover')
+    await panel().findByText('Rowan Chen')
+
+    fireEvent.click(panel().getByRole('button', { name: 'Change President' }))
+    fireEvent.click(panel().getByRole('button', { name: 'Take Sam Patel off the board' }))
+
+    expect(
+      panel().getByText('Nobody on the new board would have the officer desks.'),
+    ).toBeInTheDocument()
+    expect(panel().getByRole('button', { name: 'HAND OVER' })).toBeDisabled()
+  })
+
+  /** Somebody changed the board meanwhile: the plan is marked stale and can be carried over. */
+  it('holds a stale plan until it is carried over onto today’s board', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal(
+      'fetch',
+      stubDesk({
+        member: JORDAN,
+        handover: json(
+          {
+            error:
+              'The board changed while you were planning. Update the plan and check it again.',
+          },
+          409,
+        ),
+      }),
+    )
+    renderPage(context(), 'handover')
+    await flush()
+
+    await jordanForPresident()
+    fireEvent.click(panel().getByRole('button', { name: 'HAND OVER' }))
+    const buttons = screen.getAllByRole('button', { name: 'HAND OVER' })
+    fireEvent.click(buttons[buttons.length - 1]!)
+    await flush()
+    await flush()
+
+    expect(panel().getByText(/board changed since you made this plan/)).toBeInTheDocument()
+    expect(panel().getByRole('button', { name: 'HAND OVER' })).toBeDisabled()
+
+    fireEvent.click(panel().getByRole('button', { name: 'UPDATE THE PLAN' }))
+
+    // The edit survives, and HAND OVER is live again.
+    expect(panel().getByText('JOINING').nextSibling).toHaveTextContent(
+      'Jordan Ellis (President)',
+    )
+    expect(panel().getByRole('button', { name: 'HAND OVER' })).toBeEnabled()
+  })
+
+  it('prints any other refusal and keeps the plan', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal(
+      'fetch',
+      stubDesk({
+        member: JORDAN,
+        handover: json({ error: 'Somebody is on the new board twice.' }, 400),
+      }),
+    )
+    renderPage(context(), 'handover')
+    await flush()
+
+    await jordanForPresident()
+    fireEvent.click(panel().getByRole('button', { name: 'HAND OVER' }))
+    const buttons = screen.getAllByRole('button', { name: 'HAND OVER' })
+    fireEvent.click(buttons[buttons.length - 1]!)
+    await flush()
+
+    expect(panel().getByText('Somebody is on the new board twice.')).toBeInTheDocument()
+    expect(panel().getByText('JOINING')).toBeInTheDocument()
+    expect(panel().getByRole('button', { name: 'START AGAIN' })).toBeInTheDocument()
+  })
+
+  /** Officers by role with no seat are listed where the plan can take them in. */
+  it('lists officers with no place on the board, and can add them', async () => {
+    vi.stubGlobal(
+      'fetch',
+      stubDesk({
+        offBoard: [{ id: 'u7', fullName: 'Lee Studio', email: null, discordUsername: 'lee' }],
+      }),
+    )
+    renderPage(context(), 'handover')
+    await panel().findByText('Lee Studio')
+
+    expect(panel().getByText('HAS THE DESKS, NOT ON THE BOARD')).toBeInTheDocument()
+
+    // Left out of a plan, the dialog says they keep the desks.
+    fireEvent.click(panel().getByRole('button', { name: 'Take Sam Patel off the board' }))
+    fireEvent.click(panel().getByRole('button', { name: 'HAND OVER' }))
+    expect(screen.getByText(/Lee Studio keeps the officer desks/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'GO BACK' }))
+
+    fireEvent.click(panel().getByRole('button', { name: 'Add Lee Studio to the board' }))
+    expect(panel().getByText('JOINING', { selector: 'dt' }).nextSibling).toHaveTextContent(
+      'Lee Studio (no seat)',
+    )
+  })
+
+  it('shows the result where the button was, and takes focus there', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', stubDesk({ member: JORDAN }))
+    renderPage(context(), 'handover')
+    await flush()
+
+    await jordanForPresident()
+    fireEvent.click(panel().getByRole('button', { name: 'HAND OVER' }))
+    const buttons = screen.getAllByRole('button', { name: 'HAND OVER' })
+    fireEvent.click(buttons[buttons.length - 1]!)
+    await flush()
+
+    const result = panel().getByText('HANDED OVER').closest('[role="status"]')
+    expect(document.activeElement).toBe(result)
+  })
+
+  it('warns an officer who is handing themselves off the board', async () => {
+    vi.useFakeTimers()
+    const me = {
+      ...BOARD[0]!,
+      id: 'ot0',
+      position: 'SECRETARY',
+      fullName: 'Officer Test',
+      user: { ...BOARD[0]!.user, id: 'u1', fullName: 'Officer Test' },
+    }
+    vi.stubGlobal('fetch', stubDesk({ board: [...BOARD, me], member: JORDAN }))
+    renderPage(context(), 'handover')
+    await flush()
+
+    fireEvent.click(panel().getByRole('button', { name: 'Change Secretary' }))
+    fireEvent.click(panel().getByRole('button', { name: 'HAND OVER' }))
+
+    expect(screen.getByText(/That includes you/)).toBeInTheDocument()
   })
 })

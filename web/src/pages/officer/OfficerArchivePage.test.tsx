@@ -78,7 +78,6 @@ const archived = (over: Partial<ApiArchivedTerm> = {}): ApiArchivedTerm => ({
   startedAt: '2011-09-01T12:00:00.000Z',
   endedAt: '2012-05-01T12:00:00.000Z',
   endedReason: null,
-  source: 'MANUAL',
   fullName: 'Marisol Vega',
   photoUrl: null,
   user: null,
@@ -309,26 +308,50 @@ describe('OfficerArchivePage', () => {
     })
   })
 
-  /**
-   * The one warning that stops the page looking broken. A synced term deleted
-   * while its holder still carries the Discord role comes straight back on the
-   * next sweep, and that is the sync working.
-   */
-  it('warns that a synced open term will be reopened by the sweep', async () => {
+  /** Somebody on today's board is stood down on the roles desk, which moves the officer
+      desks with the seat, so the row offers no REMOVE. */
+  it('offers no REMOVE for an account on today’s board', async () => {
     vi.stubGlobal(
       'fetch',
       stubDesk([
-        archived({ source: 'DISCORD', endedAt: null, fullName: 'Synced Officer' }),
+        archived({
+          endedAt: null,
+          fullName: 'Sitting Officer',
+          user: { id: 'u1', fullName: 'Sitting Officer', photoUrl: null },
+        }),
       ]),
     )
     renderPage()
 
-    await screen.findByText('Synced Officer')
-    fireEvent.click(
-      within(rowFor('Synced Officer')).getByRole('button', { name: 'REMOVE' }),
-    )
+    await screen.findByText('Sitting Officer')
 
-    expect(screen.getByText(/next sweep will put it straight back/i)).toBeInTheDocument()
+    expect(
+      within(rowFor('Sitting Officer')).queryByRole('button', { name: 'REMOVE' }),
+    ).not.toBeInTheDocument()
+  })
+
+  /** Its seat and end are set on the roles desk, which moves the officer desks with them. */
+  it('locks the seat and end date of an account on today’s board', async () => {
+    vi.stubGlobal(
+      'fetch',
+      stubDesk([
+        archived({
+          endedAt: null,
+          fullName: 'Sitting Officer',
+          user: { id: 'u1', fullName: 'Sitting Officer', photoUrl: null },
+        }),
+      ]),
+    )
+    renderPage()
+
+    await screen.findByText('Sitting Officer')
+    const row = rowFor('Sitting Officer')
+    fireEvent.click(within(row).getByRole('button', { name: 'EDIT' }))
+
+    expect(within(row).getByLabelText(/which seat/i)).toBeDisabled()
+    expect(within(row).getByLabelText(/^ended$/i)).toBeDisabled()
+    expect(within(row).getByLabelText(/started/i)).toBeEnabled()
+    expect(within(row).getByRole('link', { name: 'OFFICER BOARD' })).toBeInTheDocument()
   })
 
   /** The server's own sentence, not a generic one: it names the incumbent. */

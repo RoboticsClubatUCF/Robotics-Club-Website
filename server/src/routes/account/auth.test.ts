@@ -2,7 +2,6 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { app } from '../../app.js'
 import { prisma } from '../../core/db.js'
 import { checkDiscordHandle, guildMemberRoles, guildRoles } from '../../discord/discord.js'
-import { forgetOfficerChecks, forgetRoleCheck } from '../../discord/discordOfficers.js'
 import { env } from '../../core/env.js'
 import { sendPasswordReset } from '../../email/mail.js'
 import { hashPassword, verifyPassword } from '../../auth/password.js'
@@ -20,30 +19,21 @@ import { createSession } from '../../auth/session.js'
  *   - the session cookie is `httpOnly`, which is what makes a cross-site scripting bug stop
  *     short of stealing sessions;
  *   - nothing in a response carries a password hash;
- *   - and signing in follows the club's Discord officer role, promoting only.
+ *   - and signing in never asks Discord who is an officer: the board on the roles desk decides.
  */
 
 /**
- * This path leaves the process now, and it didn't use to. `/login` and `/auth/me` both call
- * `refreshOfficerStanding`, which asks Discord about one account — on the dev `.env`'s live
- * bot token, against the club's real guild. Everything that could reach it is stubbed.
- *
- * The role id is invented and the sync is forced on, because the property under test is what
- * happens when it's configured. `guildMemberRoles` and `checkDiscordHandle` are bare
- * `vi.fn()`s given a default in `beforeEach`, so a test that forgets to say what Discord
- * answered gets "unchecked" rather than a real call.
+ * Nothing here should reach Discord any more, and the stubs are how that's proved: the dev
+ * `.env` carries a live bot token. They're bare `vi.fn()`s with a default in `beforeEach`, and
+ * the officer cases assert none of them was called. The role id is invented.
  */
 const OFFICER_ROLE = '111111111111111111'
 
 vi.mock('../../discord/discord.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../discord/discord.js')>()),
-  officerSyncConfigured: true,
   officerRoleId: '111111111111111111',
   guildMemberRoles: vi.fn(),
   checkDiscordHandle: vi.fn(),
-  // Standing somebody down asks this first — see `officerRoleExists`. Unmocked it's a live
-  // call to the club's guild, and worse, it refuses every demotion, so the half of this suite
-  // about losing the role would pass for entirely the wrong reason.
   guildRoles: vi.fn(),
 }))
 
@@ -114,31 +104,20 @@ const clearWindows = () =>
   })
 
 /**
- * The officer-sync fixtures, and every value on them is invented and namespaced.
- *
- * `discordId` and `discordUsername` are both `@unique` against a database with the club's real
- * members in it, so a snowflake that looked plausible could collide with a real person's
- * account — and the promotion path writes `discordId` back. These can't match anybody: the ids
- * are a repeated digit and the handles carry the suite's prefix.
+ * The officer fixtures. Snowflakes are a repeated digit so they can't collide with a real
+ * member's unique `discordId`.
  */
 const WITH_ID_EMAIL = 'test-login-officer@ucf.edu'
 const WITH_ID_SNOWFLAKE = '222222222222222222'
-const HANDLE_EMAIL = 'test-login-handle@ucf.edu'
-const HANDLE = 'test-login-handle'
-const HANDLE_SNOWFLAKE = '333333333333333333'
 const SITTING_EMAIL = 'test-login-sitting@ucf.edu'
 const SITTING_SNOWFLAKE = '444444444444444444'
-const ADMIN_EMAIL = 'test-login-admin@ucf.edu'
-const ADMIN_SNOWFLAKE = '555555555555555555'
 
 const FIXTURE_EMAILS = [
   EMAIL,
   NO_PASSWORD_EMAIL,
   LEGACY_EMAIL,
   WITH_ID_EMAIL,
-  HANDLE_EMAIL,
   SITTING_EMAIL,
-  ADMIN_EMAIL,
 ]
 
 const clearRows = async () => {
@@ -153,12 +132,6 @@ const clearRows = async () => {
 beforeEach(async () => {
   await clearWindows()
   await clearRows()
-  // Module state, so it outlives a test. Without this the second case to ask
-  // about one account is answered from the first one's throttle.
-  forgetOfficerChecks()
-  // Also module state, and cached for ten minutes — without this the second
-  // case to ask is answered from the first one's lookup.
-  forgetRoleCheck()
 
   // Reset before the default is set, so a case asserting that Discord was
   // *not* asked is not reading the previous case's calls.
@@ -168,12 +141,9 @@ beforeEach(async () => {
   resetMail.mockReset()
   resetMail.mockResolvedValue(true)
 
-  // The safe default: nothing was asked, so nothing is promoted. A test that
-  // wants a promotion says so.
-  memberRoles.mockResolvedValue({ status: 'unchecked' })
+  // If anything did ask, Discord would say the officer role is real and carried.
+  memberRoles.mockResolvedValue({ status: 'ok', roles: [OFFICER_ROLE] })
   handleCheck.mockResolvedValue({ status: 'unchecked' })
-  // The role exists, so a demotion is allowed to proceed. The case that pins
-  // the opposite overrides this.
   roleList.mockResolvedValue({
     status: 'ok',
     roles: new Map([[OFFICER_ROLE, 'Officers']]),
@@ -213,14 +183,7 @@ beforeEach(async () => {
         passwordHash,
         discordId: WITH_ID_SNOWFLAKE,
       },
-      // Handle only: the seed, and anything typed in by hand.
-      {
-        fullName: 'Test Handle',
-        email: HANDLE_EMAIL,
-        passwordHash,
-        discordUsername: HANDLE,
-      },
-      // Already an officer, for the half this must never do.
+      // On the board.
       {
         fullName: 'Test Sitting',
         email: SITTING_EMAIL,
@@ -228,19 +191,10 @@ beforeEach(async () => {
         discordId: SITTING_SNOWFLAKE,
         role: 'OFFICER',
       },
-      {
-        fullName: 'Test Admin',
-        email: ADMIN_EMAIL,
-        passwordHash,
-        discordId: ADMIN_SNOWFLAKE,
-        role: 'ADMIN',
-      },
     ],
   })
 
-  // The sitting officer needs an open term as well as the role: `role` is what they may do and
-  // the term is that they're on the board, and the two are written by different halves of the
-  // sync. A fixture with only the role is a state the sync itself would never leave behind.
+  // On the board means an open term as well as the role; `membership/board.ts` writes both.
   const sitting = await prisma.user.findUnique({
     where: { email: SITTING_EMAIL },
     select: { id: true, fullName: true },
@@ -251,7 +205,6 @@ beforeEach(async () => {
       fullName: sitting!.fullName,
       position: null,
       startedAt: new Date('2035-01-01'),
-      source: 'DISCORD',
     },
   })
 })
@@ -512,14 +465,10 @@ describe('an expired session', () => {
 })
 
 /**
- * Following the club's Discord officer role at the moment somebody arrives.
- *
- * The ten-minute sweep keeps the board right in general; this is the half that matters to a
- * person, and the asymmetry is the thing to protect. It promotes on the spot and must never
- * demote — one member's role list can't tell a board that rotated from a role id somebody
- * mistyped, and a per-user demotion would stand the whole board down one sign-in at a time.
+ * Officers are whoever sits on the board on the roles desk. Signing in and loading a page leave
+ * that alone and never ask Discord, whatever role somebody carries there.
  */
-describe('officer role, followed live', () => {
+describe('officer status', () => {
   const roleOf = async (email: string) =>
     (
       await prisma.user.findUnique({
@@ -528,183 +477,7 @@ describe('officer role, followed live', () => {
       })
     )?.role
 
-  /** The open term, or null. This is what "currently on the board" means, and it's a different
-      question from `roleOf` above. */
-  const openTermOf = async (email: string) =>
-    prisma.officerTerm.findFirst({
-      where: { user: { email }, endedAt: null },
-      select: { id: true, source: true, position: true },
-    })
-
-  /** Keyed on the snowflake, never a flat answer — the promotion writes back what it's told, so
-      a stub that says yes to everything hands one fixture's identity to whoever else is in the
-      database. */
-  const carriedBy = (snowflake: string, roles: string[]) => {
-    memberRoles.mockImplementation((id: string) =>
-      Promise.resolve(
-        id === snowflake
-          ? { status: 'ok' as const, roles }
-          : { status: 'not_found' as const },
-      ),
-    )
-  }
-
-  it('promotes somebody who carries the role, in the sign-in response', async () => {
-    carriedBy(WITH_ID_SNOWFLAKE, [OFFICER_ROLE])
-
-    const response = await login({ email: WITH_ID_EMAIL, password: PASSWORD })
-
-    expect(response.status).toBe(200)
-    // In the answer, not only in the database: the dashboard draws its rail from exactly this,
-    // and a stale role here is a member staring at a page with no officer desks on it.
-    expect(await response.json()).toMatchObject({ user: { role: 'OFFICER' } })
-    expect(await roleOf(WITH_ID_EMAIL)).toBe('OFFICER')
-  })
-
-  it('leaves somebody who does not carry it exactly as they were', async () => {
-    carriedBy(WITH_ID_SNOWFLAKE, ['999999999999999999'])
-
-    const response = await login({ email: WITH_ID_EMAIL, password: PASSWORD })
-
-    expect(await response.json()).toMatchObject({ user: { role: 'GUEST' } })
-    expect(await roleOf(WITH_ID_EMAIL)).toBe('GUEST')
-  })
-
-  /** The other direction, live: the role goes in Discord and the desks go on the same request
-      rather than within ten minutes. */
-  it('stands a sitting officer down when the role is gone', async () => {
-    carriedBy(SITTING_SNOWFLAKE, [])
-
-    const response = await login({ email: SITTING_EMAIL, password: PASSWORD })
-
-    // Back to whatever the dues loop says about them — `standingRole` decides that, not this
-    // route. The fixture has never paid, so: GUEST.
-    expect(await response.json()).toMatchObject({ user: { role: 'GUEST' } })
-    expect(await roleOf(SITTING_EMAIL)).toBe('GUEST')
-  })
-
-  /**
-   * The guard the whole live half rests on, and the one this file exists to protect.
-   *
-   * From one member's role list, "not an officer" and "the role id in `.env` is a typo, or names
-   * a role somebody deleted" are identical — Discord returns neither an error nor a hint for the
-   * second. So before anybody is stood down, `officerRoleExists` checks the id against the
-   * guild's own role list. Without this, one wrong character would empty the board one sign-in
-   * at a time, quietly.
-   */
-  it('refuses to stand anybody down when the role id is not a role in the guild', async () => {
-    carriedBy(SITTING_SNOWFLAKE, [])
-    // The guild answers, and the configured id is simply not among its roles.
-    roleList.mockResolvedValue({
-      status: 'ok',
-      roles: new Map([['999999999999999999', 'Some Other Role']]),
-    })
-
-    const response = await login({ email: SITTING_EMAIL, password: PASSWORD })
-
-    expect(await response.json()).toMatchObject({ user: { role: 'OFFICER' } })
-    expect(await roleOf(SITTING_EMAIL)).toBe('OFFICER')
-    expect(await openTermOf(SITTING_EMAIL)).not.toBeNull()
-  })
-
-  /** Discord not answering is not evidence the role is gone either. */
-  it('refuses to stand anybody down when the role list cannot be read', async () => {
-    carriedBy(SITTING_SNOWFLAKE, [])
-    roleList.mockResolvedValue({ status: 'unavailable', reason: '503' })
-
-    await login({ email: SITTING_EMAIL, password: PASSWORD })
-
-    expect(await roleOf(SITTING_EMAIL)).toBe('OFFICER')
-  })
-
-  /**
-   * A `MANUAL` term is somebody's deliberate appointment on the roles desk — the faculty advisor
-   * sits on the board carrying no Discord role at all — and the sync closing those would stand
-   * them down on its first pass.
-   */
-  it('leaves a hand-appointed term alone however Discord answers', async () => {
-    const advisor = await prisma.user.findUnique({
-      where: { email: SITTING_EMAIL },
-      select: { id: true },
-    })
-    await prisma.officerTerm.updateMany({
-      where: { userId: advisor!.id, endedAt: null },
-      data: { source: 'MANUAL' },
-    })
-
-    carriedBy(SITTING_SNOWFLAKE, [])
-    await login({ email: SITTING_EMAIL, password: PASSWORD })
-
-    expect(await openTermOf(SITTING_EMAIL)).toMatchObject({ source: 'MANUAL' })
-  })
-
-  /**
-   * An officer can also be an admin, and this is the case that proves it.
-   *
-   * `UserRole` has one slot per person and `ADMIN` sits above `OFFICER`, so the ladder can't hold
-   * both facts at once — which is why officer-hood is a term now. An admin carrying the Discord
-   * role gains one exactly as anybody else does, and their `role` is never written in either
-   * direction.
-   */
-  it('gives an admin a term without ever writing their role', async () => {
-    carriedBy(ADMIN_SNOWFLAKE, [OFFICER_ROLE])
-
-    const response = await login({ email: ADMIN_EMAIL, password: PASSWORD })
-
-    expect(await response.json()).toMatchObject({ user: { role: 'ADMIN' } })
-    expect(await roleOf(ADMIN_EMAIL)).toBe('ADMIN')
-    expect(await openTermOf(ADMIN_EMAIL)).not.toBeNull()
-  })
-
-  /** The other direction, and the one that would be easy to get wrong: losing the role closes an
-      admin's term and still leaves them an admin. */
-  it('closes an admin’s term when the role goes, and leaves them an admin', async () => {
-    carriedBy(ADMIN_SNOWFLAKE, [OFFICER_ROLE])
-    await login({ email: ADMIN_EMAIL, password: PASSWORD })
-    expect(await openTermOf(ADMIN_EMAIL)).not.toBeNull()
-
-    carriedBy(ADMIN_SNOWFLAKE, [])
-    forgetOfficerChecks()
-    await login({ email: ADMIN_EMAIL, password: PASSWORD })
-
-    expect(await roleOf(ADMIN_EMAIL)).toBe('ADMIN')
-    expect(await openTermOf(ADMIN_EMAIL)).toBeNull()
-  })
-
-  /**
-   * A row that predates the signup check has a handle and no snowflake. It goes through the same
-   * search signup uses, which answers with the id and the roles together — so the id is
-   * backfilled on the way past at no extra call.
-   */
-  it('resolves a handle-only account and stores the snowflake it found', async () => {
-    handleCheck.mockImplementation((handle: string) =>
-      Promise.resolve(
-        handle.toLowerCase() === HANDLE
-          ? {
-              status: 'connected' as const,
-              username: HANDLE,
-              id: HANDLE_SNOWFLAKE,
-              roles: [OFFICER_ROLE],
-            }
-          : { status: 'not_found' as const },
-      ),
-    )
-
-    await login({ email: HANDLE_EMAIL, password: PASSWORD })
-
-    const user = await prisma.user.findUnique({
-      where: { email: HANDLE_EMAIL },
-      select: { role: true, discordId: true },
-    })
-
-    expect(user?.role).toBe('OFFICER')
-    expect(user?.discordId).toBe(HANDLE_SNOWFLAKE)
-  })
-
-  /** Discord having a bad minute must cost sign-in nothing. */
-  it('signs somebody in normally when Discord cannot be reached', async () => {
-    memberRoles.mockResolvedValue({ status: 'unavailable', reason: 'network' })
-
+  it('does not promote somebody who carries the Discord role', async () => {
     const response = await login({ email: WITH_ID_EMAIL, password: PASSWORD })
 
     expect(response.status).toBe(200)
@@ -712,74 +485,34 @@ describe('officer role, followed live', () => {
     expect(await roleOf(WITH_ID_EMAIL)).toBe('GUEST')
   })
 
-  /**
-   * The other half: somebody handed the role while already signed in never posts to `/login`
-   * again, and `/auth/me` is the one request every page of theirs makes.
-   */
-  it('promotes a browser that was already signed in, on the next page load', async () => {
-    const cookie = cookieFrom(await login({ email: WITH_ID_EMAIL, password: PASSWORD }))
-    expect(await roleOf(WITH_ID_EMAIL)).toBe('GUEST')
+  it('does not stand a sitting officer down when Discord says they lost it', async () => {
+    memberRoles.mockResolvedValue({ status: 'ok', roles: [] })
 
-    // The role is handed over in Discord a moment later.
-    carriedBy(WITH_ID_SNOWFLAKE, [OFFICER_ROLE])
-    forgetOfficerChecks()
-
+    const cookie = cookieFrom(
+      await login({ email: SITTING_EMAIL, password: PASSWORD }),
+    )
     const me = await app.request('/api/auth/me', { headers: { cookie } })
 
     expect(await me.json()).toMatchObject({ user: { role: 'OFFICER' } })
-    expect(await roleOf(WITH_ID_EMAIL)).toBe('OFFICER')
+    expect(await roleOf(SITTING_EMAIL)).toBe('OFFICER')
+    expect(
+      await prisma.officerTerm.count({
+        where: { user: { email: SITTING_EMAIL }, endedAt: null },
+      }),
+    ).toBe(1)
   })
 
-  /**
-   * `/auth/me` runs on every page load of every signed-in browser. Without the throttle a busy
-   * afternoon is one Discord call per navigation, which is a rate limit nobody would connect to
-   * the page they were on.
-   */
-  it('asks Discord once per person, not once per page load', async () => {
-    carriedBy(WITH_ID_SNOWFLAKE, ['999999999999999999'])
-
-    const cookie = cookieFrom(await login({ email: WITH_ID_EMAIL, password: PASSWORD }))
-    const asked = memberRoles.mock.calls.length
-
-    await app.request('/api/auth/me', { headers: { cookie } })
-    await app.request('/api/auth/me', { headers: { cookie } })
-    await app.request('/api/auth/me', { headers: { cookie } })
-
-    expect(memberRoles.mock.calls.length).toBe(asked)
-  })
-
-  /**
-   * A sitting officer used to be skipped without a call, back when this could only promote and
-   * they had nothing to gain. They're now exactly the people worth asking about — skipping them
-   * is how an ex-officer keeps their desks until the sweep notices.
-   */
-  it('does ask about a sitting officer, which is what makes demotion live', async () => {
-    carriedBy(SITTING_SNOWFLAKE, [OFFICER_ROLE])
-
-    const cookie = cookieFrom(await login({ email: SITTING_EMAIL, password: PASSWORD }))
-    memberRoles.mockClear()
-    forgetOfficerChecks()
-
-    await app.request('/api/auth/me', { headers: { cookie } })
-
-    expect(memberRoles).toHaveBeenCalled()
-  })
-
-  /** An account with no Discord identity at all can't be looked up, so nothing is asked about
-      them however often they reload. */
-  it('never asks about somebody it cannot look up', async () => {
-    const cookie = cookieFrom(await login({ email: EMAIL, password: PASSWORD }))
-    memberRoles.mockClear()
-    handleCheck.mockClear()
-    forgetOfficerChecks()
-
+  it('never asks Discord on sign-in or page load', async () => {
+    const cookie = cookieFrom(
+      await login({ email: WITH_ID_EMAIL, password: PASSWORD }),
+    )
     await app.request('/api/auth/me', { headers: { cookie } })
 
     expect(memberRoles).not.toHaveBeenCalled()
     expect(handleCheck).not.toHaveBeenCalled()
+    expect(roleList).not.toHaveBeenCalled()
   })
 })
-
 
 /**
  * The way back in, for somebody who can't sign in.

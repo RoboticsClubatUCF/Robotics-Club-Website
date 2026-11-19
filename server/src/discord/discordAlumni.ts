@@ -8,13 +8,12 @@ import {
 /**
  * Following the club's Discord Officer Alumni role.
  *
- * The same direction as `discordOfficers.ts` and for the same reason: the club has kept
- * this list in Discord for years, so the site reads it rather than asking anybody to
- * maintain the same names twice. Carry the role and `/members` files you under ALUMNI.
+ * The club has kept this list in Discord for years, so the site reads it rather than
+ * asking anybody to maintain the same names twice. Carry the role and `/members` files you under ALUMNI.
  *
  * `OfficerTerm` answers the same question now, and this is still not derived from it. It
- * used to be unusable for this — it only knew about people who had rotated off since the
- * officer sync started — and the officers desk closed that gap. `/members` reads the two
+ * used to be unusable for this — it only knew about people who had rotated off recently —
+ * and the officers desk closed that gap. `/members` reads the two
  * together: the ALUMNI chip is this flag or a term that has ended, in `rosterStatus`.
  *
  * What hasn't changed is who writes the column: this sweep and only this sweep. The desk
@@ -27,7 +26,7 @@ import {
  * other every ten minutes. And they're different facts: a former president who still pays
  * dues is a current member and an officer alumnus.
  *
- * Ways it refuses to run — the officer sync's four, minus the one that doesn't apply:
+ * Ways it refuses to run:
  *
  *   1. Not configured. No role id, no queries, no calls.
  *   2. The guild couldn't be read. Write nothing: a half-read guild is indistinguishable

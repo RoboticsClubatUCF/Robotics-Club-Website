@@ -24,6 +24,7 @@ export const PROFILE_PAGES: readonly SubPage[] = [
 
 export const ROLES_PAGES: readonly SubPage[] = [
   { label: 'OFFICER BOARD', to: '/dashboard/officer/roles' },
+  { label: 'HANDOVER', to: '/dashboard/officer/roles/handover' },
   { label: 'LEADS', to: '/dashboard/officer/roles/leads' },
   { label: 'GRANT MEMBERSHIP', to: '/dashboard/officer/roles/grant' },
   { label: 'TITLES', to: '/dashboard/officer/roles/titles' },

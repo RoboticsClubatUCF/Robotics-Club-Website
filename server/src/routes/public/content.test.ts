@@ -507,7 +507,6 @@ describe('GET /api/officers/past', () => {
         // has something to count and the windowing cases aren't asserting against zero.
         startedAt: new Date('2019-08-01T00:00:00Z'),
         endedAt: new Date('2020-05-31T00:00:00Z'),
-        source: 'MANUAL',
       },
     })
   })

@@ -1,8 +1,8 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { getJson } from '../../lib/api/api'
 import type { ApiOfficerMember } from '../../lib/api/api'
 import { explainApiError } from '../../lib/api/apiErrors'
-import { fieldClass, labelClass } from './formChrome'
+import { fieldClass, inlineActionClass, labelClass } from './formChrome'
 
 /**
  * The officer people-picker, answering as it is typed.
@@ -31,7 +31,9 @@ const DEBOUNCE_MS = 300
  * can have a handle and no email at all, and printing nothing for those made
  * them look like empty rows in the picker.
  */
-const contactOf = (member: ApiOfficerMember) =>
+type Picked = Pick<ApiOfficerMember, 'fullName' | 'email' | 'discordUsername'>
+
+const contactOf = (member: Picked) =>
   member.email ?? (member.discordUsername ? `@${member.discordUsername}` : null)
 
 export function MemberSearch({
@@ -40,16 +42,34 @@ export function MemberSearch({
   disabled,
   label = 'FIND A MEMBER',
   hideLabel = false,
+  changeLabel,
+  autoFocus = false,
 }: {
-  picked: ApiOfficerMember | null
+  /** Only the name and contacts are read, so a board seat's holder can be shown here
+      without a search result behind it. */
+  picked: Picked | null
   onPick: (member: ApiOfficerMember | null) => void
   disabled: boolean
   /** Overridable because two desks ask for a person for different reasons, and
       "FIND A MEMBER" twice on one page says nothing about either. */
   label?: string
   hideLabel?: boolean
+  /** The CHANGE button's accessible name, where several pickers share a page. */
+  changeLabel?: string
+  /** Take focus when mounted or when it flips between box and choice: CHANGE, if a member
+      is picked, otherwise the box. For pickers that appear because of a press. */
+  autoFocus?: boolean
 }) {
   const id = useId()
+  const change = useRef<HTMLButtonElement>(null)
+  const box = useRef<HTMLInputElement>(null)
+  const showingChoice = picked !== null
+
+  useEffect(() => {
+    if (!autoFocus) return
+    if (showingChoice) change.current?.focus()
+    else box.current?.focus()
+  }, [autoFocus, showingChoice])
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<ApiOfficerMember[] | null>(null)
   const [searching, setSearching] = useState(false)
@@ -118,12 +138,14 @@ export function MemberSearch({
           )}
         </span>
         <button
+          ref={change}
           type="button"
           disabled={disabled}
+          aria-label={changeLabel}
           onClick={() => {
             onPick(null)
           }}
-          className="text-faint hover:text-primary cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em]"
+          className={inlineActionClass}
         >
           CHANGE
         </button>
@@ -141,6 +163,7 @@ export function MemberSearch({
         {label}
       </label>
       <input
+        ref={box}
         id={id}
         name="query"
         type="search"

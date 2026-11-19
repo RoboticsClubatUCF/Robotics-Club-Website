@@ -8,14 +8,12 @@ import {
   labChannelConfigured,
   memberRoleId,
   alumniSyncConfigured,
-  officerSyncConfigured,
   projectLeadRoleId,
   roleSyncDryRun,
   teamLeadRoleId,
 } from './discord/discord.js'
 import { syncOfficerAlumni } from './discord/discordAlumni.js'
 import { startDiscordGateway, stopDiscordGateway } from './discord/discordGateway.js'
-import { syncDiscordOfficers } from './discord/discordOfficers.js'
 import { sweepDiscordRoles } from './discord/discordRoles.js'
 import { env } from './core/env.js'
 import { sweepReturnReminders } from './equipment/equipmentReminder.js'
@@ -58,16 +56,7 @@ const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
       ? `Discord username checks → guild ${env.DISCORD_GUILD_ID ?? ''}`
       : 'Discord username checks OFF (no DISCORD_BOT_TOKEN) — handles are stored unconfirmed',
   )
-  // Who is an officer is a permission level, and this setting decides whether Discord
-  // or a person answers that. Switched on, somebody carrying the role is promoted and
-  // somebody who lost it is stood down on their next request, with the ten-minute sweep
-  // as backstop. The first sweep after it goes on is the one to watch.
-  console.log(
-    officerSyncConfigured
-      ? `Discord officer sync → role ${env.DISCORD_OFFICER_ROLE_ID ?? ''}`
-      : 'Discord officer sync OFF (no DISCORD_OFFICER_ROLE_ID) — officers are set by hand',
-  )
-  // Same direction, one column, and worth its own line because when it's off the
+  // Read from Discord into one column, and worth its own line because when it's off the
   // roster's ALUMNI chip is simply empty — which reads exactly like a broken page
   // rather than a feature nobody switched on.
   console.log(
@@ -220,11 +209,10 @@ const sweep = setInterval(
       })
     forgetFinishedTerms()
 
-    // These three run in sequence, unlike everything else on this tick, and the order is
-    // the point. Dues decide what somebody is; the Discord role decides whether they're
-    // an officer on top of that; only once both have settled is it worth telling Discord
-    // which roles they should carry. Firing them together would push a state the next
-    // two lines were about to change, and the club would see a role flicker every ten
+    // These run in sequence, unlike everything else on this tick, and the order is the
+    // point. Dues decide what somebody is; only once that has settled is it worth telling
+    // Discord which roles they should carry. Firing them together would push a state the
+    // line before was about to change, and the club would see a role flicker every ten
     // minutes.
     //
     // It also means `sweepLapsedMembers` needs no hook of its own: it demotes in one
@@ -242,28 +230,10 @@ const sweep = setInterval(
       .catch((error: unknown) => {
         console.error('membership sweep failed', error)
       })
-      // The other half of who somebody is: dues decide MEMBER vs GUEST above, the club's
-      // Discord role decides OFFICER here. Off unless `DISCORD_OFFICER_ROLE_ID` is set,
-      // and it stands down rather than writing whenever the guild can't be read or the
-      // answer looks like a misconfiguration — see `src/discord/discordOfficers.ts`.
-      .then(() => syncDiscordOfficers())
-      .then((report) => {
-        // Quiet unless it did something. This fires every ten minutes and the
-        // board changes twice a year.
-        if (report.promoted + report.demoted + report.opened + report.closed > 0) {
-          console.log(
-            `discord officers: ${report.promoted} promoted, ${report.demoted} stood down, ` +
-              `${report.opened} term(s) opened, ${report.closed} closed`,
-          )
-        }
-      })
-      .catch((error: unknown) => {
-        console.error('discord officer sync failed', error)
-      })
-      // Who used to run the club, from the same direction — Discord's Officer Alumni
-      // role into `User.officerAlumnus`. In this chain rather than beside it because
-      // it's a third full walk of the guild, and three of those at once is exactly the
-      // shape Discord throttles. Off unless `DISCORD_OFFICER_ALUMNI_ROLE_ID` is set.
+      // Who used to run the club, read from Discord's Officer Alumni role into
+      // `User.officerAlumnus`. In this chain rather than beside it because it's a full
+      // walk of the guild, as is the role sweep after it, and two at once is the shape
+      // Discord throttles. Off unless `DISCORD_OFFICER_ALUMNI_ROLE_ID` is set.
       .then(() => syncOfficerAlumni())
       .then((report) => {
         // Quiet unless it did something. The club's alumni list changes when a

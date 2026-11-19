@@ -16,12 +16,12 @@ import {
   LoanStatus,
   MeetingRepeat,
   OfficerPosition,
-  OfficerTermSource,
   PrintProcess,
   PrintRequestStatus,
   ProjectMemberRank,
   ProjectStatus,
   Season,
+  UserRole,
 } from '../../generated/prisma/enums.js'
 import type { Prisma } from '../../generated/prisma/client.js'
 import { capFrom, loanDate, startsAt } from '../../equipment/loanWindow.js'
@@ -56,6 +56,15 @@ import {
   clearLapsedLeadTitles,
   clubTitleProblem,
 } from '../../membership/titles.js'
+import {
+  type Move,
+  OFF,
+  changeBoard,
+  grantsDesks,
+  readBoard,
+  sameBoard,
+  seatName,
+} from '../../membership/board.js'
 import { grantMembership } from '../member/dues.js'
 import { HOLDING } from '../member/equipment.js'
 import { queueOrder, scope } from './printQueue.js'
@@ -80,6 +89,7 @@ import { queueOrder, scope } from './printQueue.js'
  *   PATCH /api/officer/terms/seat                        -> put somebody in a seat, or clear one
  *                                                           (`takeOver` succeeds the incumbent)
  *   DELETE /api/officer/terms/:userId                    -> stand somebody down
+ *   POST  /api/officer/terms/handover                    -> replace the whole board at once
  *   GET   /api/officer/semesters/:year                   -> the three terms, and what dated them
  *   PUT   /api/officer/semesters/:year/:season           -> set the club's own dates
  *   DELETE /api/officer/semesters/:year/:season          -> hand it back to UCF's calendar
@@ -1097,49 +1107,62 @@ officer.patch(
 /**
  * The board, and who sits in which chair.
  *
- * These were a Prisma Studio edit until now, which is the shape of thing this desk
- * exists to absorb.
- *
- * The seat is not the same fact as the role, and this route touches only the first.
- * Discord decides that somebody is an officer and writes `User.role`; an officer
- * decides which seat they hold and writes `OfficerTerm.position`. That separation is
- * what lets an `ADMIN` sit on the board, and why the faculty advisor can hold a
- * chair as a plain `MEMBER`.
- *
- * A term created here is `MANUAL`, which is load-bearing: the Discord sync only ever
- * closes what it opened, so a hand-appointed advisor survives every sweep.
+ * Kept by hand, here. A seat is also the officer desks: every write goes through
+ * `changeBoard` in `membership/board.ts`, which moves `User.role` with the term, so
+ * putting somebody on the board makes them an `OFFICER` and taking them off hands
+ * them back to their dues. The faculty advisor's seat is the exception and grants
+ * nothing. The club's Discord Officers role is changed by hand; each write answers
+ * with whose role needs changing.
  */
 const boardSelect = {
   id: true,
   position: true,
   startedAt: true,
-  source: true,
   fullName: true,
   user: {
-    select: { id: true, fullName: true, email: true, role: true },
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      discordUsername: true,
+      role: true,
+    },
   },
 } as const
 
-/**
- * Today's board, seatless officers included — this desk is where a seat gets given,
- * so the people without one are the point rather than noise.
- *
- * `seats` is every seat there is, in board order, from the enum. The desk needs the
- * whole list: a picker offering only the seats already taken can't do its job. How
- * many there are is the database's answer, so adding one to the enum adds it to this
- * menu with no frontend edit.
- */
-officer.get('/terms', requireAuth, requireOfficer, async (c) => {
-  const board = await prisma.officerTerm.findMany({
-    where: { endedAt: null },
-    // Seated first in board order, then everyone waiting for a chair. Postgres sorts
-    // nulls last on an ascending enum, which is the order this wants.
-    orderBy: [{ position: 'asc' }, { startedAt: 'asc' }],
-    select: boardSelect,
-  })
+const readDesk = async () => {
+  const [board, offBoard] = await Promise.all([
+    prisma.officerTerm.findMany({
+      where: { endedAt: null },
+      // Seated first in board order, then everyone without a chair. Postgres sorts
+      // nulls last on an ascending enum, which is the order this wants.
+      orderBy: [{ position: 'asc' }, { startedAt: 'asc' }],
+      select: boardSelect,
+    }),
+    /**
+     * Officers by role with no place on the board: set in Prisma Studio, or left
+     * over from the Discord sync. Listed so the desk can seat them or stand them
+     * down, rather than leave them with desks nobody can see.
+     */
+    prisma.user.findMany({
+      where: { role: UserRole.OFFICER, officerTerms: { none: { endedAt: null } } },
+      orderBy: { fullName: 'asc' },
+      select: { id: true, fullName: true, email: true, discordUsername: true },
+    }),
+  ])
 
-  return c.json({ seats: Object.values(OfficerPosition), board })
-})
+  return { seats: Object.values(OfficerPosition), board, offBoard }
+}
+
+/**
+ * Today's board, seatless officers included, plus officers with no place on it.
+ *
+ * `seats` is every seat there is, in board order, from the enum, so adding one to the
+ * enum adds it to the desk with no frontend edit.
+ */
+officer.get('/terms', requireAuth, requireOfficer, async (c) =>
+  c.json(await readDesk()),
+)
 
 const seatBody = z.object({
   userId: z.string().min(1),
@@ -1166,29 +1189,19 @@ officer.patch(
   validate('json', seatBody),
   async (c) => {
     const { userId, position, takeOver } = c.req.valid('json')
-
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, fullName: true },
-    })
-
-    if (!user) throw new HTTPException(404, { message: 'No such member' })
+    const snapshot = await readBoard()
 
     /**
-     * One person per seat, checked here because it can't be indexed.
-     *
-     * "Unique on `position` among rows where `ended_at` is null" is a partial unique
-     * index, which Prisma can't express — it would live in the database and not in
-     * `schema.prisma`, and the next generated migration would emit a `DROP INDEX` for
-     * it. Same trade and same answer as the project-lead route.
+     * One person per seat, checked in code because it can't be indexed: a partial
+     * unique index is something Prisma can't express, and the next generated
+     * migration would drop it. Same trade as the project-lead route.
      */
     const incumbent =
       position === null
         ? null
-        : await prisma.officerTerm.findFirst({
-            where: { position, endedAt: null, userId: { not: userId } },
-            select: { id: true, fullName: true },
-          })
+        : (snapshot.find(
+            (term) => term.position === position && term.userId !== userId,
+          ) ?? null)
 
     if (incumbent && !takeOver) {
       throw new HTTPException(409, {
@@ -1196,72 +1209,41 @@ officer.patch(
       })
     }
 
-    // Check-then-act, so appointing somebody already on the board moves their chair
-    // rather than opening a second term for them.
-    const held = await prisma.officerTerm.findFirst({
-      where: { userId, endedAt: null },
-      select: { id: true },
+    // The incumbent leaves the board in the same transaction, recorded as succeeded.
+    const moves: Move[] = [{ userId, to: position }]
+    const endTerms: string[] = []
+
+    if (incumbent?.userId) moves.push({ userId: incumbent.userId, to: OFF })
+    else if (incumbent) endTerms.push(incumbent.id)
+
+    const change = await changeBoard({
+      snapshot,
+      moves,
+      endTerms,
+      leaveReason: `Stood down by ${c.get('user').fullName}`,
     })
 
-    /**
-     * Both writes together, because a handover half-done is worse than one not
-     * started: the outgoing officer off the board with nobody in the chair, or — the
-     * other order — two people holding one seat.
-     *
-     * The succession is recorded in the closed term rather than left as a gap. "Lost
-     * the Discord role" and "handed over to Priya" are different history.
-     *
-     * A `MANUAL` term is closed here as readily as a `DISCORD` one, which doesn't
-     * contradict the sync's rule: what the sync may not do on its own is close
-     * somebody's hand-made appointment.
-     */
-    const term = await prisma.$transaction(async (tx) => {
-      if (incumbent) {
-        await tx.officerTerm.updateMany({
-          // Guarded on still being open, so two officers pressing take-over in the
-          // same instant close it once rather than overwriting each other's reason.
-          where: { id: incumbent.id, endedAt: null },
-          data: {
-            endedAt: new Date(),
-            endedReason: `Succeeded by ${user.fullName}`,
-          },
-        })
-      }
-
-      return held
-        ? tx.officerTerm.update({
-            where: { id: held.id },
-            data: { position },
-            select: boardSelect,
-          })
-        : tx.officerTerm.create({
-            data: {
-              userId,
-              fullName: user.fullName,
-              position,
-              startedAt: new Date(),
-              // `MANUAL`: the sync didn't put them here and must not take them away.
-              // This is how the faculty advisor gets on the board at all.
-              source: OfficerTermSource.MANUAL,
-            },
-            select: boardSelect,
-          })
+    const term = await prisma.officerTerm.findFirstOrThrow({
+      where: { userId, endedAt: null },
+      select: boardSelect,
     })
 
     // Who was displaced, so the page can say "succeeding Jordan Ellis" rather than
     // leaving the officer to work out whether the take-over happened.
-    return c.json({ ...term, succeeded: incumbent?.fullName ?? null })
+    return c.json({
+      ...term,
+      succeeded: change.succeeded[0] ?? null,
+      discord: change.discord,
+    })
   },
 )
 
 /**
  * Stand somebody down: close their term, which puts them on `/officers` as a past
- * officer rather than removing them from the site.
+ * officer, and take the officer desks with it.
  *
- * Works on a `DISCORD` term as readily as a `MANUAL` one — a person is entitled to
- * leave the board without the club going into Discord to record it. The sweep will
- * reopen one if they still carry the role, which is correct: the role is the club's
- * answer and this route isn't a way to overrule it.
+ * Also takes the desks from an officer by role with no place on the board, which is
+ * the only way to undo a role set in Prisma Studio without going back there.
  */
 officer.delete(
   '/terms/:userId',
@@ -1271,23 +1253,165 @@ officer.delete(
   writes,
   async (c) => {
     const userId = c.req.param('userId')
-    const by = c.get('user')
+    const snapshot = await readBoard()
 
-    const { count } = await prisma.officerTerm.updateMany({
-      where: { userId, endedAt: null },
-      data: {
-        endedAt: new Date(),
-        endedReason: `Stood down by ${by.fullName}`,
-      },
+    const seated = snapshot.filter((term) => term.userId === userId).length
+
+    if (seated === 0) {
+      const person = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      })
+
+      if (person?.role !== UserRole.OFFICER) {
+        throw new HTTPException(404, {
+          message: 'That person is not currently on the board.',
+        })
+      }
+    }
+
+    const change = await changeBoard({
+      snapshot,
+      moves: [{ userId, to: OFF }],
+      leaveReason: `Stood down by ${c.get('user').fullName}`,
     })
 
-    if (count === 0) {
-      throw new HTTPException(404, {
-        message: 'That person is not currently on the board.',
+    return c.json({ closed: seated, discord: change.discord })
+  },
+)
+
+/**
+ * The whole board at once: rotation day.
+ *
+ * The body is the board as it should be, seat by seat, plus whoever stays on without a
+ * seat. Anybody on today's board who isn't in it leaves; anybody new joins; anybody
+ * moving seats keeps their old term in the archive. All of it, roles included, is one
+ * transaction, so there is never a moment with half a board.
+ *
+ * `expected` is the board the page planned against. If anything has moved since, the
+ * answer is a 409 rather than a plan applied to a board it wasn't made for.
+ *
+ * An open term with no account behind it (the officers desk can enter those) is named
+ * by `termId`, and can only keep its seat or leave.
+ */
+const boardEntry = z
+  .object({
+    position: z.enum(OfficerPosition).nullable(),
+    userId: z.string().min(1).optional(),
+    termId: z.string().min(1).optional(),
+  })
+  .refine((entry) => (entry.userId === undefined) !== (entry.termId === undefined), {
+    message: 'Each place on the board names a member or a term, not both.',
+  })
+
+const handoverBody = z.object({
+  expected: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        position: z.enum(OfficerPosition).nullable(),
+      }),
+    )
+    .max(100),
+  board: z.array(boardEntry).max(60),
+})
+
+officer.post(
+  '/terms/handover',
+  originGuard,
+  requireAuth,
+  requireOfficer,
+  writes,
+  validate('json', handoverBody),
+  async (c) => {
+    const { expected, board } = c.req.valid('json')
+    const by = c.get('user')
+    const snapshot = await readBoard()
+
+    if (!sameBoard(snapshot, expected)) {
+      throw new HTTPException(409, {
+        message:
+          'The board changed while you were planning. Update the plan and check it again.',
       })
     }
 
-    return c.json({ closed: count })
+    const taken = new Set<OfficerPosition>()
+    const placed = new Map<string, OfficerPosition | null>()
+    const kept = new Set<string>()
+
+    for (const entry of board) {
+      if (entry.position !== null) {
+        if (taken.has(entry.position)) {
+          throw new HTTPException(400, {
+            message: `${seatName(entry.position)} is given to two people.`,
+          })
+        }
+        taken.add(entry.position)
+      }
+
+      if (entry.termId !== undefined) {
+        const term = snapshot.find((open) => open.id === entry.termId)
+
+        if (!term || term.userId !== null || term.position !== entry.position) {
+          throw new HTTPException(400, {
+            message:
+              'Somebody with no account here can only keep the seat they hold or leave. Move them on the officers desk.',
+          })
+        }
+
+        kept.add(term.id)
+      } else if (entry.userId !== undefined) {
+        if (placed.has(entry.userId)) {
+          throw new HTTPException(400, {
+            message: 'Somebody is on the new board twice.',
+          })
+        }
+        placed.set(entry.userId, entry.position)
+      }
+    }
+
+    // A club with nobody holding the desks is a mistake, not a handover.
+    if (![...placed.values()].some(grantsDesks)) {
+      throw new HTTPException(400, {
+        message: 'Nobody on the new board would have the officer desks.',
+      })
+    }
+
+    const moves: Move[] = []
+
+    for (const [userId, position] of placed) {
+      const mine = snapshot.filter((term) => term.userId === userId)
+      const unchanged = mine.length === 1 && mine[0]?.position === position
+      if (!unchanged) moves.push({ userId, to: position })
+    }
+
+    const leaving = new Set(
+      snapshot.flatMap((term) =>
+        term.userId !== null && !placed.has(term.userId) ? [term.userId] : [],
+      ),
+    )
+    for (const userId of leaving) moves.push({ userId, to: OFF })
+
+    const endTerms = snapshot
+      .filter((term) => term.userId === null && !kept.has(term.id))
+      .map((term) => term.id)
+
+    if (moves.length === 0 && endTerms.length === 0) {
+      throw new HTTPException(400, {
+        message: 'That is the board as it stands.',
+      })
+    }
+
+    const change = await changeBoard({
+      snapshot,
+      moves,
+      endTerms,
+      leaveReason: `Left in a handover by ${by.fullName}`,
+    })
+
+    const desk = await readDesk()
+
+    return c.json({ ...desk, change })
   },
 )
 

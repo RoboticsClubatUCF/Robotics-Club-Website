@@ -850,10 +850,6 @@ async function main() {
     await prisma.officerTerm.create({
       data: {
         position,
-        // `MANUAL`, so the Discord sync never closes a seeded seat. These people don't exist
-        // in the club's guild, and a sync that stood them down would empty the board on a
-        // fresh clone.
-        source: 'MANUAL',
         startedAt: new Date(),
         fullName: officer.fullName,
         userId: seeded.id,
@@ -889,8 +885,6 @@ async function main() {
         ...term,
         startedAt: new Date(term.startedAt),
         endedAt: new Date(term.endedAt),
-        // Closed, hand-entered history: not the sync's to reopen or re-close.
-        source: 'MANUAL',
         userId: holder?.id ?? null,
       },
     })

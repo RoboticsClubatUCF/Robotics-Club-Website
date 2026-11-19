@@ -14,7 +14,6 @@ import { createSession } from '../../auth/session.js'
 // carries a live bot token against the club's real server.
 vi.mock('../../discord/discord.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../discord/discord.js')>()),
-  officerSyncConfigured: false,
   officerRoleId: null,
   memberRoleId: null,
   projectLeadRoleId: null,
@@ -142,7 +141,6 @@ describe('PATCH /api/officer/members/:id/title', () => {
         userId: memberId,
         fullName: 'Title Member',
         position: 'SECRETARY',
-        source: 'MANUAL',
         startedAt: new Date('2021-08-20T00:00:00.000Z'),
         endedAt: new Date('2022-05-05T00:00:00.000Z'),
       },

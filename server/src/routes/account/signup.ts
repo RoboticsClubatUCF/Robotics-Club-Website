@@ -9,7 +9,6 @@ import {
   checkDiscordHandle,
   isHandleShaped,
   normaliseHandle,
-  officerRoleId,
 } from '../../discord/discord.js'
 import { pushRoles } from '../../discord/discordRoles.js'
 import { env } from '../../core/env.js'
@@ -464,22 +463,6 @@ signup.post(
     // the check existed is in.
     const confirmedId = check.status === 'connected' ? check.id : null
 
-    /**
-     * Whether the guild says this person is on the board.
-     *
-     * The answer is already in hand — the check above returns the roles the search came
-     * back with — so this costs no second call. False whenever no bot is configured or
-     * the club hasn't set a role id.
-     *
-     * An officer signing up and landing as a guest was a real gap: their own desks
-     * hidden until somebody opened Prisma Studio, with the sweep fixing it eventually —
-     * and "eventually" is after the first thing they tried to do failed.
-     */
-    const officerByDiscord =
-      officerRoleId !== null &&
-      check.status === 'connected' &&
-      check.roles.includes(officerRoleId)
-
     const passwordHash = await hashPassword(password)
 
     try {
@@ -495,19 +478,10 @@ signup.post(
             discordUsername: confirmedHandle,
             discordId: confirmedId,
             acknowledgementAcceptedAt,
-            // `GUEST` unless the club's Discord says otherwise, spelled out rather than
-            // left to the column default now that the line above can say otherwise. A
-            // plain signup isn't a roster entry, so `joinedAt` stays null — that's the
+            // A plain signup isn't a roster entry, so `joinedAt` stays null: that's the
             // date somebody became a member, and `createdAt` already records the signup.
-            //
-            // An officer is the exception on both counts: they are a member by being on
-            // the board, and an officer with no `joinedAt` prints a blank year on their
-            // public profile.
-            //
-            // Still no slug, for either. A profile page of one's own stays a decision a
-            // person makes.
-            role: officerByDiscord ? UserRole.OFFICER : UserRole.GUEST,
-            joinedAt: officerByDiscord ? acknowledgementAcceptedAt : null,
+            // Being on the board is the roles desk's business, never signup's.
+            role: UserRole.GUEST,
           },
           select: { id: true },
         })

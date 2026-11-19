@@ -1,9 +1,16 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from 'react'
 import { useOutletContext } from 'react-router'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
 import { DuesLocked } from '../../components/dashboard/DuesLocked'
 import { OfficerOnly } from '../../components/dashboard/OfficerOnly'
-import { isOfficer } from '../../lib/auth/session'
+import { SessionContext, isOfficer } from '../../lib/auth/session'
 import { ConfirmDialog } from '../../components/shared/ConfirmDialog'
 import { MemberSearch } from '../../components/shared/MemberSearch'
 import {
@@ -22,6 +29,7 @@ import {
 } from '../../lib/api/api'
 import type {
   ApiBoardSeat,
+  ApiDiscordToDo,
   ApiOfficerDesk,
   ApiOfficerMember,
   ApiProject,
@@ -29,19 +37,25 @@ import type {
   OfficerPosition,
   DuesPlan,
   Season,
+  UserRole,
 } from '../../lib/api/api'
 import { explainApiError } from '../../lib/api/apiErrors'
 import { seatLabel } from '../../lib/officerTerms'
+import { grantsDesks } from '../../lib/board/handover'
 import { duesLocked, formatDate } from '../../lib/dues/dues'
 import { useApi } from '../../lib/api/useApi'
 import { SubNav } from '../../components/dashboard/SubNav'
 import { SubPage } from '../../components/dashboard/SubPage'
 import { ROLES_PAGES } from '../../lib/dashboard/subPages'
+import { useBoardDesk } from '../../lib/board/useBoardDesk'
+import { BoardHandover } from '../../components/board/BoardHandover'
+import { DiscordToDo } from '../../components/board/DiscordToDo'
 
-type Part = 'board' | 'leads' | 'grant' | 'titles'
+type Part = 'board' | 'handover' | 'leads' | 'grant' | 'titles'
 
 const EYEBROW: Record<Part, string> = {
   board: '/ MANAGE · ROLES',
+  handover: '/ MANAGE · ROLES · HANDOVER',
   leads: '/ MANAGE · ROLES · LEADS',
   grant: '/ MANAGE · ROLES · GRANT MEMBERSHIP',
   titles: '/ MANAGE · ROLES · TITLES',
@@ -55,12 +69,11 @@ const EYEBROW: Record<Part, string> = {
  * was only reachable from inside one project's manage page, and giving somebody a term
  * was a date typed into Prisma Studio.
  *
- * What isn't here: club role. `OFFICER` and `ADMIN` can't be set from this page and
- * there's no panel missing. The board is appointed in Discord and the site follows;
- * admin is a human in Prisma Studio. A control here would be a second answer to a
- * question that already has one, and the sweep would overwrite it within ten minutes.
+ * What isn't here: a club-role control. `OFFICER` follows the board: a seat on it brings the
+ * officer desks and leaving it takes them away (`server/src/membership/board.ts`). `ADMIN` is a
+ * human in Prisma Studio.
  *
- * Four sub-pages, one per kind of decision, because an officer opens the desk to make one of
+ * Five sub-pages, one per kind of decision, because an officer opens the desk to make one of
  * them and five forms at once tiled into a page of holes.
  *
  * Every check on this page is presentation. The server re-checks on every request.
@@ -87,11 +100,7 @@ export function OfficerRolesPage({ part }: { part: Part }) {
       {/* Every sub-page stays mounted, so a half-picked appointment survives a look at a
           sibling. The two lead forms sit side by side where there's room; the rest are one
           panel at a reading width. */}
-      <SubPage shown={part === 'board'}>
-        <div className="max-w-[46rem]">
-          <OfficerSeats />
-        </div>
-      </SubPage>
+      <BoardPages part={part} me={user} />
       <SubPage shown={part === 'leads'}>
         <div className="grid-fluid max-w-[80rem] items-start gap-5 [--col-min:29rem]">
           <AppointLead />
@@ -107,6 +116,63 @@ export function OfficerRolesPage({ part }: { part: Part }) {
         <div className="max-w-[46rem]">
           <SetTitle />
         </div>
+      </SubPage>
+    </>
+  )
+}
+
+/**
+ * OFFICER BOARD and HANDOVER, which read the same desk. One read for both, so a change on
+ * either shows on the other.
+ */
+function BoardPages({
+  part,
+  me,
+}: {
+  part: Part
+  me: { id: string; role: UserRole }
+}) {
+  const board = useBoardDesk()
+
+  // HANDOVER mounts the first time it's opened and then stays, like every sub-page, so a
+  // half-made plan survives a look at a sibling. Not before: most visits never open it, and
+  // a second copy of the board would sit hidden in the page.
+  const [handoverOpened, setHandoverOpened] = useState(part === 'handover')
+  if (part === 'handover' && !handoverOpened) setHandoverOpened(true)
+
+  /**
+   * An officer who hands themselves off the board keeps the page until they leave the roles
+   * desk, so the Discord to-do stays on screen. Leaving re-reads the session, which is when
+   * the desks go. Read without `useSession` so the page's tests needn't mount a provider.
+   */
+  const session = useContext(SessionContext)
+  const lostDesks = useRef(false)
+  const refresh = session?.refresh
+
+  useEffect(
+    () => () => {
+      if (lostDesks.current && refresh) void refresh()
+    },
+    [refresh],
+  )
+
+  const onLostDesks = () => {
+    lostDesks.current = true
+  }
+
+  return (
+    <>
+      <SubPage shown={part === 'board'}>
+        <div className="max-w-[46rem]">
+          <OfficerSeats {...board} me={me} onLostDesks={onLostDesks} />
+        </div>
+      </SubPage>
+      <SubPage shown={part === 'handover'}>
+        {handoverOpened && (
+          <section aria-label="Hand over the board" className="max-w-[46rem]">
+            <BoardHandover {...board} me={me} onLostDesks={onLostDesks} />
+          </section>
+        )}
       </SubPage>
     </>
   )
@@ -309,6 +375,15 @@ function SearchPicker({
       )}
     </div>
   )
+}
+
+/** Somebody being stood down: off the board, or only off the officer desks. */
+type Leaving = {
+  id: string
+  fullName: string
+  onBoard: boolean
+  /** False for the faculty advisor's seat and for an admin, who keep what they had. */
+  losesDesks: boolean
 }
 
 /**
@@ -946,57 +1021,49 @@ const seasonOf = (project: ApiProject) =>
   `${SEASON_LABEL[project.termSeason]} ${project.termYear}`
 
 /**
- * Who sits in which chair on the officer board.
+ * Who sits in which chair on the officer board, one change at a time. HANDOVER does the
+ * whole board at once.
  *
- * The last of the four decisions that were a Prisma Studio edit.
- *
- * The seat is not the club role, and this panel says so out loud. Discord decides that
- * somebody is an officer and the site follows within a request; an officer decides which
- * seat they hold, here. That split is why the panel can seat the faculty advisor, who is
- * a plain member, and why it can seat an admin — `UserRole` has one slot with `ADMIN`
- * above `OFFICER`, so the ladder could never have said "both".
- *
- * It lists the whole board rather than only offering a picker, because the question
- * anybody arrives with is "who is where at the moment".
+ * A seat is the officer desks: every write here moves `User.role` with the term, except the
+ * faculty advisor's seat, which grants nothing. It lists the whole board rather than only
+ * offering a picker, because the question anybody arrives with is "who is where".
  */
-function OfficerSeats() {
+function OfficerSeats({
+  desk,
+  failed,
+  reload,
+  me,
+  onLostDesks,
+}: {
+  desk: ApiOfficerDesk | null
+  failed: boolean
+  reload: () => void
+  me: { id: string; role: UserRole }
+  onLostDesks: () => void
+}) {
   const id = useId()
-  const [desk, setDesk] = useState<ApiOfficerDesk | null>(null)
-  const [failed, setFailed] = useState(false)
   const [member, setMember] = useState<ApiOfficerMember | null>(null)
   const [position, setPosition] = useState<OfficerPosition | ''>('')
-  const [standingDown, setStandingDown] = useState<ApiBoardSeat | null>(null)
+  const [standingDown, setStandingDown] = useState<Leaving | null>(null)
   const [displacing, setDisplacing] = useState<ApiBoardSeat | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<Message>(null)
+  const [todo, setTodo] = useState<ApiDiscordToDo | null>(null)
 
-  // The desk owns its own loader rather than `useApi`, which has no refetch — every
-  // write here changes the list directly above the form.
-  const reload = useCallback(() => {
-    getJson<ApiOfficerDesk>('/officer/terms')
-      .then((answer) => {
-        setDesk(answer)
-        setFailed(false)
-      })
-      .catch(() => {
-        setFailed(true)
-      })
-  }, [])
-
-  useEffect(reload, [reload])
+  /** Whether a write took the desks from whoever is signed in. An admin keeps theirs. */
+  const lostMine = (todo: ApiDiscordToDo | undefined) =>
+    me.role !== 'ADMIN' && (todo?.take.some((person) => person.id === me.id) ?? false)
 
   const seatOf = (seat: ApiBoardSeat) =>
     seat.position ? seatLabel(seat.position) : 'No seat yet'
 
   /**
-   * Rotation day's work list, and the reason it's at the top of the panel.
-   *
-   * Flipping the Discord roles gives the club a board of officers with no chairs and a
-   * page of empty seats, and nothing anywhere says so — the front page just reads "Seat
-   * open" eight times until somebody notices. These two numbers are the handover
-   * checklist.
+   * What's left to do, at the top of the panel: officers with no chair, chairs with
+   * nobody, and officers by role with no place on the board. Otherwise the front page
+   * just reads "Seat open" until somebody notices.
    */
   const rows = desk?.board ?? []
+  const offBoard = desk?.offBoard ?? []
   const seatless = rows.filter((seat) => seat.position === null)
   const taken = new Set(rows.map((seat) => seat.position))
   // Every seat there is, from the enum by way of the route — the desk is where an empty
@@ -1020,6 +1087,7 @@ function OfficerSeats() {
     setDisplacing(null)
     setBusy(true)
     setMessage(null)
+    setTodo(null)
 
     patchJson<ApiBoardSeat>('/officer/terms/seat', {
       userId: member.id,
@@ -1036,6 +1104,8 @@ function OfficerSeats() {
                 ? `${member.fullName} is now ${seatLabel(position)}, succeeding ${saved.succeeded}.`
                 : `${member.fullName} is now ${seatLabel(position)}.`,
         })
+        setTodo(saved.discord ?? null)
+        if (lostMine(saved.discord)) onLostDesks()
         setMember(null)
         setPosition('')
         reload()
@@ -1055,20 +1125,22 @@ function OfficerSeats() {
     else save()
   }
 
-  const standDown = (seat: ApiBoardSeat) => {
+  const standDown = (leaving: Leaving) => {
     setStandingDown(null)
-
-    if (!seat.user) return
-
     setBusy(true)
     setMessage(null)
+    setTodo(null)
 
-    deleteJson(`/officer/terms/${seat.user.id}`)
-      .then(() => {
+    deleteJson<{ discord: ApiDiscordToDo }>(`/officer/terms/${leaving.id}`)
+      .then((answer) => {
         setMessage({
           tone: 'success',
-          text: `${seat.fullName} has been stood down. They are on the officers page now.`,
+          text: leaving.onBoard
+            ? `${leaving.fullName} has been stood down. They are on the officers page now.`
+            : `${leaving.fullName} no longer has the officer desks.`,
         })
+        setTodo(answer.discord)
+        if (lostMine(answer.discord)) onLostDesks()
         reload()
       })
       .catch((error: unknown) => {
@@ -1091,7 +1163,7 @@ function OfficerSeats() {
 
       {/* Only when there's something to do. A line reading "0 officers with no seat"
           every other day of the year is a line nobody reads on the one day it matters. */}
-      {desk && (seatless.length > 0 || empty.length > 0) && (
+      {desk && (seatless.length > 0 || empty.length > 0 || offBoard.length > 0) && (
         <div className="border-primary/35 bg-primary/5 mb-5 border p-4">
           <p className="text-primary mb-1.5 font-mono text-[10px] font-medium tracking-[0.16em]">
             STILL TO DO
@@ -1118,6 +1190,19 @@ function OfficerSeats() {
                 {empty.length <= 4 && (
                   <> &mdash; {empty.map((seat) => seatLabel(seat)).join(', ')}</>
                 )}
+                .{' '}
+              </>
+            )}
+            {offBoard.length > 0 && (
+              <>
+                <strong className="font-semibold text-base-content">
+                  {offBoard.length}
+                </strong>{' '}
+                {offBoard.length === 1 ? 'person has' : 'people have'} the officer
+                desks but no place on the board
+                {offBoard.length <= 4 && (
+                  <> &mdash; {offBoard.map((person) => person.fullName).join(', ')}</>
+                )}
                 .
               </>
             )}
@@ -1125,7 +1210,7 @@ function OfficerSeats() {
         </div>
       )}
 
-      {rows.length > 0 && (
+      {(rows.length > 0 || offBoard.length > 0) && (
         <ul className="border-rule mb-5 divide-y divide-[var(--color-rule)] border-y">
           {rows.map((seat) => (
             <li
@@ -1145,8 +1230,49 @@ function OfficerSeats() {
                 type="button"
                 className={secondaryButton}
                 disabled={busy || !seat.user}
+                aria-label={`Stand ${seat.fullName} down`}
                 onClick={() => {
-                  setStandingDown(seat)
+                  if (seat.user) {
+                    setStandingDown({
+                      id: seat.user.id,
+                      fullName: seat.fullName,
+                      onBoard: true,
+                      losesDesks:
+                        grantsDesks(seat.position) && seat.user.role !== 'ADMIN',
+                    })
+                  }
+                }}
+              >
+                STAND DOWN
+              </button>
+            </li>
+          ))}
+          {offBoard.map((person) => (
+            <li
+              key={person.id}
+              className="flex items-center justify-between gap-3 py-2.5"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-[13px] font-semibold">
+                  {person.fullName}
+                </p>
+                <p className="text-faint font-mono text-[10px] tracking-[0.14em] uppercase">
+                  Officer, not on the board
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className={secondaryButton}
+                disabled={busy}
+                aria-label={`Stand ${person.fullName} down`}
+                onClick={() => {
+                  setStandingDown({
+                    id: person.id,
+                    fullName: person.fullName,
+                    onBoard: false,
+                    losesDesks: true,
+                  })
                 }}
               >
                 STAND DOWN
@@ -1156,7 +1282,7 @@ function OfficerSeats() {
         </ul>
       )}
 
-      {desk && rows.length === 0 && (
+      {desk && rows.length === 0 && offBoard.length === 0 && (
         <p className="text-faint mb-5 text-[13px]">
           Nobody is on the board yet.
         </p>
@@ -1184,8 +1310,7 @@ function OfficerSeats() {
             }}
           >
             {/* Empty is a real choice, not a prompt: somebody can be on the board without
-                a named chair, which is what the Discord sync creates before anybody has
-                been given one. */}
+                a named chair. */}
             <option value="">No named seat</option>
             {(desk?.seats ?? []).map((seat) => (
               <option key={seat} value={seat}>
@@ -1205,6 +1330,7 @@ function OfficerSeats() {
         </button>
 
         <Status message={message} />
+        {todo && <DiscordToDo todo={todo} />}
       </div>
 
       {displacing && member && (
@@ -1223,16 +1349,10 @@ function OfficerSeats() {
           <p>
             {displacing.fullName}&rsquo;s term ends and they move to the
             officers page, recorded as succeeded by {member.fullName}.
+            {grantsDesks(displacing.position) &&
+              displacing.user?.role !== 'ADMIN' &&
+              ' They lose the officer desks.'}
           </p>
-          {/* The same warning the stand-down dialog gives, for the same reason: this
-              changes the chair, not the club role, and Discord owns the second one. */}
-          {displacing.source === 'DISCORD' && (
-            <p className="mt-3">
-              {displacing.fullName} still carries the officer role in Discord,
-              so they stay on the board without a seat. Take the role away there
-              if they are leaving altogether.
-            </p>
-          )}
         </ConfirmDialog>
       )}
 
@@ -1249,16 +1369,15 @@ function OfficerSeats() {
           }}
         >
           <p>
-            They come off the board and onto the officers page as a past
-            officer, with the dates they served.
+            {standingDown.onBoard
+              ? `They come off the board and onto the officers page as a past officer${
+                  standingDown.losesDesks ? ', and lose the officer desks.' : '.'
+                }`
+              : 'They lose the officer desks.'}
           </p>
-          {/* The one thing that makes this look broken if unsaid: the sync is the club's
-              answer about who is an officer, and this button doesn't overrule it. */}
-          {standingDown.source === 'DISCORD' && (
+          {standingDown.id === me.id && standingDown.losesDesks && me.role !== 'ADMIN' && (
             <p className="mt-3">
-              They still carry the officer role in Discord, so the next sync
-              will put them straight back. Take the role away there first if
-              that is not what you want.
+              That&rsquo;s you. Your desks close when you leave the roles desk.
             </p>
           )}
         </ConfirmDialog>

@@ -2346,7 +2346,6 @@ describe("a member's display title", () => {
         userId: paidId,
         fullName: 'PM Paid',
         position: 'TREASURER',
-        source: 'MANUAL',
         startedAt: new Date('2022-08-20T00:00:00.000Z'),
         endedAt: new Date('2023-05-05T00:00:00.000Z'),
       },

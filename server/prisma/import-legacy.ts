@@ -1,6 +1,5 @@
 import { prisma } from '../src/core/db.js'
 import {
-  OfficerTermSource,
   ProjectMemberRank,
   Season,
 } from '../src/generated/prisma/enums.js'
@@ -469,9 +468,6 @@ async function writeEverything(
             fullName: user.fullName,
             position: position ?? null,
             startedAt: user.joinedAt ?? NOW,
-            // `MANUAL`, so the Discord sync never stands them down. The sync
-            // only closes what the sync opened, and it did not open these.
-            source: OfficerTermSource.MANUAL,
             photoUrl: user.photoUrl,
           },
         })

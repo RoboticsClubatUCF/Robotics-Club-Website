@@ -424,15 +424,10 @@ describe('membersWithRole', () => {
     expect(fetchStub).not.toHaveBeenCalled()
   })
 
-  /**
-   * Off is the default, and the whole safety story of this feature rests on it: until somebody
-   * sets a role id, nothing can stand anybody down.
-   */
-  it('is off until a role id is configured', async () => {
-    const { officerRoleId, officerSyncConfigured } = await load()
+  it('has no officer role unless one is configured', async () => {
+    const { officerRoleId } = await load()
 
     expect(officerRoleId).toBeNull()
-    expect(officerSyncConfigured).toBe(false)
   })
 })
 

@@ -22,7 +22,6 @@ import { createSession } from '../../auth/session.js'
  */
 vi.mock('../../discord/discord.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../discord/discord.js')>()),
-  officerSyncConfigured: false,
   officerRoleId: null,
   memberRoleId: null,
   projectLeadRoleId: null,
@@ -90,7 +89,6 @@ type Term = {
   startedAt: string
   endedAt: string | null
   endedReason: string | null
-  source: string
   fullName: string
   photoUrl: string | null
   user: { id: string; fullName: string } | null
@@ -162,9 +160,46 @@ describe('adding a term', () => {
     const term = (await response.json()) as Term
     expect(term.user).toBeNull()
     expect(term.fullName).toBe(held('Marisol Vega'))
-    // Hand-written, which is what keeps the Discord sweep from closing it. The
-    // faculty advisor depends on the same property.
-    expect(term.source).toBe('MANUAL')
+  })
+
+  /**
+   * Today's board for somebody with an account belongs to the roles desk, which moves the
+   * officer desks with the seat. Doing it here would leave the two disagreeing.
+   */
+  it('sends seating an account on today’s board to the roles desk', async () => {
+    const response = await add({
+      fullName: held('Sitting'),
+      userId: officerId,
+      endedAt: null,
+    })
+
+    expect(response.status).toBe(409)
+    expect(await response.text()).toContain('roles desk')
+    expect(
+      await prisma.officerTerm.count({ where: { userId: officerId, endedAt: null } }),
+    ).toBe(0)
+  })
+
+  it('refuses ending or deleting an account’s open term, and allows fixing its start', async () => {
+    const term = await prisma.officerTerm.create({
+      data: {
+        fullName: held('Sitting'),
+        userId: officerId,
+        startedAt: FROM,
+      },
+    })
+
+    const ended = await send('PATCH', `/api/officer/archive/${term.id}`, officerCookie, {
+      endedAt: TO.toISOString(),
+    })
+    const deleted = await send('DELETE', `/api/officer/archive/${term.id}`, officerCookie)
+    const corrected = await send('PATCH', `/api/officer/archive/${term.id}`, officerCookie, {
+      startedAt: '1989-09-01T12:00:00Z',
+    })
+
+    expect(ended.status).toBe(409)
+    expect(deleted.status).toBe(409)
+    expect(corrected.status).toBe(200)
   })
 
   /**
@@ -407,7 +442,10 @@ describe('a closed term makes somebody an officer alumnus', () => {
 
   /** An *open* term is somebody still on the board, not an alumnus. */
   it('does not count a term that has not ended', async () => {
-    await add({ fullName: held('Sitting'), userId: officerId, endedAt: null })
+    // Straight in: an account's open term is the roles desk's to write.
+    await prisma.officerTerm.create({
+      data: { fullName: held('Sitting'), userId: officerId, startedAt: FROM },
+    })
 
     expect(mine(await roster('alumni'))).toBeUndefined()
   })

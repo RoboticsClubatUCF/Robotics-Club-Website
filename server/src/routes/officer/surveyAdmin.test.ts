@@ -29,7 +29,6 @@ import { createSession } from '../../auth/session.js'
 // reach `pushRoles` mocks this module.
 vi.mock('../../discord/discord.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../discord/discord.js')>()),
-  officerSyncConfigured: false,
   officerRoleId: null,
   memberRoleId: null,
   projectLeadRoleId: null,

@@ -69,6 +69,13 @@ export const labelClass =
 
 export const fieldClass = 'input border-rule bg-base-200 w-full text-sm'
 
+/**
+ * A word-sized action inside a row, like MemberSearch's CHANGE. 44px tall below `wide` for a
+ * thumb, with the extra height taken back by negative margins so the row doesn't grow.
+ */
+export const inlineActionClass =
+  'text-faint hover:text-primary -my-3.5 min-h-11 cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] wide:my-0 wide:min-h-0 focus-visible:outline-primary focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-default disabled:opacity-60'
+
 export const submitClass =
   'btn btn-primary btn-cta w-full px-6 py-3.5 text-[13px] font-semibold disabled:opacity-60'
 

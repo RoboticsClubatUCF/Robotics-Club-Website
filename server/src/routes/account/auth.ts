@@ -5,8 +5,6 @@ import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
 import { validate } from '../../core/validate.js'
 import { prisma } from '../../core/db.js'
-import type { OfficerRefreshReport } from '../../discord/discordOfficers.js'
-import { refreshOfficerStanding } from '../../discord/discordOfficers.js'
 import { env } from '../../core/env.js'
 import { sendPasswordReset } from '../../email/mail.js'
 import {
@@ -116,28 +114,6 @@ export const shape = (user: {
   photoZoom: user.photoZoom,
 })
 
-/**
- * The account as it is after the officer sync has had its say.
- *
- * Only when something moved, which is nearly never. Read back from the database
- * rather than patched in place: a promotion is always `OFFICER`, but a demotion lands
- * on whatever the dues loop says, and working that out again here is how the two
- * answers start to disagree.
- */
-async function reread<T extends { id: string; role: string }>(
-  user: T,
-  officer: OfficerRefreshReport,
-): Promise<T> {
-  if (!officer.promoted && !officer.demoted) return user
-
-  const fresh = await prisma.user.findUnique({
-    where: { id: user.id },
-    select: { role: true },
-  })
-
-  return fresh ? { ...user, role: fresh.role } : user
-}
-
 // ------------------------------------------------------------------- login
 
 auth.post(
@@ -213,31 +189,10 @@ auth.post(
       }
     }
 
-    /**
-     * Follow the club's Discord officer role before answering.
-     *
-     * The sweep runs every ten minutes, and the person most likely to be standing in
-     * that window is the one just handed the role and told to sign in. They'd arrive
-     * to a dashboard with no officer desks, which reads as broken rather than queued.
-     *
-     * It follows the role both ways, and can only do that safely because it checks the
-     * configured role id against the guild's own role list first —
-     * `discordOfficers.ts` has the argument.
-     *
-     * `force`, because the throttle behind this exists for the page-load read below.
-     * It refuses silently when Discord is unreachable, so nothing about signing in
-     * depends on Discord answering.
-     */
-    const officer = await refreshOfficerStanding(user.id, { force: true })
-
     const { token, expiresAt } = await createSession(user.id)
     setSessionCookie(c, token, expiresAt)
 
-    // Re-read only when something actually changed, so the ordinary sign-in is no more
-    // queries than it was. `shape` would otherwise print the role that was true a
-    // moment before. Read back rather than patched: a demotion lands on whatever the
-    // dues loop says, which is `standingRole`'s decision.
-    return c.json({ user: shape(await reread(user, officer)) })
+    return c.json({ user: shape(user) })
   },
 )
 
@@ -269,18 +224,7 @@ auth.get('/me', optionalAuth, async (c) => {
 
   if (!user) return c.json({ user: null })
 
-  /**
-   * The other half of following the officer role live: somebody handed it while
-   * already signed in never posts to `/login` again, and this is the one request
-   * every page of theirs makes.
-   *
-   * Not `force`, so it's throttled to one Discord lookup per person every few minutes,
-   * and it returns before any call at all for anyone whose role and tenure are already
-   * settled — most of the people reloading a dashboard.
-   */
-  const officer = await refreshOfficerStanding(user.id)
-
-  return c.json({ user: shape(await reread(user, officer)) })
+  return c.json({ user: shape(user) })
 })
 
 

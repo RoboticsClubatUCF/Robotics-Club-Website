@@ -7,11 +7,7 @@ import { requireOfficer } from '../../auth/authz.js'
 import { prisma } from '../../core/db.js'
 import { env } from '../../core/env.js'
 import { deleteIfStored, looksLikeImage, storeFile } from '../../files/files.js'
-import {
-  FileKind,
-  OfficerPosition,
-  OfficerTermSource,
-} from '../../generated/prisma/enums.js'
+import { FileKind, OfficerPosition } from '../../generated/prisma/enums.js'
 import { rateLimit } from '../../core/rateLimit.js'
 import { type AuthEnv, originGuard, requireAuth } from '../../auth/session.js'
 
@@ -27,14 +23,13 @@ import { type AuthEnv, originGuard, requireAuth } from '../../auth/session.js'
  *
  * The only way a term that has already ended can be written at all. `OfficerTerm` was
  * designed for the archive — `fullName` is stored on the row and `userId` is optional
- * precisely so a president from 2009 with no account here can be entered — but nothing
- * wrote those rows. The Discord sync and the seat routes only ever describe today, so
- * everything before the sync started was unreachable and a typo was permanent.
+ * precisely so a president from 2009 with no account here can be entered. The seat
+ * routes only ever describe today.
  *
- * Not a second answer to "who is on the board". The seat panel on the roles desk is
- * still where a chair is handed over, because a handover is one decision in one
- * transaction. This desk is the table itself: it adds rows the sync will never produce
- * and fixes rows that are wrong. Where the two overlap, this one refuses.
+ * Not a second answer to "who is on the board". The roles desk is where a chair is
+ * handed over, because a handover moves the officer desks with it (`membership/board.ts`).
+ * This desk is the record itself: it adds history and fixes rows that are wrong, and
+ * never writes `User.role`. Where the two overlap, this one refuses.
  *
  * The same person holds as many terms as they served — nothing here is keyed on the
  * person. The one uniqueness rule is the seat one, and it only applies to open terms:
@@ -51,10 +46,8 @@ const uploads = rateLimit('officer-photo', 20)
 /**
  * A term as the desk needs it, which is more than either public route sends.
  *
- * `endedReason` and `source` are here and not on `ApiOfficerTerm`: this page has to
- * show why a term ended and who closed it — a `DISCORD` row will be reopened by the
- * next sweep if the person still carries the role, and an officer deleting one
- * deserves to know before they press the button.
+ * `endedReason` is here and not on `ApiOfficerTerm`: this page has to show why a term
+ * ended.
  *
  * The photo is not coalesced against the account here, unlike the public read. The
  * desk is where the stored one is set and cleared, so a fallback would make an empty
@@ -66,7 +59,6 @@ const archiveSelect = {
   startedAt: true,
   endedAt: true,
   endedReason: true,
-  source: true,
   fullName: true,
   photoUrl: true,
   user: { select: { id: true, fullName: true, photoUrl: true } },
@@ -137,10 +129,6 @@ const addTerm = z.object({
  * with no reason given, and omitting it leaves the reason already there. A desk that
  * couldn't say the difference would wipe the succession note off a term every time
  * somebody fixed a date.
- *
- * `source` is deliberately not in the list. It says who may close the term, and a desk
- * that could flip it could quietly hand the faculty advisor's hand-made appointment to
- * a loop that stands them down on its next pass.
  */
 const editTerm = z.object({
   fullName: termFields.fullName.optional(),
@@ -229,14 +217,42 @@ async function assertSeatFree(
   }
 }
 
+type Placement = {
+  userId: string | null
+  endedAt: Date | null
+  position: OfficerPosition | null
+}
+
 /**
- * Add a term.
+ * Refuse a write that seats, unseats or moves somebody with an account on today's board.
  *
- * `MANUAL` always, and not a parameter. `source` decides who may close a term, and the
- * sync closing a row a person typed in is exactly the failure the column exists to
- * prevent — a 2011 president would be stood down by the first sweep that noticed they
- * carry no Discord role.
+ * That's the roles desk's job, because a seat there moves the officer desks with it
+ * (`membership/board.ts`), and a records desk that could do it too would leave the seat
+ * and the desks disagreeing. History, and today's board for people with no account,
+ * stay writable here.
  */
+function assertNotBoardChange(before: Placement | null, after: Placement | null) {
+  const seated = (term: Placement | null): term is Placement =>
+    term !== null && term.endedAt === null && term.userId !== null
+
+  if (!seated(before) && !seated(after)) return
+
+  if (
+    seated(before) &&
+    seated(after) &&
+    before.userId === after.userId &&
+    before.position === after.position
+  ) {
+    return
+  }
+
+  throw new HTTPException(409, {
+    message:
+      'Today’s board is set on the roles desk, so the officer desks move with the seat.',
+  })
+}
+
+/** Add a term, past or present. */
 officerArchive.post(
   '/',
   originGuard,
@@ -247,11 +263,12 @@ officerArchive.post(
   async (c) => {
     const body = c.req.valid('json')
 
+    assertNotBoardChange(null, body)
     await assertSound(body)
     await assertSeatFree(body.position, body.endedAt, null)
 
     const term = await prisma.officerTerm.create({
-      data: { ...body, source: OfficerTermSource.MANUAL },
+      data: body,
       select: archiveSelect,
     })
 
@@ -260,12 +277,8 @@ officerArchive.post(
 )
 
 /**
- * Correct a term — any field, on any term, however it got here.
- *
- * A `DISCORD` row is editable as readily as a `MANUAL` one: the sync records the day it
- * noticed a role appear, which isn't the day the club decided anything, and an officer
- * correcting that is fixing the record rather than overruling the sync. What the edit
- * doesn't change is `source`.
+ * Correct a term — any field, on any term, however it got here. The roles desk records
+ * the day a seat was set, which isn't always the day the club decided it.
  */
 officerArchive.patch(
   '/:id',
@@ -287,6 +300,7 @@ officerArchive.patch(
       userId: body.userId === undefined ? term.userId : body.userId,
     }
 
+    assertNotBoardChange(term, after)
     await assertSound(after)
     await assertSeatFree(after.position, after.endedAt, term.id)
 
@@ -311,8 +325,8 @@ officerArchive.patch(
  *
  * `DELETE /api/officer/terms/:userId` on the roles desk closes an open term: the person
  * leaves the board and appears in the archive, which is history worth keeping. This is
- * for the row that should never have existed — a sync against a mis-typed role id, a
- * term entered against the wrong person, a duplicate. There's no soft version of that.
+ * for the row that should never have existed — a term entered against the wrong person,
+ * a duplicate. There's no soft version of that.
  */
 officerArchive.delete(
   '/:id',
@@ -322,6 +336,8 @@ officerArchive.delete(
   writes,
   async (c) => {
     const term = await getTerm(c.req.param('id'))
+
+    assertNotBoardChange(term, null)
 
     await prisma.officerTerm.delete({ where: { id: term.id } })
     await deleteIfStored(term.photoUrl)

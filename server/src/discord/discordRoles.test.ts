@@ -5,8 +5,7 @@ import { ProjectMemberRank, Season, UserRole } from '../generated/prisma/enums.j
 /**
  * Handing out the Discord roles the site says people should have.
  *
- * The dangerous direction. `discordOfficers.test.ts` can damage the database; this can damage the
- * club's actual Discord server. Nothing here writes a row, so there's no tripwire to build. What
+ * The dangerous direction: this can damage the club's actual Discord server. Nothing here writes a row, so there's no tripwire to build. What
  * there is instead is a total mock of `./discord.js`: every read and both writes are fakes, and
  * the development `.env` carries a live bot token for the club's real guild.
  *
@@ -113,8 +112,8 @@ const removed = vi.mocked(removeGuildRole)
 const PREFIX = 'test-discord-roles-'
 const email = (name: string) => `${PREFIX}${name}@ucf.edu`
 
-/** Invented, and distinct from the `9…` block `discordOfficers.test.ts` uses
-    for its own fixtures — both columns are unique and a clash is a red test. */
+/** Invented, and distinct from other suites' blocks — both columns are unique and a
+    clash is a red test. */
 const snowflake = (n: number) => `70${String(n).padStart(16, '0')}`
 const handle = (name: string) => `test_roles_${name}`
 

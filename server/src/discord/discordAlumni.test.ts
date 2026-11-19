@@ -11,7 +11,7 @@ import { UserRole } from '../generated/prisma/enums.js'
  * anybody the stubbed roster fails to name gets the flag taken off.
  *
  * The isolation is therefore the stub, and `holders()` takes the club's real flag-holders in
- * every call for the same reason `discordOfficers.test.ts` passes the real board. There are none
+ * every call, so a stub that forgets a real holder can't clear their flag. There are none
  * today — the column was added with `default false` — but a suite that relied on that would break
  * silently the first time somebody ran the real sweep against the development database.
  *

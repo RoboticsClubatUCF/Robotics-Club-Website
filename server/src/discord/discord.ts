@@ -25,7 +25,7 @@ import { env } from '../core/env.js'
 export type DiscordCheck =
   /** The handle is a member of the club's server. `username` is Discord's own
       spelling, `id` the snowflake the bot addresses a message to, `roles` what
-      they carry in the guild — which decides whether a signup lands as an officer.
+      they carry in the guild.
 
       `roles` is required rather than optional so a caller can't conflate "holds no
       roles" with "was never asked". It costs nothing; the search already returns it. */
@@ -47,8 +47,12 @@ const bot =
 export const discordConfigured = bot !== null
 
 /**
- * The role that makes somebody an officer, or null if the club hasn't handed that
- * decision to Discord.
+ * The club's Officers role in Discord, or null.
+ *
+ * Given and taken by hand in Discord. The site never follows it into `User.role`
+ * (the board is kept on the roles desk) and never writes it (it sits above the bot).
+ * It does two things: lets whoever carries it press the lab sign's button, and keeps
+ * a project from claiming it as its own role.
  *
  * A module constant rather than a read of `env` at the call site, for testability:
  * `env` is parsed once at import, so stubbing the variable afterwards does nothing
@@ -56,15 +60,11 @@ export const discordConfigured = bot !== null
  */
 export const officerRoleId = env.DISCORD_OFFICER_ROLE_ID ?? null
 
-/** Whether the board is read off Discord at all: needs the bot *and* the role. */
-export const officerSyncConfigured = bot !== null && officerRoleId !== null
-
 /**
  * The club's Officer Alumni role — who used to run it.
  *
- * Read in the same direction as `officerRoleId` and for the same reason: the club
- * has kept this list in Discord for years, so the site follows rather than asking
- * anybody to maintain it twice. It lands in `User.officerAlumnus`.
+ * Read from Discord because the club has kept this list there for years, so the
+ * site follows rather than asking anybody to maintain it twice. It lands in `User.officerAlumnus`.
  *
  * Never put this in `clubRoles()`. It's read-only, it sits below the bot in the
  * hierarchy so nothing at Discord's end would refuse, and the first sweep that
@@ -447,12 +447,12 @@ export async function checkDiscordHandle(
  * Everyone in the guild carrying one role.
  *
  * `ok` with an empty set and `unavailable` are different answers and the caller must
- * tell them apart: one means the board resigned, the other means we couldn't ask.
- * Acting on the second would stand the club's officers down over a bad minute.
+ * tell them apart: one means nobody holds it, the other means we couldn't ask.
+ * Acting on the second would clear a whole list over a bad minute.
  *
  * There's no "list members with role X" endpoint, so this is the whole guild,
  * paginated. Any page that comes back wrong aborts the walk — half a member list is
- * indistinguishable from half the board losing its role.
+ * indistinguishable from half the holders losing the role.
  */
 export type RoleRoster =
   | {

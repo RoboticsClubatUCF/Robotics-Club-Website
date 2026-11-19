@@ -20,7 +20,6 @@ import { createSession } from '../../auth/session.js'
 // server. `testing.md`'s rule is that anything that can reach `pushRoles` mocks this module.
 vi.mock('../../discord/discord.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../discord/discord.js')>()),
-  officerSyncConfigured: false,
   officerRoleId: null,
   memberRoleId: null,
   projectLeadRoleId: null,
@@ -86,6 +85,8 @@ let officerCookie = ''
 let officerId = ''
 let advisorId = ''
 let adminId = ''
+let outgoingId = ''
+let incomingId = ''
 
 /**
  * The seats this suite borrows, and the people it borrows them from.
@@ -136,7 +137,7 @@ beforeEach(async () => {
   await parkSeats()
   clearCalendarCache()
 
-  const [officer, advisor, admin] = await Promise.all([
+  const [officer, advisor, admin, outgoing, incoming] = await Promise.all([
     prisma.user.create({
       data: {
         fullName: 'Board Officer',
@@ -164,11 +165,30 @@ beforeEach(async () => {
         role: UserRole.ADMIN,
       },
     }),
+    prisma.user.create({
+      data: {
+        fullName: 'Board Outgoing',
+        email: email('outgoing'),
+        role: UserRole.MEMBER,
+        duesPaidThrough: PAID_THROUGH,
+      },
+    }),
+    prisma.user.create({
+      data: {
+        fullName: 'Board Incoming',
+        email: email('incoming'),
+        role: UserRole.MEMBER,
+        duesPaidThrough: PAID_THROUGH,
+        discordUsername: 'test_board_incoming',
+      },
+    }),
   ])
 
   officerId = officer.id
   advisorId = advisor.id
   adminId = admin.id
+  outgoingId = outgoing.id
+  incomingId = incoming.id
   officerCookie = await cookieFor(officer.id)
 })
 
@@ -188,7 +208,7 @@ const seat = (cookie: string, userId: string, position: string | null) =>
 const openTermOf = (userId: string) =>
   prisma.officerTerm.findFirst({
     where: { userId, endedAt: null },
-    select: { position: true, source: true, endedAt: true },
+    select: { position: true, endedAt: true },
   })
 
 describe('the seat desk', () => {
@@ -196,17 +216,12 @@ describe('the seat desk', () => {
     const response = await seat(officerCookie, officerId, 'TREASURER')
 
     expect(response.status).toBe(200)
-    expect(await openTermOf(officerId)).toMatchObject({
-      position: 'TREASURER',
-      // Hand-appointed, which is what keeps the Discord sweep from closing it.
-      source: 'MANUAL',
-    })
+    expect(await openTermOf(officerId)).toMatchObject({ position: 'TREASURER' })
   })
 
   /**
-   * A seat is not a permission level. The faculty advisor sits on the board as
-   * a plain `MEMBER` — that is the whole reason the two are different columns —
-   * so the desk must not quietly refuse anybody who is not already an officer.
+   * The faculty advisor sits on the board as a plain `MEMBER`. It's the one seat
+   * that doesn't bring the officer desks.
    */
   it('seats somebody who is not an officer by role', async () => {
     const response = await seat(officerCookie, advisorId, 'FACULTY_ADVISOR')
@@ -508,8 +523,8 @@ describe('handing a seat over', () => {
     expect(await openTermOf(officerId)).toBeNull()
   })
 
-  /** The succession is history, not a gap. "Lost the Discord role" and "handed
-      over" are different things and the archive has to tell them apart. */
+  /** The succession is history, not a gap. "Stood down" and "handed over" are
+      different things and the archive has to tell them apart. */
   it('records who succeeded whom', async () => {
     await seat(officerCookie, officerId, 'PRESIDENT')
     await send('PATCH', '/api/officer/terms/seat', officerCookie, {
@@ -548,12 +563,8 @@ describe('handing a seat over', () => {
     expect(holders).toBe(1)
   })
 
-  /** Taking over a seat somebody holds by hand is a person changing a person's
-      appointment, which is exactly what the `MANUAL` guard is *not* about — it
-      stops the sync doing it unattended. */
-  it('can take over a hand-appointed seat', async () => {
+  it('can take over the advisor seat', async () => {
     await seat(officerCookie, advisorId, 'FACULTY_ADVISOR')
-    expect(await openTermOf(advisorId)).toMatchObject({ source: 'MANUAL' })
 
     const response = await send('PATCH', '/api/officer/terms/seat', officerCookie, {
       userId: officerId,
@@ -582,5 +593,265 @@ describe('handing a seat over', () => {
     ).toBe(1)
     expect(await openTermOf(advisorId)).toMatchObject({ position: 'SECRETARY' })
     expect(await openTermOf(officerId)).toBeNull()
+  })
+})
+
+type Person = { id: string; fullName: string; discordUsername: string | null }
+type Desk = {
+  board: {
+    id: string
+    position: string | null
+    user: { id: string } | null
+  }[]
+  offBoard: Person[]
+}
+type ToDo = { discord: { give: Person[]; take: Person[] } }
+
+const roleOf = async (userId: string) =>
+  (await prisma.user.findUnique({ where: { id: userId }, select: { role: true } }))
+    ?.role
+
+const names = (people: Person[]) => people.map((person) => person.fullName)
+
+/**
+ * The seat is the officer desks. Seating somebody makes them an `OFFICER`; taking them off
+ * the board hands them back to their dues; the advisor seat and `ADMIN` are the exceptions.
+ */
+describe('the officer desks follow the board', () => {
+  it('makes whoever takes a seat an officer, and says to give them the Discord role', async () => {
+    const response = await seat(officerCookie, incomingId, 'OUTREACH')
+    const body = (await response.json()) as ToDo
+
+    expect(response.status).toBe(200)
+    expect(await roleOf(incomingId)).toBe(UserRole.OFFICER)
+    expect(body.discord.give).toEqual([
+      { id: incomingId, fullName: 'Board Incoming', discordUsername: 'test_board_incoming' },
+    ])
+    expect(body.discord.take).toEqual([])
+
+    // An officer prints their year on their profile, so becoming one stamps it.
+    const user = await prisma.user.findUnique({
+      where: { id: incomingId },
+      select: { joinedAt: true },
+    })
+    expect(user?.joinedAt).toBeInstanceOf(Date)
+  })
+
+  it('hands somebody stood down back to their dues', async () => {
+    await seat(officerCookie, incomingId, 'OUTREACH')
+
+    const response = await send('DELETE', `/api/officer/terms/${incomingId}`, officerCookie)
+    const body = (await response.json()) as ToDo
+
+    expect(response.status).toBe(200)
+    // Paid through 2099, so a member rather than a guest.
+    expect(await roleOf(incomingId)).toBe(UserRole.MEMBER)
+    expect(names(body.discord.take)).toEqual(['Board Incoming'])
+  })
+
+  it('takes the desks from whoever loses a seat to a take-over', async () => {
+    await seat(officerCookie, outgoingId, 'SECRETARY')
+    expect(await roleOf(outgoingId)).toBe(UserRole.OFFICER)
+
+    const response = await send('PATCH', '/api/officer/terms/seat', officerCookie, {
+      userId: incomingId,
+      position: 'SECRETARY',
+      takeOver: true,
+    })
+    const body = (await response.json()) as ToDo
+
+    expect(await roleOf(outgoingId)).toBe(UserRole.MEMBER)
+    expect(await roleOf(incomingId)).toBe(UserRole.OFFICER)
+    expect(names(body.discord.give)).toEqual(['Board Incoming'])
+    expect(names(body.discord.take)).toEqual(['Board Outgoing'])
+  })
+
+  it('never writes an admin’s role, on or off the board', async () => {
+    await seat(officerCookie, adminId, 'TREASURER')
+    expect(await roleOf(adminId)).toBe(UserRole.ADMIN)
+
+    await send('DELETE', `/api/officer/terms/${adminId}`, officerCookie)
+    expect(await roleOf(adminId)).toBe(UserRole.ADMIN)
+  })
+
+  /** Officers set in Prisma Studio, or left by the old Discord sync, with no place on the board. */
+  it('lists officers who are not on the board, and can stand them down', async () => {
+    const desk = (await (
+      await send('GET', '/api/officer/terms', officerCookie)
+    ).json()) as Desk
+
+    expect(desk.offBoard.map((person) => person.id)).toContain(officerId)
+
+    const response = await send('DELETE', `/api/officer/terms/${officerId}`, officerCookie)
+
+    expect(response.status).toBe(200)
+    expect(await roleOf(officerId)).toBe(UserRole.MEMBER)
+  })
+
+  /**
+   * A seat held since an earlier day is history. Moving it closes the old term rather than
+   * rewriting it, so the archive keeps the seat somebody held before.
+   */
+  it('keeps an older seat in the archive when somebody moves', async () => {
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000)
+    await prisma.officerTerm.create({
+      data: {
+        userId: officerId,
+        fullName: 'Board Officer',
+        position: 'VICE_PRESIDENT',
+        startedAt: twoDaysAgo,
+      },
+    })
+
+    await seat(officerCookie, officerId, 'PRESIDENT')
+
+    const terms = await prisma.officerTerm.findMany({
+      where: { userId: officerId },
+      orderBy: { startedAt: 'asc' },
+      select: { position: true, endedAt: true, endedReason: true },
+    })
+
+    expect(terms).toHaveLength(2)
+    expect(terms[0]).toMatchObject({
+      position: 'VICE_PRESIDENT',
+      endedReason: 'Moved to President',
+    })
+    expect(terms[0]?.endedAt).not.toBeNull()
+    expect(terms[1]).toMatchObject({ position: 'PRESIDENT', endedAt: null })
+  })
+})
+
+/**
+ * Rotation day: the whole board in one press.
+ *
+ * Every plan here keeps the real board exactly as it stands (parked, so seatless) and changes
+ * only this suite's people, so the route never touches a real term.
+ */
+describe('the handover', () => {
+  const fixtureIds = () => [officerId, advisorId, adminId, outgoingId, incomingId]
+
+  const desk = async () =>
+    (await (await send('GET', '/api/officer/terms', officerCookie)).json()) as Desk
+
+  const expectedOf = (current: Desk) =>
+    current.board.map((term) => ({ id: term.id, position: term.position }))
+
+  const others = (current: Desk) =>
+    current.board.filter((term) => !(term.user && fixtureIds().includes(term.user.id)))
+
+  /** Everybody on the board stays where they are, apart from this suite's people. */
+  const keepOthers = (current: Desk) =>
+    others(current).map((term) =>
+      term.user
+        ? { userId: term.user.id, position: term.position }
+        : { termId: term.id, position: term.position },
+    )
+
+  const handover = (body: unknown, cookie = officerCookie) =>
+    send('POST', '/api/officer/terms/handover', cookie, body)
+
+  type Answer = {
+    change: ToDo & { joined: Person[]; left: Person[]; moved: Person[] }
+  }
+
+  it('swaps the board in one press, roles and history together', async () => {
+    await seat(officerCookie, officerId, 'PRESIDENT')
+    await seat(officerCookie, outgoingId, 'TREASURER')
+
+    const before = await desk()
+
+    const response = await handover({
+      expected: expectedOf(before),
+      board: [
+        ...keepOthers(before),
+        { userId: officerId, position: 'PRESIDENT' },
+        { userId: incomingId, position: 'TREASURER' },
+        { userId: advisorId, position: 'FACULTY_ADVISOR' },
+      ],
+    })
+
+    expect(response.status).toBe(200)
+    const { change } = (await response.json()) as Answer
+
+    expect(names(change.joined).sort()).toEqual(['Board Advisor', 'Board Incoming'])
+    expect(names(change.left)).toEqual(['Board Outgoing'])
+    expect(names(change.discord.give)).toEqual(['Board Incoming'])
+    expect(names(change.discord.take)).toEqual(['Board Outgoing'])
+
+    expect(await roleOf(incomingId)).toBe(UserRole.OFFICER)
+    expect(await roleOf(outgoingId)).toBe(UserRole.MEMBER)
+    // The advisor joins the board and not the desks.
+    expect(await roleOf(advisorId)).toBe(UserRole.MEMBER)
+    expect(await openTermOf(advisorId)).toMatchObject({ position: 'FACULTY_ADVISOR' })
+
+    const closed = await prisma.officerTerm.findFirst({
+      where: { userId: outgoingId },
+      select: { endedReason: true, endedAt: true },
+    })
+    expect(closed?.endedReason).toBe('Succeeded by Board Incoming')
+    expect(closed?.endedAt).not.toBeNull()
+
+    // Nobody else's term moved.
+    const after = await desk()
+    for (const term of others(before)) {
+      expect(after.board).toContainEqual(
+        expect.objectContaining({ id: term.id, position: term.position }),
+      )
+    }
+  })
+
+  it('refuses a plan made against a board that has since changed', async () => {
+    const before = await desk()
+    await seat(officerCookie, outgoingId, 'MARKETING')
+
+    const response = await handover({
+      expected: expectedOf(before),
+      board: [...keepOthers(before), { userId: incomingId, position: 'MARKETING' }],
+    })
+
+    expect(response.status).toBe(409)
+    expect(await openTermOf(incomingId)).toBeNull()
+    expect(await openTermOf(outgoingId)).toMatchObject({ position: 'MARKETING' })
+  })
+
+  it('refuses one seat given twice, and one person in two places', async () => {
+    const before = await desk()
+
+    const twice = await handover({
+      expected: expectedOf(before),
+      board: [
+        ...keepOthers(before),
+        { userId: incomingId, position: 'LAB_MANAGER' },
+        { userId: outgoingId, position: 'LAB_MANAGER' },
+      ],
+    })
+    const doubled = await handover({
+      expected: expectedOf(before),
+      board: [
+        ...keepOthers(before),
+        { userId: incomingId, position: 'LAB_MANAGER' },
+        { userId: incomingId, position: 'OUTREACH' },
+      ],
+    })
+
+    expect(twice.status).toBe(400)
+    expect(doubled.status).toBe(400)
+    expect(await openTermOf(incomingId)).toBeNull()
+  })
+
+  it('is officers only', async () => {
+    const before = await desk()
+    const memberCookie = await cookieFor(incomingId)
+
+    const response = await handover(
+      {
+        expected: expectedOf(before),
+        board: [...keepOthers(before), { userId: incomingId, position: 'OUTREACH' }],
+      },
+      memberCookie,
+    )
+
+    expect(response.status).toBe(403)
+    expect(await openTermOf(incomingId)).toBeNull()
   })
 })

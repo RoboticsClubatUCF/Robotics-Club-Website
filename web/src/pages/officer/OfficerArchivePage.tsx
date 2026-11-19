@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { useOutletContext } from 'react-router'
+import { Link, useOutletContext } from 'react-router'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
 import { DuesLocked } from '../../components/dashboard/DuesLocked'
 import { OfficerOnly } from '../../components/dashboard/OfficerOnly'
@@ -55,9 +55,9 @@ import {
  * ALUMNI when they carry the Discord Officer Alumni role or hold a term here that has
  * ended. So typing in a past board is the whole job.
  *
- * A term's `source` is fixed: it says who may close the row, and the sync only ever
- * closes what the sync opened. That's what keeps the faculty advisor from being stood
- * down by the first sweep that notices they carry no Discord role.
+ * Today's board for somebody with an account is the roles desk's: a seat there moves the
+ * officer desks with it. The server refuses seating, unseating or removing one here, and
+ * this page leaves REMOVE off those rows.
  */
 
 export function OfficerArchivePage() {
@@ -400,14 +400,6 @@ function Archive() {
             Somebody whose term simply ended belongs in the archive, so give the
             term an end date instead.
           </p>
-          {/* The one thing that makes this look broken if left unsaid. */}
-          {removing.source === 'DISCORD' && removing.endedAt === null && (
-            <p className="mt-3">
-              The role sync opened this one, so if they still carry the officer
-              role in Discord the next sweep will put it straight back. Take the
-              role away there first if that is not what you want.
-            </p>
-          )}
         </ConfirmDialog>
       )}
     </section>
@@ -499,10 +491,6 @@ function TermRow({
           </p>
           <p className="text-faint font-mono text-[10px] tracking-[0.14em] uppercase">
             {seatLabel(term.position)} · {servedRange(term.startedAt, term.endedAt)}
-            {/* Where the row came from. A synced one comes back if it's closed while the
-                person still holds the Discord role, which is the difference between a bug
-                and the sync working. */}
-            {term.source === 'DISCORD' && ' · from discord'}
             {term.user === null && ' · no account'}
           </p>
           {term.endedReason !== null && (
@@ -522,14 +510,18 @@ function TermRow({
           >
             {open ? 'CLOSE' : 'EDIT'}
           </button>
-          <button
-            type="button"
-            className={secondaryButton}
-            disabled={busy}
-            onClick={onRemove}
-          >
-            REMOVE
-          </button>
+          {/* Somebody on today's board is stood down on the roles desk, which takes
+              the officer desks with the seat. */}
+          {!(term.endedAt === null && term.user) && (
+            <button
+              type="button"
+              className={secondaryButton}
+              disabled={busy}
+              onClick={onRemove}
+            >
+              REMOVE
+            </button>
+          )}
         </div>
       </div>
 
@@ -540,6 +532,7 @@ function TermRow({
             setDraft={setDraft}
             seats={seats}
             busy={busy}
+            seated={term.endedAt === null && term.user !== null}
           />
 
           <TermPhoto
@@ -587,11 +580,15 @@ function TermFields({
   setDraft,
   seats,
   busy,
+  seated = false,
 }: {
   draft: Draft
   setDraft: (draft: Draft) => void
   seats: OfficerPosition[]
   busy: boolean
+  /** An account on today's board: the seat and the end are the roles desk's, because
+      they move the officer desks with them. */
+  seated?: boolean
 }) {
   const id = useId()
   const set = (patch: Partial<Draft>) => {
@@ -626,14 +623,13 @@ function TermFields({
           id={`${id}-seat`}
           className={`${fieldClass} select`}
           value={draft.position}
-          disabled={busy}
+          disabled={busy || seated}
           onChange={(event) => {
             set({ position: event.target.value as OfficerPosition | '' })
           }}
         >
           {/* Empty is a real answer, not a prompt: somebody can serve without a named
-              chair, which is what the Discord sync creates before anybody has been given
-              one. */}
+              chair. */}
           <option value="">No named seat</option>
           {seats.map((seat) => (
             <option key={seat} value={seat}>
@@ -668,7 +664,8 @@ function TermFields({
               ENDED
             </label>
             <InfoTip label="Ended">
-              Leave it empty for somebody still on the board.
+              Empty means still on the board. Members join today&rsquo;s board on
+              OFFICER BOARD.
             </InfoTip>
           </div>
           <input
@@ -676,13 +673,26 @@ function TermFields({
             type="date"
             className={fieldClass}
             value={draft.endedAt}
-            disabled={busy}
+            disabled={busy || seated}
             onChange={(event) => {
               set({ endedAt: event.target.value })
             }}
           />
         </div>
       </div>
+
+      {seated && (
+        <p className="text-faint text-[12px] leading-[1.5]">
+          Their seat and end date are set on{' '}
+          <Link
+            to="/dashboard/officer/roles"
+            className="text-primary underline underline-offset-2"
+          >
+            OFFICER BOARD
+          </Link>
+          .
+        </p>
+      )}
 
       <div>
         <label htmlFor={`${id}-why`} className={labelClass}>
@@ -872,6 +882,10 @@ function AddTerm({
   const [linked, setLinked] = useState<ApiOfficerMember | null>(null)
   const [message, setMessage] = useState<Message>(null)
 
+  // An account with no end date would be seating somebody on today's board, which the
+  // server leaves to the roles desk.
+  const seatsToday = linked !== null && draft.endedAt === ''
+
   const pick = (member: ApiOfficerMember | null) => {
     setLinked(member)
     setDraft({
@@ -929,11 +943,27 @@ function AddTerm({
           busy={busy}
         />
 
+        {seatsToday && (
+          <p className="text-dim text-[13px] leading-[1.6]">
+            Give it an end date, or seat them on{' '}
+            <Link
+              to="/dashboard/officer/roles"
+              className="text-primary underline underline-offset-2"
+            >
+              OFFICER BOARD
+            </Link>
+            .
+          </p>
+        )}
+
         <button
           type="button"
           className={primaryButton}
           disabled={
-            busy || draft.fullName.trim().length < 2 || draft.startedAt === ''
+            busy ||
+            seatsToday ||
+            draft.fullName.trim().length < 2 ||
+            draft.startedAt === ''
           }
           onClick={submit}
         >

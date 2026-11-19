@@ -95,17 +95,11 @@ const envSchema = z.object({
     .regex(/^\d{17,20}$/, 'must be a Discord snowflake (17-20 digits)')
     .optional(),
   /**
-   * The Discord role that is the officer board.
+   * The club's Officers role in Discord, managed by hand there.
    *
-   * Set it and the club appoints officers in Discord: whoever carries this role is
-   * an `OFFICER` on the site, and whoever loses it stops being one. Unset, officers
-   * are set by hand in Prisma Studio.
-   *
-   * Unset is the safety valve and the default for a reason. The first sweep after
-   * this is set stands down every sitting officer in the guild without the role, so
-   * the order is: match the role to the board you want, then set this, then read
-   * the first sweep's log. Nothing in the code can tell a board that hasn't been
-   * given the role yet from one that's been dissolved.
+   * It doesn't make anybody an officer on the site; the board on the roles desk
+   * does. Whoever carries it may press the lab sign's button in Discord, and no
+   * project may use it as its own role.
    */
   DISCORD_OFFICER_ROLE_ID: z
     .string()

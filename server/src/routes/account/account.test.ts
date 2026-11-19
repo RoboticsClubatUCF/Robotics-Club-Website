@@ -343,7 +343,6 @@ describe('what a member may call themselves', () => {
         userId: myId,
         fullName: 'Test Account',
         position: null,
-        source: 'MANUAL',
         startedAt: new Date('2035-01-01T00:00:00.000Z'),
       },
     })
@@ -379,7 +378,6 @@ describe('what a member may call themselves', () => {
           userId: myId,
           fullName: 'Test Account',
           position: 'TREASURER',
-          source: 'MANUAL',
           startedAt: new Date('2022-08-20T00:00:00.000Z'),
           endedAt: new Date('2023-05-05T00:00:00.000Z'),
         },
@@ -897,7 +895,6 @@ describe('DELETE /api/account', () => {
         userId: myId,
         fullName: 'Test Account',
         startedAt: new Date(),
-        source: 'MANUAL',
       },
     })
 
