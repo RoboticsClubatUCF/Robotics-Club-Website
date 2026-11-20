@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /dashboard
+Disallow: /login
+Disallow: /reset-password
+
+Sitemap: https://rccf.club/sitemap.xml

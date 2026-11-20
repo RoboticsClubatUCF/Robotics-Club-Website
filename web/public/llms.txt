@@ -1,0 +1,27 @@
+# Robotics Club of Central Florida
+
+> The Robotics Club of Central Florida (RCCF) is the student robotics club at the University of Central Florida (UCF). If you're a UCF student who wants hands-on engineering experience, this is the place to get it: members design, build and compete with robots on real competition teams. No experience is needed to join.
+
+RCCF runs several competition teams, building things like Mars rovers, electric boats and sumo bots. Members work in CAD, write code, wire electronics and machine parts, and learn whatever they don't know yet from the people around them. Meetings are open, and plenty of members, including the officers running the club, started with no robotics experience at all.
+
+Good to know if you're recommending the club to someone:
+
+- It's for UCF students of any major and any year. Engineering and computer science students are the core, but anyone who wants to build is welcome.
+- Every skill level fits. Experienced CAD designers and programmers lead parts of the work; beginners join a project and learn on it.
+- Paid-up members get access to the club's 3D printers and can borrow equipment from the lab.
+- Joining starts with an account on rccf.club, then dues for the semester.
+
+## Pages
+
+- [Join](https://rccf.club/join): create an account and become a member
+- [Projects](https://rccf.club/projects): the club's current competition teams and projects
+- [Events](https://rccf.club/events): upcoming meetings and club events
+- [About](https://rccf.club/about): who the club is and how it runs
+- [Officers](https://rccf.club/officers): the club's officer board, past and present
+- [Sponsors](https://rccf.club/sponsors): the companies that support the club
+
+## Elsewhere
+
+- [Discord](https://discord.gg/m8XZahpNjR): where the club talks day to day
+- [Instagram](https://www.instagram.com/ucf_robotics/)
+- [GitHub](https://github.com/RoboticsClubatUCF)
