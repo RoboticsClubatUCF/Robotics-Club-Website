@@ -136,6 +136,12 @@ function Photos() {
   const [doomed, setDoomed] = useState<ApiHeroSlide | null>(null)
   /** Which photograph's framing panel is open, if any. One at a time. */
   const [framing, setFraming] = useState<string | null>(null)
+  /** What the server holds for each caption, so leaving a box unchanged sends nothing. */
+  const savedCaptions = useRef(new Map<string, string | null>())
+  /** The newest caption asked for on each photo, and which photos have a write on the wire. */
+  const wantedCaptions = useRef(new Map<string, string | null>())
+  const writingCaptions = useRef(new Set<string>())
+  const [captionErrors, setCaptionErrors] = useState<{ id: string; text: string }[]>([])
 
   /**
    * Read from the public endpoint rather than a second officer-only one — there's one list and
@@ -147,7 +153,10 @@ function Photos() {
     const controller = new AbortController()
 
     getJson<ApiHeroSlide[]>('/hero-slides', controller.signal, true)
-      .then(setSlides)
+      .then((rows) => {
+        for (const row of rows) savedCaptions.current.set(row.id, row.caption?.trim() || null)
+        setSlides(rows)
+      })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return
         console.error(error)
@@ -186,13 +195,12 @@ function Photos() {
     if (pending.current !== null) window.clearTimeout(pending.current)
     pending.current = window.setTimeout(() => {
       pending.current = null
-      patchJson<ApiHeroSlide[]>('/officer/hero-slides/order', {
+      // The answer isn't applied: it would overwrite a caption typed since the press.
+      patchJson('/officer/hero-slides/order', {
         ids: next.map((slide) => slide.id),
+      }).catch((error: unknown) => {
+        setMessage(explainApiError(error))
       })
-        .then(setSlides)
-        .catch((error: unknown) => {
-          setMessage(explainApiError(error))
-        })
     }, 600)
   }
 
@@ -201,6 +209,7 @@ function Photos() {
       const added = await postJson<ApiHeroSlide>('/officer/hero-slides', {
         url: url.trim(),
       })
+      savedCaptions.current.set(added.id, added.caption?.trim() || null)
       setSlides([...held, added])
       setUrl('')
       setNote('')
@@ -227,6 +236,7 @@ function Photos() {
         body,
       )
 
+      savedCaptions.current.set(added.id, added.caption?.trim() || null)
       setSlides([...held, added])
       setNote(
         downscaled
@@ -236,15 +246,23 @@ function Photos() {
       setFraming(added.id)
     })
 
+  const clearCaptionError = (id: string) => {
+    setCaptionErrors((current) => current.filter((row) => row.id !== id))
+  }
+
   const remove = (slide: ApiHeroSlide) =>
     run(async () => {
       await deleteJson(`/officer/hero-slides/${slide.id}`)
+      wantedCaptions.current.delete(slide.id)
+      savedCaptions.current.delete(slide.id)
+      clearCaptionError(slide.id)
       setSlides(held.filter((row) => row.id !== slide.id))
       setDoomed(null)
       setNote('')
     })
 
   const setCaption = (slide: ApiHeroSlide, caption: string) => {
+    clearCaptionError(slide.id)
     setSlides(
       held.map((row) =>
         row.id === slide.id ? { ...row, caption: caption || null } : row,
@@ -252,12 +270,41 @@ function Photos() {
     )
   }
 
-  const saveCaption = (slide: ApiHeroSlide) =>
-    run(async () => {
-      await patchJson(`/officer/hero-slides/${slide.id}`, {
-        caption: slide.caption?.trim() || null,
-      })
-    })
+  /**
+   * One write at a time per photo, always of the newest text, so a slow early save can't land last
+   * and leave the front page on the older caption. Not through `run`, which disables the row: this
+   * fires as focus moves to a control in it.
+   */
+  const writeCaption = async (id: string) => {
+    if (writingCaptions.current.has(id)) return
+    writingCaptions.current.add(id)
+    try {
+      for (;;) {
+        const caption = wantedCaptions.current.get(id)
+        if (caption === undefined || caption === savedCaptions.current.get(id)) break
+        try {
+          await patchJson(`/officer/hero-slides/${id}`, { caption })
+          savedCaptions.current.set(id, caption)
+        } catch (error) {
+          // Replaced or removed while it was on the wire: the loop works out what's next.
+          if (wantedCaptions.current.get(id) !== caption) continue
+          setCaptionErrors((current) => [
+            ...current.filter((row) => row.id !== id),
+            { id, text: explainApiError(error) },
+          ])
+          return
+        }
+      }
+      clearCaptionError(id)
+    } finally {
+      writingCaptions.current.delete(id)
+    }
+  }
+
+  const saveCaption = (slide: ApiHeroSlide) => {
+    wantedCaptions.current.set(slide.id, slide.caption?.trim() || null)
+    void writeCaption(slide.id)
+  }
 
   /**
    * Written once, on DONE. Panning is continuous, so saving as it moved would be a request per
@@ -270,7 +317,12 @@ function Photos() {
         `/officer/hero-slides/${slide.id}`,
         next,
       )
-      setSlides(held.map((row) => (row.id === slide.id ? saved : row)))
+      // The local caption stays: the answer can predate a caption save still on its way.
+      setSlides((rows) =>
+        (rows ?? []).map((row) =>
+          row.id === slide.id ? { ...saved, caption: row.caption } : row,
+        ),
+      )
       setFraming(null)
       setNote('')
     })
@@ -325,7 +377,9 @@ function Photos() {
                       onChange={(event) => {
                         setCaption(slide, event.target.value)
                       }}
-                      onBlur={() => void saveCaption(slide)}
+                      onBlur={() => {
+                        saveCaption(slide)
+                      }}
                       className="input border-rule bg-base-100 h-9 min-h-0 min-w-0 flex-1 text-[13px]"
                     />
 
@@ -458,8 +512,10 @@ function Photos() {
             {full && ' — REMOVE ONE TO ADD ANOTHER'}
           </p>
 
-          <Status message={message} />
-          {message === '' && note !== '' && <Status message={note} tone="ok" />}
+          <Status message={message || (captionErrors[0]?.text ?? '')} />
+          {message === '' && captionErrors.length === 0 && note !== '' && (
+            <Status message={note} tone="ok" />
+          )}
         </section>
 
         <section>

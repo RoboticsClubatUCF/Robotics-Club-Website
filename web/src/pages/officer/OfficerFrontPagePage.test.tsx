@@ -1,5 +1,5 @@
 import type { ComponentProps } from 'react'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Outlet, Route, Routes } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { OfficerFrontPagePage } from './OfficerFrontPagePage'
@@ -217,6 +217,222 @@ describe('OfficerFrontPagePage', () => {
     const thumb = container.querySelector('img')
     expect(thumb).toHaveStyle({ transform: 'scale(1.8)' })
     expect(thumb?.parentElement).toHaveClass('h-14', 'w-20', 'overflow-hidden')
+  })
+
+  it('sends nothing when a caption is left unchanged', async () => {
+    const stub = stubApi()
+    vi.stubGlobal('fetch', stub)
+    renderPage(context(), 'photos')
+
+    const box = await screen.findByLabelText('Caption for photo 1')
+    fireEvent.focus(box)
+    fireEvent.blur(box)
+    await act(async () => {})
+
+    expect(callsOf(stub, 'PATCH')).toHaveLength(0)
+  })
+
+  it('saves a changed caption once, and not again on the next blur', async () => {
+    const stub = stubApi()
+    vi.stubGlobal('fetch', stub)
+    renderPage(context(), 'photos')
+
+    const box = await screen.findByLabelText('Caption for photo 1')
+    fireEvent.change(box, { target: { value: 'Rover at dusk' } })
+    fireEvent.blur(box)
+    await waitFor(() => {
+      expect(callsOf(stub, 'PATCH')).toHaveLength(1)
+    })
+    await act(async () => {})
+    fireEvent.blur(box)
+    await act(async () => {})
+
+    expect(callsOf(stub, 'PATCH')).toHaveLength(1)
+    expect(bodyOf(callsOf(stub, 'PATCH')[0]![1])).toEqual({ caption: 'Rover at dusk' })
+  })
+
+  it('retries a failed caption, and drops the error once the text changes', async () => {
+    const stub = stubApi()
+    const real = stub.getMockImplementation()!
+    let failing = true
+    stub.mockImplementation((input, init) =>
+      init?.method === 'PATCH' && failing ? json({ error: 'Server broke' }, 500) : real(input, init),
+    )
+    vi.stubGlobal('fetch', stub)
+    renderPage(context(), 'photos')
+
+    const box = await screen.findByLabelText('Caption for photo 1')
+    fireEvent.change(box, { target: { value: 'Rover at dusk' } })
+    fireEvent.blur(box)
+    expect(await screen.findByText('Server broke')).toBeInTheDocument()
+
+    failing = false
+    fireEvent.blur(box)
+    await waitFor(() => {
+      expect(callsOf(stub, 'PATCH')).toHaveLength(2)
+    })
+    await waitFor(() => {
+      expect(screen.queryByText('Server broke')).not.toBeInTheDocument()
+    })
+
+    failing = true
+    fireEvent.change(box, { target: { value: 'Rover at noon' } })
+    fireEvent.blur(box)
+    expect(await screen.findByText('Server broke')).toBeInTheDocument()
+    fireEvent.change(box, { target: { value: 'Rover at dusk' } })
+    expect(screen.queryByText('Server broke')).not.toBeInTheDocument()
+  })
+
+  it('sends one caption at a time, ending on the newest', async () => {
+    const stub = stubApi()
+    const real = stub.getMockImplementation()!
+    const release: (() => void)[] = []
+    stub.mockImplementation((input, init) =>
+      init?.method === 'PATCH'
+        ? new Promise<Response>((resolve) => {
+            release.push(() => {
+              resolve(new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } }))
+            })
+          })
+        : real(input, init),
+    )
+    vi.stubGlobal('fetch', stub)
+    renderPage(context(), 'photos')
+
+    const box = await screen.findByLabelText('Caption for photo 1')
+    fireEvent.change(box, { target: { value: 'Old A' } })
+    fireEvent.blur(box)
+    fireEvent.change(box, { target: { value: 'New B' } })
+    fireEvent.blur(box)
+    await act(async () => {})
+    expect(callsOf(stub, 'PATCH')).toHaveLength(1)
+
+    await act(async () => { release[0]!() })
+    await waitFor(() => {
+      expect(callsOf(stub, 'PATCH')).toHaveLength(2)
+    })
+    expect(bodyOf(callsOf(stub, 'PATCH')[1]![1])).toEqual({ caption: 'New B' })
+    await act(async () => { release[1]!() })
+  })
+
+  it('keeps a typed caption when a framing save answers with the old one', async () => {
+    vi.stubGlobal('fetch', stubApi([LINKED], LINKED))
+    renderPage(context(), 'photos')
+
+    const box = await screen.findByLabelText('Caption for photo 1')
+    fireEvent.change(box, { target: { value: 'Rover at dusk' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Frame photo 1' }))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'DONE' }))
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'DONE' })).not.toBeInTheDocument()
+    })
+    expect(screen.getByLabelText('Caption for photo 1')).toHaveValue('Rover at dusk')
+  })
+
+  it('leaves a reorder error up while a caption is typed', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const stub = stubApi()
+      const real = stub.getMockImplementation()!
+      stub.mockImplementation((input, init) =>
+        urlOf(input).includes('/order') ? json({ error: 'Order failed' }, 500) : real(input, init),
+      )
+      vi.stubGlobal('fetch', stub)
+      renderPage(context(), 'photos')
+      await vi.waitFor(() => {
+        expect(screen.getByLabelText('Caption for photo 2')).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: 'Move photo 2 earlier' }))
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(700)
+      })
+      expect(screen.getByText('Order failed')).toBeInTheDocument()
+
+      fireEvent.change(screen.getByLabelText('Caption for photo 1'), { target: { value: 'New' } })
+      expect(screen.getByText('Order failed')).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps one photo’s caption error when another photo recovers', async () => {
+    const stub = stubApi()
+    const real = stub.getMockImplementation()!
+    let failing = true
+    stub.mockImplementation((input, init) =>
+      init?.method === 'PATCH' && (failing || urlOf(input).includes('/hero-slides/a'))
+        ? json({ error: 'Server broke' }, 500)
+        : real(input, init),
+    )
+    vi.stubGlobal('fetch', stub)
+    renderPage(context(), 'photos')
+
+    const first = await screen.findByLabelText('Caption for photo 1')
+    const second = screen.getByLabelText('Caption for photo 2')
+    fireEvent.change(first, { target: { value: 'One' } })
+    fireEvent.blur(first)
+    fireEvent.change(second, { target: { value: 'Two' } })
+    fireEvent.blur(second)
+    expect(await screen.findByText('Server broke')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(callsOf(stub, 'PATCH')).toHaveLength(2)
+    })
+    await act(async () => {})
+
+    failing = false
+    fireEvent.blur(second)
+    await waitFor(() => {
+      expect(callsOf(stub, 'PATCH')).toHaveLength(3)
+    })
+    await act(async () => {})
+
+    expect(screen.getByText('Server broke')).toBeInTheDocument()
+  })
+
+  it('leaves the row usable while a caption saves', async () => {
+    const stub = stubApi()
+    const real = stub.getMockImplementation()!
+    stub.mockImplementation((input, init) =>
+      init?.method === 'PATCH' ? new Promise<Response>(() => {}) : real(input, init),
+    )
+    vi.stubGlobal('fetch', stub)
+    renderPage(context(), 'photos')
+
+    const box = await screen.findByLabelText('Caption for photo 1')
+    fireEvent.change(box, { target: { value: 'Rover at dusk' } })
+    fireEvent.blur(box)
+    await act(async () => {})
+
+    expect(screen.getByRole('button', { name: 'Move photo 1 later' })).toBeEnabled()
+    expect(screen.getByLabelText('Caption for photo 2')).toBeEnabled()
+  })
+
+  it('keeps a caption typed while a reorder is on its way', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const stub = stubApi()
+      vi.stubGlobal('fetch', stub)
+      renderPage(context(), 'photos')
+      await vi.waitFor(() => {
+        expect(screen.getByLabelText('Caption for photo 2')).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: 'Move photo 2 earlier' }))
+      fireEvent.change(screen.getByLabelText('Caption for photo 1'), {
+        target: { value: 'Typed just now' },
+      })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(700)
+      })
+
+      expect(screen.getByLabelText('Caption for photo 1')).toHaveValue('Typed just now')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('asks the server not to answer that read from a cache', async () => {
