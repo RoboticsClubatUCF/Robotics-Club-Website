@@ -12,9 +12,9 @@ const panelLabel = 'text-faint mb-4 font-mono text-[10px] font-medium tracking-[
 const secondaryButton =
   'btn btn-outline h-auto min-h-0 border-base-content/28 px-5 py-2.5 text-[12px] font-semibold text-base-content hover:border-base-content hover:bg-base-content/6 hover:text-base-content disabled:opacity-60'
 const smallButton =
-  'text-faint hover:text-primary cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50'
+  'text-faint hover:text-primary cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50 inline-flex min-h-11 items-center wide:min-h-0'
 const dangerButton =
-  'text-faint hover:text-error cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50'
+  'text-faint hover:text-error cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50 inline-flex min-h-11 items-center wide:min-h-0'
 
 /** Mirrors `MAX_CALENDARS` in `server/src/calendar/googleCalendar.ts`; the server refuses past it. */
 const MAX_CALENDARS = 10

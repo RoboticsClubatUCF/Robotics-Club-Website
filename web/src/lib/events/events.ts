@@ -106,6 +106,35 @@ export function eventInstants(fields: {
 }
 
 /**
+ * What an event form is keyed on. Its inputs are uncontrolled, so new values from the server only
+ * reach them through a remount, and without one SAVE would write the old ones back.
+ */
+export const eventFormKey = (event: ApiMeEvent) =>
+  [
+    event.id,
+    event.title,
+    event.description,
+    event.type,
+    event.location,
+    event.startsAt,
+    event.endsAt,
+    event.allDay,
+    event.registrationUrl,
+    event.published,
+  ].join('|')
+
+/**
+ * The event open in a form, after its list is read again. The list starts at now, so a row that
+ * has gone from it was removed, unless the event has simply finished.
+ */
+export function stillOpen<T extends ApiEvent>(open: T | null, rows: T[], now = new Date()): T | null {
+  if (!open) return null
+  const fresh = rows.find((row) => row.id === open.id)
+  if (fresh) return fresh
+  return new Date(open.endsAt ?? open.startsAt) > now ? null : open
+}
+
+/**
  * When an event is, for a manage list's one line: the start, or the whole span when it runs
  * over more than one day. A row reading only "Fri, Sep 20" for a three-day competition looks
  * like the end date didn't save.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { ApiEvent } from '../api/api'
-import { eventInstants, listedWhen, toEndDateInput } from './events'
+import type { ApiEvent, ApiMeEvent } from '../api/api'
+import { eventFormKey, eventInstants, listedWhen, stillOpen, toEndDateInput } from './events'
 
 /**
  * The form fields are local time, so every expected instant is built the same way rather than
@@ -29,6 +29,48 @@ const event = (over: Partial<ApiEvent> = {}): ApiEvent => ({
   allDay: false,
   registrationUrl: null,
   ...over,
+})
+
+describe('stillOpen', () => {
+  const now = new Date(local('2035-09-20T12:00'))
+
+  it('takes the fresh copy of the open event', () => {
+    const fresh = event({ title: 'Moved' })
+    expect(stillOpen(event(), [fresh], now)).toBe(fresh)
+  })
+
+  it('closes an upcoming event that has left the list', () => {
+    expect(stillOpen(event(), [], now)).toBeNull()
+  })
+
+  it('keeps one that only left because it finished', () => {
+    const over = event({ startsAt: local('2035-09-20T09:00'), endsAt: local('2035-09-20T10:00') })
+    expect(stillOpen(over, [], now)).toBe(over)
+  })
+})
+
+describe('eventFormKey', () => {
+  const row = (over: Partial<ApiMeEvent> = {}): ApiMeEvent => ({
+    ...event(),
+    published: false,
+    projectId: 'p1',
+    teamId: null,
+    createdById: null,
+    project: null,
+    team: null,
+    googleId: 'g1',
+    ...over,
+  })
+
+  it('changes with what the server holds', () => {
+    expect(eventFormKey(row({ published: true }))).not.toBe(eventFormKey(row()))
+    expect(eventFormKey(row({ startsAt: local('2035-09-21T18:00') }))).not.toBe(eventFormKey(row()))
+  })
+
+  // A disconnect alone unlocks the form and shouldn't throw away what's been typed.
+  it('ignores the Google link', () => {
+    expect(eventFormKey(row({ googleId: null }))).toBe(eventFormKey(row()))
+  })
 })
 
 describe('eventInstants', () => {

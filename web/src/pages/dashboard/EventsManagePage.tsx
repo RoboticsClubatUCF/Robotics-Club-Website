@@ -11,6 +11,7 @@ import {
   FormPanel,
   fieldClass,
   labelClass,
+  lockedFieldClass,
   measureClass,
 } from '../../components/shared/formChrome'
 import { deleteJson, getJson, patchJson, postJson } from '../../lib/api/api'
@@ -25,14 +26,17 @@ import { explainApiError } from '../../lib/api/apiErrors'
 import { duesLocked } from '../../lib/dues/dues'
 import {
   EVENT_TYPES,
+  eventFormKey,
   eventInstants,
   isGeneratedMeeting,
   listedWhen,
+  stillOpen,
   toDateInput,
   toEndDateInput,
   toTimeInput,
 } from '../../lib/events/events'
 import { useApi } from '../../lib/api/useApi'
+import { useRevealForm } from '../../lib/useRevealForm'
 import { isOfficer } from '../../lib/auth/session'
 
 /**
@@ -100,9 +104,9 @@ const panelLabel =
 const primaryButton =
   'btn btn-primary btn-cta px-5 py-2.5 text-[12px] font-semibold disabled:opacity-60'
 const smallButton =
-  'text-faint hover:text-primary cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50'
+  'text-faint hover:text-primary cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50 inline-flex min-h-11 items-center wide:min-h-0'
 const dangerButton =
-  'text-faint hover:text-error cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50'
+  'text-faint hover:text-error cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50 inline-flex min-h-11 items-center wide:min-h-0'
 const selectClass = 'select border-rule bg-base-200 w-full text-sm'
 
 type Message = { tone: 'error' | 'success'; text: string } | null
@@ -129,6 +133,7 @@ function Events({
   const [when, setWhen] = useState('')
   const [until, setUntil] = useState('')
   const [saves, setSaves] = useState(0)
+  const [opened, setOpened] = useState(0)
 
   /**
    * This term, for the one warning this page gives.
@@ -150,7 +155,6 @@ function Events({
    * ask the same question.
    */
   const reload = useCallback(async () => {
-    setEvents(null)
     try {
       const all = await getJson<ApiMeEvent[]>(
         `/me/events?from=${encodeURIComponent(new Date().toISOString())}&limit=200`,
@@ -159,9 +163,7 @@ function Events({
       const rows = all.filter((event) => !isGeneratedMeeting(event))
       setEvents(rows)
       // An import or a disconnect can change the event being edited, its lock included.
-      setEditing((current) =>
-        current ? (rows.find((row) => row.id === current.id) ?? current) : null,
-      )
+      setEditing((current) => stillOpen(current, rows))
       setFailed(false)
     } catch {
       setFailed(true)
@@ -205,11 +207,16 @@ function Events({
   const canPublish = !editing || officer || leadsEvent(editing)
   // Google owns these fields on an imported event; the server refuses changes to them.
   const locked = Boolean(editing?.googleId)
-  // DaisyUI's disabled input looks like an empty enabled one, so a locked field says so itself.
-  const lockedClass = (base: string) =>
-    locked
-      ? `${base} disabled:border-dashed disabled:bg-transparent disabled:text-dim`
-      : base
+  const lockedClass = (base: string) => (locked ? `${base} ${lockedFieldClass}` : base)
+  const formRef = useRevealForm(opened)
+  const formKey = editing ? eventFormKey(editing) : `new-${String(saves)}`
+  // The finals warning reads these, so they follow the form when the server changes it.
+  const [shownKey, setShownKey] = useState(formKey)
+  if (formKey !== shownKey) {
+    setShownKey(formKey)
+    setWhen(editing ? toDateInput(editing.startsAt) : '')
+    setUntil(editing ? toEndDateInput(editing) : '')
+  }
 
   const mineToEdit = (events ?? []).filter(canTouch)
 
@@ -314,6 +321,8 @@ function Events({
   const remove = (event: ApiMeEvent) =>
     run(async () => {
       await deleteJson(`/events/${event.id}`)
+      // Off the list now, in case the read after it fails.
+      setEvents((rows) => rows && rows.filter((row) => row.id !== event.id))
       if (editing?.id === event.id) {
         setEditing(null)
         setWhen('')
@@ -397,9 +406,8 @@ function Events({
                         className={smallButton}
                         onClick={() => {
                           setEditing(event)
+                          setOpened((count) => count + 1)
                           setMessage(null)
-                          setWhen(toDateInput(event.startsAt))
-                          setUntil(toEndDateInput(event))
                         }}
                       >
                         EDIT
@@ -433,13 +441,14 @@ function Events({
           {/* `key` swaps the form wholesale between "new" and "editing", which is what lets
               the uncontrolled inputs pick up an event's values as their defaults. */}
           <form
-            key={editing?.id ?? `new-${String(saves)}`}
+            ref={formRef}
+            key={formKey}
             onSubmit={submit}
             // A refusal is about what was typed, so it goes once the typing changes.
             onChange={() => {
               if (message?.tone === 'error') setMessage(null)
             }}
-            className="space-y-4"
+            className="scroll-mt-24 space-y-4"
             aria-describedby={locked ? `${id}-locked` : undefined}
           >
             <p className={panelLabel}>

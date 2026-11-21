@@ -612,6 +612,20 @@ describe('a project lead editing teams', () => {
     expect(wrote(fetchMock, 'PATCH')).toBeUndefined()
   })
 
+  it('warns that deleting a team takes its leads back to members', async () => {
+    const confirm = vi.fn(() => false)
+    vi.stubGlobal('confirm', confirm)
+    renderPage(stubTeams(), 'teams')
+    await act(async () => {})
+
+    await act(async () => {
+      fireEvent.click(teams().getAllByRole('button', { name: 'DELETE' })[0]!)
+    })
+
+    expect(confirm).toHaveBeenCalledWith(expect.stringMatching(/team and its events\?/))
+    expect(confirm).toHaveBeenCalledWith(expect.stringMatching(/its leads become members/))
+  })
+
   it('creates a team with the description typed beside it', async () => {
     const fetchMock = stubTeams()
     renderPage(fetchMock, 'teams')
@@ -673,10 +687,10 @@ describe('deleting a project', () => {
   })
 
   /** The way out for the common case, which is a build that has simply ended. */
-  it('points at archiving instead', async () => {
+  it('says a finished build needs no deleting', async () => {
     await openPage()
 
-    expect(screen.getByText('ARCHIVED')).toBeInTheDocument()
+    expect(screen.getByText(/moves to past projects when its semester ends/i)).toBeInTheDocument()
   })
 
   it('says the confirmation is coming before the press', async () => {
@@ -1344,6 +1358,176 @@ describe('the project events form', () => {
     const patch = fetchMock.mock.calls.find(([, init]) => init?.method === 'PATCH')!
     expect(urlOf(patch[0])).toContain('/events/e1')
     expect(JSON.parse(patch[1]!.body as string)).toMatchObject({ published: false })
+  })
+
+  const imported: ApiMeEvent = {
+    id: 'g1', slug: 'field-test', title: 'Field test', description: null,
+    type: 'MEETING', location: 'Memory Mall', startsAt: '2035-10-20T22:00:00.000Z',
+    endsAt: '2035-10-20T23:00:00.000Z', allDay: false, registrationUrl: null,
+    published: false, projectId: 'p1', teamId: null, createdById: null,
+    project: { slug: 'rover', title: 'Rover' }, team: null, googleId: 'field@google',
+  }
+
+  it('locks what Google owns on an imported event, and offers no delete', async () => {
+    const fetchMock = renderEvents('PROJECT_LEAD', [imported])
+    const eventPanel = (await screen.findByText('EVENTS', { selector: 'p' })).closest('div')!
+    await within(eventPanel).findByText('Field test')
+
+    expect(within(eventPanel).queryByRole('button', { name: 'DELETE' })).not.toBeInTheDocument()
+    fireEvent.click(within(eventPanel).getByRole('button', { name: 'EDIT' }))
+    expect(within(eventPanel).getByText(/From Google Calendar/)).toBeInTheDocument()
+    expect(within(eventPanel).getByLabelText('Event title')).toBeDisabled()
+    expect(within(eventPanel).getByLabelText('START DATE')).toBeDisabled()
+
+    const checkbox = within(eventPanel).getByRole('checkbox', { name: /main calendar/i })
+    fireEvent.click(checkbox)
+    await act(async () => { fireEvent.submit(checkbox.closest('form')!) })
+
+    const patch = fetchMock.mock.calls.find(([, init]) => init?.method === 'PATCH')!
+    expect(urlOf(patch[0])).toContain('/events/g1')
+    expect(JSON.parse(patch[1]!.body as string)).toEqual({ type: 'MEETING', published: true })
+  })
+
+  it('lists events a calendar just imported, without a reload', async () => {
+    let calendarConnected = false
+    const fetchMock = vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = urlOf(input)
+      if (url.includes('/google-calendars')) {
+        if (init?.method === 'POST') {
+          calendarConnected = true
+          return json({ calendars: [], report: { created: 1, updated: 0, removed: 0 } })
+        }
+        return json([])
+      }
+      if (url.includes('/team')) return json({ project, teams: [], members: [] })
+      if (url.includes('/me/events')) return json(calendarConnected ? [imported] : [])
+      return json([])
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderPage(fetchMock, 'calendars')
+
+    const address = await screen.findByPlaceholderText(/calendar\.google\.com/)
+    expect(screen.queryByText('Field test')).not.toBeInTheDocument()
+    fireEvent.change(address, {
+      target: { value: 'https://calendar.google.com/calendar/ical/a/private-b/basic.ics' },
+    })
+    await act(async () => { fireEvent.submit(address.closest('form')!) })
+
+    expect(await screen.findByText('Field test')).toBeInTheDocument()
+  })
+
+  const calendarDesk = (list: { rows: ApiMeEvent[]; failing?: boolean }) =>
+    vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = urlOf(input)
+      if (url.includes('/google-calendars')) {
+        const calendars = [{
+          id: 'c1', name: 'Rover build', calendar: 'a@group.calendar.google.com',
+          published: false, syncedAt: null, syncError: null,
+        }]
+        return init?.method === 'POST'
+          ? json({ calendars, report: { created: 0, updated: 1, removed: 0 } })
+          : json(calendars)
+      }
+      if (url.includes('/team')) return json({ project, teams: [], members: [] })
+      if (url.includes('/me/events')) {
+        return list.failing ? json({ error: 'Server broke' }, 500) : json(list.rows)
+      }
+      return json([])
+    })
+
+  const openImported = async (list: { rows: ApiMeEvent[]; failing?: boolean }) => {
+    renderPage(calendarDesk(list), 'events')
+    const eventPanel = (await screen.findByText('EVENTS', { selector: 'p' })).closest('div')!
+    fireEvent.click(await within(eventPanel).findByRole('button', { name: 'EDIT' }))
+    return eventPanel
+  }
+
+  const importNow = async () => {
+    const button = await screen.findByRole('button', { name: 'IMPORT NOW', hidden: true })
+    await act(async () => { fireEvent.click(button) })
+  }
+
+  it('shows what a calendar just changed on the event open in the form', async () => {
+    const list = { rows: [imported] }
+    const eventPanel = await openImported(list)
+    const box = () => within(eventPanel).getByRole('checkbox', { name: /main calendar/i })
+    expect(box()).not.toBeChecked()
+
+    list.rows = [{ ...imported, published: true }]
+    await importNow()
+
+    await waitFor(() => { expect(box()).toBeChecked() })
+  })
+
+  it('goes back to a new event when a calendar removes the open one', async () => {
+    const list: { rows: ApiMeEvent[] } = { rows: [imported] }
+    const eventPanel = await openImported(list)
+
+    list.rows = []
+    await importNow()
+
+    expect(await within(eventPanel).findByText('NEW EVENT')).toBeInTheDocument()
+  })
+
+  it('keeps the list when a refresh fails', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const list = { rows: [imported], failing: false }
+    const eventPanel = await openImported(list)
+
+    list.failing = true
+    await importNow()
+    await act(async () => {})
+
+    expect(within(eventPanel).getAllByText('Field test').length).toBeGreaterThan(0)
+    expect(await within(eventPanel).findByText(/couldn't load this project/i)).toBeInTheDocument()
+    consoleError.mockRestore()
+  })
+
+  it('takes a deleted event off the list even if the read after it fails', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const list = { rows: [{ ...imported, googleId: null }], failing: false }
+    renderPage(calendarDesk(list), 'events')
+    const eventPanel = (await screen.findByText('EVENTS', { selector: 'p' })).closest('div')!
+    fireEvent.click(await within(eventPanel).findByRole('button', { name: 'DELETE' }))
+
+    list.failing = true
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'DELETE IT' }))
+    })
+
+    await waitFor(() => {
+      expect(within(eventPanel).queryByText('Field test')).not.toBeInTheDocument()
+    })
+    consoleError.mockRestore()
+  })
+
+  it('moves focus to the form when EDIT opens it', async () => {
+    const list = { rows: [{ ...imported, googleId: null }] }
+    const eventPanel = await openImported(list)
+
+    expect(within(eventPanel).getByLabelText('Event title')).toHaveFocus()
+
+    // Pressing it again on the row that's already open brings the form back.
+    const edit = within(eventPanel).getByRole('button', { name: 'EDIT' })
+    edit.focus()
+    fireEvent.click(edit)
+    await waitFor(() => {
+      expect(within(eventPanel).getByLabelText('Event title')).toHaveFocus()
+    })
+  })
+
+  it('shows a placeholder, not a failure, while the events load', async () => {
+    const fetchMock = vi.fn((input: string | URL | Request) => {
+      const url = urlOf(input)
+      if (url.includes('/me/events')) return new Promise<Response>(() => {})
+      if (url.includes('/team')) return json({ project, teams: [], members: [] })
+      return json([])
+    })
+    renderPage(fetchMock, 'events')
+
+    const eventPanel = (await screen.findByText('EVENTS', { selector: 'p' })).closest('div')!
+    expect(eventPanel.querySelector('[aria-busy="true"]')).toBeInTheDocument()
+    expect(within(eventPanel).queryByText(/couldn't load this project/i)).not.toBeInTheDocument()
   })
 
   it('sends an event that runs over several days', async () => {

@@ -12,6 +12,7 @@ import {
   FormPanel,
   fieldClass,
   labelClass,
+  lockedFieldClass,
   measureClass,
 } from '../../components/shared/formChrome'
 import {
@@ -35,9 +36,11 @@ import type {
 } from '../../lib/api/api'
 import {
   EVENT_TYPES,
+  eventFormKey,
   eventInstants,
   isGeneratedMeeting,
   listedWhen,
+  stillOpen,
   toDateInput,
   toEndDateInput,
   toTimeInput,
@@ -54,6 +57,7 @@ import { campusDateOf } from '../../lib/events/calendarLinks'
 import { MeetingScheduleFields } from '../../components/projects/MeetingScheduleFields'
 import type { ApiState } from '../../lib/api/useApi'
 import { useApi } from '../../lib/api/useApi'
+import { useRevealForm } from '../../lib/useRevealForm'
 import { isOfficer } from '../../lib/auth/session'
 import { SubNav } from '../../components/dashboard/SubNav'
 import { SubPage } from '../../components/dashboard/SubPage'
@@ -76,10 +80,10 @@ import { projectPages, type ManagePart } from '../../lib/dashboard/subPages'
  */
 
 const smallButton =
-  'text-faint hover:text-primary cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50'
+  'text-faint hover:text-primary cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50 inline-flex min-h-11 items-center wide:min-h-0'
 
 const dangerButton =
-  'text-faint hover:text-error cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50'
+  'text-faint hover:text-error cursor-pointer font-mono text-[10px] font-medium tracking-[0.14em] transition-colors duration-200 disabled:opacity-50 inline-flex min-h-11 items-center wide:min-h-0'
 
 const selectClass = 'select border-rule bg-base-200 h-8 min-h-0 text-[12px]'
 
@@ -232,6 +236,8 @@ function Manage({
   const [view, setView] = useState<ApiState<ApiProjectTeamView>>({
     status: 'loading',
   })
+  // The events sub-page stays mounted, so it's told when a calendar changes its list.
+  const [calendarChanges, setCalendarChanges] = useState(0)
 
   const load = useCallback(async () => {
     try {
@@ -322,7 +328,13 @@ function Manage({
       </SubPage>
       <SubPage shown={part === 'events'}>
         <div className="max-w-[56rem]">
-          <EventsSection projectId={projectId} teams={teams} rank={rank} myTeamId={myTeamId} />
+          <EventsSection
+            projectId={projectId}
+            teams={teams}
+            rank={rank}
+            myTeamId={myTeamId}
+            calendarChanges={calendarChanges}
+          />
         </div>
       </SubPage>
       {rank === 'PROJECT_LEAD' && (
@@ -350,7 +362,14 @@ function Manage({
               the project's only. */}
           <SubPage shown={part === 'calendars'}>
             <div className="max-w-[46rem]">
-              <GoogleCalendarPanel basePath={`/projects/${projectId}/google-calendars`} project />
+              <GoogleCalendarPanel
+                basePath={`/projects/${projectId}/google-calendars`}
+                project
+                onImported={() => {
+                  setCalendarChanges((count) => count + 1)
+                  return Promise.resolve()
+                }}
+              />
             </div>
           </SubPage>
           <SubPage shown={part === 'settings'}>
@@ -664,7 +683,7 @@ function TeamsSection({
     run(async () => {
       if (
         !window.confirm(
-          `Delete the ${name} team? Its members stay on the project.`,
+          `Delete the ${name} team and its events? Its members stay on the project, and its leads become members.`,
         )
       )
         return
@@ -827,16 +846,21 @@ function EventsSection({
   teams,
   rank,
   myTeamId,
+  calendarChanges,
 }: {
   projectId: string
   teams: ApiProjectTeamView['teams']
   rank: 'PROJECT_LEAD' | 'TEAM_LEAD'
   myTeamId: string | null
+  /** Goes up whenever a Google Calendar on this project adds, moves or releases events. */
+  calendarChanges: number
 }) {
   const { user } = useOutletContext<DashboardContext>()
   const { message, setMessage, busy, run } = useSectionStatus()
   const [events, setEvents] = useState<ApiMeEvent[] | null>(null)
+  const [loadFailed, setLoadFailed] = useState(false)
   const [editing, setEditing] = useState<ApiMeEvent | null>(null)
+  const [opened, setOpened] = useState(0)
   const [deleting, setDeleting] = useState<ApiMeEvent | null>(null)
   const formId = useId()
 
@@ -848,19 +872,28 @@ function EventsSection({
     // `/me/events` now carries them, and they have no row behind them — an EDIT
     // button on one would PATCH an id that 404s. The schedule is edited on the
     // panel below.
-    setEvents(
-      all.filter(
-        (event) => event.projectId === projectId && !isGeneratedMeeting(event),
-      ),
+    const mine = all.filter(
+      (event) => event.projectId === projectId && !isGeneratedMeeting(event),
     )
+    setEvents(mine)
+    setLoadFailed(false)
+    // A calendar can change, unlock or remove the event open in the form.
+    setEditing((open) => stillOpen(open, mine))
   }, [projectId])
 
-  useEffect(() => {
-    load().catch((error: unknown) => {
+  /** Keeps the last good list on a failure, and a write that landed isn't reported as failed. */
+  const refresh = useCallback(async () => {
+    try {
+      await load()
+    } catch (error) {
       console.error(error)
-      setEvents(null)
-    })
+      setLoadFailed(true)
+    }
   }, [load])
+
+  useEffect(() => {
+    void refresh()
+  }, [refresh, calendarChanges])
 
   const canTouch = (event: ApiMeEvent) =>
     rank === 'PROJECT_LEAD' ||
@@ -870,6 +903,11 @@ function EventsSection({
   const canPublish = rank === 'PROJECT_LEAD' ||
     (myTeamId !== null && (!editing || editing.teamId === myTeamId))
 
+  // Google owns these fields on an imported event; the server refuses changes to them.
+  const locked = Boolean(editing?.googleId)
+  const lockedClass = (base: string) => (locked ? `${base} ${lockedFieldClass}` : base)
+  const formRef = useRevealForm(opened)
+
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const form = event.currentTarget
@@ -877,6 +915,20 @@ function EventsSection({
     const text = (name: string) => {
       const raw = data.get(name)
       return typeof raw === 'string' ? raw.trim() : ''
+    }
+
+    if (editing && locked) {
+      const body = {
+        type: text('type') as EventType,
+        ...(canPublish ? { published: data.get('published') === 'on' } : {}),
+      }
+      void run(async () => {
+        await patchJson(`/events/${editing.id}`, body)
+        setEditing(null)
+        form.reset()
+        await refresh()
+      })
+      return
     }
 
     const date = text('date')
@@ -919,7 +971,7 @@ function EventsSection({
         })
       }
       form.reset()
-      await load()
+      await refresh()
     })
   }
 
@@ -929,9 +981,11 @@ function EventsSection({
   const remove = (event: ApiMeEvent) =>
     run(async () => {
       await deleteJson(`/events/${event.id}`)
+      // Off the list now, in case the read after it fails.
+      setEvents((rows) => rows && rows.filter((row) => row.id !== event.id))
       if (editing?.id === event.id) setEditing(null)
       setDeleting(null)
-      await load()
+      await refresh()
     })
 
   const teamName = (id: string | null) =>
@@ -943,10 +997,20 @@ function EventsSection({
         EVENTS
       </p>
 
-      {events === null ? (
+      {loadFailed && (
         <p className="text-dim mb-4 text-sm leading-[1.7]">
           We couldn't load this project's events just now.
         </p>
+      )}
+
+      {events === null ? (
+        !loadFailed && (
+          <div aria-busy="true" className="mb-5 space-y-2">
+            {Array.from({ length: 3 }, (_, index) => (
+              <div key={index} className="bg-base-300 h-11 animate-pulse rounded-[2px]" />
+            ))}
+          </div>
+        )
       ) : events.length === 0 ? (
         <p className="text-dim mb-4 text-sm leading-[1.7]">
           Nothing scheduled yet. Check “Show on the main calendar” to make an event public.
@@ -966,32 +1030,42 @@ function EventsSection({
                   {teamName(event.teamId).toUpperCase()}
                   {' · '}
                   {event.published ? 'MAIN CALENDAR' : 'PROJECT ONLY'}
+                  {event.googleId && ' · GOOGLE'}
                 </p>
               </div>
               {canTouch(event) && (
-                <>
+                /* One group, so a row wraps EDIT and DELETE together. */
+                <div className="flex gap-4">
                   <button
                     type="button"
                     disabled={busy}
                     className={smallButton}
                     onClick={() => {
                       setEditing(event)
+                      setOpened((count) => count + 1)
                       setMessage('')
                     }}
                   >
                     EDIT
                   </button>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    className={dangerButton}
-                    onClick={() => {
-                      setDeleting(event)
-                    }}
-                  >
-                    DELETE
-                  </button>
-                </>
+                  {/* The next sync would bring it back; it's deleted in Google. */}
+                  {event.googleId ? (
+                    <span aria-hidden="true" className={`${dangerButton} invisible`}>
+                      DELETE
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      className={dangerButton}
+                      onClick={() => {
+                        setDeleting(event)
+                      }}
+                    >
+                      DELETE
+                    </button>
+                  )}
+                </div>
               )}
             </li>
           ))}
@@ -1001,17 +1075,25 @@ function EventsSection({
       {/* `key` swaps the form wholesale between "new" and "editing", which is
           what lets uncontrolled inputs pick up the event's values as defaults. */}
       <form
-        key={editing?.id ?? 'new'}
+        ref={formRef}
+        key={editing ? eventFormKey(editing) : 'new'}
         onSubmit={submit}
         // A refusal is about what was typed, so it goes once the typing changes.
         onChange={() => {
           if (message) setMessage('')
         }}
-        className="space-y-3"
+        className="scroll-mt-24 space-y-3"
+        aria-describedby={locked ? `${formId}-locked` : undefined}
       >
         <p className={labelClass}>
           {editing ? `EDITING — ${editing.title.toUpperCase()}` : 'NEW EVENT'}
         </p>
+
+        {locked && (
+          <p id={`${formId}-locked`} className="text-dim text-[13px] leading-[1.5] text-pretty">
+            From Google Calendar. Change the title, time, place and detail there.
+          </p>
+        )}
 
         <div className="grid gap-3 wide:grid-cols-2">
           <input
@@ -1021,8 +1103,8 @@ function EventsSection({
             maxLength={160}
             placeholder="Design review"
             defaultValue={editing?.title ?? ''}
-            className={fieldClass}
-            disabled={busy}
+            className={lockedClass(fieldClass)}
+            disabled={busy || locked}
           />
           <div className="flex gap-3">
             <select
@@ -1076,8 +1158,8 @@ function EventsSection({
                 type="date"
                 required
                 defaultValue={editing ? toDateInput(editing.startsAt) : ''}
-                className={`${fieldClass} h-8`}
-                disabled={busy}
+                className={lockedClass(`${fieldClass} h-8`)}
+                disabled={busy || locked}
               />
             </div>
             <div className="w-32">
@@ -1090,8 +1172,8 @@ function EventsSection({
                 type="time"
                 required
                 defaultValue={editing ? toTimeInput(editing.startsAt) : ''}
-                className={`${fieldClass} h-8`}
-                disabled={busy}
+                className={lockedClass(`${fieldClass} h-8`)}
+                disabled={busy || locked}
               />
             </div>
           </div>
@@ -1105,9 +1187,9 @@ function EventsSection({
                 name="endDate"
                 type="date"
                 defaultValue={editing ? toEndDateInput(editing) : ''}
-                aria-describedby={`${formId}-end-date-hint`}
-                className={`${fieldClass} h-8`}
-                disabled={busy}
+                aria-describedby={locked ? undefined : `${formId}-end-date-hint`}
+                className={lockedClass(`${fieldClass} h-8`)}
+                disabled={busy || locked}
               />
             </div>
             <div className="w-32">
@@ -1119,8 +1201,8 @@ function EventsSection({
                 name="end"
                 type="time"
                 defaultValue={editing?.endsAt ? toTimeInput(editing.endsAt) : ''}
-                className={`${fieldClass} h-8`}
-                disabled={busy}
+                className={lockedClass(`${fieldClass} h-8`)}
+                disabled={busy || locked}
               />
             </div>
           </div>
@@ -1134,17 +1216,19 @@ function EventsSection({
               maxLength={160}
               defaultValue={editing?.location ?? ''}
               placeholder="ENG2 Lab"
-              className={`${fieldClass} h-8`}
-              disabled={busy}
+              className={lockedClass(`${fieldClass} h-8`)}
+              disabled={busy || locked}
             />
           </div>
         </div>
-        <p
-          id={`${formId}-end-date-hint`}
-          className="text-faint text-[12px] leading-[1.5]"
-        >
-          Leave the end date empty for a one-day event.
-        </p>
+        {!locked && (
+          <p
+            id={`${formId}-end-date-hint`}
+            className="text-faint text-[12px] leading-[1.5]"
+          >
+            Leave the end date empty for a one-day event.
+          </p>
+        )}
 
         {canPublish && (
           <EventCalendarCheckbox published={editing?.published} disabled={busy} />
@@ -1816,9 +1900,8 @@ function DangerSection({
 
       <p className="text-faint mb-4 text-[12px] leading-[1.6] text-pretty">
         Everyone on it loses the project&rsquo;s Discord role. If the build is
-        simply over, set its status to <strong>COMPLETED</strong> or{' '}
-        <strong>ARCHIVED</strong> instead — that keeps the page and takes it off
-        this term&rsquo;s list.
+        simply over, leave it: it moves to past projects when its semester ends
+        and keeps its page.
       </p>
 
       <button

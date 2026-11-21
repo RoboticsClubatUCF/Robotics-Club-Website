@@ -69,6 +69,10 @@ export const labelClass =
 
 export const fieldClass = 'input border-rule bg-base-200 w-full text-sm'
 
+/** DaisyUI's disabled input looks like an empty enabled one, so a locked field says so itself. */
+export const lockedFieldClass =
+  'disabled:border-dashed disabled:bg-transparent disabled:text-dim'
+
 /**
  * A word-sized action inside a row, like MemberSearch's CHANGE. 44px tall below `wide` for a
  * thumb, with the extra height taken back by negative margins so the row doesn't grow.
