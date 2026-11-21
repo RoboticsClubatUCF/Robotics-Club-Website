@@ -208,6 +208,17 @@ describe('OfficerFrontPagePage', () => {
     expect(screen.getByText(`2 / ${MAX_HERO_SLIDES} PHOTOS`)).toBeInTheDocument()
   })
 
+  it('keeps a zoomed photo inside its thumbnail', async () => {
+    vi.stubGlobal('fetch', stubApi([{ ...LINKED, zoom: 1.8 }]))
+
+    const { container } = renderPage(context(), 'photos')
+    await screen.findByLabelText('Caption for photo 1')
+
+    const thumb = container.querySelector('img')
+    expect(thumb).toHaveStyle({ transform: 'scale(1.8)' })
+    expect(thumb?.parentElement).toHaveClass('h-14', 'w-20', 'overflow-hidden')
+  })
+
   it('asks the server not to answer that read from a cache', async () => {
     const stub = stubApi()
     vi.stubGlobal('fetch', stub)

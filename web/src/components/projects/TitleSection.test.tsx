@@ -193,6 +193,24 @@ describe('TitleSection', () => {
     expect(preview).toHaveAttribute('src', expect.stringContaining('/api/files/i1'))
   })
 
+  // jsdom has no layout, so this pins the clip that keeps a scaled preview off the controls.
+  it('keeps a zoomed preview inside its frame', () => {
+    vi.stubGlobal('fetch', vi.fn())
+    const { container } = show({ coverFromGallery: true }, [
+      draftFromImage({
+        id: 'i1',
+        url: '/api/files/i1',
+        caption: null,
+        ...DEFAULT_FRAMING,
+        zoom: 1.8,
+      }),
+    ])
+
+    const preview = container.querySelector('img')
+    expect(preview).toHaveStyle({ transform: 'scale(1.8)' })
+    expect(preview?.parentElement).toHaveClass('aspect-[16/10]', 'overflow-hidden')
+  })
+
   it('takes a cover by link, frames it, and sends both on save', async () => {
     const fetchMock = vi.fn((_input: string | URL | Request, _init?: RequestInit) =>
       json({ coverUrl: 'https://example.test/rover.png' }),

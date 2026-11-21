@@ -303,15 +303,17 @@ function Photos() {
                     {/* Framed, so the row shows what the front page will show
                         rather than the raw file — otherwise an officer frames a
                         picture and the list they are working from disagrees with
-                        them. */}
-                    <img
-                      src={imageSrc(slide.url)}
-                      alt=""
-                      loading="lazy"
-                      decoding="async"
-                      style={frameStyle(slide)}
-                      className="bg-hatch h-14 w-20 shrink-0"
-                    />
+                        them. The wrapper clips the zoom. */}
+                    <div className="bg-hatch h-14 w-20 shrink-0 overflow-hidden">
+                      <img
+                        src={imageSrc(slide.url)}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        style={frameStyle(slide)}
+                        className="h-full w-full"
+                      />
+                    </div>
 
                     <input
                       type="text"

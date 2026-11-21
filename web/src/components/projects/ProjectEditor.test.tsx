@@ -500,6 +500,7 @@ describe('ProjectEditor', () => {
     const thumb = screen.getByRole('list').querySelector('img')
     expect(thumb?.style.objectPosition).toBe('10% 90%')
     expect(thumb?.style.transform).toBe('scale(2)')
+    expect(thumb?.parentElement).toHaveClass('h-14', 'w-20', 'overflow-hidden')
   })
 
   it('names the capacity when an officer is editing somebody else’s project', () => {

@@ -233,13 +233,16 @@ export function TitleSection({
 
       <div className="mt-3">
         {preview ? (
-          <img
-            src={imageSrc(preview.src)}
-            alt=""
-            decoding="async"
-            style={frameStyle(preview.framing)}
-            className="aspect-[16/10] w-full max-w-[22rem] border border-rule bg-hatch"
-          />
+          /* The frame clips, because a zoomed picture is scaled past its box. */
+          <div className="relative aspect-[16/10] w-full max-w-[22rem] overflow-hidden border border-rule bg-hatch">
+            <img
+              src={imageSrc(preview.src)}
+              alt=""
+              decoding="async"
+              style={frameStyle(preview.framing)}
+              className="absolute inset-0 h-full w-full"
+            />
+          </div>
         ) : (
           /* Drawn empty here where it is never drawn on the page, for the same
              reason the gallery's well is: this is the thing somebody is about to

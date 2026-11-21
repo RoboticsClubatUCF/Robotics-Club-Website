@@ -130,14 +130,17 @@ export function DraftGallery({
               <div className="flex flex-wrap items-center gap-3">
                 {/* Framed, so the row shows what the page will show rather than
                     the raw file — otherwise a lead frames a picture and the list
-                    they are working from still disagrees with them. */}
-                <img
-                  src={draftSrc(image)}
-                  alt=""
-                  decoding="async"
-                  style={frameStyle(image.framing)}
-                  className="bg-hatch h-14 w-20 shrink-0"
-                />
+                    they are working from still disagrees with them. The wrapper
+                    clips the zoom. */}
+                <div className="bg-hatch h-14 w-20 shrink-0 overflow-hidden">
+                  <img
+                    src={draftSrc(image)}
+                    alt=""
+                    decoding="async"
+                    style={frameStyle(image.framing)}
+                    className="h-full w-full"
+                  />
+                </div>
 
                 <input
                   type="text"
