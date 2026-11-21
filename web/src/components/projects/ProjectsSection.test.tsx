@@ -188,6 +188,25 @@ describe('ProjectsSection', () => {
     expect(shown[0]).toHaveAttribute('src', 'https://example.test/chosen.png')
   })
 
+  // jsdom has no layout, so this pins the clip that keeps a scaled cover off the title.
+  it('keeps a zoomed cover inside its frame', async () => {
+    vi.stubGlobal(
+      'fetch',
+      stubFetch({
+        [CURRENT]: [
+          project({ coverUrl: 'https://example.test/chosen.png', coverZoom: 1.8 }),
+        ],
+      }),
+    )
+
+    const { container } = renderSection()
+    await screen.findByText('Project S.T.O.R.M.')
+
+    const [cover] = covers(container)
+    expect(cover).toHaveStyle({ transform: 'scale(1.8)' })
+    expect(cover?.parentElement).toHaveClass('aspect-[16/10]', 'overflow-hidden')
+  })
+
   it('prints the summary on a card', async () => {
     vi.stubGlobal(
       'fetch',

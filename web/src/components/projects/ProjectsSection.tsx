@@ -200,11 +200,14 @@ function ProjectCard({
   return (
     <article className={CARD_CLASS}>
       {cover && (
-        <div className={GALLERY_WIDTH}>
+        <div
+          className={`${GALLERY_WIDTH} border-rule bg-hatch relative aspect-[16/10] overflow-hidden border`}
+        >
           {/* The frame owns the aspect ratio, so the box is its final size
               before a byte arrives and does not move when one does. The hatch
               shows through until the picture lands, and keeps showing if it
-              never does. */}
+              never does. It clips because a zoomed cover is scaled past its
+              box, which would otherwise put it over the title. */}
           <img
             src={imageSrc(cover.url)}
             alt=""
@@ -212,7 +215,7 @@ function ProjectCard({
             fetchPriority={lcp ? 'high' : undefined}
             decoding="async"
             style={frameStyle(cover)}
-            className="aspect-[16/10] w-full border border-rule bg-hatch"
+            className="absolute inset-0 h-full w-full"
           />
         </div>
       )}
