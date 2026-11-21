@@ -188,6 +188,14 @@ describe('ProjectsSection', () => {
     expect(shown[0]).toHaveAttribute('src', 'https://example.test/chosen.png')
   })
 
+  it('holds the term line while the list loads', () => {
+    vi.stubGlobal('fetch', stubFetchPending())
+
+    const { container } = renderSection()
+
+    expect(container.querySelector('p.invisible[aria-hidden="true"]')).toBeInTheDocument()
+  })
+
   // jsdom has no layout, so this pins the clip that keeps a scaled cover off the title.
   it('keeps a zoomed cover inside its frame', async () => {
     vi.stubGlobal(
@@ -391,11 +399,13 @@ describe('ProjectsSection', () => {
     vi.stubGlobal('fetch', stubFetchNetworkError())
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
 
-    renderSection()
+    const { container } = renderSection()
 
     expect(
       await screen.findByText(/couldn't load the projects/i),
     ).toBeInTheDocument()
+    // The held term line goes once there's no term coming.
+    expect(container.querySelector('p.invisible')).not.toBeInTheDocument()
     consoleError.mockRestore()
   })
 

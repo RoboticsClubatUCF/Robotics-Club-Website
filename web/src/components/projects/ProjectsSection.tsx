@@ -103,9 +103,15 @@ export function ProjectsSection() {
         <FormHeading>What we're building.</FormHeading>
       </div>
 
-      {term && (
-        <p className="text-primary mb-5 font-mono text-[11px] font-medium tracking-[0.16em] uppercase">
-          {termLabel(term)}
+      {/* Holds the line while loading, so the cards don't move down when the term arrives. */}
+      {(term || current.status === 'loading') && (
+        <p
+          aria-hidden={term ? undefined : true}
+          className={`text-primary mb-5 font-mono text-[11px] font-medium tracking-[0.16em] uppercase ${
+            term ? '' : 'invisible'
+          }`}
+        >
+          {term ? termLabel(term) : '\u00a0'}
         </p>
       )}
 
