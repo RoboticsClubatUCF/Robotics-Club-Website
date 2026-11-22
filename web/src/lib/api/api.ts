@@ -1062,6 +1062,8 @@ export type ApiPrintQueueItem = ApiPrintRequest & {
   allowance: ApiPrintAllowance | null
   /** A sliced plate's .3mf is ready to download, or null when there isn't one. */
   sliceFile: { layers: number | null; filamentMeters: number | null } | null
+  /** Goes on the picture's address. Null when the caller gets none or there's no mesh to draw. */
+  previewVersion: number | null
   /**
    * What the caller may do to this row, worked out by the server: `work` is start, finish and
    * the grams; `decline` refuses or stops it; `override` prints past the allowance. Officers

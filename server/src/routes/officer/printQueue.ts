@@ -29,6 +29,7 @@ import {
 } from '../../printing/printAllowance.js'
 import { deleteHeldFiles } from '../../printing/printLifecycle.js'
 import { printedColumns, printedSettings } from '../../printing/printSettings.js'
+import { hasPreview, printThumbnail } from '../../printing/printThumbnail.js'
 import { printSelect, withGrams } from '../member/print.js'
 
 /**
@@ -37,6 +38,7 @@ import { printSelect, withGrams } from '../member/print.js'
  *   GET    /api/officer/print-queue?status=&all=  -> the queue, as far as the caller may see it
  *   PATCH  /api/officer/print/:id                 -> move one through it, and record what it cost
  *   GET    /api/officer/print/:id/slice-file      -> a sliced filament plate's .3mf
+ *   GET    /api/officer/print/:id/thumbnail       -> a picture of the part
  *   GET    /api/officer/print-operators           -> the members an officer has let run the queue
  *   PUT    /api/officer/print-operators/:userId   -> let one in
  *   DELETE /api/officer/print-operators/:userId   -> take it back
@@ -129,6 +131,9 @@ const queueSelect = {
   user: { select: { fullName: true, email: true, discordUsername: true } },
   decidedBy: { select: { fullName: true } },
   slice: { select: { outputFileId: true, layerCount: true, filamentMeters: true } },
+  revision: true,
+  models: { select: { id: true, fileName: true, fileId: true, meshFileId: true } },
+  objects: { select: { modelId: true } },
 } as const
 
 /** Drafts are their owners' business until they're sent. */
@@ -200,25 +205,31 @@ printQueue.get(
     const allowances = await allowancesFor(personal)
 
     return c.json(
-      requests.map(({ userId, termYear, termSeason, slice, user: owner, ...request }) => ({
-        ...withGrams(request),
-        // Members' addresses are for the board; the rest of the row is what the job needs.
-        user: access.officer ? owner : { ...owner, email: null },
-        // Whether there's a .3mf to download, without handing out the file's id.
-        sliceFile: slice?.outputFileId
-          ? { layers: slice.layerCount, filamentMeters: slice.filamentMeters }
-          : null,
-        allowance:
-          request.project === null
-            ? (allowances.get(allowanceKey(userId, { termYear, termSeason })) ??
-              null)
+      requests.map(
+        ({ userId, termYear, termSeason, slice, user: owner, revision, models, objects, ...request }) => ({
+          ...withGrams(request),
+          // Members' addresses are for the board; the rest of the row is what the job needs.
+          user: access.officer ? owner : { ...owner, email: null },
+          // The plate's revision, so the picture's address changes with the plate. Null for a lead,
+          // who gets no files, and for a print with no mesh.
+          previewVersion:
+            access.operator && hasPreview({ ...request, models, objects }) ? revision : null,
+          // Whether there's a .3mf to download, without handing out the file's id.
+          sliceFile: slice?.outputFileId
+            ? { layers: slice.layerCount, filamentMeters: slice.filamentMeters }
             : null,
-        can: allowed(access, user, {
-          userId,
-          projectId: request.project?.id ?? null,
-          status: request.status,
+          allowance:
+            request.project === null
+              ? (allowances.get(allowanceKey(userId, { termYear, termSeason })) ??
+                null)
+              : null,
+          can: allowed(access, user, {
+            userId,
+            projectId: request.project?.id ?? null,
+            status: request.status,
+          }),
         }),
-      })),
+      ),
     )
   },
 )
@@ -462,6 +473,16 @@ printQueue.get('/print/:id/slice-file', requireAuth, requireQueueWorker, async (
   c.header('Content-Type', 'model/3mf')
   c.header('Content-Disposition', `attachment; filename="${name || 'plate'}.3mf"`)
   return c.body(new Uint8Array(file.data))
+})
+
+/** Cached by the caller's browser only: the address carries the revision it was drawn from. */
+printQueue.get('/print/:id/thumbnail', requireAuth, requireQueueWorker, async (c) => {
+  const png = await printThumbnail(c.req.param('id'))
+  if (!png) throw new HTTPException(404, { message: 'This print has no preview.' })
+
+  c.header('Cache-Control', 'private, max-age=86400')
+  c.header('Content-Type', 'image/png')
+  return c.body(new Uint8Array(png))
 })
 
 // -------------------------------------------------------------- operators

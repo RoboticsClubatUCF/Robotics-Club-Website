@@ -232,6 +232,70 @@ describe('who reaches the queue', () => {
   })
 })
 
+describe('the part preview', () => {
+  /** A waiting print with a one-triangle binary STL behind it. */
+  const withModel = async (owner: keyof typeof ids, extra: { projectId?: string } = {}) => {
+    const id = await print(owner, extra)
+    const stl = new Uint8Array(134)
+    const view = new DataView(stl.buffer)
+    view.setUint32(80, 1, true)
+    ;[0, 0, 0, 10, 0, 0, 0, 10, 0].forEach((value, index) => {
+      view.setFloat32(96 + index * 4, value, true)
+    })
+    const file = await prisma.storedFile.create({
+      data: {
+        kind: 'PRINT_MODEL',
+        mimeType: 'model/stl',
+        byteSize: stl.byteLength,
+        originalName: `${PREFIX}part.stl`,
+        data: stl,
+        createdById: ids[owner],
+      },
+      select: { id: true },
+    })
+    await prisma.printRequest.update({ where: { id }, data: { fileId: file.id } })
+    return id
+  }
+
+  const thumbnail = (id: string, who: keyof typeof ids) =>
+    app.request(`/api/officer/print/${id}/thumbnail?v=1`, { headers: { cookie: cookies[who] } })
+
+  const previewVersion = async (id: string, who: keyof typeof ids) => {
+    const { rows } = await queue(who)
+    const row = rows.find((candidate) => candidate.id === id) as unknown as
+      | { previewVersion: number | null }
+      | undefined
+    return row?.previewVersion
+  }
+
+  it('draws a PNG for whoever runs the printers', async () => {
+    const id = await withModel('member')
+
+    expect(await previewVersion(id, 'operator')).toBe(1)
+    const res = await thumbnail(id, 'operator')
+    expect(res.status).toBe(200)
+    expect(res.headers.get('Content-Type')).toBe('image/png')
+    expect(res.headers.get('Cache-Control')).toContain('private')
+  })
+
+  it('gives a project lead and a plain member no picture', async () => {
+    const id = await withModel('member', { projectId: ledProjectId })
+
+    expect(await previewVersion(id, 'lead')).toBeNull()
+    expect((await thumbnail(id, 'lead')).status).toBe(403)
+    expect((await thumbnail(id, 'plain')).status).toBe(403)
+  })
+
+  it('has none once the print is settled and its file is gone', async () => {
+    const id = await withModel('member')
+    // Drawn first, so a cached picture can't outlive the file.
+    expect((await thumbnail(id, 'officer')).status).toBe(200)
+    expect((await move(id, { status: 'DONE', gramsUsed: 1 }, 'officer')).status).toBe(200)
+
+    expect((await thumbnail(id, 'officer')).status).toBe(404)
+  })
+})
+
 describe('an operator', () => {
   it('puts somebody else’s print on the printer and finishes it', async () => {
     const id = await print('member')
