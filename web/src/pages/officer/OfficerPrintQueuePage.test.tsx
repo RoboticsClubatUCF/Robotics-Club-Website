@@ -72,8 +72,40 @@ const item = (over: Partial<ApiPrintQueueItem> = {}): ApiPrintQueueItem => ({
   decidedBy: null,
   allowance: allowance(),
   sliceFile: null,
+  previewVersion: null,
   can: { work: true, decline: true, override: true },
   ...over,
+})
+
+describe('the part preview', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('shows the picture, at the print’s revision', async () => {
+    vi.stubGlobal('fetch', stubFetch({ '/officer/print-queue': [item({ previewVersion: 3 })] }))
+    renderPage()
+
+    const image = await screen.findByRole('img', { name: 'Preview of bracket.stl' })
+    expect(image.getAttribute('src')).toContain('/api/officer/print/r1/thumbnail?v=3')
+  })
+
+  it('leaves the space out when there is no picture', async () => {
+    vi.stubGlobal('fetch', stubFetch({ '/officer/print-queue': [item()] }))
+    renderPage()
+
+    await screen.findByText('bracket.stl')
+    expect(screen.queryByRole('img', { name: /preview of/i })).toBeNull()
+  })
+
+  it('drops a picture that fails to load', async () => {
+    vi.stubGlobal('fetch', stubFetch({ '/officer/print-queue': [item({ previewVersion: 1 })] }))
+    renderPage()
+
+    fireEvent.error(await screen.findByRole('img', { name: 'Preview of bracket.stl' }))
+    expect(screen.queryByRole('img', { name: /preview of/i })).toBeNull()
+    expect(screen.getByText('bracket.stl')).toBeTruthy()
+  })
 })
 
 /** A job already on a printer, which is what turns DECLINE into a cancel. */

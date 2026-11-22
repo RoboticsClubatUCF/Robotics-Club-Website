@@ -6,6 +6,7 @@ import { dangerButton, loudButton, quietButton } from '../../components/dashboar
 import { PRINT_QUEUE_PAGES } from '../../lib/dashboard/subPages'
 import { DuesLocked } from '../../components/dashboard/DuesLocked'
 import { OfficerOnly } from '../../components/dashboard/OfficerOnly'
+import { PrintThumbnail } from '../../components/dashboard/PrintThumbnail'
 import { isOfficer, opensPrintQueue } from '../../lib/auth/session'
 import { duesLocked } from '../../lib/dues/dues'
 import type { DashboardContext } from '../../components/dashboard/DashboardLayout'
@@ -488,9 +489,9 @@ export function OfficerPrintQueuePage() {
             /* Jobs across as well as down. A queue row is a card — a filename, five lines of
                settings and a row of controls — and one card per screen-width was the worst of both:
                an officer working through a Sunday's requests could see two at a time on a monitor
-               with room for six. `items-start` so a job with a long note doesn't stretch its
-               neighbours. */
-            <ul className="grid-fluid items-start gap-4 [--col-min:28rem]">
+               with room for six. Columns are a set width, so a lone job doesn't span the page.
+               `items-start` so a job with a long note doesn't stretch its neighbours. */
+            <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,27rem),27rem))] items-start gap-4">
               {rows.map((request) => (
                 <QueueRow
                   key={request.id}
@@ -666,66 +667,79 @@ function QueueRow({
   const field = 'select border-rule bg-base-200 h-8 min-h-8 py-0 text-[12px]'
 
   return (
-    <li className="border-rule border p-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <span className="flex min-w-0 items-baseline gap-2">
-          <span className="min-w-0 truncate text-sm font-semibold">
-            {request.fileName}
-          </span>
-          {/* Next to the filename rather than down in the settings line: it
-              changes how the job is sliced, so it has to be seen before the
-              file is opened. Absent when it is one. */}
-          {plateCount(request) && (
-            <span className="text-primary shrink-0 font-mono text-[12px] font-semibold">
-              {plateCount(request)}
-            </span>
-          )}
-        </span>
-        <span
-          className={`${STATUS_TONE[label.tone]} font-mono text-[10px] font-medium tracking-[0.16em]`}
-        >
-          {label.text}
-        </span>
-      </div>
-
-      <p className="text-faint mt-0.5 font-mono text-[10px] font-medium tracking-[0.12em] uppercase">
-        {request.user.fullName}
-        {request.user.discordUsername && ` · @${request.user.discordUsername}`}
-        {' · '}
-        {fileSize(request.fileSize)} · {dateAndTime(request.submittedAt ?? request.createdAt)}
-      </p>
-
-      <p className="text-dim mt-1.5 font-mono text-[10px] font-medium tracking-[0.12em] uppercase">
-        {sliced ? slicedLine(request) : settingsLine(request)}
-        {sliced && request.estimatedGrams !== null && (
-          <>
-            {' · '}
-            <span className="text-base-content">
-              {duration(request.estimatedSeconds)}, {request.estimatedGrams.toFixed(1)} g
-            </span>
-          </>
+    <li className="border-rule min-w-0 border p-4">
+      <div className="flex items-start gap-3">
+        {request.previewVersion !== null && (
+          <PrintThumbnail
+            key={request.previewVersion}
+            id={request.id}
+            version={request.previewVersion}
+            fileName={request.fileName}
+          />
         )}
-        {' · '}
-        {/* The word that decides whether anything is deducted. Spelled out
-            rather than left as an absence. */}
-        <span className={request.project ? 'text-info' : ''}>
-          {request.project ? request.project.title : 'Personal'}
-        </span>
-      </p>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <span className="flex min-w-0 items-baseline gap-2">
+              {/* Wrapped on a phone: the name is how a print gets matched to its part. */}
+              <span className="wide:truncate min-w-0 text-sm font-semibold [overflow-wrap:anywhere]">
+                {request.fileName}
+              </span>
+              {/* Next to the filename rather than down in the settings line: it
+                  changes how the job is sliced, so it has to be seen before the
+                  file is opened. Absent when it is one. */}
+              {plateCount(request) && (
+                <span className="text-primary shrink-0 font-mono text-[12px] font-semibold">
+                  {plateCount(request)}
+                </span>
+              )}
+            </span>
+            <span
+              className={`${STATUS_TONE[label.tone]} font-mono text-[10px] font-medium tracking-[0.16em]`}
+            >
+              {label.text}
+            </span>
+          </div>
 
-      {/* Whose grams, and how many are left. Only on personal rows — a project
-          print is uncapped, and a balance beside one invites the officer to
-          weigh it against a budget it does not come out of. */}
-      {request.allowance && (
-        <p
-          className={`mt-0.5 font-mono text-[10px] font-medium tracking-[0.12em] uppercase ${
-            request.allowance.remainingGrams <= 0 ? 'text-error' : 'text-faint'
-          }`}
-        >
-          {grams(request.allowance.remainingGrams)} left of{' '}
-          {grams(request.allowance.limitGrams)} this semester
-        </p>
-      )}
+          <p className="text-faint mt-0.5 font-mono text-[10px] font-medium tracking-[0.12em] uppercase">
+            {request.user.fullName}
+            {request.user.discordUsername && ` · @${request.user.discordUsername}`}
+            {' · '}
+            {fileSize(request.fileSize)} · {dateAndTime(request.submittedAt ?? request.createdAt)}
+          </p>
+
+          <p className="text-dim mt-1.5 font-mono text-[10px] font-medium tracking-[0.12em] uppercase">
+            {sliced ? slicedLine(request) : settingsLine(request)}
+            {sliced && request.estimatedGrams !== null && (
+              <>
+                {' · '}
+                <span className="text-base-content">
+                  {duration(request.estimatedSeconds)}, {request.estimatedGrams.toFixed(1)} g
+                </span>
+              </>
+            )}
+            {' · '}
+            {/* The word that decides whether anything is deducted. Spelled out
+                rather than left as an absence. */}
+            <span className={request.project ? 'text-info' : ''}>
+              {request.project ? request.project.title : 'Personal'}
+            </span>
+          </p>
+
+          {/* Whose grams, and how many are left. Only on personal rows — a project
+              print is uncapped, and a balance beside one invites the officer to
+              weigh it against a budget it does not come out of. */}
+          {request.allowance && (
+            <p
+              className={`mt-0.5 font-mono text-[10px] font-medium tracking-[0.12em] uppercase ${
+                request.allowance.remainingGrams <= 0 ? 'text-error' : 'text-faint'
+              }`}
+            >
+              {grams(request.allowance.remainingGrams)} left of{' '}
+              {grams(request.allowance.limitGrams)} this semester
+            </p>
+          )}
+        </div>
+      </div>
 
       {request.notes && (
         <p className="text-dim mt-2 text-[13px] leading-[1.5] text-pretty">
